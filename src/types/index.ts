@@ -1,9 +1,26 @@
+export type ForumCategoryId =
+  | 'l2-protocols'
+  | 'l1-protocols'
+  | 'defi-lending'
+  | 'defi-dex'
+  | 'defi-staking'
+  | 'defi-other'
+  | 'major-daos'
+  | 'infrastructure'
+  | 'privacy'
+  | 'ai-crypto'
+  | 'ai-developer'
+  | 'governance-meta'
+  | 'custom';
+
 export interface Forum {
   id: string;
   cname: string;
   name: string;
   description?: string;
   logoUrl?: string;
+  token?: string;
+  category?: ForumCategoryId;
   discourseForum: {
     url: string;
     categoryId?: number;
