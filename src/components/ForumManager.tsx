@@ -28,6 +28,9 @@ import { Plus, Trash2, ExternalLink, ToggleLeft, ToggleRight, Loader2, CheckCirc
 import { Forum } from '@/types';
 import { ConfirmDialog } from './ConfirmDialog';
 import { normalizeUrl, isValidUrl } from '@/lib/url';
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 interface ForumManagerProps {
@@ -69,6 +72,7 @@ export function ForumManager({
   const [newCategoryId, setNewCategoryId] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(['l2-protocols', 'defi-lending', 'major-daos'])
@@ -101,6 +105,13 @@ export function ForumManager({
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 >>>>>>> Stashed changes
 
+=======
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationSuccess, setValidationSuccess] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+
+>>>>>>> Stashed changes
   const urlExists = (url: string) => {
     const normalized = normalizeUrl(url);
     return forums.some(f => normalizeUrl(f.discourseForum.url) === normalized);
@@ -108,6 +119,7 @@ export function ForumManager({
 
   const handleValidateAndAdd = async () => {
     if (!newUrl.trim()) return;
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 
     const name =
@@ -136,6 +148,62 @@ export function ForumManager({
     if (addedForumUrls.has(preset.url)) return;
 
 =======
+=======
+    
+    if (!isValidUrl(newUrl)) {
+      setValidationError('Please enter a valid URL (e.g., https://forum.example.com/)');
+      return;
+    }
+
+    const normalized = normalizeUrl(newUrl);
+    if (urlExists(normalized)) {
+      setValidationError('This forum has already been added');
+      return;
+    }
+
+    setIsValidating(true);
+    setValidationError(null);
+    setValidationSuccess(false);
+
+    try {
+      const response = await fetch(`/api/validate-discourse?url=${encodeURIComponent(normalized)}`);
+      const data = await response.json();
+
+      if (data.valid) {
+        setValidationSuccess(true);
+        const name = newName.trim() || data.name || new URL(normalized).hostname.replace('www.', '').split('.')[0];
+        const cname = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        
+        onAddForum({
+          cname,
+          name,
+          discourseForum: {
+            url: normalized,
+            categoryId: newCategoryId ? parseInt(newCategoryId, 10) : undefined,
+          },
+          isEnabled: true,
+        });
+        
+        setTimeout(() => {
+          setNewUrl('');
+          setNewName('');
+          setNewCategoryId('');
+          setIsAdding(false);
+          setValidationSuccess(false);
+        }, 500);
+      } else {
+        setValidationError(data.error || 'Could not verify this is a Discourse forum');
+      }
+    } catch {
+      setValidationError('Failed to validate forum URL. Please try again.');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleQuickAdd = (preset: typeof DEFAULT_FORUMS[0]) => {
+    if (urlExists(preset.url)) return;
+>>>>>>> Stashed changes
     
     if (!isValidUrl(newUrl)) {
       setValidationError('Please enter a valid URL (e.g., https://forum.example.com/)');
@@ -207,6 +275,7 @@ export function ForumManager({
     });
   };
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
   const handleAddAllInCategory = (categoryId: string) => {
     const category = FORUM_CATEGORIES.find((c) => c.id === categoryId);
@@ -369,6 +438,8 @@ export function ForumManager({
                     onClick={() => toggleCategory(category.id)}
                     className="flex items-center justify-between w-full p-4 text-left hover:bg-gray-800/50 transition-colors"
 =======
+=======
+>>>>>>> Stashed changes
   const handleDeleteClick = (forum: Forum) => {
     setDeleteConfirm({ id: forum.id, name: forum.name });
   };
@@ -537,6 +608,9 @@ export function ForumManager({
                     className="p-2 text-gray-500 hover:text-white transition-colors"
                     aria-label={forum.isEnabled ? `Disable ${forum.name} forum` : `Enable ${forum.name} forum`}
                     title={forum.isEnabled ? 'Disable' : 'Enable'}
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                   >
                     <div className="flex items-center gap-3">
@@ -629,13 +703,19 @@ export function ForumManager({
                   </button>
                   <button
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                     onClick={() => setIsAdding(false)}
                     className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
 =======
+=======
+>>>>>>> Stashed changes
                     onClick={() => handleDeleteClick(forum)}
                     className="p-2 text-gray-500 hover:text-red-400 transition-colors"
                     aria-label={`Remove ${forum.name} forum`}
                     title="Remove forum"
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                   >
                     Cancel
@@ -748,6 +828,9 @@ export function ForumManager({
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteConfirm(null)}
       />
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     </div>
   );
