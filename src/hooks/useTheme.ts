@@ -1,23 +1,29 @@
 'use client';
 
-import { useState, useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 type Theme = 'dark' | 'light';
 
 const THEME_KEY = 'gov-forum-watcher-theme';
 
-const emptySubscribe = () => () => {};
-const getServerSnapshot = (): Theme => 'dark';
-
-function getClientSnapshot(): Theme {
+function getStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'dark';
-  const stored = localStorage.getItem(THEME_KEY);
-  return (stored as Theme) || 'dark';
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    return (stored as Theme) || 'dark';
+  } catch {
+    return 'dark';
+  }
 }
 
 export function useTheme() {
-  const initialTheme = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
-  const [theme, setThemeState] = useState<Theme>(initialTheme);
+  const [theme, setThemeState] = useState<Theme>('dark');
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  if (typeof window !== 'undefined' && !isHydrated) {
+    setThemeState(getStoredTheme());
+    setIsHydrated(true);
+  }
 
   useEffect(() => {
     const root = document.documentElement;

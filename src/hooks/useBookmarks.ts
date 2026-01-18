@@ -1,23 +1,28 @@
 'use client';
 
-import { useState, useCallback, useSyncExternalStore } from 'react';
+import { useState, useCallback } from 'react';
 import { Bookmark } from '@/types';
-import { v4 as uuidv4 } from 'uuid';
 
 const BOOKMARKS_KEY = 'gov-forum-watcher-bookmarks';
 
-const emptySubscribe = () => () => {};
-const getServerSnapshot = (): Bookmark[] => [];
-
-function getClientSnapshot(): Bookmark[] {
+function getStoredBookmarks(): Bookmark[] {
   if (typeof window === 'undefined') return [];
-  const stored = localStorage.getItem(BOOKMARKS_KEY);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(BOOKMARKS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function useBookmarks() {
-  const initialBookmarks = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => getStoredBookmarks());
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  if (typeof window !== 'undefined' && !isHydrated) {
+    setBookmarks(getStoredBookmarks());
+    setIsHydrated(true);
+  }
 
   const saveBookmarks = useCallback((newBookmarks: Bookmark[]) => {
     setBookmarks(newBookmarks);
@@ -36,7 +41,7 @@ export function useBookmarks() {
     if (exists) return;
 
     const newBookmark: Bookmark = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       topicRefId: topic.refId,
       topicTitle: topic.title,
       topicUrl: topic.forumUrl,
