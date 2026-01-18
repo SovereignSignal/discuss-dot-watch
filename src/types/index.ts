@@ -58,6 +58,17 @@ export interface KeywordAlert {
   isEnabled: boolean;
 }
 
+export type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
+
+export interface Bookmark {
+  id: string;
+  topicRefId: string;
+  topicTitle: string;
+  topicUrl: string;
+  protocol: string;
+  createdAt: string;
+}
+
 export interface DiscourseTopicResponse {
   id: number;
   title: string;

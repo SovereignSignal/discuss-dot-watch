@@ -1,12 +1,14 @@
 'use client';
 
 import { format, isToday, isYesterday } from 'date-fns';
-import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive } from 'lucide-react';
+import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert } from '@/types';
 
 interface DiscussionItemProps {
   topic: DiscussionTopic;
   alerts: KeywordAlert[];
+  isBookmarked?: boolean;
+  onToggleBookmark?: (topic: DiscussionTopic) => void;
 }
 
 function formatTimestamp(dateString: string): string {
@@ -37,22 +39,30 @@ function highlightKeywords(text: string, alerts: KeywordAlert[]): React.ReactNod
   });
 }
 
-export function DiscussionItem({ topic, alerts }: DiscussionItemProps) {
+export function DiscussionItem({ topic, alerts, isBookmarked, onToggleBookmark }: DiscussionItemProps) {
   const topicUrl = `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
   const hasMatchingKeyword = alerts.some(a => 
     a.isEnabled && topic.title.toLowerCase().includes(a.keyword.toLowerCase())
   );
 
+  const handleBookmarkClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleBookmark?.(topic);
+  };
+
   return (
-    <a
-      href={topicUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`block p-4 border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${
+    <div
+      className={`relative p-4 border-b border-gray-800 dark:border-gray-800 hover:bg-gray-800/50 dark:hover:bg-gray-800/50 transition-colors ${
         hasMatchingKeyword ? 'bg-yellow-900/10 border-l-2 border-l-yellow-500' : ''
       }`}
     >
-      <div className="flex items-start gap-3">
+      <a
+        href={topicUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-start gap-3"
+      >
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center overflow-hidden">
           {topic.imageUrl ? (
             <img 
@@ -82,7 +92,7 @@ export function DiscussionItem({ topic, alerts }: DiscussionItemProps) {
             {topic.archived && <Archive className="w-3 h-3 text-gray-500" />}
           </div>
           
-          <h3 className="text-white font-medium mb-2 line-clamp-2">
+          <h3 className="text-white dark:text-white font-medium mb-2 line-clamp-2">
             {highlightKeywords(topic.title, alerts)}
           </h3>
           
@@ -113,7 +123,26 @@ export function DiscussionItem({ topic, alerts }: DiscussionItemProps) {
             )}
           </div>
         </div>
-      </div>
-    </a>
+      </a>
+      
+      {onToggleBookmark && (
+        <button
+          onClick={handleBookmarkClick}
+          className={`absolute top-4 right-4 p-1.5 rounded-lg transition-colors ${
+            isBookmarked
+              ? 'text-indigo-400 bg-indigo-400/10 hover:bg-indigo-400/20'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'
+          }`}
+          aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
+          title={isBookmarked ? 'Remove bookmark' : 'Save for later'}
+        >
+          {isBookmarked ? (
+            <BookmarkCheck className="w-4 h-4" />
+          ) : (
+            <Bookmark className="w-4 h-4" />
+          )}
+        </button>
+      )}
+    </div>
   );
 }

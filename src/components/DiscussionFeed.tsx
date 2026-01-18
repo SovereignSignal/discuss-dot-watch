@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { RefreshCw, AlertCircle, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { DiscussionTopic, KeywordAlert } from '@/types';
+import { DiscussionTopic, KeywordAlert, DateRangeFilter, Forum } from '@/types';
 import { DiscussionItem } from './DiscussionItem';
+import { FeedFilters } from './FeedFilters';
 import { ForumLoadingState } from '@/hooks/useDiscussions';
-import { format } from 'date-fns';
+import { format, isToday, isThisWeek, isThisMonth } from 'date-fns';
 
 interface DiscussionFeedProps {
   discussions: DiscussionTopic[];
@@ -18,6 +19,9 @@ interface DiscussionFeedProps {
   filterMode: 'all' | 'your';
   enabledForumIds: string[];
   forumStates: ForumLoadingState[];
+  forums: Forum[];
+  isBookmarked: (refId: string) => boolean;
+  onToggleBookmark: (topic: DiscussionTopic) => void;
 }
 
 export function DiscussionFeed({
@@ -31,21 +35,46 @@ export function DiscussionFeed({
   filterMode: _filterMode,
   enabledForumIds,
   forumStates,
+  forums,
+  isBookmarked,
+  onToggleBookmark,
 }: DiscussionFeedProps) {
   void _filterMode;
   const [displayCount, setDisplayCount] = useState(20);
+  const [dateRange, setDateRange] = useState<DateRangeFilter>('all');
+  const [selectedForumId, setSelectedForumId] = useState<string | null>(null);
 
-  const filteredDiscussions = discussions.filter(topic => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = 
-        topic.title.toLowerCase().includes(query) ||
-        topic.protocol.toLowerCase().includes(query) ||
-        topic.tags.some(tag => tag.toLowerCase().includes(query));
-      if (!matchesSearch) return false;
-    }
-    return true;
-  });
+  const filteredDiscussions = useMemo(() => {
+    return discussions.filter(topic => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = 
+          topic.title.toLowerCase().includes(query) ||
+          topic.protocol.toLowerCase().includes(query) ||
+          topic.tags.some(tag => tag.toLowerCase().includes(query));
+        if (!matchesSearch) return false;
+      }
+
+      // Date range filter
+      if (dateRange !== 'all') {
+        const topicDate = new Date(topic.bumpedAt);
+        if (dateRange === 'today' && !isToday(topicDate)) return false;
+        if (dateRange === 'week' && !isThisWeek(topicDate)) return false;
+        if (dateRange === 'month' && !isThisMonth(topicDate)) return false;
+      }
+
+      // Forum source filter
+      if (selectedForumId) {
+        const forum = forums.find(f => f.id === selectedForumId);
+        if (forum && topic.protocol.toLowerCase() !== forum.name.toLowerCase()) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [discussions, searchQuery, dateRange, selectedForumId, forums]);
 
   const displayedDiscussions = filteredDiscussions.slice(0, displayCount);
   const hasMore = displayCount < filteredDiscussions.length;
@@ -55,7 +84,7 @@ export function DiscussionFeed({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-900">
+    <div className="flex-1 flex flex-col bg-gray-900 dark:bg-gray-900">
       <div className="flex items-center justify-between p-4 border-b border-gray-800">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold text-white">Discussions</h2>
@@ -75,6 +104,14 @@ export function DiscussionFeed({
           {isLoading ? 'Loading...' : 'Refresh'}
         </button>
       </div>
+
+      <FeedFilters
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        selectedForumId={selectedForumId}
+        onForumFilterChange={setSelectedForumId}
+        forums={forums.filter(f => f.isEnabled)}
+      />
 
       {error && (
         <div className="p-4 bg-red-900/20 border-b border-red-800">
@@ -141,7 +178,13 @@ export function DiscussionFeed({
         ) : (
           <>
             {displayedDiscussions.map(topic => (
-              <DiscussionItem key={topic.refId} topic={topic} alerts={alerts} />
+              <DiscussionItem 
+                key={topic.refId} 
+                topic={topic} 
+                alerts={alerts}
+                isBookmarked={isBookmarked(topic.refId)}
+                onToggleBookmark={onToggleBookmark}
+              />
             ))}
             {hasMore && (
               <div className="p-4 flex justify-center">
