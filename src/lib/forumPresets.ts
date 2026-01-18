@@ -148,6 +148,34 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
       },
       {
+        name: 'Polkadot',
+        url: 'https://forum.polkadot.network/',
+        description: 'OpenGov referenda and parachain discussions; 400+ governance topics',
+        token: 'DOT',
+        tier: 1,
+      },
+      {
+        name: 'Cardano',
+        url: 'https://forum.cardano.org/',
+        description: 'CIPs and Catalyst project governance',
+        token: 'ADA',
+        tier: 1,
+      },
+      {
+        name: 'Solana',
+        url: 'https://forum.solana.com/',
+        description: 'SIMD proposals and validator policies; on-chain voting',
+        token: 'SOL',
+        tier: 1,
+      },
+      {
+        name: 'Tezos Agora',
+        url: 'https://forum.tezosagora.org/',
+        description: 'Protocol amendments; 69+ on-chain proposals discussed',
+        token: 'XTZ',
+        tier: 2,
+      },
+      {
         name: 'Sui',
         url: 'https://forums.sui.io/',
         description: 'Developer forum; governance evolving',
@@ -187,6 +215,13 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         name: 'Sky (MakerDAO)',
         url: 'https://forum.sky.money/',
         description: 'Rebranded from Maker; Endgame transition discussions',
+        token: 'MKR',
+        tier: 1,
+      },
+      {
+        name: 'MakerDAO (Legacy)',
+        url: 'https://forum.makerdao.com/',
+        description: 'Original Maker forum; MIPs, DAI policy, risk parameters',
         token: 'MKR',
         tier: 1,
       },
@@ -289,6 +324,13 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
       },
       {
+        name: 'Bancor',
+        url: 'https://gov.bancor.network/',
+        description: 'Liquidity protocol; whitelisting assets and treasury management',
+        token: 'BNT',
+        tier: 2,
+      },
+      {
         name: '1inch',
         url: 'https://gov.1inch.io/',
         description: 'DEX aggregator with 1IP proposals',
@@ -328,8 +370,15 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
   {
     id: 'defi-other',
     name: 'DeFi - Stablecoins & Other',
-    description: 'Stablecoins, RWA, and other DeFi protocols',
+    description: 'Stablecoins, RWA, yield aggregators, and other DeFi protocols',
     forums: [
+      {
+        name: 'Yearn Finance',
+        url: 'https://gov.yearn.fi/',
+        description: 'Yield aggregator; YIP proposals and vault strategies',
+        token: 'YFI',
+        tier: 1,
+      },
       {
         name: 'Frax Finance',
         url: 'https://gov.frax.finance/',
