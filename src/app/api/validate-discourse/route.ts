@@ -39,10 +39,27 @@ export async function GET(request: NextRequest) {
 
     // Helper to validate and clean forum name
     const cleanForumName = (name: string | undefined, fallbackUrl: string): string => {
-      if (!name || name.toLowerCase() === 'forum' || name.toLowerCase() === 'discourse') {
+      if (!name) return getNameFromHostname(fallbackUrl);
+      
+      const lowerName = name.toLowerCase().trim();
+      // Check for generic names that should be replaced
+      const genericNames = ['forum', 'discourse', 'community', 'home', 'welcome'];
+      if (genericNames.some(g => lowerName === g || lowerName.startsWith(g + ' ') || lowerName.endsWith(' ' + g))) {
         return getNameFromHostname(fallbackUrl);
       }
-      return name;
+      
+      // Clean up common patterns like "Forum - SiteName" or "SiteName Forum"
+      const cleaned = name
+        .replace(/^(forum|discourse|community)\s*[-–—:]\s*/i, '')
+        .replace(/\s*[-–—:]\s*(forum|discourse|community)$/i, '')
+        .replace(/\s+(forum|discourse|community)$/i, '')
+        .trim();
+      
+      if (!cleaned || cleaned.toLowerCase() === 'forum') {
+        return getNameFromHostname(fallbackUrl);
+      }
+      
+      return cleaned;
     };
 
     // Try /site.json first (most reliable for Discourse detection)

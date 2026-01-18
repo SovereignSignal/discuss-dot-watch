@@ -538,7 +538,7 @@ export function ForumManager({
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <Tooltip content={`Open ${forum.name}`} position="top">
+                    <Tooltip content={`Open ${forum.name}`}>
                       <a
                         href={forum.discourseForum.url}
                         target="_blank"
@@ -549,7 +549,7 @@ export function ForumManager({
                         <ExternalLink className="w-4 h-4" />
                       </a>
                     </Tooltip>
-                    <Tooltip content={forum.isEnabled ? 'Disable' : 'Enable'} position="top">
+                    <Tooltip content={forum.isEnabled ? 'Disable' : 'Enable'}>
                       <button
                         onClick={() => onToggleForum(forum.id)}
                         className="p-2 text-gray-500 hover:text-white transition-colors"
@@ -562,7 +562,7 @@ export function ForumManager({
                         )}
                       </button>
                     </Tooltip>
-                    <Tooltip content="Remove" position="top">
+                    <Tooltip content="Remove">
                       <button
                         onClick={() => handleDeleteClick(forum)}
                         className="p-2 text-gray-500 hover:text-red-400 transition-colors"

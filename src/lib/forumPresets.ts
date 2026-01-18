@@ -703,7 +703,8 @@ export function getTotalForumCount(): number {
  * Search forums by name or description
  */
 export function searchForums(query: string): ForumPreset[] {
-  const lowerQuery = query.toLowerCase();
+  // Strip $ prefix from query to support token symbol searches like "$ARB"
+  const lowerQuery = query.toLowerCase().replace(/^\$/, '');
   return ALL_FORUM_PRESETS.filter(
     (forum) =>
       forum.name.toLowerCase().includes(lowerQuery) ||

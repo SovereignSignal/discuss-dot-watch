@@ -1,50 +1,64 @@
 'use client';
 
-import { useState, ReactNode } from 'react';
+import { useState, ReactNode, useRef, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 
 interface TooltipProps {
   content: string;
   children: ReactNode;
-  position?: 'top' | 'bottom' | 'left' | 'right';
 }
 
-export function Tooltip({ content, children, position = 'top' }: TooltipProps) {
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
+export function Tooltip({ content, children }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLDivElement>(null);
+  
+  const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
-  const positionClasses = {
-    top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-    bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
-    left: 'right-full top-1/2 -translate-y-1/2 mr-2',
-    right: 'left-full top-1/2 -translate-y-1/2 ml-2',
+  const updatePosition = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.top - 8,
+        left: rect.left + rect.width / 2,
+      });
+    }
   };
 
-  const arrowClasses = {
-    top: 'top-full left-1/2 -translate-x-1/2 border-t-gray-900 border-x-transparent border-b-transparent',
-    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-gray-900 border-x-transparent border-t-transparent',
-    left: 'left-full top-1/2 -translate-y-1/2 border-l-gray-900 border-y-transparent border-r-transparent',
-    right: 'right-full top-1/2 -translate-y-1/2 border-r-gray-900 border-y-transparent border-l-transparent',
+  const handleMouseEnter = () => {
+    updatePosition();
+    setIsVisible(true);
   };
+
+  const tooltip = isVisible && isClient ? createPortal(
+    <div
+      className="fixed z-[9999] px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded shadow-lg whitespace-nowrap pointer-events-none -translate-x-1/2 -translate-y-full"
+      style={{ top: position.top, left: position.left }}
+      role="tooltip"
+    >
+      {content}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-4 border-t-gray-900 border-x-transparent border-b-transparent" />
+    </div>,
+    document.body
+  ) : null;
 
   return (
-    <div
-      className="relative inline-flex"
-      onMouseEnter={() => setIsVisible(true)}
-      onMouseLeave={() => setIsVisible(false)}
-      onFocus={() => setIsVisible(true)}
-      onBlur={() => setIsVisible(false)}
-    >
-      {children}
-      {isVisible && (
-        <div
-          className={`absolute z-50 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded shadow-lg whitespace-nowrap pointer-events-none ${positionClasses[position]}`}
-          role="tooltip"
-        >
-          {content}
-          <div
-            className={`absolute w-0 h-0 border-4 ${arrowClasses[position]}`}
-          />
-        </div>
-      )}
-    </div>
+    <>
+      <div
+        ref={triggerRef}
+        className="inline-flex"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setIsVisible(false)}
+        onFocus={handleMouseEnter}
+        onBlur={() => setIsVisible(false)}
+      >
+        {children}
+      </div>
+      {tooltip}
+    </>
   );
 }
