@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+/* Dark theme (default) */
+html, html.dark {
   --background: #0a0a0a;
   --foreground: #ededed;
   --card-bg: #111827;
@@ -12,16 +13,17 @@
   --text-muted: #6b7280;
 }
 
-:root.light {
-  --background: #f3f4f6;
-  --foreground: #111827;
-  --card-bg: #ffffff;
-  --card-border: #e5e7eb;
-  --sidebar-bg: #ffffff;
-  --header-bg: #f9fafb;
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #6b7280;
+/* Light theme */
+html.light {
+  --background: #f3f4f6 !important;
+  --foreground: #111827 !important;
+  --card-bg: #ffffff !important;
+  --card-border: #e5e7eb !important;
+  --sidebar-bg: #ffffff !important;
+  --header-bg: #f9fafb !important;
+  --text-primary: #111827 !important;
+  --text-secondary: #4b5563 !important;
+  --text-muted: #6b7280 !important;
 }
 
 @theme inline {
@@ -32,34 +34,34 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
   font-family: Arial, Helvetica, sans-serif;
 }
 
 /* Theme-aware component styles */
 .theme-bg {
-  background-color: var(--background);
+  background-color: var(--background) !important;
 }
 
 .theme-card {
-  background-color: var(--card-bg);
-  border-color: var(--card-border);
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
 }
 
 .theme-sidebar {
-  background-color: var(--sidebar-bg);
-  border-color: var(--card-border);
+  background-color: var(--sidebar-bg) !important;
+  border-color: var(--card-border) !important;
 }
 
 .theme-text {
-  color: var(--text-primary);
+  color: var(--text-primary) !important;
 }
 
 .theme-text-secondary {
-  color: var(--text-secondary);
+  color: var(--text-secondary) !important;
 }
 
 .theme-text-muted {
-  color: var(--text-muted);
+  color: var(--text-muted) !important;
 }

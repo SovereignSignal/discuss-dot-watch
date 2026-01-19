@@ -4,12 +4,58 @@ import { useState, useCallback } from 'react';
 import { Bookmark } from '@/types';
 
 const BOOKMARKS_KEY = 'gov-forum-watcher-bookmarks';
+const MIGRATION_KEY = 'gov-forum-watcher-bookmarks-migrated-v1';
+
+// Helper to create a slug from title
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 50);
+}
+
+// Migrate old bookmarks that have base-domain-only URLs
+function migrateBookmarks(bookmarks: Bookmark[]): Bookmark[] {
+  if (typeof window === 'undefined') return bookmarks;
+  
+  // Check if already migrated
+  if (localStorage.getItem(MIGRATION_KEY)) return bookmarks;
+  
+  let needsSave = false;
+  const migrated = bookmarks.map(bookmark => {
+    // Check if URL is missing the /t/ path (base domain only)
+    if (!bookmark.topicUrl.includes('/t/')) {
+      // Extract topic ID from refId (format: "protocol-topicId")
+      const refParts = bookmark.topicRefId.split('-');
+      const topicId = refParts[refParts.length - 1];
+      
+      if (topicId && !isNaN(Number(topicId))) {
+        const slug = slugify(bookmark.topicTitle);
+        bookmark.topicUrl = `${bookmark.topicUrl}/t/${slug}/${topicId}`;
+        needsSave = true;
+      }
+    }
+    return bookmark;
+  });
+  
+  // Mark as migrated
+  localStorage.setItem(MIGRATION_KEY, 'true');
+  
+  // Save migrated bookmarks if any were changed
+  if (needsSave) {
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(migrated));
+  }
+  
+  return migrated;
+}
 
 function getStoredBookmarks(): Bookmark[] {
   if (typeof window === 'undefined') return [];
   try {
     const stored = localStorage.getItem(BOOKMARKS_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const bookmarks = stored ? JSON.parse(stored) : [];
+    return migrateBookmarks(bookmarks);
   } catch {
     return [];
   }
