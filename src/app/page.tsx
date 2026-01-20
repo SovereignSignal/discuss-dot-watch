@@ -18,6 +18,8 @@ export default function Home() {
   const [activeView, setActiveView] = useState<'feed' | 'projects' | 'saved' | 'settings'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'your'>('your');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileAlertsOpen, setIsMobileAlertsOpen] = useState(false);
   
   const { forums, enabledForums, addForum, removeForum, toggleForum } = useForums();
   const { discussions, isLoading, error, lastUpdated, forumStates, refresh } = useDiscussions(enabledForums);
@@ -40,13 +42,15 @@ export default function Home() {
   }, [enabledForums.length, discussions.length, isLoading, refresh]);
 
   return (
-    <div className="flex h-screen overflow-hidden theme-bg theme-text">
+    <div className="flex h-screen overflow-hidden theme-bg theme-text pt-14 md:pt-0">
       <Sidebar 
         activeView={activeView} 
         onViewChange={setActiveView}
         theme={theme}
         onToggleTheme={toggleTheme}
         savedCount={bookmarks.length}
+        isMobileOpen={isMobileMenuOpen}
+        onMobileToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       />
       
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -84,6 +88,8 @@ export default function Home() {
                 onAddAlert={addAlert}
                 onRemoveAlert={removeAlert}
                 onToggleAlert={toggleAlert}
+                isMobileOpen={isMobileAlertsOpen}
+                onMobileToggle={() => setIsMobileAlertsOpen(!isMobileAlertsOpen)}
               />
             </>
           )}

@@ -11,6 +11,8 @@ interface RightSidebarProps {
   onAddAlert: (keyword: string) => void;
   onRemoveAlert: (id: string) => void;
   onToggleAlert: (id: string) => void;
+  isMobileOpen: boolean;
+  onMobileToggle: () => void;
 }
 
 export function RightSidebar({
@@ -20,6 +22,8 @@ export function RightSidebar({
   onAddAlert,
   onRemoveAlert,
   onToggleAlert,
+  isMobileOpen,
+  onMobileToggle,
 }: RightSidebarProps) {
   const [newKeyword, setNewKeyword] = useState('');
 
@@ -36,7 +40,34 @@ export function RightSidebar({
   };
 
   return (
-    <aside className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col h-full">
+    <>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={onMobileToggle}
+          aria-hidden="true"
+        />
+      )}
+      
+      {/* Mobile toggle button */}
+      <button
+        onClick={onMobileToggle}
+        className="md:hidden fixed bottom-4 right-4 z-30 p-3 bg-indigo-600 text-white rounded-full shadow-lg"
+        aria-label={isMobileOpen ? 'Close search & alerts' : 'Open search & alerts'}
+      >
+        {isMobileOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+      </button>
+
+      <aside className={`
+        fixed md:relative
+        w-80 bg-gray-900 border-l border-gray-800 flex flex-col h-full
+        z-50 md:z-auto
+        transition-transform duration-300 ease-in-out
+        ${isMobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+        right-0 top-14 md:top-0
+        max-h-[calc(100vh-3.5rem)] md:max-h-full
+      `}>
       <div className="p-4 border-b border-gray-800">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" aria-hidden="true" />
@@ -145,5 +176,6 @@ export function RightSidebar({
         </div>
       </div>
     </aside>
+    </>
   );
 }
