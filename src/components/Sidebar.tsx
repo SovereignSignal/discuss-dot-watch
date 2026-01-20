@@ -28,27 +28,25 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedC
   return (
     <>
       {/* Mobile Header Bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-3 theme-sidebar border-b" style={{ borderColor: 'var(--card-border)' }}>
-        <div className="flex items-center gap-2">
-          <Bell className="w-5 h-5 text-indigo-500" />
-          <span className="font-semibold theme-text">Gov Watch</span>
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-2 py-2 theme-sidebar border-b" style={{ borderColor: 'var(--card-border)' }}>
+        <button
+          onClick={onMobileToggle}
+          className="p-2 theme-text-secondary rounded-lg flex-shrink-0"
+          aria-label={isMobileOpen ? 'Close menu' : 'Open menu'}
+        >
+          {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+        <div className="flex items-center gap-1 min-w-0">
+          <Bell className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+          <span className="font-semibold theme-text text-sm truncate">Gov Watch</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onToggleTheme}
-            className="p-2 theme-text-secondary rounded-lg"
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
-          <button
-            onClick={onMobileToggle}
-            className="p-2 theme-text-secondary rounded-lg"
-            aria-label={isMobileOpen ? 'Close menu' : 'Open menu'}
-          >
-            {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
+        <button
+          onClick={onToggleTheme}
+          className="p-2 theme-text-secondary rounded-lg flex-shrink-0"
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </button>
       </div>
 
       {/* Mobile Overlay */}
