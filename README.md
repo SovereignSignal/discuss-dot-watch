@@ -14,6 +14,7 @@ A unified interface for aggregating and monitoring governance discussions from D
 - **Dark/Light Theme** - Toggle between dark and light modes with preference persistence
 - **Bookmark Discussions** - Save important discussions for later reference
 - **Advanced Filtering** - Filter by date range (Today, This Week, This Month) and forum source
+- **Mobile Responsive** - Collapsible sidebar with hamburger menu, floating search button on mobile
 - **Privacy-First** - All data stored locally in browser; no external database
 
 ## Supported Forums
@@ -59,7 +60,7 @@ src/
 │   ├── page.tsx            # Main page
 │   └── layout.tsx          # Root layout
 ├── components/             # React components (8 total)
-├── hooks/                  # Custom hooks (useForums, useDiscussions, useAlerts)
+├── hooks/                  # Custom hooks (useForums, useDiscussions, useAlerts, useTheme, useBookmarks)
 ├── lib/                    # Utilities (storage, URL handling, forum presets)
 └── types/                  # TypeScript interfaces
 ```
@@ -79,6 +80,8 @@ All configuration is stored in browser localStorage:
 
 - **Forums**: Your added/enabled forum configurations
 - **Alerts**: Your keyword alert settings
+- **Bookmarks**: Your saved discussions
+- **Theme**: Your dark/light mode preference
 
 No data is sent to external servers except for fetching discussions directly from the configured Discourse forums.
 

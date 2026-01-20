@@ -11,6 +11,9 @@ This document provides essential context for AI assistants working with this cod
 - Unified discussion feed with search and filtering
 - Keyword alerts with highlighting
 - Forum management (add/remove/enable/disable)
+- Dark/light theme toggle with persistence
+- Discussion bookmarking with dedicated "Saved" view
+- Mobile responsive layout with collapsible sidebars
 - Client-side only - no backend database, uses browser localStorage
 
 ## Tech Stack
@@ -47,8 +50,8 @@ src/
 │   ├── FeedFilters.tsx           # Date range and forum source filters
 │   ├── FilterTabs.tsx            # Tab filter component (All/Your Forums)
 │   ├── ForumManager.tsx          # Forum management UI with preset directory
-│   ├── RightSidebar.tsx          # Search and keyword alerts sidebar
-│   ├── Sidebar.tsx               # Left navigation with theme toggle
+│   ├── RightSidebar.tsx          # Search and keyword alerts sidebar (mobile: slide-in panel)
+│   ├── Sidebar.tsx               # Left navigation with theme toggle (mobile: hamburger menu)
 │   └── Tooltip.tsx               # Reusable tooltip component
 ├── hooks/                        # Custom React hooks
 │   ├── useAlerts.ts              # Keyword alerts state with localStorage
@@ -308,8 +311,8 @@ import {
 | `FeedFilters` | Date range and forum source filters | `dateRange`, `forumFilter`, `onDateRangeChange`, `onForumFilterChange`, `forums` |
 | `FilterTabs` | Toggle between "All" and "Your Forums" | `filterMode`, `onFilterChange`, `totalCount`, `enabledCount` |
 | `ForumManager` | Full forum management UI with presets | `forums`, `onAddForum`, `onRemoveForum`, `onToggleForum` |
-| `RightSidebar` | Search input and keyword alerts panel | `searchQuery`, `onSearchChange`, `alerts`, `onAddAlert` |
-| `Sidebar` | Left navigation (Feed/Projects/Settings) | `activeView`, `onViewChange` |
+| `RightSidebar` | Search input and keyword alerts panel | `searchQuery`, `onSearchChange`, `alerts`, `onAddAlert`, `isMobileOpen`, `onMobileToggle` |
+| `Sidebar` | Left navigation (Feed/Projects/Settings) | `activeView`, `onViewChange`, `isMobileOpen`, `onMobileToggle` |
 | `Tooltip` | Hover tooltip wrapper | `content`, `children`, `position` |
 
 ## Hook Reference
@@ -474,6 +477,7 @@ The following features have been implemented:
 3. **Date Range Filtering** - Filter by Today, This Week, This Month, All Time
 4. **Forum Source Filtering** - Filter discussions by specific forum
 5. **Custom Favicon** - Purple bell icon with notification dot (`/icon.svg`)
+6. **Mobile Responsive Layout** - Hamburger menu, floating search button, slide-in panels
 
 ## Known Patterns and Gotchas
 
@@ -493,3 +497,17 @@ Because components use hardcoded Tailwind classes like `bg-gray-900`, the light 
 ### Bookmark URL Format
 Bookmark URLs must be full topic URLs: `{forumUrl}/t/{slug}/{topicId}`
 The migration system ensures old bookmarks with incomplete URLs are fixed on app load.
+
+### Mobile Responsive Layout
+The app uses Tailwind's `md:` breakpoint (768px) for responsive behavior:
+- **Desktop (≥768px)**: Both sidebars always visible, three-column layout
+- **Mobile (<768px)**: Fixed header bar with hamburger menu (left) and theme toggle (right), collapsible left sidebar slides in from left, floating purple search button (bottom-right) opens right sidebar panel
+
+Mobile state is managed in `page.tsx` with `isMobileMenuOpen` and `isMobileAlertsOpen` state variables passed to `Sidebar` and `RightSidebar` components.
+
+Key CSS classes used:
+- `md:hidden` - Show only on mobile
+- `hidden md:block` - Show only on desktop
+- `-translate-x-full md:translate-x-0` - Hide left sidebar on mobile, show on desktop
+- `translate-x-full md:translate-x-0` - Hide right sidebar on mobile, show on desktop
+- `fixed` with `z-50` - Overlay panels on mobile
