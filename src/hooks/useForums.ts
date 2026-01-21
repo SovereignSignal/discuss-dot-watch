@@ -19,15 +19,12 @@ export function useForums() {
   }, []);
 
   const removeForum = useCallback((id: string) => {
-    console.log('removeForum called with id:', id);
-    console.log('Current forums:', forums.map(f => ({ id: f.id, name: f.name })));
     const success = removeForumFromStorage(id);
-    console.log('removeForumFromStorage returned:', success);
     if (success) {
       setForums(prev => prev.filter(f => f.id !== id));
     }
     return success;
-  }, [forums]);
+  }, []);
 
   const toggleForum = useCallback((id: string) => {
     const updated = toggleForumInStorage(id);

@@ -133,10 +133,7 @@ export function DiscussionFeed({
               >
                 {state.forumName}
                 <button
-                  onClick={() => {
-                    console.log('Removing forum:', state.forumId, state.forumName);
-                    onRemoveForum(state.forumId);
-                  }}
+                  onClick={() => onRemoveForum(state.forumId)}
                   className="p-0.5 hover:bg-yellow-800/50 rounded"
                   title={`Remove ${state.forumName}`}
                 >
