@@ -16,7 +16,6 @@ interface DiscussionFeedProps {
   onRefresh: () => void;
   alerts: KeywordAlert[];
   searchQuery: string;
-  filterMode: 'all' | 'your';
   enabledForumIds: string[];
   forumStates: ForumLoadingState[];
   forums: Forum[];
@@ -32,14 +31,12 @@ export function DiscussionFeed({
   onRefresh,
   alerts,
   searchQuery,
-  filterMode: _filterMode,
   enabledForumIds,
   forumStates,
   forums,
   isBookmarked,
   onToggleBookmark,
 }: DiscussionFeedProps) {
-  void _filterMode;
   const [displayCount, setDisplayCount] = useState(20);
   const [dateRange, setDateRange] = useState<DateRangeFilter>('all');
   const [selectedForumId, setSelectedForumId] = useState<string | null>(null);
@@ -67,7 +64,7 @@ export function DiscussionFeed({
       // Forum source filter
       if (selectedForumId) {
         const forum = forums.find(f => f.id === selectedForumId);
-        if (forum && topic.protocol.toLowerCase() !== forum.name.toLowerCase()) {
+        if (forum && topic.protocol.toLowerCase() !== forum.cname.toLowerCase()) {
           return false;
         }
       }

@@ -1,20 +1,16 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Forum } from '@/types';
 import { getForums, saveForums, addForum as addForumToStorage, removeForum as removeForumFromStorage, toggleForum as toggleForumInStorage } from '@/lib/storage';
 
 export function useForums() {
+  // Use lazy initialization - this runs only on client after hydration
   const [forums, setForums] = useState<Forum[]>(() => {
+    // Only access localStorage on client side
     if (typeof window === 'undefined') return [];
     return getForums();
   });
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  if (typeof window !== 'undefined' && !isHydrated) {
-    setForums(getForums());
-    setIsHydrated(true);
-  }
 
   const addForum = useCallback((forum: Omit<Forum, 'id' | 'createdAt'>) => {
     const newForum = addForumToStorage(forum);
@@ -46,12 +42,12 @@ export function useForums() {
     });
   }, []);
 
-  const enabledForums = forums.filter(f => f.isEnabled);
+  // Memoize derived state to prevent unnecessary recalculations
+  const enabledForums = useMemo(() => forums.filter(f => f.isEnabled), [forums]);
 
   return {
     forums,
     enabledForums,
-    isLoading: !isHydrated,
     addForum,
     removeForum,
     toggleForum,

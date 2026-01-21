@@ -25,7 +25,7 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [forumStates, setForumStates] = useState<ForumLoadingState[]>([]);
-  const fetchInProgress = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchDiscussions = useCallback(async () => {
     const enabledForums = forums.filter(f => f.isEnabled);
@@ -35,10 +35,12 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
       return;
     }
 
-    if (fetchInProgress.current) {
-      return;
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-    fetchInProgress.current = true;
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     setIsLoading(true);
     setError(null);
@@ -63,22 +65,31 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
           }
 
           try {
-            const response = await fetch(`/api/discourse?${params.toString()}`);
+            const response = await fetch(`/api/discourse?${params.toString()}`, { signal });
             if (!response.ok) {
               throw new Error(`HTTP ${response.status}`);
             }
             const data = await response.json();
-            
-            setForumStates(prev => prev.map((s, i) => 
-              i === index ? { ...s, status: 'success' } : s
-            ));
-            
+
+            // Only update state if request wasn't aborted
+            if (!signal.aborted) {
+              setForumStates(prev => prev.map((s, i) =>
+                i === index ? { ...s, status: 'success' } : s
+              ));
+            }
+
             return data.topics as DiscussionTopic[];
           } catch (err) {
+            // Ignore abort errors
+            if (err instanceof Error && err.name === 'AbortError') {
+              throw err;
+            }
             const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-            setForumStates(prev => prev.map((s, i) => 
-              i === index ? { ...s, status: 'error', error: errorMsg } : s
-            ));
+            if (!signal.aborted) {
+              setForumStates(prev => prev.map((s, i) =>
+                i === index ? { ...s, status: 'error', error: errorMsg } : s
+              ));
+            }
             throw new Error(`${forum.name}: ${errorMsg}`);
           }
         })
@@ -96,20 +107,30 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
       });
 
       allTopics.sort((a, b) => new Date(b.bumpedAt).getTime() - new Date(a.bumpedAt).getTime());
-      
-      setDiscussions(allTopics);
-      setLastUpdated(new Date());
-      
-      if (errors.length > 0 && errors.length < enabledForums.length) {
-        setError(`Some forums failed: ${errors.join(', ')}`);
-      } else if (errors.length === enabledForums.length) {
-        setError('All forums failed to load. Please check your connections.');
+
+      // Only update state if request wasn't aborted
+      if (!signal.aborted) {
+        setDiscussions(allTopics);
+        setLastUpdated(new Date());
+
+        if (errors.length > 0 && errors.length < enabledForums.length) {
+          setError(`Some forums failed: ${errors.join(', ')}`);
+        } else if (errors.length === enabledForums.length) {
+          setError('All forums failed to load. Please check your connections.');
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch discussions');
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      if (!signal.aborted) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch discussions');
+      }
     } finally {
-      setIsLoading(false);
-      fetchInProgress.current = false;
+      if (!signal.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [forums]);
 

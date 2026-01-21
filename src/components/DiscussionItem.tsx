@@ -4,6 +4,25 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert } from '@/types';
 
+// Validate image URLs to prevent malicious content
+function isValidImageUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    // Only allow https (and http for local dev)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return false;
+    }
+    // Block data: and javascript: URLs (double-check even though URL() should reject these)
+    if (url.toLowerCase().startsWith('data:') || url.toLowerCase().startsWith('javascript:')) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 interface DiscussionItemProps {
   topic: DiscussionTopic;
   alerts: KeywordAlert[];
@@ -64,11 +83,12 @@ export function DiscussionItem({ topic, alerts, isBookmarked, onToggleBookmark }
         className="flex items-start gap-3"
       >
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center overflow-hidden">
-          {topic.imageUrl ? (
-            <img 
-              src={topic.imageUrl} 
-              alt={topic.protocol} 
+          {isValidImageUrl(topic.imageUrl) ? (
+            <img
+              src={topic.imageUrl}
+              alt={topic.protocol}
               className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none';
               }}

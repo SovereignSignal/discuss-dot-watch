@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAllowedUrl } from '@/lib/url';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 async function tryFetch(url: string, timeout = 8000): Promise<Response | null> {
   try {
@@ -16,10 +18,33 @@ async function tryFetch(url: string, timeout = 8000): Promise<Response | null> {
 }
 
 export async function GET(request: NextRequest) {
+  // Rate limiting: 10 requests per minute per IP (validation is more expensive)
+  const rateLimitKey = `validate:${getRateLimitKey(request)}`;
+  const rateLimit = checkRateLimit(rateLimitKey, { windowMs: 60000, maxRequests: 10 });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { valid: false, error: 'Rate limit exceeded. Please try again later.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000).toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+          'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+        },
+      }
+    );
+  }
+
   const url = request.nextUrl.searchParams.get('url');
 
   if (!url) {
     return NextResponse.json({ valid: false, error: 'URL is required' }, { status: 400 });
+  }
+
+  // SSRF protection: validate URL is not targeting internal resources
+  if (!isAllowedUrl(url)) {
+    return NextResponse.json({ valid: false, error: 'Invalid or disallowed URL' }, { status: 400 });
   }
 
   try {

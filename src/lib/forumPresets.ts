@@ -84,13 +84,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         token: 'MODE',
         tier: 2,
       },
-      {
-        name: 'Blast',
-        url: 'https://forum.blast.io/',
-        description: 'BLIPs with Progress Council and veto mechanisms',
-        token: 'BLAST',
-        tier: 2,
-      },
     ],
   },
   {

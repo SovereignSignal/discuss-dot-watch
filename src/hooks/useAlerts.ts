@@ -1,20 +1,16 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { KeywordAlert } from '@/types';
 import { getAlerts, addAlert as addAlertToStorage, removeAlert as removeAlertFromStorage, toggleAlert as toggleAlertInStorage } from '@/lib/storage';
 
 export function useAlerts() {
+  // Use lazy initialization - this runs only on client after hydration
   const [alerts, setAlerts] = useState<KeywordAlert[]>(() => {
+    // Only access localStorage on client side
     if (typeof window === 'undefined') return [];
     return getAlerts();
   });
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  if (typeof window !== 'undefined' && !isHydrated) {
-    setAlerts(getAlerts());
-    setIsHydrated(true);
-  }
 
   const addAlert = useCallback((keyword: string) => {
     const newAlert = addAlertToStorage(keyword);
@@ -38,7 +34,8 @@ export function useAlerts() {
     return updated;
   }, []);
 
-  const enabledAlerts = alerts.filter(a => a.isEnabled);
+  // Memoize derived state to prevent unnecessary recalculations
+  const enabledAlerts = useMemo(() => alerts.filter(a => a.isEnabled), [alerts]);
 
   return {
     alerts,

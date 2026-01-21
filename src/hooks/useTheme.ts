@@ -17,14 +17,10 @@ function getStoredTheme(): Theme {
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>('dark');
-  const [isHydrated, setIsHydrated] = useState(false);
+  // Use lazy initialization - this runs only on client after hydration
+  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme());
 
-  if (typeof window !== 'undefined' && !isHydrated) {
-    setThemeState(getStoredTheme());
-    setIsHydrated(true);
-  }
-
+  // Apply theme class to document whenever theme changes
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'light') {

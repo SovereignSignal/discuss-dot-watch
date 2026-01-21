@@ -1,7 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DiscourseLatestResponse, DiscourseTopicResponse, DiscussionTopic } from '@/types';
+import { isAllowedUrl } from '@/lib/url';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 export async function GET(request: NextRequest) {
+  // Rate limiting: 30 requests per minute per IP
+  const rateLimitKey = `discourse:${getRateLimitKey(request)}`;
+  const rateLimit = checkRateLimit(rateLimitKey, { windowMs: 60000, maxRequests: 30 });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please try again later.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000).toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+          'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+        },
+      }
+    );
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const forumUrl = searchParams.get('forumUrl');
   const categoryId = searchParams.get('categoryId');
@@ -10,6 +30,11 @@ export async function GET(request: NextRequest) {
 
   if (!forumUrl) {
     return NextResponse.json({ error: 'forumUrl is required' }, { status: 400 });
+  }
+
+  // SSRF protection: validate URL is not targeting internal resources
+  if (!isAllowedUrl(forumUrl)) {
+    return NextResponse.json({ error: 'Invalid or disallowed URL' }, { status: 400 });
   }
 
   try {

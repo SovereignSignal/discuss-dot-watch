@@ -6,11 +6,13 @@ import { DiscussionFeed } from '@/components/DiscussionFeed';
 import { ForumManager } from '@/components/ForumManager';
 import { RightSidebar } from '@/components/RightSidebar';
 import { FilterTabs } from '@/components/FilterTabs';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useForums } from '@/hooks/useForums';
 import { useDiscussions } from '@/hooks/useDiscussions';
 import { useAlerts } from '@/hooks/useAlerts';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { useTheme } from '@/hooks/useTheme';
+import { useDebounce } from '@/hooks/useDebounce';
 import { DiscussionTopic } from '@/types';
 import { Bookmark as BookmarkIcon, ExternalLink, Trash2 } from 'lucide-react';
 
@@ -27,6 +29,9 @@ export default function Home() {
   const { bookmarks, addBookmark, removeBookmark, isBookmarked } = useBookmarks();
   const { theme, toggleTheme } = useTheme();
 
+  // Debounce search query to avoid filtering on every keystroke
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
   const handleToggleBookmark = useCallback((topic: DiscussionTopic) => {
     if (isBookmarked(topic.refId)) {
       removeBookmark(topic.refId);
@@ -42,6 +47,7 @@ export default function Home() {
   }, [enabledForums.length, discussions.length, isLoading, refresh]);
 
   return (
+    <ErrorBoundary>
     <div className="flex h-screen overflow-hidden theme-bg theme-text pt-14 md:pt-0">
       <Sidebar 
         activeView={activeView} 
@@ -73,8 +79,7 @@ export default function Home() {
                 lastUpdated={lastUpdated}
                 onRefresh={refresh}
                 alerts={alerts}
-                searchQuery={searchQuery}
-                filterMode={filterMode}
+                searchQuery={debouncedSearchQuery}
                 enabledForumIds={enabledForums.map(f => f.id)}
                 forumStates={forumStates}
                 forums={enabledForums}
@@ -191,5 +196,6 @@ export default function Home() {
         </main>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

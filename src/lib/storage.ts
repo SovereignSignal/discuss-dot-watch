@@ -1,13 +1,78 @@
-import { Forum, KeywordAlert } from '@/types';
+import { Forum, KeywordAlert, Bookmark } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 
 const FORUMS_KEY = 'gov-forum-watcher-forums';
 const ALERTS_KEY = 'gov-forum-watcher-alerts';
+const BOOKMARKS_KEY = 'gov-forum-watcher-bookmarks';
+
+// Zod schemas for data validation
+const ForumCategoryIdSchema = z.enum([
+  'l2-protocols',
+  'l1-protocols',
+  'defi-lending',
+  'defi-dex',
+  'defi-staking',
+  'defi-other',
+  'major-daos',
+  'infrastructure',
+  'privacy',
+  'ai-crypto',
+  'ai-developer',
+  'governance-meta',
+  'custom',
+]);
+
+const ForumSchema = z.object({
+  id: z.string().min(1),
+  cname: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional(),
+  logoUrl: z.string().url().optional().or(z.literal('')),
+  token: z.string().max(50).optional(),
+  category: ForumCategoryIdSchema.optional(),
+  discourseForum: z.object({
+    url: z.string().url(),
+    categoryId: z.number().int().positive().optional(),
+  }),
+  isEnabled: z.boolean(),
+  createdAt: z.string(),
+});
+
+const KeywordAlertSchema = z.object({
+  id: z.string().min(1),
+  keyword: z.string().min(1).max(100),
+  createdAt: z.string(),
+  isEnabled: z.boolean(),
+});
+
+const BookmarkSchema = z.object({
+  id: z.string().min(1),
+  topicRefId: z.string().min(1),
+  topicTitle: z.string().min(1).max(500),
+  topicUrl: z.string().url(),
+  protocol: z.string().min(1).max(200),
+  createdAt: z.string(),
+});
 
 export function getForums(): Forum[] {
   if (typeof window === 'undefined') return [];
-  const stored = localStorage.getItem(FORUMS_KEY);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(FORUMS_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    // Validate and filter out invalid entries
+    const validated = z.array(ForumSchema).safeParse(parsed);
+    if (validated.success) {
+      return validated.data as Forum[];
+    }
+    // If schema validation fails, try to salvage valid items
+    console.warn('Forum data validation failed, attempting recovery');
+    return Array.isArray(parsed) ? parsed.filter(item => ForumSchema.safeParse(item).success) : [];
+  } catch (error) {
+    console.error('Failed to parse forums from storage:', error);
+    return [];
+  }
 }
 
 export function saveForums(forums: Forum[]): void {
@@ -53,8 +118,20 @@ export function toggleForum(id: string): Forum | null {
 
 export function getAlerts(): KeywordAlert[] {
   if (typeof window === 'undefined') return [];
-  const stored = localStorage.getItem(ALERTS_KEY);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(ALERTS_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    const validated = z.array(KeywordAlertSchema).safeParse(parsed);
+    if (validated.success) {
+      return validated.data;
+    }
+    console.warn('Alert data validation failed, attempting recovery');
+    return Array.isArray(parsed) ? parsed.filter(item => KeywordAlertSchema.safeParse(item).success) : [];
+  } catch (error) {
+    console.error('Failed to parse alerts from storage:', error);
+    return [];
+  }
 }
 
 export function saveAlerts(alerts: KeywordAlert[]): void {
@@ -91,3 +168,29 @@ export function toggleAlert(id: string): KeywordAlert | null {
   saveAlerts(alerts);
   return alerts[index];
 }
+
+export function getBookmarks(): Bookmark[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(BOOKMARKS_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    const validated = z.array(BookmarkSchema).safeParse(parsed);
+    if (validated.success) {
+      return validated.data;
+    }
+    console.warn('Bookmark data validation failed, attempting recovery');
+    return Array.isArray(parsed) ? parsed.filter(item => BookmarkSchema.safeParse(item).success) : [];
+  } catch (error) {
+    console.error('Failed to parse bookmarks from storage:', error);
+    return [];
+  }
+}
+
+export function saveBookmarks(bookmarks: Bookmark[]): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
+}
+
+// Export schemas for use in other modules if needed
+export { BookmarkSchema, ForumSchema, KeywordAlertSchema };

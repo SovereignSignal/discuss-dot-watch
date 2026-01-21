@@ -22,7 +22,10 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedC
 
   const handleNavClick = (view: typeof activeView) => {
     onViewChange(view);
-    onMobileToggle(); // Close mobile menu after navigation
+    // Only toggle if mobile menu is open (avoid unnecessary state updates on desktop)
+    if (isMobileOpen) {
+      onMobileToggle();
+    }
   };
 
   return (
