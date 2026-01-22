@@ -10,6 +10,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastContainer } from '@/components/Toast';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { useForums } from '@/hooks/useForums';
 import { useDiscussions } from '@/hooks/useDiscussions';
 import { useAlerts } from '@/hooks/useAlerts';
@@ -124,8 +126,41 @@ export default function Home() {
     }
   }, [enabledForums.length, discussions.length, isLoading, refresh]);
 
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        case '/':
+          e.preventDefault();
+          // Open mobile alerts panel on mobile, focus search
+          if (window.innerWidth < 768) {
+            setIsMobileAlertsOpen(true);
+          }
+          // Focus search input after a short delay to allow panel to open
+          setTimeout(() => {
+            const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
+            searchInput?.focus();
+          }, 100);
+          break;
+        case 'Escape':
+          setIsMobileMenuOpen(false);
+          setIsMobileAlertsOpen(false);
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <ErrorBoundary>
+      <OfflineBanner />
       <div className="flex h-screen overflow-hidden theme-bg theme-text pt-14 md:pt-0">
         <Sidebar
           activeView={activeView}
@@ -289,6 +324,9 @@ export default function Home() {
                       bookmarks={bookmarks}
                       onImport={handleConfigImport}
                     />
+                  </section>
+                  <section className="p-4 bg-gray-800 rounded-lg">
+                    <KeyboardShortcuts />
                   </section>
                 </div>
               </div>

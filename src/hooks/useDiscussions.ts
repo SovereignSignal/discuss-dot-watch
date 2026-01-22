@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { Forum, DiscussionTopic } from '@/types';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 export interface ForumLoadingState {
   forumId: string;
@@ -9,6 +10,7 @@ export interface ForumLoadingState {
   status: 'pending' | 'loading' | 'success' | 'error';
   error?: string;
   isDefunct?: boolean; // Forum has shut down or moved
+  retryCount?: number; // Number of retries needed
 }
 
 interface UseDiscussionsResult {
@@ -66,22 +68,19 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
           }
 
           try {
-            const response = await fetch(`/api/discourse?${params.toString()}`, { signal });
-            const data = await response.json();
-
-            // Check for error response from API
-            if (!response.ok || data.error) {
-              throw new Error(data.error || `HTTP ${response.status}`);
-            }
+            const { data, retryCount } = await fetchWithRetry<{ topics: DiscussionTopic[] }>(
+              `/api/discourse?${params.toString()}`,
+              { signal, maxRetries: 2, baseDelay: 1000 }
+            );
 
             // Only update state if request wasn't aborted
             if (!signal.aborted) {
               setForumStates(prev => prev.map((s, i) =>
-                i === index ? { ...s, status: 'success' } : s
+                i === index ? { ...s, status: 'success', retryCount } : s
               ));
             }
 
-            return data.topics as DiscussionTopic[];
+            return data.topics;
           } catch (err) {
             // Ignore abort errors
             if (err instanceof Error && err.name === 'AbortError') {
