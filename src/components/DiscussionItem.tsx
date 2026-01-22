@@ -60,33 +60,52 @@ function highlightKeywords(text: string, alerts: KeywordAlert[]): React.ReactNod
 
 export function DiscussionItem({ topic, alerts, isBookmarked, onToggleBookmark }: DiscussionItemProps) {
   const topicUrl = `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
-  const hasMatchingKeyword = alerts.some(a => 
+  const hasMatchingKeyword = alerts.some(a =>
     a.isEnabled && topic.title.toLowerCase().includes(a.keyword.toLowerCase())
   );
 
-  const handleBookmarkClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleBookmarkClick = () => {
     onToggleBookmark?.(topic);
   };
 
   return (
-    <div
+    <article
       className={`relative p-4 border-b border-gray-800 dark:border-gray-800 hover:bg-gray-800/50 dark:hover:bg-gray-800/50 transition-colors ${
         hasMatchingKeyword ? 'bg-yellow-900/10 border-l-2 border-l-yellow-500' : ''
       }`}
     >
+      {/* Bookmark button - positioned outside the link for accessibility */}
+      {onToggleBookmark && (
+        <button
+          onClick={handleBookmarkClick}
+          className={`absolute top-4 right-4 z-10 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+            isBookmarked
+              ? 'text-red-400 bg-red-400/10 hover:bg-red-400/20'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'
+          }`}
+          aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
+          aria-pressed={isBookmarked}
+        >
+          {isBookmarked ? (
+            <BookmarkCheck className="w-5 h-5" />
+          ) : (
+            <Bookmark className="w-5 h-5" />
+          )}
+        </button>
+      )}
+
       <a
         href={topicUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-start gap-3"
+        className="flex items-start gap-3 pr-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-lg"
       >
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center overflow-hidden">
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-red-600 to-red-900 flex items-center justify-center overflow-hidden">
           {isValidImageUrl(topic.imageUrl) ? (
             <img
               src={topic.imageUrl}
-              alt={topic.protocol}
+              alt=""
+              aria-hidden="true"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
               onError={(e) => {
@@ -94,39 +113,39 @@ export function DiscussionItem({ topic, alerts, isBookmarked, onToggleBookmark }
               }}
             />
           ) : (
-            <span className="text-white text-sm font-bold">
+            <span className="text-white text-sm font-bold" aria-hidden="true">
               {topic.protocol.slice(0, 2).toUpperCase()}
             </span>
           )}
         </div>
-        
+
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+          <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
             <span>{formatTimestamp(topic.bumpedAt)}</span>
-            <span>·</span>
+            <span aria-hidden="true">·</span>
             <span className="capitalize">{topic.protocol}</span>
-            <span>·</span>
+            <span aria-hidden="true">·</span>
             <span>Discourse Discussion</span>
-            {topic.pinned && <Pin className="w-3 h-3 text-indigo-400" />}
-            {topic.closed && <Lock className="w-3 h-3 text-orange-400" />}
-            {topic.archived && <Archive className="w-3 h-3 text-gray-500" />}
+            {topic.pinned && <Pin className="w-3 h-3 text-red-400" aria-label="Pinned" />}
+            {topic.closed && <Lock className="w-3 h-3 text-orange-400" aria-label="Closed" />}
+            {topic.archived && <Archive className="w-3 h-3 text-gray-500" aria-label="Archived" />}
           </div>
-          
+
           <h3 className="text-white dark:text-white font-medium mb-2 line-clamp-2">
             {highlightKeywords(topic.title, alerts)}
           </h3>
-          
-          <div className="flex items-center gap-4 text-xs text-gray-500">
-            <span className="flex items-center gap-1">
-              <MessageSquare className="w-3 h-3" />
+
+          <div className="flex items-center gap-4 text-xs text-gray-400">
+            <span className="flex items-center gap-1" aria-label={`${topic.replyCount} replies`}>
+              <MessageSquare className="w-3 h-3" aria-hidden="true" />
               {topic.replyCount}
             </span>
-            <span className="flex items-center gap-1">
-              <Eye className="w-3 h-3" />
+            <span className="flex items-center gap-1 hidden sm:flex" aria-label={`${topic.views} views`}>
+              <Eye className="w-3 h-3" aria-hidden="true" />
               {topic.views}
             </span>
-            <span className="flex items-center gap-1">
-              <ThumbsUp className="w-3 h-3" />
+            <span className="flex items-center gap-1" aria-label={`${topic.likeCount} likes`}>
+              <ThumbsUp className="w-3 h-3" aria-hidden="true" />
               {topic.likeCount}
             </span>
             {topic.tags.length > 0 && (
@@ -144,25 +163,6 @@ export function DiscussionItem({ topic, alerts, isBookmarked, onToggleBookmark }
           </div>
         </div>
       </a>
-      
-      {onToggleBookmark && (
-        <button
-          onClick={handleBookmarkClick}
-          className={`absolute top-4 right-4 p-1.5 rounded-lg transition-colors ${
-            isBookmarked
-              ? 'text-indigo-400 bg-indigo-400/10 hover:bg-indigo-400/20'
-              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'
-          }`}
-          aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
-          title={isBookmarked ? 'Remove bookmark' : 'Save for later'}
-        >
-          {isBookmarked ? (
-            <BookmarkCheck className="w-4 h-4" />
-          ) : (
-            <Bookmark className="w-4 h-4" />
-          )}
-        </button>
-      )}
-    </div>
+    </article>
   );
 }

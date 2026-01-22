@@ -228,13 +228,13 @@ export function ForumManager({
         onClick={() => handleQuickAdd(preset, categoryId)}
         disabled={isAdded}
         aria-label={isAdded ? `${preset.name} already added` : `Add ${preset.name} forum`}
-        className={`group flex items-center gap-3 w-full p-3 rounded-lg text-left transition-all ${
+        className={`group flex items-center gap-3 w-full p-3 min-h-[56px] rounded-lg text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
           isAdded
             ? 'bg-gray-800/30 cursor-not-allowed'
-            : 'bg-gray-800/50 hover:bg-gray-700/50 hover:scale-[1.01]'
+            : 'bg-gray-800/50 hover:bg-gray-700/50 motion-safe:hover:scale-[1.01]'
         }`}
       >
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-600 to-red-900 flex items-center justify-center flex-shrink-0">
           <span className="text-white text-xs font-bold">
             {preset.name.slice(0, 2).toUpperCase()}
           </span>
@@ -263,7 +263,7 @@ export function ForumManager({
           )}
         </div>
         {!isAdded && (
-          <Plus className="w-4 h-4 text-gray-500 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
+          <Plus className="w-4 h-4 text-gray-500 group-hover:text-red-400 transition-colors flex-shrink-0" />
         )}
       </button>
     );
@@ -279,12 +279,15 @@ export function ForumManager({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4" role="tablist" aria-label="Forum management tabs">
         <button
           onClick={() => setActiveTab('browse')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+          role="tab"
+          aria-selected={activeTab === 'browse'}
+          aria-controls="browse-panel"
+          className={`px-4 py-2 min-h-[44px] text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
             activeTab === 'browse'
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-red-600 text-white'
               : 'bg-gray-800 text-gray-400 hover:text-white'
           }`}
         >
@@ -292,9 +295,12 @@ export function ForumManager({
         </button>
         <button
           onClick={() => setActiveTab('added')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+          role="tab"
+          aria-selected={activeTab === 'added'}
+          aria-controls="added-panel"
+          className={`px-4 py-2 min-h-[44px] text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
             activeTab === 'added'
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-red-600 text-white'
               : 'bg-gray-800 text-gray-400 hover:text-white'
           }`}
         >
@@ -303,17 +309,18 @@ export function ForumManager({
       </div>
 
       {activeTab === 'browse' ? (
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div id="browse-panel" role="tabpanel" aria-labelledby="browse-tab" className="flex-1 overflow-hidden flex flex-col">
           {/* Search */}
           <div className="relative mb-4">
+            <label htmlFor="forum-search" className="sr-only">Search forums</label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" aria-hidden="true" />
             <input
-              type="text"
+              id="forum-search"
+              type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search forums by name, token, or description..."
-              aria-label="Search forums"
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              className="w-full pl-10 pr-4 py-2.5 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             />
           </div>
 
@@ -346,9 +353,9 @@ export function ForumManager({
                 >
                   <button
                     onClick={() => toggleCategory(category.id)}
-                    className="flex items-center justify-between w-full p-4 text-left hover:bg-gray-800/50 transition-colors"
+                    className="flex items-center justify-between w-full p-4 min-h-[56px] text-left hover:bg-gray-800/50 transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-inset"
                     aria-expanded={isExpanded}
-                    aria-label={`${category.name} category, ${addedInCategory} of ${totalInCategory} added`}
+                    aria-controls={`category-${category.id}`}
                   >
                     <div className="flex items-center gap-3">
                       {isExpanded ? (
@@ -375,7 +382,7 @@ export function ForumManager({
                             e.stopPropagation();
                             handleAddAllInCategory(category.id);
                           }}
-                          className="px-2 py-1 text-xs bg-indigo-600/20 text-indigo-400 rounded hover:bg-indigo-600/30 transition-colors"
+                          className="px-2 py-1 text-xs bg-red-600/20 text-red-400 rounded hover:bg-red-600/30 transition-colors"
                           aria-label={`Add all forums in ${category.name}`}
                         >
                           Add All
@@ -384,7 +391,7 @@ export function ForumManager({
                     </div>
                   </button>
                   {isExpanded && (
-                    <div className="px-4 pb-4 space-y-2">
+                    <div id={`category-${category.id}`} className="px-4 pb-4 space-y-2">
                       {category.forums.map((preset) =>
                         renderForumPreset(preset, category.id)
                       )}
@@ -420,7 +427,7 @@ export function ForumManager({
                     aria-label="Forum URL"
                     aria-invalid={!!validationError}
                     className={`w-full px-3 py-2 bg-gray-900 border rounded-lg text-white placeholder-gray-500 focus:outline-none ${
-                      validationError ? 'border-red-500' : 'border-gray-700 focus:border-indigo-500'
+                      validationError ? 'border-red-500' : 'border-gray-700 focus:border-red-500'
                     }`}
                   />
                   {validationError && (
@@ -443,7 +450,7 @@ export function ForumManager({
                     onChange={(e) => setNewName(e.target.value)}
                     placeholder="Display name (auto-detected)"
                     aria-label="Forum display name"
-                    className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                    className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
                   />
                   <input
                     type="number"
@@ -451,14 +458,14 @@ export function ForumManager({
                     onChange={(e) => setNewCategoryId(e.target.value)}
                     placeholder="Category ID"
                     aria-label="Category ID filter"
-                    className="w-32 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                    className="w-32 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
                   />
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={handleValidateAndAdd}
                     disabled={!newUrl.trim() || isValidating}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
                   >
                     {isValidating && <Loader2 className="w-4 h-4 animate-spin" />}
                     {isValidating ? 'Validating...' : 'Add Forum'}
@@ -489,7 +496,7 @@ export function ForumManager({
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
+        <div id="added-panel" role="tabpanel" aria-labelledby="added-tab" className="flex-1 overflow-y-auto">
           {forums.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 mb-4">
@@ -497,7 +504,7 @@ export function ForumManager({
               </p>
               <button
                 onClick={() => setActiveTab('browse')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
               >
                 Browse Forums
               </button>
@@ -512,7 +519,7 @@ export function ForumManager({
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-600 to-red-900 flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-xs font-bold">
                         {forum.name.slice(0, 2).toUpperCase()}
                       </span>
@@ -556,7 +563,7 @@ export function ForumManager({
                         aria-label={forum.isEnabled ? `Disable ${forum.name} forum` : `Enable ${forum.name} forum`}
                       >
                         {forum.isEnabled ? (
-                          <ToggleRight className="w-5 h-5 text-indigo-400" />
+                          <ToggleRight className="w-5 h-5 text-red-400" />
                         ) : (
                           <ToggleLeft className="w-5 h-5" />
                         )}

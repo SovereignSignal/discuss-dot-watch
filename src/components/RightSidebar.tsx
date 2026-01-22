@@ -53,8 +53,9 @@ export function RightSidebar({
       {/* Mobile toggle button */}
       <button
         onClick={onMobileToggle}
-        className="md:hidden fixed bottom-4 right-4 z-30 p-3 bg-indigo-600 text-white rounded-full shadow-lg"
+        className="md:hidden fixed bottom-4 right-4 z-30 p-3 min-w-[48px] min-h-[48px] flex items-center justify-center bg-red-600 text-white rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
         aria-label={isMobileOpen ? 'Close search & alerts' : 'Open search & alerts'}
+        aria-expanded={isMobileOpen}
       >
         {isMobileOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
       </button>
@@ -70,21 +71,23 @@ export function RightSidebar({
       `}>
       <div className="p-4 border-b border-gray-800">
         <div className="relative">
+          <label htmlFor="discussion-search" className="sr-only">
+            Search discussions
+          </label>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" aria-hidden="true" />
           <input
-            type="text"
+            id="discussion-search"
+            type="search"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search discussions..."
-            aria-label="Search discussions"
-            className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm"
+            className="w-full pl-10 pr-10 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 text-sm"
           />
           {searchQuery && (
             <button
               onClick={() => onSearchChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-w-[32px] min-h-[32px] flex items-center justify-center text-gray-500 hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
               aria-label="Clear search"
-              title="Clear search"
             >
               <X className="w-4 h-4" />
             </button>
@@ -104,32 +107,34 @@ export function RightSidebar({
           </div>
           
           <div className="flex gap-2 mb-3">
+            <label htmlFor="new-keyword" className="sr-only">
+              Add keyword alert
+            </label>
             <input
+              id="new-keyword"
               type="text"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Add keyword..."
-              aria-label="New keyword alert"
-              className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm"
+              className="flex-1 px-3 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 text-sm"
             />
             <button
               onClick={handleAddAlert}
               disabled={!newKeyword.trim()}
               aria-label="Add keyword alert"
-              title="Add alert"
-              className="p-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-5 h-5" />
             </button>
           </div>
 
           {alerts.length === 0 ? (
-            <p className="text-gray-600 text-sm">No keyword alerts set</p>
+            <p className="text-gray-400 text-sm" role="status">No keyword alerts set</p>
           ) : (
-            <div className="space-y-2">
+            <ul className="space-y-2" role="list" aria-label="Keyword alerts">
               {alerts.map((alert) => (
-                <div
+                <li
                   key={alert.id}
                   className={`flex items-center justify-between p-2 rounded-lg ${
                     alert.isEnabled ? 'bg-yellow-900/20' : 'bg-gray-800/50'
@@ -141,28 +146,27 @@ export function RightSidebar({
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => onToggleAlert(alert.id)}
-                      className="p-1 text-gray-500 hover:text-white transition-colors"
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-white transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       aria-label={alert.isEnabled ? `Disable alert for "${alert.keyword}"` : `Enable alert for "${alert.keyword}"`}
-                      title={alert.isEnabled ? 'Disable' : 'Enable'}
+                      aria-pressed={alert.isEnabled}
                     >
                       {alert.isEnabled ? (
-                        <Bell className="w-3.5 h-3.5 text-yellow-400" />
+                        <Bell className="w-4 h-4 text-yellow-400" />
                       ) : (
-                        <BellOff className="w-3.5 h-3.5" />
+                        <BellOff className="w-4 h-4" />
                       )}
                     </button>
                     <button
                       onClick={() => onRemoveAlert(alert.id)}
-                      className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-red-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       aria-label={`Remove alert for "${alert.keyword}"`}
-                      title="Remove"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
 

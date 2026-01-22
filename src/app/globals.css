@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Dark theme (default) */
+/* ===== COLOR SCHEME: Dark Red Accent ===== */
+/* Dark theme (default) - white text on dark background */
 html, html.dark {
   --background: #0a0a0a;
   --foreground: #ededed;
@@ -11,9 +12,13 @@ html, html.dark {
   --text-primary: #ffffff;
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
+  --accent: #dc2626;
+  --accent-hover: #b91c1c;
+  --accent-muted: #991b1b;
+  --accent-light: #fca5a5;
 }
 
-/* Light theme */
+/* Light theme - black text on white background */
 html.light {
   --background: #f3f4f6;
   --foreground: #111827;
@@ -24,6 +29,10 @@ html.light {
   --text-primary: #111827;
   --text-secondary: #4b5563;
   --text-muted: #6b7280;
+  --accent: #dc2626;
+  --accent-hover: #b91c1c;
+  --accent-muted: #7f1d1d;
+  --accent-light: #f87171;
 }
 
 @theme inline {
@@ -64,6 +73,15 @@ body {
 
 .theme-text-muted {
   color: var(--text-muted) !important;
+}
+
+/* Accent color utilities */
+.theme-accent {
+  color: var(--accent) !important;
+}
+
+.theme-accent-bg {
+  background-color: var(--accent) !important;
 }
 
 /* ===== LIGHT THEME OVERRIDES FOR TAILWIND CLASSES ===== */
@@ -110,14 +128,27 @@ html.light .hover\:text-white:hover {
   color: var(--text-primary) !important;
 }
 
-/* Keep indigo/purple accent colors the same */
-html.light .bg-indigo-600 {
-  background-color: #4f46e5 !important;
+/* Red accent colors - consistent across themes */
+.bg-red-600,
+html.light .bg-red-600 {
+  background-color: var(--accent) !important;
 }
 
-html.light .text-indigo-400,
-html.light .text-indigo-500 {
-  color: #6366f1 !important;
+.hover\:bg-red-700:hover,
+html.light .hover\:bg-red-700:hover {
+  background-color: var(--accent-hover) !important;
+}
+
+.text-red-400,
+.text-red-500,
+html.light .text-red-400,
+html.light .text-red-500 {
+  color: var(--accent-light) !important;
+}
+
+html.light .text-red-400,
+html.light .text-red-500 {
+  color: var(--accent) !important;
 }
 
 /* Input and select elements */
@@ -144,4 +175,41 @@ html.light ::-webkit-scrollbar-thumb {
 
 html.light ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* ===== REDUCED MOTION SUPPORT ===== */
+/* Disable animations for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===== FOCUS VISIBLE RING UTILITY ===== */
+/* Ensure consistent focus ring styling across the app */
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ===== SCREEN READER ONLY UTILITY ===== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
