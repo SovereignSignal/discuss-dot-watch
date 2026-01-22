@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Search, Plus, X, Bell, BellOff } from 'lucide-react';
 import { KeywordAlert } from '@/types';
+import { sanitizeInput, sanitizeKeyword } from '@/lib/sanitize';
 
 interface RightSidebarProps {
   searchQuery: string;
@@ -28,9 +29,14 @@ export function RightSidebar({
   const [newKeyword, setNewKeyword] = useState('');
 
   const handleAddAlert = () => {
-    if (!newKeyword.trim()) return;
-    onAddAlert(newKeyword.trim());
+    const sanitized = sanitizeKeyword(newKeyword);
+    if (!sanitized) return;
+    onAddAlert(sanitized);
     setNewKeyword('');
+  };
+
+  const handleSearchChange = (value: string) => {
+    onSearchChange(sanitizeInput(value));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -79,7 +85,7 @@ export function RightSidebar({
             id="discussion-search"
             type="search"
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search discussions..."
             className="w-full pl-10 pr-10 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 text-sm"
           />

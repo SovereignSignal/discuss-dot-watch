@@ -13,7 +13,16 @@ This document provides essential context for AI assistants working with this cod
 - Forum management (add/remove/enable/disable)
 - Dark/light theme toggle with persistence
 - Discussion bookmarking with dedicated "Saved" view
+- Read/unread tracking with visual indicators
+- Sorting options (recent, replies, views, likes)
 - Mobile responsive layout with collapsible sidebars
+- Onboarding wizard for new users
+- Export/import configuration backup
+- Keyboard shortcuts for power users
+- Offline detection with banner notification
+- Error retry with exponential backoff
+- Rate limiting to protect forum APIs
+- Skip links for accessibility
 - Client-side only - no backend database, uses browser localStorage
 
 ## Tech Stack
@@ -44,23 +53,42 @@ src/
 │   ├── globals.css               # Global styles with Tailwind
 │   └── favicon.ico
 ├── components/                   # React components
+│   ├── ConfigExportImport.tsx    # Export/import configuration UI
 │   ├── ConfirmDialog.tsx         # Reusable confirmation modal
 │   ├── DiscussionFeed.tsx        # Main feed display with loading states
 │   ├── DiscussionItem.tsx        # Individual discussion card with bookmark toggle
-│   ├── FeedFilters.tsx           # Date range and forum source filters
+│   ├── DiscussionSkeleton.tsx    # Loading skeleton for discussions
+│   ├── FeedFilters.tsx           # Date range, forum source, and sort filters
 │   ├── FilterTabs.tsx            # Tab filter component (All/Your Forums)
 │   ├── ForumManager.tsx          # Forum management UI with preset directory
+│   ├── KeyboardShortcuts.tsx     # Keyboard shortcuts reference display
+│   ├── OfflineBanner.tsx         # Offline status notification banner
+│   ├── OnboardingWizard.tsx      # New user onboarding flow
 │   ├── RightSidebar.tsx          # Search and keyword alerts sidebar (mobile: slide-in panel)
 │   ├── Sidebar.tsx               # Left navigation with theme toggle (mobile: hamburger menu)
-│   └── Tooltip.tsx               # Reusable tooltip component
+│   ├── SkipLinks.tsx             # Accessibility skip links
+│   ├── Toast.tsx                 # Toast notification system
+│   ├── Tooltip.tsx               # Reusable tooltip component
+│   └── VirtualizedDiscussionList.tsx # Virtual scrolling for large lists
 ├── hooks/                        # Custom React hooks
 │   ├── useAlerts.ts              # Keyword alerts state with localStorage
 │   ├── useBookmarks.ts           # Bookmarked discussions with localStorage + migration
-│   ├── useDiscussions.ts         # Discussions fetching with per-forum states
+│   ├── useDebounce.ts            # Debounce hook for search input
+│   ├── useDiscussions.ts         # Discussions fetching with per-forum states and retry
 │   ├── useForums.ts              # Forums state management with localStorage
-│   └── useTheme.ts               # Dark/light theme with localStorage persistence
+│   ├── useKeyboardNavigation.ts  # Keyboard navigation for lists
+│   ├── useOnboarding.ts          # Onboarding completion state
+│   ├── useOnlineStatus.ts        # Network connectivity detection
+│   ├── useReadState.ts           # Read/unread tracking with localStorage
+│   ├── useTheme.ts               # Dark/light theme with localStorage persistence
+│   ├── useToast.ts               # Toast notification state management
+│   ├── useUrlState.ts            # URL-based filter state (shareable URLs)
+│   └── useVirtualList.ts         # Virtual scrolling hook
 ├── lib/                          # Utility libraries
+│   ├── fetchWithRetry.ts         # Fetch with exponential backoff retry
 │   ├── forumPresets.ts           # 70+ pre-configured forum presets by category
+│   ├── rateLimiter.ts            # Token bucket rate limiter for API calls
+│   ├── sanitize.ts               # Input sanitization utilities
 │   ├── storage.ts                # LocalStorage utilities for forums/alerts
 │   └── url.ts                    # URL validation and normalization utilities
 └── types/
@@ -244,6 +272,8 @@ LocalStorage keys used by the application:
 | `gov-forum-watcher-alerts` | `KeywordAlert[]` | Keyword alert settings |
 | `gov-forum-watcher-bookmarks` | `Bookmark[]` | Saved discussion bookmarks |
 | `gov-forum-watcher-theme` | `'dark' \| 'light'` | User's theme preference |
+| `gov-forum-watcher-read-discussions` | `Record<string, number>` | Read discussion timestamps by refId |
+| `gov-forum-watcher-onboarding-completed` | `'true'` | Onboarding completion flag |
 | `gov-forum-watcher-bookmarks-migrated-v1` | `'true'` | Migration flag for bookmark URL fix |
 
 ## URL Utilities
@@ -476,8 +506,24 @@ The following features have been implemented:
 2. **Discussion Bookmarking** - Bookmark icon on each discussion, "Saved" view in sidebar
 3. **Date Range Filtering** - Filter by Today, This Week, This Month, All Time
 4. **Forum Source Filtering** - Filter discussions by specific forum
-5. **Custom Favicon** - Purple bell icon with notification dot (`/icon.svg`)
+5. **Custom Favicon** - Red bell icon with notification dot (`/icon.svg`)
 6. **Mobile Responsive Layout** - Hamburger menu, floating search button, slide-in panels
+
+## Phase 2 Features (Completed)
+
+1. **Read/Unread Tracking** - Red dot indicator for unread, "Mark all as read" button, auto-mark on click
+2. **Sorting Options** - Sort by Most Recent, Most Replies, Most Views, Most Likes
+3. **Onboarding Wizard** - 3-step flow for new users: welcome, forum selection, tips
+4. **Export/Import Config** - Backup/restore forums, alerts, bookmarks to JSON file
+5. **Error Retry** - Automatic retry with exponential backoff for failed API calls
+6. **Offline Detection** - Yellow banner notification when user loses connectivity
+7. **Keyboard Shortcuts** - `/` for search, `j`/`k` or arrows for navigation, `Escape` to close
+8. **Skip Links** - Accessibility links to skip to main content, search, or navigation
+9. **Rate Limiting** - Token bucket algorithm (10 burst, 2/sec) to protect forum APIs
+10. **Input Sanitization** - XSS prevention for search and keyword inputs
+11. **Toast Notifications** - Non-intrusive feedback for user actions
+12. **Loading Skeletons** - Animated placeholders during content loading
+13. **Memoized Components** - Performance optimization for discussion list rendering
 
 ## Known Patterns and Gotchas
 
