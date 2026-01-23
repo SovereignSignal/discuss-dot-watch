@@ -32,8 +32,12 @@ function migrateBookmarks(bookmarks: Bookmark[]): Bookmark[] {
 
       if (topicId && !isNaN(Number(topicId))) {
         const slug = slugify(bookmark.topicTitle);
-        bookmark.topicUrl = `${bookmark.topicUrl}/t/${slug}/${topicId}`;
         needsSave = true;
+        // Return a new object instead of mutating the original
+        return {
+          ...bookmark,
+          topicUrl: `${bookmark.topicUrl}/t/${slug}/${topicId}`,
+        };
       }
     }
     return bookmark;

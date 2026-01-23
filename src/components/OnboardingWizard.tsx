@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { X, ChevronRight, ChevronLeft, Check, Bell, Bookmark, Search, Plus } from 'lucide-react';
 import { FORUM_CATEGORIES, ForumPreset } from '@/lib/forumPresets';
 
@@ -29,6 +29,66 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
   const [selectedForums, setSelectedForums] = useState<Set<string>>(new Set());
   const [expandedCategory, setExpandedCategory] = useState<string | null>('defi-lending');
 
+  // Refs for focus management
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<Element | null>(null);
+  const firstFocusableRef = useRef<HTMLButtonElement>(null);
+
+  // Store the previously focused element and set up focus trap
+  useEffect(() => {
+    // Store what was focused before the modal opened
+    previouslyFocusedRef.current = document.activeElement;
+
+    // Focus the first focusable element (skip button)
+    const timer = setTimeout(() => {
+      firstFocusableRef.current?.focus();
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      // Return focus to the previously focused element when modal closes
+      if (previouslyFocusedRef.current instanceof HTMLElement) {
+        previouslyFocusedRef.current.focus();
+      }
+    };
+  }, []);
+
+  // Focus trap: keep focus within the modal
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+
+      const focusableElements = dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        // Shift + Tab: if on first element, go to last
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab: if on last element, go to first
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Flatten all forums with category info for easy lookup
   const allForumsWithCategory = FORUM_CATEGORIES.flatMap((category) =>
     category.forums
@@ -52,13 +112,30 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Finish onboarding
+      // Finish onboarding - return focus before calling onComplete
+      returnFocus();
       const selected = allForumsWithCategory.filter((f) =>
         selectedForums.has(f.url)
       );
       onComplete(selected);
     }
   };
+
+  // Helper to return focus to the previously focused element
+  const returnFocus = useCallback(() => {
+    if (previouslyFocusedRef.current instanceof HTMLElement) {
+      previouslyFocusedRef.current.focus();
+    } else {
+      // Fallback: focus the main content area
+      const mainContent = document.getElementById('main-content');
+      mainContent?.focus();
+    }
+  }, []);
+
+  const handleSkip = useCallback(() => {
+    returnFocus();
+    onSkip();
+  }, [onSkip, returnFocus]);
 
   const handleBack = () => {
     if (currentStep > 0) {
@@ -76,6 +153,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div
+        ref={dialogRef}
         className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl shadow-xl overflow-hidden"
         style={{ backgroundColor: 'var(--card-bg)' }}
         role="dialog"
@@ -84,7 +162,8 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
       >
         {/* Close button */}
         <button
-          onClick={onSkip}
+          ref={firstFocusableRef}
+          onClick={handleSkip}
           className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 z-10"
           aria-label="Skip onboarding"
         >

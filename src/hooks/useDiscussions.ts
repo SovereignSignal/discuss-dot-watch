@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Forum, DiscussionTopic } from '@/types';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
@@ -36,8 +36,9 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
   forumsRef.current = forums;
 
   const fetchDiscussions = useCallback(async () => {
-    // Use ref to get latest forums without causing dependency changes
-    const enabledForums = forumsRef.current.filter(f => f.isEnabled);
+    // Create a snapshot of enabled forums at fetch start to prevent race conditions
+    // if forums change during the async operation
+    const enabledForums = [...forumsRef.current.filter(f => f.isEnabled)];
     if (enabledForums.length === 0) {
       setDiscussions([]);
       setForumStates([]);
@@ -63,7 +64,7 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
 
     try {
       const results = await Promise.allSettled(
-        enabledForums.map(async (forum, index) => {
+        enabledForums.map(async (forum) => {
           const params = new URLSearchParams({
             forumUrl: forum.discourseForum.url,
             protocol: forum.cname,
@@ -80,9 +81,10 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
             );
 
             // Only update state if request wasn't aborted
+            // Use forum ID instead of index to prevent stale closure issues
             if (!signal.aborted) {
-              setForumStates(prev => prev.map((s, i) =>
-                i === index ? { ...s, status: 'success', retryCount } : s
+              setForumStates(prev => prev.map(s =>
+                s.forumId === forum.id ? { ...s, status: 'success', retryCount } : s
               ));
             }
 
@@ -97,9 +99,10 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
             const isDefunct = errorMsg.includes('shut down') ||
                               errorMsg.includes('redirects') ||
                               errorMsg.includes('not JSON');
+            // Use forum ID instead of index to prevent stale closure issues
             if (!signal.aborted) {
-              setForumStates(prev => prev.map((s, i) =>
-                i === index ? { ...s, status: 'error', error: errorMsg, isDefunct } : s
+              setForumStates(prev => prev.map(s =>
+                s.forumId === forum.id ? { ...s, status: 'error', error: errorMsg, isDefunct } : s
               ));
             }
             throw new Error(`${forum.name}: ${errorMsg}`);

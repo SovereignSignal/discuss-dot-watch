@@ -1,6 +1,9 @@
 /**
  * Simple in-memory rate limiter for API routes
  * Limits requests per IP address within a sliding window
+ *
+ * Note: Uses lazy cleanup on access to avoid memory leaks in serverless environments.
+ * Each entry expires automatically when accessed after its resetAt time.
  */
 
 interface RateLimitEntry {
@@ -11,20 +14,45 @@ interface RateLimitEntry {
 // In-memory store for rate limit tracking
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
-// Clean up old entries periodically
-const CLEANUP_INTERVAL = 60000; // 1 minute
-let cleanupTimer: NodeJS.Timeout | null = null;
+// Maximum number of entries to prevent unbounded growth
+const MAX_ENTRIES = 10000;
 
-function startCleanup() {
-  if (cleanupTimer) return;
-  cleanupTimer = setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of rateLimitStore.entries()) {
-      if (entry.resetAt < now) {
-        rateLimitStore.delete(key);
-      }
+// Last cleanup timestamp
+let lastCleanupTime = 0;
+const CLEANUP_INTERVAL = 60000; // 1 minute
+
+/**
+ * Performs lazy cleanup of expired entries.
+ * Only runs if enough time has passed since last cleanup.
+ * This avoids the memory leak of a persistent setInterval timer.
+ */
+function lazyCleanup() {
+  const now = Date.now();
+
+  // Only cleanup if interval has passed
+  if (now - lastCleanupTime < CLEANUP_INTERVAL) {
+    return;
+  }
+
+  lastCleanupTime = now;
+
+  // Remove expired entries
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (entry.resetAt < now) {
+      rateLimitStore.delete(key);
     }
-  }, CLEANUP_INTERVAL);
+  }
+
+  // If still too many entries, remove oldest ones
+  if (rateLimitStore.size > MAX_ENTRIES) {
+    const entries = Array.from(rateLimitStore.entries())
+      .sort((a, b) => a[1].resetAt - b[1].resetAt);
+
+    const toRemove = entries.slice(0, rateLimitStore.size - MAX_ENTRIES);
+    for (const [key] of toRemove) {
+      rateLimitStore.delete(key);
+    }
+  }
 }
 
 interface RateLimitConfig {
@@ -42,7 +70,8 @@ export function checkRateLimit(
   key: string,
   config: RateLimitConfig = { windowMs: 60000, maxRequests: 30 }
 ): RateLimitResult {
-  startCleanup();
+  // Perform lazy cleanup to prevent memory leaks
+  lazyCleanup();
 
   const now = Date.now();
   const entry = rateLimitStore.get(key);

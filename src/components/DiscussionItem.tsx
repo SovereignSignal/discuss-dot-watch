@@ -43,10 +43,19 @@ function formatTimestamp(dateString: string): string {
   return format(date, 'MMM dd, HH:mm');
 }
 
+// Limits for keyword matching to prevent ReDoS attacks
+const MAX_KEYWORD_LENGTH = 100;
+const MAX_KEYWORDS = 50;
+
 function highlightKeywords(text: string, alerts: KeywordAlert[]): React.ReactNode {
   if (alerts.length === 0) return text;
 
-  const enabledKeywords = alerts.filter((a) => a.isEnabled).map((a) => a.keyword.toLowerCase());
+  // Filter and limit keywords to prevent ReDoS
+  const enabledKeywords = alerts
+    .filter((a) => a.isEnabled && a.keyword.length <= MAX_KEYWORD_LENGTH)
+    .slice(0, MAX_KEYWORDS)
+    .map((a) => a.keyword.toLowerCase());
+
   if (enabledKeywords.length === 0) return text;
 
   const regex = new RegExp(

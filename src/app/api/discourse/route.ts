@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DiscourseLatestResponse, DiscourseTopicResponse, DiscussionTopic } from '@/types';
-import { isAllowedUrl } from '@/lib/url';
+import { isAllowedUrl, isAllowedRedirectUrl } from '@/lib/url';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
+
+/**
+ * Safely parse a URL, returning null if invalid
+ */
+function safeParseUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -28,7 +39,12 @@ export async function GET(request: NextRequest) {
   // Per-forum rate limiting: 5 requests per minute per forum per IP
   // This prevents one slow/failing forum from blocking all others
   if (forumUrl) {
-    const forumDomain = new URL(forumUrl).hostname;
+    const parsedForumUrl = safeParseUrl(forumUrl);
+    if (!parsedForumUrl) {
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+    }
+
+    const forumDomain = parsedForumUrl.hostname;
     const forumRateLimitKey = `discourse:${getRateLimitKey(request)}:${forumDomain}`;
     const forumRateLimit = checkRateLimit(forumRateLimitKey, { windowMs: 60000, maxRequests: 5 });
 
@@ -47,8 +63,29 @@ export async function GET(request: NextRequest) {
     }
   }
   const categoryId = searchParams.get('categoryId');
-  const protocol = searchParams.get('protocol') || 'unknown';
-  const logoUrl = searchParams.get('logoUrl') || '';
+
+  // Validate protocol: alphanumeric, dashes, and underscores only, max 100 chars
+  const rawProtocol = searchParams.get('protocol') || 'unknown';
+  const protocol = rawProtocol.replace(/[^a-zA-Z0-9\-_]/g, '').slice(0, 100) || 'unknown';
+
+  // Validate logoUrl: must be valid https URL if provided
+  const rawLogoUrl = searchParams.get('logoUrl') || '';
+  let logoUrl = '';
+  if (rawLogoUrl) {
+    const parsedLogoUrl = safeParseUrl(rawLogoUrl);
+    if (parsedLogoUrl && parsedLogoUrl.protocol === 'https:') {
+      logoUrl = parsedLogoUrl.href;
+    }
+  }
+
+  // Validate categoryId: must be a positive integer if provided
+  let validatedCategoryId: string | null = null;
+  if (categoryId) {
+    const num = parseInt(categoryId, 10);
+    if (Number.isInteger(num) && num > 0) {
+      validatedCategoryId = num.toString();
+    }
+  }
 
   if (!forumUrl) {
     return NextResponse.json({ error: 'forumUrl is required' }, { status: 400 });
@@ -62,9 +99,9 @@ export async function GET(request: NextRequest) {
   try {
     const baseUrl = forumUrl.endsWith('/') ? forumUrl.slice(0, -1) : forumUrl;
     let apiUrl: string;
-    
-    if (categoryId) {
-      apiUrl = `${baseUrl}/c/${categoryId}.json`;
+
+    if (validatedCategoryId) {
+      apiUrl = `${baseUrl}/c/${validatedCategoryId}.json`;
     } else {
       apiUrl = `${baseUrl}/latest.json`;
     }
@@ -80,6 +117,12 @@ export async function GET(request: NextRequest) {
     // Check for redirects (forum may have moved or shut down)
     if (response.status >= 300 && response.status < 400) {
       const redirectUrl = response.headers.get('location');
+
+      // Validate redirect URL to prevent SSRF via redirect
+      if (redirectUrl && !isAllowedRedirectUrl(apiUrl, redirectUrl)) {
+        throw new Error('Forum redirected to a disallowed URL');
+      }
+
       throw new Error(`Forum has moved or shut down (redirects to ${redirectUrl || 'unknown'})`);
     }
 
