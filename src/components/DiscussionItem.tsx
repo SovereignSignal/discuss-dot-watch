@@ -112,7 +112,7 @@ export function DiscussionItem({
               ? 'text-red-400 bg-red-400/10 hover:bg-red-400/20'
               : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'
           }`}
-          aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
+          aria-label={`${isBookmarked ? 'Remove from' : 'Add to'} bookmarks: ${topic.title}`}
           aria-pressed={isBookmarked}
         >
           {isBookmarked ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}

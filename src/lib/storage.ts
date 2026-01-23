@@ -6,6 +6,82 @@ const FORUMS_KEY = 'gov-forum-watcher-forums';
 const ALERTS_KEY = 'gov-forum-watcher-alerts';
 const BOOKMARKS_KEY = 'gov-forum-watcher-bookmarks';
 
+// Storage quota monitoring
+export interface StorageQuota {
+  used: number;
+  available: number;
+  percentUsed: number;
+  isNearLimit: boolean;
+}
+
+export interface StorageError {
+  type: 'quota_exceeded' | 'parse_error' | 'validation_error' | 'unknown';
+  message: string;
+  recoveredItems?: number;
+}
+
+// Callback for storage events
+type StorageErrorCallback = (error: StorageError) => void;
+let storageErrorCallback: StorageErrorCallback | null = null;
+
+export function setStorageErrorCallback(callback: StorageErrorCallback | null): void {
+  storageErrorCallback = callback;
+}
+
+function notifyStorageError(error: StorageError): void {
+  if (storageErrorCallback) {
+    storageErrorCallback(error);
+  }
+}
+
+// Estimate localStorage usage
+export async function getStorageQuota(): Promise<StorageQuota> {
+  if (typeof window === 'undefined') {
+    return { used: 0, available: 5 * 1024 * 1024, percentUsed: 0, isNearLimit: false };
+  }
+
+  // Calculate localStorage usage
+  let used = 0;
+  for (const key in localStorage) {
+    if (localStorage.hasOwnProperty(key)) {
+      used += localStorage[key].length * 2; // UTF-16 = 2 bytes per char
+    }
+  }
+
+  // localStorage typically has 5-10MB limit, assume 5MB as safe default
+  const available = 5 * 1024 * 1024;
+  const percentUsed = (used / available) * 100;
+
+  return {
+    used,
+    available,
+    percentUsed,
+    isNearLimit: percentUsed > 80,
+  };
+}
+
+// Safe localStorage.setItem with quota handling
+function safeSetItem(key: string, value: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    if (e instanceof DOMException && (e.code === 22 || e.name === 'QuotaExceededError')) {
+      notifyStorageError({
+        type: 'quota_exceeded',
+        message: 'Storage is full. Consider exporting your data and clearing old items.',
+      });
+    } else {
+      notifyStorageError({
+        type: 'unknown',
+        message: 'Failed to save data to storage.',
+      });
+    }
+    return false;
+  }
+}
+
 // Zod schemas for data validation
 const ForumCategoryIdSchema = z.enum([
   'l2-protocols',
@@ -68,16 +144,26 @@ export function getForums(): Forum[] {
     }
     // If schema validation fails, try to salvage valid items
     console.warn('Forum data validation failed, attempting recovery');
-    return Array.isArray(parsed) ? parsed.filter(item => ForumSchema.safeParse(item).success) : [];
+    const recovered = Array.isArray(parsed) ? parsed.filter(item => ForumSchema.safeParse(item).success) : [];
+    notifyStorageError({
+      type: 'validation_error',
+      message: `Some forum data was corrupted. Recovered ${recovered.length} forums.`,
+      recoveredItems: recovered.length,
+    });
+    return recovered;
   } catch (error) {
     console.error('Failed to parse forums from storage:', error);
+    notifyStorageError({
+      type: 'parse_error',
+      message: 'Failed to read forum data. Your forums may need to be re-added.',
+    });
     return [];
   }
 }
 
-export function saveForums(forums: Forum[]): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(FORUMS_KEY, JSON.stringify(forums));
+export function saveForums(forums: Forum[]): boolean {
+  if (typeof window === 'undefined') return false;
+  return safeSetItem(FORUMS_KEY, JSON.stringify(forums));
 }
 
 export function addForum(forum: Omit<Forum, 'id' | 'createdAt'>): Forum {
@@ -127,16 +213,26 @@ export function getAlerts(): KeywordAlert[] {
       return validated.data;
     }
     console.warn('Alert data validation failed, attempting recovery');
-    return Array.isArray(parsed) ? parsed.filter(item => KeywordAlertSchema.safeParse(item).success) : [];
+    const recovered = Array.isArray(parsed) ? parsed.filter(item => KeywordAlertSchema.safeParse(item).success) : [];
+    notifyStorageError({
+      type: 'validation_error',
+      message: `Some alert data was corrupted. Recovered ${recovered.length} alerts.`,
+      recoveredItems: recovered.length,
+    });
+    return recovered;
   } catch (error) {
     console.error('Failed to parse alerts from storage:', error);
+    notifyStorageError({
+      type: 'parse_error',
+      message: 'Failed to read alert data. Your alerts may need to be re-added.',
+    });
     return [];
   }
 }
 
-export function saveAlerts(alerts: KeywordAlert[]): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(ALERTS_KEY, JSON.stringify(alerts));
+export function saveAlerts(alerts: KeywordAlert[]): boolean {
+  if (typeof window === 'undefined') return false;
+  return safeSetItem(ALERTS_KEY, JSON.stringify(alerts));
 }
 
 export function addAlert(keyword: string): KeywordAlert {
@@ -180,16 +276,26 @@ export function getBookmarks(): Bookmark[] {
       return validated.data;
     }
     console.warn('Bookmark data validation failed, attempting recovery');
-    return Array.isArray(parsed) ? parsed.filter(item => BookmarkSchema.safeParse(item).success) : [];
+    const recovered = Array.isArray(parsed) ? parsed.filter(item => BookmarkSchema.safeParse(item).success) : [];
+    notifyStorageError({
+      type: 'validation_error',
+      message: `Some bookmark data was corrupted. Recovered ${recovered.length} bookmarks.`,
+      recoveredItems: recovered.length,
+    });
+    return recovered;
   } catch (error) {
     console.error('Failed to parse bookmarks from storage:', error);
+    notifyStorageError({
+      type: 'parse_error',
+      message: 'Failed to read bookmark data. Your bookmarks may need to be re-added.',
+    });
     return [];
   }
 }
 
-export function saveBookmarks(bookmarks: Bookmark[]): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
+export function saveBookmarks(bookmarks: Bookmark[]): boolean {
+  if (typeof window === 'undefined') return false;
+  return safeSetItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
 }
 
 // Export schemas for use in other modules if needed

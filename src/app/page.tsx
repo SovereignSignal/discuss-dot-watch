@@ -22,6 +22,8 @@ import { useOnboarding } from '@/hooks/useOnboarding';
 import { useTheme } from '@/hooks/useTheme';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useToast } from '@/hooks/useToast';
+import { useStorageMonitor } from '@/hooks/useStorageMonitor';
+import { StorageError } from '@/lib/storage';
 import { ForumPreset } from '@/lib/forumPresets';
 import { DiscussionTopic } from '@/types';
 import { Bookmark as BookmarkIcon, ExternalLink, Trash2 } from 'lucide-react';
@@ -41,6 +43,19 @@ export default function Home() {
   const { shouldShowOnboarding, completeOnboarding } = useOnboarding();
   const { theme, toggleTheme } = useTheme();
   const { toasts, dismissToast, success, error: showError, warning } = useToast();
+
+  // Storage monitoring with error notifications
+  const { quota, lastError: storageError } = useStorageMonitor(
+    useCallback((error: StorageError) => {
+      if (error.type === 'quota_exceeded') {
+        showError(error.message);
+      } else if (error.type === 'validation_error') {
+        warning(error.message);
+      } else if (error.type === 'parse_error') {
+        showError(error.message);
+      }
+    }, [showError, warning])
+  );
 
   // Calculate unread count for currently displayed discussions
   const unreadCount = getUnreadCount(discussions.map((d) => d.refId));
@@ -144,7 +159,7 @@ export default function Home() {
           }
           // Focus search input after a short delay to allow panel to open
           setTimeout(() => {
-            const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
+            const searchInput = document.getElementById('discussion-search') as HTMLInputElement;
             searchInput?.focus();
           }, 100);
           break;
@@ -305,11 +320,35 @@ export default function Home() {
                   </section>
                   <section className="p-4 bg-gray-800 rounded-lg">
                     <h3 className="font-medium text-white mb-2">Data Storage</h3>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-gray-400 text-sm mb-3">
                       All forum configurations and alerts are stored locally in your browser. No data is sent
                       to any external servers except for fetching discussions from the configured Discourse
                       forums.
                     </p>
+                    {quota && (
+                      <div className="mt-3">
+                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                          <span>Storage used</span>
+                          <span>{(quota.used / 1024).toFixed(1)} KB / {(quota.available / 1024 / 1024).toFixed(0)} MB</span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all ${quota.isNearLimit ? 'bg-yellow-500' : 'bg-green-500'}`}
+                            style={{ width: `${Math.min(quota.percentUsed, 100)}%` }}
+                            role="progressbar"
+                            aria-valuenow={quota.percentUsed}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={`Storage ${quota.percentUsed.toFixed(1)}% used`}
+                          />
+                        </div>
+                        {quota.isNearLimit && (
+                          <p className="text-yellow-400 text-xs mt-2">
+                            Storage is nearly full. Consider exporting your data and clearing old items.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </section>
                   <section className="p-4 bg-gray-800 rounded-lg">
                     <h3 className="font-medium text-white mb-2">Refresh Rate</h3>

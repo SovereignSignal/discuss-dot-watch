@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { Forum, DiscussionTopic } from '@/types';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
@@ -30,8 +30,14 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
   const [forumStates, setForumStates] = useState<ForumLoadingState[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Memoize enabled forums to prevent unnecessary re-fetches
+  // Only changes when IDs or enabled states actually change
+  const forumsRef = useRef(forums);
+  forumsRef.current = forums;
+
   const fetchDiscussions = useCallback(async () => {
-    const enabledForums = forums.filter(f => f.isEnabled);
+    // Use ref to get latest forums without causing dependency changes
+    const enabledForums = forumsRef.current.filter(f => f.isEnabled);
     if (enabledForums.length === 0) {
       setDiscussions([]);
       setForumStates([]);
@@ -138,7 +144,7 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
         setIsLoading(false);
       }
     }
-  }, [forums]);
+  }, []); // No dependencies - uses ref for forums
 
   return {
     discussions,

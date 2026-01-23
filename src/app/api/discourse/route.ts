@@ -4,26 +4,48 @@ import { isAllowedUrl } from '@/lib/url';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 export async function GET(request: NextRequest) {
-  // Rate limiting: 30 requests per minute per IP
-  const rateLimitKey = `discourse:${getRateLimitKey(request)}`;
-  const rateLimit = checkRateLimit(rateLimitKey, { windowMs: 60000, maxRequests: 30 });
+  const searchParams = request.nextUrl.searchParams;
+  const forumUrl = searchParams.get('forumUrl');
 
-  if (!rateLimit.allowed) {
+  // Rate limiting: 60 requests per minute per IP (global)
+  const globalRateLimitKey = `discourse:${getRateLimitKey(request)}`;
+  const globalRateLimit = checkRateLimit(globalRateLimitKey, { windowMs: 60000, maxRequests: 60 });
+
+  if (!globalRateLimit.allowed) {
     return NextResponse.json(
-      { error: 'Rate limit exceeded. Please try again later.' },
+      { error: 'Global rate limit exceeded. Please try again later.' },
       {
         status: 429,
         headers: {
-          'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000).toString(),
-          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
-          'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+          'Retry-After': Math.ceil((globalRateLimit.resetAt - Date.now()) / 1000).toString(),
+          'X-RateLimit-Remaining': globalRateLimit.remaining.toString(),
+          'X-RateLimit-Reset': globalRateLimit.resetAt.toString(),
         },
       }
     );
   }
 
-  const searchParams = request.nextUrl.searchParams;
-  const forumUrl = searchParams.get('forumUrl');
+  // Per-forum rate limiting: 5 requests per minute per forum per IP
+  // This prevents one slow/failing forum from blocking all others
+  if (forumUrl) {
+    const forumDomain = new URL(forumUrl).hostname;
+    const forumRateLimitKey = `discourse:${getRateLimitKey(request)}:${forumDomain}`;
+    const forumRateLimit = checkRateLimit(forumRateLimitKey, { windowMs: 60000, maxRequests: 5 });
+
+    if (!forumRateLimit.allowed) {
+      return NextResponse.json(
+        { error: `Rate limit exceeded for ${forumDomain}. Please try again later.` },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((forumRateLimit.resetAt - Date.now()) / 1000).toString(),
+            'X-RateLimit-Remaining': forumRateLimit.remaining.toString(),
+            'X-RateLimit-Reset': forumRateLimit.resetAt.toString(),
+          },
+        }
+      );
+    }
+  }
   const categoryId = searchParams.get('categoryId');
   const protocol = searchParams.get('protocol') || 'unknown';
   const logoUrl = searchParams.get('logoUrl') || '';

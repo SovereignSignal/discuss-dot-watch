@@ -34,8 +34,8 @@ export function VirtualizedDiscussionList({
     containerRef,
   });
 
-  // For lists with less than 50 items, don't virtualize - it adds complexity without benefit
-  if (discussions.length < 50) {
+  // For lists with less than 30 items, don't virtualize - it adds complexity without benefit
+  if (discussions.length < 30) {
     return (
       <div className="flex-1 overflow-y-auto">
         {discussions.map((topic) => (

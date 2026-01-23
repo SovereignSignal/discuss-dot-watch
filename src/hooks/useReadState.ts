@@ -15,25 +15,30 @@ function getReadState(): ReadState {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? JSON.parse(stored) : {};
   } catch {
+    console.warn('Failed to parse read state from storage');
     return {};
   }
 }
 
-function saveReadState(state: ReadState): void {
-  if (typeof window === 'undefined') return;
+function saveReadState(state: ReadState): boolean {
+  if (typeof window === 'undefined') return false;
   try {
     // Prune old entries if we exceed the limit
     const entries = Object.entries(state);
+    let toSave = state;
     if (entries.length > MAX_STORED_ITEMS) {
       // Keep only the most recent entries
       const sorted = entries.sort((a, b) => b[1] - a[1]);
-      const pruned = Object.fromEntries(sorted.slice(0, MAX_STORED_ITEMS));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pruned));
-    } else {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      toSave = Object.fromEntries(sorted.slice(0, MAX_STORED_ITEMS));
     }
-  } catch {
-    // Storage full or unavailable
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    return true;
+  } catch (e) {
+    // Storage full or unavailable - log but don't crash
+    if (e instanceof DOMException && (e.code === 22 || e.name === 'QuotaExceededError')) {
+      console.warn('Storage quota exceeded when saving read state');
+    }
+    return false;
   }
 }
 

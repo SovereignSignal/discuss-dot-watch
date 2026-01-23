@@ -200,8 +200,19 @@ export function DiscussionFeed({
           className="px-4 py-2 bg-gray-800/50 border-b border-gray-800"
           role="status"
           aria-live="polite"
+          aria-atomic="true"
         >
-          <p className="text-xs text-gray-400 mb-2">Loading forums...</p>
+          {(() => {
+            const completed = forumStates.filter(s => s.status === 'success' || s.status === 'error').length;
+            const total = forumStates.length;
+            const failed = forumStates.filter(s => s.status === 'error').length;
+            return (
+              <p className="text-xs text-gray-400 mb-2">
+                Loading forums: {completed} of {total} complete
+                {failed > 0 && <span className="text-red-400"> ({failed} failed)</span>}
+              </p>
+            );
+          })()}
           <div className="flex flex-wrap gap-2">
             {forumStates.map((state) => (
               <span
@@ -215,13 +226,14 @@ export function DiscussionFeed({
                         ? 'bg-red-900/30 text-red-300'
                         : 'bg-gray-700 text-gray-400'
                 }`}
+                aria-label={`${state.forumName}: ${state.status === 'loading' ? 'loading' : state.status === 'success' ? 'loaded' : state.status === 'error' ? 'failed to load' : 'pending'}`}
               >
                 {state.status === 'loading' && (
                   <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
                 )}
                 {state.status === 'success' && <CheckCircle className="w-3 h-3" aria-hidden="true" />}
                 {state.status === 'error' && <XCircle className="w-3 h-3" aria-hidden="true" />}
-                {state.forumName}
+                <span aria-hidden="true">{state.forumName}</span>
               </span>
             ))}
           </div>
@@ -235,10 +247,14 @@ export function DiscussionFeed({
           <div className="flex items-center justify-center h-64" role="status">
             <div className="text-center">
               <p className="text-gray-400 mb-2">No discussions found</p>
-              {enabledForumIds.length === 0 ? (
-                <p className="text-gray-500 text-sm">Add some forums to get started</p>
+              {forums.length === 0 ? (
+                <p className="text-gray-500 text-sm">Add some forums in the Projects tab to get started</p>
+              ) : enabledForumIds.length === 0 ? (
+                <p className="text-gray-500 text-sm">Enable some forums in the Projects tab to see discussions</p>
               ) : searchQuery ? (
                 <p className="text-gray-500 text-sm">Try a different search term</p>
+              ) : dateRange !== 'all' || selectedForumId ? (
+                <p className="text-gray-500 text-sm">Try adjusting your filters</p>
               ) : (
                 <button
                   onClick={onRefresh}
