@@ -1,391 +1,363 @@
-'use client';
+import Link from 'next/link';
+import {
+  LayoutGrid,
+  Bell,
+  Bookmark,
+  Search,
+  Moon,
+  Sun,
+  RefreshCw,
+  Keyboard,
+  FolderOpen,
+  ArrowRight,
+  CheckCircle2,
+  Zap,
+  Shield,
+  Globe,
+} from 'lucide-react';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Sidebar } from '@/components/Sidebar';
-import { DiscussionFeed } from '@/components/DiscussionFeed';
-import { ForumManager } from '@/components/ForumManager';
-import { RightSidebar } from '@/components/RightSidebar';
-import { FilterTabs } from '@/components/FilterTabs';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { ToastContainer } from '@/components/Toast';
-import { OnboardingWizard } from '@/components/OnboardingWizard';
-import { ConfigExportImport } from '@/components/ConfigExportImport';
-import { OfflineBanner } from '@/components/OfflineBanner';
-import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
-import { SkipLinks } from '@/components/SkipLinks';
-import { useForums } from '@/hooks/useForums';
-import { useDiscussions } from '@/hooks/useDiscussions';
-import { useAlerts } from '@/hooks/useAlerts';
-import { useBookmarks } from '@/hooks/useBookmarks';
-import { useReadState } from '@/hooks/useReadState';
-import { useOnboarding } from '@/hooks/useOnboarding';
-import { useTheme } from '@/hooks/useTheme';
-import { useDebounce } from '@/hooks/useDebounce';
-import { useToast } from '@/hooks/useToast';
-import { useStorageMonitor } from '@/hooks/useStorageMonitor';
-import { StorageError } from '@/lib/storage';
-import { ForumPreset } from '@/lib/forumPresets';
-import { DiscussionTopic } from '@/types';
-import { Bookmark as BookmarkIcon, ExternalLink, Trash2 } from 'lucide-react';
-
-export default function Home() {
-  const [activeView, setActiveView] = useState<'feed' | 'projects' | 'saved' | 'settings'>('feed');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'your'>('your');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMobileAlertsOpen, setIsMobileAlertsOpen] = useState(false);
-
-  const { forums, enabledForums, addForum, removeForum, toggleForum, importForums } = useForums();
-  const { discussions, isLoading, error, lastUpdated, forumStates, refresh } = useDiscussions(enabledForums);
-  const { alerts, addAlert, removeAlert, toggleAlert, importAlerts } = useAlerts();
-  const { bookmarks, addBookmark, removeBookmark, isBookmarked, importBookmarks } = useBookmarks();
-  const { isRead, markAsRead, markMultipleAsRead, getUnreadCount } = useReadState();
-  const { shouldShowOnboarding, completeOnboarding } = useOnboarding();
-  const { theme, toggleTheme } = useTheme();
-  const { toasts, dismissToast, success, error: showError, warning } = useToast();
-
-  // Storage monitoring with error notifications
-  const { quota, lastError: storageError } = useStorageMonitor(
-    useCallback((error: StorageError) => {
-      if (error.type === 'quota_exceeded') {
-        showError(error.message);
-      } else if (error.type === 'validation_error') {
-        warning(error.message);
-      } else if (error.type === 'parse_error') {
-        showError(error.message);
-      }
-    }, [showError, warning])
-  );
-
-  // Calculate unread count for currently displayed discussions
-  const unreadCount = getUnreadCount(discussions.map((d) => d.refId));
-
-  // Debounce search query to avoid filtering on every keystroke
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
-
-  const handleToggleBookmark = useCallback((topic: DiscussionTopic) => {
-    if (isBookmarked(topic.refId)) {
-      removeBookmark(topic.refId);
-      success('Bookmark removed');
-    } else {
-      addBookmark(topic);
-      success('Discussion saved to bookmarks');
-    }
-  }, [isBookmarked, removeBookmark, addBookmark, success]);
-
-  const handleRemoveForum = useCallback((forumId: string) => {
-    const forum = forums.find(f => f.id === forumId);
-    removeForum(forumId);
-    if (forum) {
-      success(`${forum.name} removed from your forums`);
-    }
-  }, [forums, removeForum, success]);
-
-  const handleMarkAllAsRead = useCallback((refIds: string[]) => {
-    markMultipleAsRead(refIds);
-    success(`Marked ${refIds.length} discussions as read`);
-  }, [markMultipleAsRead, success]);
-
-  const handleOnboardingComplete = useCallback((selectedForums: ForumPreset[]) => {
-    // Add selected forums
-    selectedForums.forEach((preset) => {
-      addForum({
-        name: preset.name,
-        cname: preset.name.toLowerCase().replace(/\s+/g, '-'),
-        description: preset.description,
-        token: preset.token,
-        discourseForum: {
-          url: preset.url,
-          categoryId: preset.categoryId,
-        },
-        isEnabled: true,
-      });
-    });
-    completeOnboarding();
-    if (selectedForums.length > 0) {
-      success(`Added ${selectedForums.length} forum${selectedForums.length !== 1 ? 's' : ''} to your feed`);
-    }
-  }, [addForum, completeOnboarding, success]);
-
-  const handleOnboardingSkip = useCallback(() => {
-    completeOnboarding();
-  }, [completeOnboarding]);
-
-  const handleConfigImport = useCallback((data: {
-    forums?: import('@/types').Forum[];
-    alerts?: import('@/types').KeywordAlert[];
-    bookmarks?: import('@/types').Bookmark[];
-  }) => {
-    if (data.forums && data.forums.length > 0) {
-      importForums(data.forums, false);
-    }
-    if (data.alerts && data.alerts.length > 0) {
-      importAlerts(data.alerts, false);
-    }
-    if (data.bookmarks && data.bookmarks.length > 0) {
-      importBookmarks(data.bookmarks, false);
-    }
-  }, [importForums, importAlerts, importBookmarks]);
-
-  // Show toast when there are errors
-  useEffect(() => {
-    if (error && !error.includes('All forums failed')) {
-      warning(error);
-    } else if (error) {
-      showError(error);
-    }
-  }, [error, warning, showError]);
-
-  useEffect(() => {
-    if (enabledForums.length > 0 && discussions.length === 0 && !isLoading) {
-      refresh();
-    }
-  }, [enabledForums.length, discussions.length, isLoading, refresh]);
-
-  // Global keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      switch (e.key) {
-        case '/':
-          e.preventDefault();
-          // Open mobile alerts panel on mobile, focus search
-          if (window.innerWidth < 768) {
-            setIsMobileAlertsOpen(true);
-          }
-          // Focus search input after a short delay to allow panel to open
-          setTimeout(() => {
-            const searchInput = document.getElementById('discussion-search') as HTMLInputElement;
-            searchInput?.focus();
-          }, 100);
-          break;
-        case 'Escape':
-          setIsMobileMenuOpen(false);
-          setIsMobileAlertsOpen(false);
-          break;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
+export default function LandingPage() {
   return (
-    <ErrorBoundary>
-      <SkipLinks />
-      <OfflineBanner />
-      <div className="flex h-screen overflow-hidden theme-bg theme-text pt-14 md:pt-0">
-        <Sidebar
-          activeView={activeView}
-          onViewChange={setActiveView}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          savedCount={bookmarks.length}
-          isMobileOpen={isMobileMenuOpen}
-          onMobileToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        />
-
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="flex items-center justify-between p-4 border-b border-gray-800">
-            <FilterTabs
-              filterMode={filterMode}
-              onFilterChange={setFilterMode}
-              totalCount={forums.length}
-              enabledCount={enabledForums.length}
-            />
-          </header>
-
-          <main id="main-content" className="flex-1 flex overflow-hidden">
-            {activeView === 'feed' && (
-              <>
-                <DiscussionFeed
-                  discussions={discussions}
-                  isLoading={isLoading}
-                  error={error}
-                  lastUpdated={lastUpdated}
-                  onRefresh={refresh}
-                  alerts={alerts}
-                  searchQuery={debouncedSearchQuery}
-                  enabledForumIds={enabledForums.map((f) => f.id)}
-                  forumStates={forumStates}
-                  forums={enabledForums}
-                  isBookmarked={isBookmarked}
-                  isRead={isRead}
-                  onToggleBookmark={handleToggleBookmark}
-                  onMarkAsRead={markAsRead}
-                  onMarkAllAsRead={handleMarkAllAsRead}
-                  unreadCount={unreadCount}
-                  onRemoveForum={handleRemoveForum}
-                />
-                <RightSidebar
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  alerts={alerts}
-                  onAddAlert={addAlert}
-                  onRemoveAlert={removeAlert}
-                  onToggleAlert={toggleAlert}
-                  isMobileOpen={isMobileAlertsOpen}
-                  onMobileToggle={() => setIsMobileAlertsOpen(!isMobileAlertsOpen)}
-                />
-              </>
-            )}
-
-            {activeView === 'projects' && (
-              <div className="flex-1 overflow-y-auto">
-                <ForumManager
-                  forums={forums}
-                  onAddForum={addForum}
-                  onRemoveForum={handleRemoveForum}
-                  onToggleForum={toggleForum}
-                />
-              </div>
-            )}
-
-            {activeView === 'saved' && (
-              <div className="flex-1 overflow-y-auto p-6">
-                <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                  <BookmarkIcon className="w-5 h-5" aria-hidden="true" />
-                  Saved Discussions
-                </h2>
-                {bookmarks.length === 0 ? (
-                  <div className="text-center py-12">
-                    <BookmarkIcon className="w-12 h-12 text-gray-600 mx-auto mb-4" aria-hidden="true" />
-                    <p className="text-gray-400 mb-2">No saved discussions yet</p>
-                    <p className="text-gray-500 text-sm">
-                      Click the bookmark icon on any discussion to save it for later
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="space-y-2" role="list">
-                    {bookmarks.map((bookmark) => (
-                      <li
-                        key={bookmark.id}
-                        className="flex items-center justify-between p-4 bg-gray-800 rounded-lg"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={bookmark.topicUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-white hover:text-red-400 font-medium line-clamp-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
-                          >
-                            {bookmark.topicTitle}
-                          </a>
-                          <p className="text-sm text-gray-500 mt-1">
-                            {bookmark.protocol} · Saved {new Date(bookmark.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={bookmark.topicUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                            aria-label={`Open ${bookmark.topicTitle}`}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                          <button
-                            onClick={() => {
-                              removeBookmark(bookmark.topicRefId);
-                              success('Bookmark removed');
-                            }}
-                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                            aria-label={`Remove ${bookmark.topicTitle} from saved`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {activeView === 'settings' && (
-              <div className="flex-1 p-6">
-                <h2 className="text-xl font-semibold text-white mb-6">Settings</h2>
-                <div className="space-y-4">
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <h3 className="font-medium text-white mb-2">About</h3>
-                    <p className="text-gray-400 text-sm">
-                      Governance Forum Aggregator - A unified view of governance discussions from multiple
-                      Discourse-based forums used by DAOs and blockchain protocols.
-                    </p>
-                  </section>
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <h3 className="font-medium text-white mb-2">Data Storage</h3>
-                    <p className="text-gray-400 text-sm mb-3">
-                      All forum configurations and alerts are stored locally in your browser. No data is sent
-                      to any external servers except for fetching discussions from the configured Discourse
-                      forums.
-                    </p>
-                    {quota && (
-                      <div className="mt-3">
-                        <div className="flex justify-between text-xs text-gray-400 mb-1">
-                          <span>Storage used</span>
-                          <span>{(quota.used / 1024).toFixed(1)} KB / {(quota.available / 1024 / 1024).toFixed(0)} MB</span>
-                        </div>
-                        <div className="w-full bg-gray-700 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all ${quota.isNearLimit ? 'bg-yellow-500' : 'bg-green-500'}`}
-                            style={{ width: `${Math.min(quota.percentUsed, 100)}%` }}
-                            role="progressbar"
-                            aria-valuenow={quota.percentUsed}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={`Storage ${quota.percentUsed.toFixed(1)}% used`}
-                          />
-                        </div>
-                        {quota.isNearLimit && (
-                          <p className="text-yellow-400 text-xs mt-2">
-                            Storage is nearly full. Consider exporting your data and clearing old items.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <h3 className="font-medium text-white mb-2">Refresh Rate</h3>
-                    <p className="text-gray-400 text-sm">
-                      Discussions are cached and can be manually refreshed using the Refresh button. API
-                      responses are cached for 2 minutes to reduce load on forum servers.
-                    </p>
-                  </section>
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <h3 className="font-medium text-white mb-3">Export / Import</h3>
-                    <ConfigExportImport
-                      forums={forums}
-                      alerts={alerts}
-                      bookmarks={bookmarks}
-                      onImport={handleConfigImport}
-                    />
-                  </section>
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <KeyboardShortcuts />
-                  </section>
-                </div>
-              </div>
-            )}
-          </main>
+    <div className="min-h-screen bg-gray-950 text-white">
+      {/* Hero Section */}
+      <header className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-transparent to-purple-900/20" />
+        <div className="relative max-w-6xl mx-auto px-6 py-20 md:py-32">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-indigo-400 text-sm mb-8">
+              <Globe className="w-4 h-4" />
+              <span>70+ Governance Forums Supported</span>
+            </div>
+            <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
+              Gov Watch
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-400 mb-4 max-w-3xl mx-auto">
+              Your Unified Gateway to DAO Governance
+            </p>
+            <p className="text-gray-500 mb-10 max-w-2xl mx-auto">
+              Aggregate governance discussions from Aave, Compound, Uniswap, Arbitrum, Optimism, and dozens more
+              Discourse-based forums into a single, powerful interface.
+            </p>
+            <Link
+              href="/app"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors text-lg"
+            >
+              Launch App
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          </div>
         </div>
+      </header>
 
-        {/* Toast notifications */}
-        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      {/* Key Benefits */}
+      <section className="py-16 border-t border-gray-800">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center p-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-green-500/10 rounded-lg mb-4">
+                <Zap className="w-6 h-6 text-green-400" />
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Save Time</h3>
+              <p className="text-gray-400 text-sm">
+                Stop switching between dozens of forum tabs. See all governance activity in one place.
+              </p>
+            </div>
+            <div className="text-center p-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-500/10 rounded-lg mb-4">
+                <Bell className="w-6 h-6 text-blue-400" />
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Never Miss a Vote</h3>
+              <p className="text-gray-400 text-sm">
+                Set keyword alerts for topics you care about. Get highlighted matches instantly.
+              </p>
+            </div>
+            <div className="text-center p-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-500/10 rounded-lg mb-4">
+                <Shield className="w-6 h-6 text-purple-400" />
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Privacy First</h3>
+              <p className="text-gray-400 text-sm">
+                All data stays in your browser. No accounts, no tracking, no backend database.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        {/* Onboarding wizard for new users */}
-        {shouldShowOnboarding && (
-          <OnboardingWizard
-            onComplete={handleOnboardingComplete}
-            onSkip={handleOnboardingSkip}
-          />
-        )}
+      {/* How It Works */}
+      <section className="py-20 bg-gray-900/50">
+        <div className="max-w-6xl mx-auto px-6">
+          <h2 className="text-3xl font-bold text-center mb-4">How It Works</h2>
+          <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+            Get started in minutes with a simple three-step process
+          </p>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="relative">
+              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
+                1
+              </div>
+              <div className="pl-8">
+                <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                  <FolderOpen className="w-5 h-5 text-indigo-400" />
+                  Add Forums
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  Choose from 70+ pre-configured governance forums or add any Discourse forum URL. Enable only
+                  the forums relevant to your interests.
+                </p>
+              </div>
+            </div>
+            <div className="relative">
+              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
+                2
+              </div>
+              <div className="pl-8">
+                <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-indigo-400" />
+                  Set Alerts
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  Create keyword alerts for proposals, protocols, or topics you want to track. Matching
+                  discussions are highlighted in yellow.
+                </p>
+              </div>
+            </div>
+            <div className="relative">
+              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
+                3
+              </div>
+              <div className="pl-8">
+                <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                  <LayoutGrid className="w-5 h-5 text-indigo-400" />
+                  Browse Feed
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  View all discussions in a unified feed. Filter by forum, date range, or search. Bookmark
+                  important topics for later reference.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section className="py-20">
+        <div className="max-w-6xl mx-auto px-6">
+          <h2 className="text-3xl font-bold text-center mb-4">Powerful Features</h2>
+          <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+            Everything you need to stay on top of governance across the ecosystem
+          </p>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <FeatureCard
+              icon={<Search className="w-5 h-5" />}
+              title="Smart Search"
+              description="Instantly search across all discussions with real-time filtering"
+            />
+            <FeatureCard
+              icon={<Bookmark className="w-5 h-5" />}
+              title="Bookmarks"
+              description="Save important discussions for quick access later"
+            />
+            <FeatureCard
+              icon={<CheckCircle2 className="w-5 h-5" />}
+              title="Read Tracking"
+              description="Visual indicators show which discussions you've already seen"
+            />
+            <FeatureCard
+              icon={<RefreshCw className="w-5 h-5" />}
+              title="Auto Refresh"
+              description="Discussions update automatically with smart caching"
+            />
+            <FeatureCard
+              icon={<Keyboard className="w-5 h-5" />}
+              title="Keyboard Shortcuts"
+              description="Navigate quickly with /, j/k, and arrow keys"
+            />
+            <FeatureCard
+              icon={<ThemeIcon />}
+              title="Dark/Light Mode"
+              description="Toggle between themes to match your preference"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Pro Tips */}
+      <section className="py-20 bg-gray-900/50">
+        <div className="max-w-6xl mx-auto px-6">
+          <h2 className="text-3xl font-bold text-center mb-4">Pro Tips</h2>
+          <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+            Get the most out of Gov Watch with these power user tips
+          </p>
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <TipCard
+              number="1"
+              title="Use Keyword Alerts Strategically"
+              tips={[
+                'Add alerts for protocol names you hold tokens in',
+                'Track "proposal", "vote", or "RFC" for early discussion visibility',
+                'Set alerts for grant programs you\'re interested in',
+              ]}
+            />
+            <TipCard
+              number="2"
+              title="Organize Your Feed"
+              tips={[
+                'Enable only forums you actively follow to reduce noise',
+                'Use date filters to focus on recent activity',
+                'Sort by "Most Replies" to find active discussions',
+              ]}
+            />
+            <TipCard
+              number="3"
+              title="Stay Efficient"
+              tips={[
+                'Press "/" to instantly focus the search bar',
+                'Use j/k or arrow keys to navigate the feed',
+                'Bookmark proposals to track before voting',
+              ]}
+            />
+            <TipCard
+              number="4"
+              title="Back Up Your Data"
+              tips={[
+                'Export your config periodically from Settings',
+                'Import on a new device to sync your setup',
+                'Your forums, alerts, and bookmarks are all backed up',
+              ]}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Supported Forums Preview */}
+      <section className="py-20">
+        <div className="max-w-6xl mx-auto px-6">
+          <h2 className="text-3xl font-bold text-center mb-4">Supported Forums</h2>
+          <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+            Pre-configured support for major DeFi protocols, L2s, DAOs, and more
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 mb-8">
+            {[
+              'Aave',
+              'Compound',
+              'Uniswap',
+              'MakerDAO',
+              'Arbitrum',
+              'Optimism',
+              'ENS',
+              'Gitcoin',
+              'Lido',
+              'Curve',
+              'Balancer',
+              'dYdX',
+              'Safe',
+              'The Graph',
+              'Polygon',
+            ].map((forum) => (
+              <span
+                key={forum}
+                className="px-4 py-2 bg-gray-800 rounded-lg text-sm text-gray-300"
+              >
+                {forum}
+              </span>
+            ))}
+            <span className="px-4 py-2 bg-indigo-600/20 border border-indigo-500/30 rounded-lg text-sm text-indigo-400">
+              +55 more
+            </span>
+          </div>
+          <p className="text-center text-gray-500 text-sm">
+            Plus support for adding any custom Discourse forum URL
+          </p>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-gradient-to-r from-indigo-900/30 to-purple-900/30">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <h2 className="text-3xl font-bold mb-4">Ready to Streamline Your Governance Workflow?</h2>
+          <p className="text-gray-400 mb-8">
+            Start aggregating governance discussions from across the ecosystem today.
+            No sign-up required.
+          </p>
+          <Link
+            href="/app"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors text-lg"
+          >
+            Launch App
+            <ArrowRight className="w-5 h-5" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-8 border-t border-gray-800">
+        <div className="max-w-6xl mx-auto px-6 text-center text-gray-500 text-sm">
+          <p>Gov Watch - Governance Forum Aggregator</p>
+          <p className="mt-2">
+            Open source. Client-side only. Your data never leaves your browser.
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="p-6 bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-colors">
+      <div className="inline-flex items-center justify-center w-10 h-10 bg-indigo-500/10 rounded-lg mb-4 text-indigo-400">
+        {icon}
       </div>
-    </ErrorBoundary>
+      <h3 className="font-semibold mb-2">{title}</h3>
+      <p className="text-gray-400 text-sm">{description}</p>
+    </div>
+  );
+}
+
+function TipCard({
+  number,
+  title,
+  tips,
+}: {
+  number: string;
+  title: string;
+  tips: string[];
+}) {
+  return (
+    <div className="p-6 bg-gray-800/50 border border-gray-700 rounded-xl">
+      <div className="flex items-center gap-3 mb-4">
+        <span className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
+          {number}
+        </span>
+        <h3 className="font-semibold">{title}</h3>
+      </div>
+      <ul className="space-y-2">
+        {tips.map((tip, index) => (
+          <li key={index} className="flex items-start gap-2 text-sm text-gray-400">
+            <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+            <span>{tip}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ThemeIcon() {
+  return (
+    <div className="relative w-5 h-5">
+      <Moon className="w-5 h-5 absolute inset-0" />
+      <Sun className="w-3 h-3 absolute -right-1 -top-1 text-yellow-400" />
+    </div>
   );
 }
