@@ -104,7 +104,7 @@ export function DiscussionItem({
       className={`relative group mx-3 my-2 p-4 rounded-xl border transition-all duration-200 ${
         hasMatchingKeyword
           ? 'border-indigo-500/40 bg-indigo-500/5 hover:bg-indigo-500/10 hover:border-indigo-500/60'
-          : 'border-gray-800 bg-gray-900/50 hover:bg-gray-800/70 hover:border-gray-700'
+          : 'theme-card hover:opacity-90'
       } ${isRead ? 'opacity-60' : ''}`}
     >
       {/* Unread indicator */}
@@ -157,22 +157,22 @@ export function DiscussionItem({
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-xs text-gray-500 mb-1.5">
-            <span className="text-gray-400">{formatTimestamp(topic.bumpedAt)}</span>
-            <span aria-hidden="true" className="text-gray-600">·</span>
-            <span className="capitalize font-medium text-gray-400">{topic.protocol}</span>
+          <div className="flex items-center gap-2 text-xs theme-text-muted mb-1.5">
+            <span className="theme-text-secondary">{formatTimestamp(topic.bumpedAt)}</span>
+            <span aria-hidden="true">·</span>
+            <span className="capitalize font-medium theme-text-secondary">{topic.protocol}</span>
             {topic.pinned && <Pin className="w-3 h-3 text-indigo-400" aria-label="Pinned" />}
             {topic.closed && <Lock className="w-3 h-3 text-amber-500" aria-label="Closed" />}
-            {topic.archived && <Archive className="w-3 h-3 text-gray-500" aria-label="Archived" />}
+            {topic.archived && <Archive className="w-3 h-3 theme-text-muted" aria-label="Archived" />}
           </div>
 
           <h3
-            className={`font-medium mb-2 line-clamp-2 ${isRead ? 'text-gray-400' : 'text-white dark:text-white'}`}
+            className={`font-medium mb-2 line-clamp-2 ${isRead ? 'theme-text-muted' : 'theme-text'}`}
           >
             {highlightKeywords(topic.title, alerts)}
           </h3>
 
-          <div className="flex items-center gap-4 text-xs text-gray-400">
+          <div className="flex items-center gap-4 text-xs theme-text-secondary">
             <span className="flex items-center gap-1" aria-label={`${topic.replyCount} replies`}>
               <MessageSquare className="w-3 h-3" aria-hidden="true" />
               {topic.replyCount}
@@ -191,12 +191,12 @@ export function DiscussionItem({
                   // Defensive: handle both string and object tags (API normalizes, but be safe)
                   const tagName = typeof tag === 'string' ? tag : (tag as { name: string }).name;
                   return (
-                    <span key={tagName} className="px-2 py-0.5 bg-gray-800/80 border border-gray-700/50 rounded-full text-gray-400 text-[11px]">
+                    <span key={tagName} className="px-2 py-0.5 rounded-full text-[11px] theme-text-secondary" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
                       {tagName}
                     </span>
                   );
                 })}
-                {topic.tags.length > 3 && <span className="text-gray-500 text-[11px]">+{topic.tags.length - 3}</span>}
+                {topic.tags.length > 3 && <span className="theme-text-muted text-[11px]">+{topic.tags.length - 3}</span>}
               </div>
             )}
           </div>

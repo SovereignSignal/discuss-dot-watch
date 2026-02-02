@@ -93,17 +93,19 @@ html.light .bg-gray-950 {
 }
 
 html.light .bg-gray-900\/50,
-html.light .bg-gray-800\/50 {
-  background-color: rgba(255, 255, 255, 0.5) !important;
+html.light .bg-gray-800\/50,
+html.light .bg-gray-800\/80 {
+  background-color: rgba(243, 244, 246, 0.8) !important;
 }
 
 /* Override dark border colors */
 html.light .border-gray-800,
-html.light .border-gray-700 {
+html.light .border-gray-700,
+html.light .border-gray-700\/50 {
   border-color: var(--card-border) !important;
 }
 
-/* Override text colors */
+/* Override text colors - ensure readable in both modes */
 html.light .text-white {
   color: var(--text-primary) !important;
 }
@@ -120,7 +122,9 @@ html.light .text-gray-600 {
 
 /* Hover states */
 html.light .hover\:bg-gray-800:hover,
-html.light .hover\:bg-gray-700:hover {
+html.light .hover\:bg-gray-700:hover,
+html.light .hover\:bg-gray-800\/70:hover,
+html.light .hover\:bg-gray-700\/50:hover {
   background-color: #e5e7eb !important;
 }
 
@@ -139,16 +143,97 @@ html.light .hover\:bg-indigo-700:hover {
   background-color: var(--accent-hover) !important;
 }
 
+/* Dark mode: light indigo text for contrast */
+.text-indigo-300,
 .text-indigo-400,
-.text-indigo-500,
-html.light .text-indigo-400,
-html.light .text-indigo-500 {
+.text-indigo-500 {
   color: var(--accent-light) !important;
 }
 
+/* Light mode: darker indigo text for contrast */
+html.light .text-indigo-300,
 html.light .text-indigo-400,
 html.light .text-indigo-500 {
   color: var(--accent) !important;
+}
+
+/* Indigo background utilities - ensure proper contrast */
+html.light .bg-indigo-500\/5,
+html.light .bg-indigo-500\/10,
+html.light .bg-indigo-500\/15,
+html.light .bg-indigo-500\/20 {
+  background-color: rgba(79, 70, 229, 0.1) !important;
+}
+
+html.light .border-indigo-500\/30,
+html.light .border-indigo-500\/40,
+html.light .border-indigo-500\/60 {
+  border-color: rgba(79, 70, 229, 0.3) !important;
+}
+
+html.light .hover\:bg-indigo-500\/10:hover,
+html.light .hover\:bg-indigo-500\/15:hover,
+html.light .hover\:bg-indigo-500\/25:hover {
+  background-color: rgba(79, 70, 229, 0.15) !important;
+}
+
+html.light .hover\:border-indigo-500\/60:hover {
+  border-color: rgba(79, 70, 229, 0.5) !important;
+}
+
+/* ===== KEYWORD HIGHLIGHT MARK ELEMENT ===== */
+/* Dark mode: light text on subtle dark indigo background */
+mark {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  color: #c7d2fe !important; /* indigo-200 - light and readable */
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Light mode: dark text on subtle light indigo background */
+html.light mark {
+  background-color: rgba(79, 70, 229, 0.15) !important;
+  color: #4338ca !important; /* indigo-700 - dark and readable */
+  border-color: rgba(79, 70, 229, 0.3) !important;
+}
+
+/* ===== DISCUSSION CARD OVERRIDES ===== */
+/* Light mode card styling */
+html.light .border-gray-800.bg-gray-900\/50 {
+  background-color: white !important;
+  border-color: #e5e7eb !important;
+}
+
+html.light .hover\:bg-gray-800\/70:hover {
+  background-color: #f3f4f6 !important;
+}
+
+html.light .hover\:border-gray-700:hover {
+  border-color: #d1d5db !important;
+}
+
+/* ===== SIDEBAR OVERRIDES ===== */
+html.light aside.bg-gray-900 {
+  background-color: var(--sidebar-bg) !important;
+}
+
+/* ===== ALERT TAG OVERRIDES ===== */
+/* Ensure alert tags have proper contrast in light mode */
+html.light .bg-indigo-500\/10.border-indigo-500\/30 {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+  border-color: rgba(79, 70, 229, 0.25) !important;
+}
+
+/* ===== AVATAR/ICON GRADIENT OVERRIDES ===== */
+html.light .from-indigo-500,
+html.light .to-indigo-700,
+html.light .bg-gradient-to-br.from-indigo-500.to-indigo-700 {
+  /* Keep indigo gradient in light mode - it provides good contrast */
+}
+
+/* ===== UNREAD INDICATOR ===== */
+html.light .bg-indigo-500.shadow-indigo-500\/50 {
+  background-color: var(--accent) !important;
+  box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3) !important;
 }
 
 /* Input and select elements */

@@ -68,26 +68,27 @@ export function RightSidebar({
 
       <aside className={`
         fixed md:relative
-        w-80 bg-gray-900 border-l border-gray-800 flex flex-col h-full
+        w-80 theme-sidebar border-l flex flex-col h-full
         z-50 md:z-auto
         transition-transform duration-300 ease-in-out
         ${isMobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
         right-0 top-14 md:top-0
         max-h-[calc(100vh-3.5rem)] md:max-h-full
       `}>
-      <div id="search" className="p-4 border-b border-gray-800">
+      <div id="search" className="p-4 border-b" style={{ borderColor: 'var(--card-border)' }}>
         <div className="relative">
           <label htmlFor="discussion-search" className="sr-only">
             Search discussions
           </label>
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" aria-hidden="true" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 theme-text-muted" aria-hidden="true" />
           <input
             id="discussion-search"
             type="search"
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search discussions..."
-            className="w-full pl-10 pr-10 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm"
+            className="w-full pl-10 pr-10 py-2 min-h-[44px] rounded-lg theme-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm"
+            style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
           />
           {searchQuery && (
             <button
@@ -103,15 +104,15 @@ export function RightSidebar({
 
       <div className="flex-1 p-4 overflow-y-auto">
         <div className="mb-6">
-          <h3 className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
+          <h3 className="flex items-center gap-2 text-sm font-medium theme-text-secondary mb-3">
             <Bell className="w-4 h-4" />
             Keyword Alerts
           </h3>
-          <div className="text-xs text-gray-500 mb-3 p-2 bg-gray-800/50 rounded-lg">
-            <p className="mb-1"><strong className="text-gray-400">Note:</strong> Alerts highlight matching keywords in discussion titles.</p>
+          <div className="text-xs theme-text-muted mb-3 p-2 rounded-lg" style={{ backgroundColor: 'var(--card-bg)' }}>
+            <p className="mb-1"><strong className="theme-text-secondary">Note:</strong> Alerts highlight matching keywords in discussion titles.</p>
             <p>Use the search box above to filter/hide non-matching discussions.</p>
           </div>
-          
+
           <div className="flex gap-2 mb-3">
             <label htmlFor="new-keyword" className="sr-only">
               Add keyword alert
@@ -123,7 +124,8 @@ export function RightSidebar({
               onChange={(e) => setNewKeyword(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Add keyword..."
-              className="flex-1 px-3 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm"
+              className="flex-1 px-3 py-2 min-h-[44px] rounded-lg theme-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm"
+              style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
             />
             <button
               onClick={handleAddAlert}
@@ -136,7 +138,7 @@ export function RightSidebar({
           </div>
 
           {alerts.length === 0 ? (
-            <p className="text-gray-500 text-sm" role="status">No keyword alerts set</p>
+            <p className="theme-text-muted text-sm" role="status">No keyword alerts set</p>
           ) : (
             <ul className="space-y-2" role="list" aria-label="Keyword alerts">
               {alerts.map((alert) => (
@@ -145,10 +147,11 @@ export function RightSidebar({
                   className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
                     alert.isEnabled
                       ? 'bg-indigo-500/10 border-indigo-500/30 hover:bg-indigo-500/15'
-                      : 'bg-gray-800/50 border-gray-700/50 hover:bg-gray-800'
+                      : 'hover:opacity-80'
                   }`}
+                  style={!alert.isEnabled ? { backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' } : undefined}
                 >
-                  <span className={`text-sm font-medium ${alert.isEnabled ? 'text-white' : 'text-gray-500'}`}>
+                  <span className={`text-sm font-medium ${alert.isEnabled ? 'theme-text' : 'theme-text-muted'}`}>
                     {alert.keyword}
                   </span>
                   <div className="flex items-center gap-0.5">
@@ -157,7 +160,7 @@ export function RightSidebar({
                       className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                         alert.isEnabled
                           ? 'text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/20'
-                          : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'
+                          : 'theme-text-muted hover:opacity-80'
                       }`}
                       aria-label={alert.isEnabled ? `Disable alert for "${alert.keyword}"` : `Enable alert for "${alert.keyword}"`}
                       aria-pressed={alert.isEnabled}
@@ -170,7 +173,7 @@ export function RightSidebar({
                     </button>
                     <button
                       onClick={() => onRemoveAlert(alert.id)}
-                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center theme-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                       aria-label={`Remove alert for "${alert.keyword}"`}
                     >
                       <X className="w-4 h-4" />
@@ -182,9 +185,9 @@ export function RightSidebar({
           )}
         </div>
 
-        <div className="pt-4 border-t border-gray-800">
-          <h3 className="text-sm font-medium text-gray-400 mb-2">Tips</h3>
-          <ul className="text-xs text-gray-500 space-y-1">
+        <div className="pt-4 border-t" style={{ borderColor: 'var(--card-border)' }}>
+          <h3 className="text-sm font-medium theme-text-secondary mb-2">Tips</h3>
+          <ul className="text-xs theme-text-muted space-y-1">
             <li>• Click on a discussion to open it in a new tab</li>
             <li>• Matching keywords are highlighted in the title</li>
             <li>• Enable/disable forums in the Projects tab</li>
