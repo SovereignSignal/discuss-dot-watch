@@ -106,24 +106,47 @@ export async function GET(request: NextRequest) {
       apiUrl = `${baseUrl}/latest.json`;
     }
 
-    const response = await fetch(apiUrl, {
+    // Fetch with manual redirect handling for security
+    let response = await fetch(apiUrl, {
       headers: {
         'Accept': 'application/json',
       },
       next: { revalidate: 120 },
-      redirect: 'manual', // Don't follow redirects automatically
+      redirect: 'manual', // Don't follow redirects automatically - we validate them first
     });
 
-    // Check for redirects (forum may have moved or shut down)
+    // Handle redirects - Discourse often redirects /c/{id}.json to /c/{slug}/{id}.json
     if (response.status >= 300 && response.status < 400) {
       const redirectUrl = response.headers.get('location');
 
       // Validate redirect URL to prevent SSRF via redirect
-      if (redirectUrl && !isAllowedRedirectUrl(apiUrl, redirectUrl)) {
+      if (!redirectUrl || !isAllowedRedirectUrl(apiUrl, redirectUrl)) {
         throw new Error('Forum redirected to a disallowed URL');
       }
 
-      throw new Error(`Forum has moved or shut down (redirects to ${redirectUrl || 'unknown'})`);
+      // Check if redirect is to the same domain (acceptable for category slug redirects)
+      const originalHost = new URL(apiUrl).hostname;
+      const redirectHost = new URL(redirectUrl).hostname;
+
+      if (originalHost === redirectHost) {
+        // Same domain redirect - this is normal Discourse behavior for category URLs
+        // Follow the redirect by fetching the new URL
+        response = await fetch(redirectUrl, {
+          headers: {
+            'Accept': 'application/json',
+          },
+          next: { revalidate: 120 },
+          redirect: 'manual',
+        });
+
+        // If the redirect target also redirects, treat it as moved
+        if (response.status >= 300 && response.status < 400) {
+          throw new Error(`Forum has moved (multiple redirects from ${apiUrl})`);
+        }
+      } else {
+        // Different domain - forum has actually moved
+        throw new Error(`Forum has moved or shut down (redirects to ${redirectUrl})`);
+      }
     }
 
     if (!response.ok) {
