@@ -78,6 +78,18 @@ railway run psql -f src/lib/schema.sql
 5. In Railway, add variable:
    - `NEXT_PUBLIC_PRIVY_APP_ID` = your app ID
 
+#### Enabling Google Login
+
+Google OAuth requires additional configuration in Privy:
+
+1. In Privy Dashboard, go to **Login Methods**
+2. Enable **Google** toggle
+3. Privy uses their own Google OAuth credentials by default
+4. If you see issues:
+   - Verify your domain is in **Allowed Origins**
+   - Check that the Railway URL exactly matches (including https://)
+   - Note: Google OAuth may not work in localhost without custom setup
+
 ### 5. Trigger Redeploy
 
 Railway auto-deploys on push, but to pick up new env vars:
