@@ -144,7 +144,10 @@ export async function GET(request: NextRequest) {
       protocol,
       title: topic.title,
       slug: topic.slug,
-      tags: topic.tags || [],
+      // Normalize tags: Discourse API can return string[] or object[] with {id, name, slug}
+      tags: (topic.tags || []).map((tag: string | { id: number; name: string; slug: string }) =>
+        typeof tag === 'string' ? tag : tag.name
+      ),
       postsCount: topic.posts_count,
       views: topic.views,
       replyCount: topic.reply_count,

@@ -187,11 +187,15 @@ export function DiscussionItem({
             </span>
             {topic.tags.length > 0 && (
               <div className="flex items-center gap-1 flex-wrap">
-                {topic.tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">
-                    {tag}
-                  </span>
-                ))}
+                {topic.tags.slice(0, 3).map((tag) => {
+                  // Defensive: handle both string and object tags (API normalizes, but be safe)
+                  const tagName = typeof tag === 'string' ? tag : (tag as { name: string }).name;
+                  return (
+                    <span key={tagName} className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">
+                      {tagName}
+                    </span>
+                  );
+                })}
                 {topic.tags.length > 3 && <span className="text-gray-600">+{topic.tags.length - 3}</span>}
               </div>
             )}

@@ -71,6 +71,7 @@ export interface Bookmark {
   createdAt: string;
 }
 
+// Raw Discourse API response - tags can be strings OR objects depending on forum
 export interface DiscourseTopicResponse {
   id: number;
   title: string;
@@ -86,7 +87,7 @@ export interface DiscourseTopicResponse {
   visible: boolean;
   closed: boolean;
   archived: boolean;
-  tags: string[];
+  tags: (string | { id: number; name: string; slug: string })[];
   image_url?: string;
 }
 
