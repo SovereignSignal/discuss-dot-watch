@@ -88,13 +88,15 @@ body {
 /* Override all hardcoded dark background colors in light mode */
 html.light .bg-gray-900,
 html.light .bg-gray-800,
+html.light .bg-gray-700,
 html.light .bg-gray-950 {
   background-color: var(--card-bg) !important;
 }
 
 html.light .bg-gray-900\/50,
 html.light .bg-gray-800\/50,
-html.light .bg-gray-800\/80 {
+html.light .bg-gray-800\/80,
+html.light .bg-gray-700\/50 {
   background-color: rgba(243, 244, 246, 0.8) !important;
 }
 
@@ -123,6 +125,7 @@ html.light .text-gray-600 {
 /* Hover states */
 html.light .hover\:bg-gray-800:hover,
 html.light .hover\:bg-gray-700:hover,
+html.light .hover\:bg-gray-600:hover,
 html.light .hover\:bg-gray-800\/70:hover,
 html.light .hover\:bg-gray-700\/50:hover {
   background-color: #e5e7eb !important;
@@ -130,6 +133,19 @@ html.light .hover\:bg-gray-700\/50:hover {
 
 html.light .hover\:text-white:hover {
   color: var(--text-primary) !important;
+}
+
+/* Additional background overrides for status colors */
+html.light .bg-indigo-900\/30,
+html.light .bg-green-900\/30,
+html.light .bg-yellow-900\/20,
+html.light .bg-yellow-900\/30 {
+  background-color: rgba(79, 70, 229, 0.1) !important;
+}
+
+html.light .bg-indigo-800,
+html.light .disabled\:bg-indigo-800:disabled {
+  background-color: var(--accent-muted) !important;
 }
 
 /* Indigo accent colors - consistent across themes */
