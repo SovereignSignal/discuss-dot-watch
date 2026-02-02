@@ -124,7 +124,7 @@ export function DiscussionFeed({
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold theme-text">Discussions</h2>
           {unreadCount > 0 && (
-            <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-medium rounded-full">
+            <span className="px-2 py-0.5 bg-indigo-600 text-white text-xs font-medium rounded-full">
               {unreadCount} new
             </span>
           )}
@@ -139,7 +139,7 @@ export function DiscussionFeed({
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="flex items-center gap-2 px-3 py-2 min-h-[44px] bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              className="flex items-center gap-2 px-3 py-2 min-h-[44px] bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               aria-label="Mark all visible as read"
               title="Mark all as read"
             >
@@ -150,7 +150,7 @@ export function DiscussionFeed({
           <button
             onClick={onRefresh}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 min-h-[44px] bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+            className="flex items-center gap-2 px-4 py-2 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
             aria-label={isLoading ? 'Loading discussions' : 'Refresh discussions'}
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -209,7 +209,7 @@ export function DiscussionFeed({
             return (
               <p className="text-xs text-gray-400 mb-2">
                 Loading forums: {completed} of {total} complete
-                {failed > 0 && <span className="text-red-400"> ({failed} failed)</span>}
+                {failed > 0 && <span className="text-indigo-400"> ({failed} failed)</span>}
               </p>
             );
           })()}
@@ -219,11 +219,11 @@ export function DiscussionFeed({
                 key={state.forumId}
                 className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
                   state.status === 'loading'
-                    ? 'bg-red-900/30 text-red-300'
+                    ? 'bg-indigo-900/30 text-indigo-300'
                     : state.status === 'success'
                       ? 'bg-green-900/30 text-green-300'
                       : state.status === 'error'
-                        ? 'bg-red-900/30 text-red-300'
+                        ? 'bg-indigo-900/30 text-indigo-300'
                         : 'bg-gray-700 text-gray-400'
                 }`}
                 aria-label={`${state.forumName}: ${state.status === 'loading' ? 'loading' : state.status === 'success' ? 'loaded' : state.status === 'error' ? 'failed to load' : 'pending'}`}
@@ -258,7 +258,7 @@ export function DiscussionFeed({
               ) : (
                 <button
                   onClick={onRefresh}
-                  className="text-red-400 hover:text-red-300 text-sm px-4 py-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="text-indigo-400 hover:text-indigo-300 text-sm px-4 py-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   Click to refresh
                 </button>
@@ -282,7 +282,7 @@ export function DiscussionFeed({
               <div className="p-4 flex justify-center">
                 <button
                   onClick={handleLoadMore}
-                  className="px-4 py-2 min-h-[44px] bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="px-4 py-2 min-h-[44px] bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   Load more ({filteredAndSortedDiscussions.length - displayCount} remaining)
                 </button>

@@ -77,7 +77,7 @@ export default function LandingPage() {
               </div>
               <h3 className="font-semibold text-lg mb-2">Privacy First</h3>
               <p className="text-gray-400 text-sm">
-                All data stays in your browser. No accounts, no tracking, no backend database.
+                Optional sign-in to sync across devices. Works offline with local storage.
               </p>
             </div>
           </div>
@@ -279,7 +279,7 @@ export default function LandingPage() {
           <h2 className="text-3xl font-bold mb-4">Ready to Streamline Your Governance Workflow?</h2>
           <p className="text-gray-400 mb-8">
             Start aggregating governance discussions from across the ecosystem today.
-            No sign-up required.
+            Sign in to sync your preferences across devices.
           </p>
           <Link
             href="/app"
@@ -296,7 +296,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 text-center text-gray-500 text-sm">
           <p>Gov Watch - Governance Forum Aggregator</p>
           <p className="mt-2">
-            Open source. Client-side only. Your data never leaves your browser.
+            Open source. Privacy-focused. Optional sync with secure authentication.
           </p>
         </div>
       </footer>

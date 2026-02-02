@@ -59,7 +59,7 @@ export function RightSidebar({
       {/* Mobile toggle button */}
       <button
         onClick={onMobileToggle}
-        className="md:hidden fixed bottom-4 right-4 z-30 p-3 min-w-[48px] min-h-[48px] flex items-center justify-center bg-red-600 text-white rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+        className="md:hidden fixed bottom-4 right-4 z-30 p-3 min-w-[48px] min-h-[48px] flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
         aria-label={isMobileOpen ? 'Close search & alerts' : 'Open search & alerts'}
         aria-expanded={isMobileOpen}
       >
@@ -87,12 +87,12 @@ export function RightSidebar({
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search discussions..."
-            className="w-full pl-10 pr-10 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 text-sm"
+            className="w-full pl-10 pr-10 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm"
           />
           {searchQuery && (
             <button
               onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-w-[32px] min-h-[32px] flex items-center justify-center text-gray-500 hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-w-[32px] min-h-[32px] flex items-center justify-center text-gray-500 hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               aria-label="Clear search"
             >
               <X className="w-4 h-4" />
@@ -123,13 +123,13 @@ export function RightSidebar({
               onChange={(e) => setNewKeyword(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Add keyword..."
-              className="flex-1 px-3 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 text-sm"
+              className="flex-1 px-3 py-2 min-h-[44px] bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm"
             />
             <button
               onClick={handleAddAlert}
               disabled={!newKeyword.trim()}
               aria-label="Add keyword alert"
-              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -152,7 +152,7 @@ export function RightSidebar({
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => onToggleAlert(alert.id)}
-                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-white transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-white transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                       aria-label={alert.isEnabled ? `Disable alert for "${alert.keyword}"` : `Enable alert for "${alert.keyword}"`}
                       aria-pressed={alert.isEnabled}
                     >
@@ -164,7 +164,7 @@ export function RightSidebar({
                     </button>
                     <button
                       onClick={() => onRemoveAlert(alert.id)}
-                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-red-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-indigo-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                       aria-label={`Remove alert for "${alert.keyword}"`}
                     >
                       <X className="w-4 h-4" />

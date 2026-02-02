@@ -5,10 +5,16 @@
 ## Current Sprint: V1 Launch
 
 ### Deployment Blockers
-- [ ] **Railway build errors** - Investigating, added nixpacks.toml for Node 22
-- [ ] Set up Privy account and configure `NEXT_PUBLIC_PRIVY_APP_ID` in Railway
-- [ ] Set up Railway Postgres and configure `DATABASE_URL` in Railway
+- [x] ~~Railway build errors~~ - Fixed with nixpacks.toml for Node 22
+- [x] Set up Privy account and configure `NEXT_PUBLIC_PRIVY_APP_ID` in Railway
+- [x] Set up Railway Postgres and configure `DATABASE_URL` in Railway
 - [ ] Run database schema (`src/lib/schema.sql`) on Railway Postgres
+
+### V1 Polish
+- [x] **Fix color scheme consistency** - Changed from red to indigo accent color to match landing page
+- [x] **Update landing page messaging** - Removed "no accounts" messaging, updated to reflect optional sign-in
+- [ ] **Require login before accessing app** - Users should authenticate to use the system
+- [ ] **Fix Google login** - Google OAuth not working in Privy
 
 ### Post-Deployment
 - [ ] Test authentication flow end-to-end

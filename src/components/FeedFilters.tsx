@@ -52,9 +52,9 @@ export function FeedFilters({
               key={option.value}
               onClick={() => onDateRangeChange(option.value)}
               aria-pressed={dateRange === option.value}
-              className={`px-3 py-2 min-h-[36px] text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-inset ${
+              className={`px-3 py-2 min-h-[36px] text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset ${
                 dateRange === option.value
-                  ? 'bg-red-600 text-white'
+                  ? 'bg-indigo-600 text-white'
                   : 'theme-text-secondary hover:opacity-80'
               }`}
               style={dateRange !== option.value ? { backgroundColor: 'var(--card-bg)' } : undefined}
@@ -75,7 +75,7 @@ export function FeedFilters({
           id="forum-filter"
           value={selectedForumId || ''}
           onChange={(e) => onForumFilterChange(e.target.value || null)}
-          className="px-3 py-2 min-h-[36px] text-xs rounded-lg theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+          className="px-3 py-2 min-h-[36px] text-xs rounded-lg theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', border: '1px solid var(--card-border)' }}
         >
           <option value="">All Forums</option>
@@ -97,7 +97,7 @@ export function FeedFilters({
           id="sort-filter"
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortOption)}
-          className="px-3 py-2 min-h-[36px] text-xs rounded-lg theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+          className="px-3 py-2 min-h-[36px] text-xs rounded-lg theme-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', border: '1px solid var(--card-border)' }}
         >
           {SORT_OPTIONS.map((option) => (

@@ -98,7 +98,7 @@ export function ConfirmDialog({
       >
         <button
           onClick={onCancel}
-          className="absolute top-4 right-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+          className="absolute top-4 right-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           aria-label="Close dialog"
         >
           <X className="w-5 h-5" />
@@ -106,10 +106,10 @@ export function ConfirmDialog({
 
         <div className="flex items-start gap-4">
           <div className={`p-2 rounded-full flex-shrink-0 ${
-            variant === 'danger' ? 'bg-red-500/20' : 'bg-yellow-500/20'
+            variant === 'danger' ? 'bg-indigo-500/20' : 'bg-yellow-500/20'
           }`} aria-hidden="true">
             <AlertTriangle className={`w-6 h-6 ${
-              variant === 'danger' ? 'text-red-400' : 'text-yellow-400'
+              variant === 'danger' ? 'text-indigo-400' : 'text-yellow-400'
             }`} />
           </div>
           <div className="flex-1">
@@ -127,15 +127,15 @@ export function ConfirmDialog({
               <button
                 data-cancel-button
                 onClick={onCancel}
-                className="px-4 py-2 min-h-[44px] bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                className="px-4 py-2 min-h-[44px] bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 {cancelLabel}
               </button>
               <button
                 onClick={onConfirm}
-                className={`px-4 py-2 min-h-[44px] text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
+                className={`px-4 py-2 min-h-[44px] text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                   variant === 'danger'
-                    ? 'bg-red-600 hover:bg-red-700'
+                    ? 'bg-indigo-600 hover:bg-indigo-700'
                     : 'bg-yellow-600 hover:bg-yellow-700'
                 }`}
               >

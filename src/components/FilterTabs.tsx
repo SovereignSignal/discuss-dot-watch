@@ -19,7 +19,7 @@ export function FilterTabs({
         onClick={() => onFilterChange('your')}
         className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
           filterMode === 'your'
-            ? 'bg-red-600 text-white'
+            ? 'bg-indigo-600 text-white'
             : 'text-gray-400 hover:text-white'
         }`}
       >
@@ -29,7 +29,7 @@ export function FilterTabs({
         onClick={() => onFilterChange('all')}
         className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
           filterMode === 'all'
-            ? 'bg-red-600 text-white'
+            ? 'bg-indigo-600 text-white'
             : 'text-gray-400 hover:text-white'
         }`}
       >

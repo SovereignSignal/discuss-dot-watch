@@ -271,7 +271,7 @@ export default function AppPage() {
                             href={bookmark.topicUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-white hover:text-red-400 font-medium line-clamp-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+                            className="text-white hover:text-indigo-400 font-medium line-clamp-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
                           >
                             {bookmark.topicTitle}
                           </a>
@@ -284,7 +284,7 @@ export default function AppPage() {
                             href={bookmark.topicUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                             aria-label={`Open ${bookmark.topicTitle}`}
                           >
                             <ExternalLink className="w-4 h-4" />
@@ -294,7 +294,7 @@ export default function AppPage() {
                               removeBookmark(bookmark.topicRefId);
                               success('Bookmark removed');
                             }}
-                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-gray-400 hover:text-indigo-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                             aria-label={`Remove ${bookmark.topicTitle} from saved`}
                           >
                             <Trash2 className="w-4 h-4" />

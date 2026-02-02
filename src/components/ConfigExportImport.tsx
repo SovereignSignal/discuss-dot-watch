@@ -159,13 +159,13 @@ export function ConfigExportImport({
       <div className="flex flex-wrap gap-3">
         <button
           onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
           <Download className="w-4 h-4" />
           Export Configuration
         </button>
 
-        <label className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-red-500">
+        <label className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-indigo-500">
           <Upload className="w-4 h-4" />
           Import Configuration
           <input
@@ -184,7 +184,7 @@ export function ConfigExportImport({
           className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
             importStatus === 'success'
               ? 'bg-green-900/20 text-green-400'
-              : 'bg-red-900/20 text-red-400'
+              : 'bg-indigo-900/20 text-indigo-400'
           }`}
         >
           {importStatus === 'success' ? (
@@ -212,7 +212,7 @@ export function ConfigExportImport({
               </h3>
               <button
                 onClick={handleCancelImport}
-                className="p-1 text-gray-400 hover:text-white rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                className="p-1 text-gray-400 hover:text-white rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 aria-label="Cancel import"
               >
                 <X className="w-5 h-5" />
@@ -248,19 +248,19 @@ export function ConfigExportImport({
             <div className="space-y-2">
               <button
                 onClick={() => handleImportConfirm(true)}
-                className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+                className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
               >
                 Merge with existing data
               </button>
               <button
                 onClick={() => handleImportConfirm(false)}
-                className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 Replace all data
               </button>
               <button
                 onClick={handleCancelImport}
-                className="w-full px-4 py-2 text-gray-400 hover:text-white text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded-lg"
+                className="w-full px-4 py-2 text-gray-400 hover:text-white text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
               >
                 Cancel
               </button>

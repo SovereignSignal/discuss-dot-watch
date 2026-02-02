@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ===== COLOR SCHEME: Dark Red Accent ===== */
+/* ===== COLOR SCHEME: Indigo Accent ===== */
 /* Dark theme (default) - white text on dark background */
 html, html.dark {
   --background: #0a0a0a;
@@ -12,10 +12,10 @@ html, html.dark {
   --text-primary: #ffffff;
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
-  --accent: #dc2626;
-  --accent-hover: #b91c1c;
-  --accent-muted: #991b1b;
-  --accent-light: #fca5a5;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-muted: #3730a3;
+  --accent-light: #a5b4fc;
 }
 
 /* Light theme - black text on white background */
@@ -29,10 +29,10 @@ html.light {
   --text-primary: #111827;
   --text-secondary: #4b5563;
   --text-muted: #6b7280;
-  --accent: #dc2626;
-  --accent-hover: #b91c1c;
-  --accent-muted: #7f1d1d;
-  --accent-light: #f87171;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-muted: #312e81;
+  --accent-light: #818cf8;
 }
 
 @theme inline {
@@ -128,26 +128,26 @@ html.light .hover\:text-white:hover {
   color: var(--text-primary) !important;
 }
 
-/* Red accent colors - consistent across themes */
-.bg-red-600,
-html.light .bg-red-600 {
+/* Indigo accent colors - consistent across themes */
+.bg-indigo-600,
+html.light .bg-indigo-600 {
   background-color: var(--accent) !important;
 }
 
-.hover\:bg-red-700:hover,
-html.light .hover\:bg-red-700:hover {
+.hover\:bg-indigo-700:hover,
+html.light .hover\:bg-indigo-700:hover {
   background-color: var(--accent-hover) !important;
 }
 
-.text-red-400,
-.text-red-500,
-html.light .text-red-400,
-html.light .text-red-500 {
+.text-indigo-400,
+.text-indigo-500,
+html.light .text-indigo-400,
+html.light .text-indigo-500 {
   color: var(--accent-light) !important;
 }
 
-html.light .text-red-400,
-html.light .text-red-500 {
+html.light .text-indigo-400,
+html.light .text-indigo-500 {
   color: var(--accent) !important;
 }
 

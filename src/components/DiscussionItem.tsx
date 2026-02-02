@@ -108,7 +108,7 @@ export function DiscussionItem({
       {/* Unread indicator */}
       {!isRead && (
         <div className="absolute left-1.5 top-1/2 -translate-y-1/2">
-          <Circle className="w-2 h-2 fill-red-500 text-red-500" aria-label="Unread" />
+          <Circle className="w-2 h-2 fill-indigo-500 text-indigo-500" aria-label="Unread" />
         </div>
       )}
 
@@ -116,9 +116,9 @@ export function DiscussionItem({
       {onToggleBookmark && (
         <button
           onClick={handleBookmarkClick}
-          className={`absolute top-4 right-4 z-10 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+          className={`absolute top-4 right-4 z-10 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
             isBookmarked
-              ? 'text-red-400 bg-red-400/10 hover:bg-red-400/20'
+              ? 'text-indigo-400 bg-indigo-400/10 hover:bg-indigo-400/20'
               : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700'
           }`}
           aria-label={`${isBookmarked ? 'Remove from' : 'Add to'} bookmarks: ${topic.title}`}
@@ -133,9 +133,9 @@ export function DiscussionItem({
         target="_blank"
         rel="noopener noreferrer"
         onClick={handleLinkClick}
-        className="flex items-start gap-3 pr-14 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-lg"
+        className="flex items-start gap-3 pr-14 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-lg"
       >
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-red-600 to-red-900 flex items-center justify-center overflow-hidden">
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center overflow-hidden">
           {isValidImageUrl(topic.imageUrl) ? (
             <img
               src={topic.imageUrl}
@@ -161,7 +161,7 @@ export function DiscussionItem({
             <span className="capitalize">{topic.protocol}</span>
             <span aria-hidden="true">·</span>
             <span>Discourse Discussion</span>
-            {topic.pinned && <Pin className="w-3 h-3 text-red-400" aria-label="Pinned" />}
+            {topic.pinned && <Pin className="w-3 h-3 text-indigo-400" aria-label="Pinned" />}
             {topic.closed && <Lock className="w-3 h-3 text-orange-400" aria-label="Closed" />}
             {topic.archived && <Archive className="w-3 h-3 text-gray-500" aria-label="Archived" />}
           </div>
