@@ -235,17 +235,25 @@ export function ForumManager({
             : 'bg-neutral-800/50 hover:bg-neutral-700/50 motion-safe:hover:scale-[1.01]'
         }`}
       >
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center flex-shrink-0 overflow-hidden">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${
+          preset.logoUrl 
+            ? 'bg-white dark:bg-neutral-700' 
+            : 'bg-gradient-to-br from-indigo-600 to-indigo-900'
+        }`}>
           {preset.logoUrl ? (
             <img
               src={preset.logoUrl}
               alt=""
-              className="w-full h-full object-cover"
+              className="w-6 h-6 object-contain"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
                 const fallback = target.nextElementSibling as HTMLElement;
                 if (fallback) fallback.style.display = 'flex';
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.className = parent.className.replace('bg-white dark:bg-neutral-700', 'bg-gradient-to-br from-indigo-600 to-indigo-900');
+                }
               }}
             />
           ) : null}
@@ -540,17 +548,25 @@ export function ForumManager({
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${
+                      forum.logoUrl 
+                        ? 'bg-white dark:bg-neutral-700' 
+                        : 'bg-gradient-to-br from-indigo-600 to-indigo-900'
+                    }`}>
                       {forum.logoUrl ? (
                         <img
                           src={forum.logoUrl}
                           alt=""
-                          className="w-full h-full object-cover"
+                          className="w-6 h-6 object-contain"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = 'none';
                             const fallback = target.nextElementSibling as HTMLElement;
                             if (fallback) fallback.style.display = 'flex';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.className = parent.className.replace('bg-white dark:bg-neutral-700', 'bg-gradient-to-br from-indigo-600 to-indigo-900');
+                            }
                           }}
                         />
                       ) : null}

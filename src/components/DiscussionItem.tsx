@@ -139,19 +139,28 @@ export function DiscussionItem({
         onClick={handleLinkClick}
         className="flex items-start gap-3 pr-14 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-lg"
       >
-        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center overflow-hidden shadow-lg shadow-indigo-500/20 ring-1 ring-white/10">
+        <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden shadow-lg ring-1 ring-white/10 ${
+          isValidImageUrl(forumLogoUrl) 
+            ? 'bg-white dark:bg-neutral-800 shadow-neutral-500/10' 
+            : 'bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-indigo-500/20'
+        }`}>
           {isValidImageUrl(forumLogoUrl) ? (
             <img
               src={forumLogoUrl}
               alt=""
               aria-hidden="true"
-              className="w-full h-full object-cover"
+              className="w-7 h-7 object-contain"
               referrerPolicy="no-referrer"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
                 const fallback = target.nextElementSibling as HTMLElement;
                 if (fallback) fallback.style.display = 'flex';
+                // Also update parent background
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.className = parent.className.replace('bg-white dark:bg-neutral-800 shadow-neutral-500/10', 'bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-indigo-500/20');
+                }
               }}
             />
           ) : null}

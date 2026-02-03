@@ -34,7 +34,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://forum.arbitrum.foundation/',
         description: 'Leading Ethereum L2 with full DAO governance',
         token: 'ARB',
-        logoUrl: 'https://assets.coingecko.com/coins/images/16547/small/photo_2023-03-29_21.47.00.jpeg',
+        logoUrl: 'https://cryptologos.cc/logos/arbitrum-arb-logo.png',
         tier: 1,
       },
       {
@@ -42,7 +42,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://gov.optimism.io/',
         description: 'Bicameral governance with Token House + Citizens House',
         token: 'OP',
-        logoUrl: 'https://assets.coingecko.com/coins/images/25244/small/Optimism.png',
+        logoUrl: 'https://cryptologos.cc/logos/optimism-ethereum-op-logo.png',
         tier: 1,
       },
       {
@@ -50,7 +50,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://forum.zknation.io/',
         description: 'ZK Nation governance with Token Assembly and Security Council',
         token: 'ZK',
-        logoUrl: 'https://assets.coingecko.com/coins/images/38043/small/ZKTokenBlack.png',
+        logoUrl: 'https://cryptologos.cc/logos/zksync-zk-logo.png',
         tier: 1,
       },
       {
@@ -58,7 +58,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://forum.polygon.technology/',
         description: 'PIPs governance with Protocol Council',
         token: 'POL',
-        logoUrl: 'https://assets.coingecko.com/coins/images/4713/small/polygon.png',
+        logoUrl: 'https://cryptologos.cc/logos/polygon-matic-logo.png',
         tier: 1,
       },
       {
@@ -66,7 +66,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://community.starknet.io/',
         description: 'Builders Council + Token Holders governance',
         token: 'STRK',
-        logoUrl: 'https://assets.coingecko.com/coins/images/26433/small/starknet.png',
+        logoUrl: 'https://cryptologos.cc/logos/starknet-token-strk-logo.png',
         tier: 1,
       },
       {
@@ -217,7 +217,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         categoryId: 4,
         description: 'Largest DeFi lending protocol; highly active governance',
         token: 'AAVE',
-        logoUrl: 'https://assets.coingecko.com/coins/images/12645/small/AAVE.png',
+        logoUrl: 'https://cryptologos.cc/logos/aave-aave-logo.png',
         tier: 1,
       },
       {
@@ -312,7 +312,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://gov.uniswap.org/',
         description: 'Leading DEX with mature multi-phase governance',
         token: 'UNI',
-        logoUrl: 'https://assets.coingecko.com/coins/images/12504/small/uni.jpg',
+        logoUrl: 'https://cryptologos.cc/logos/uniswap-uni-logo.png',
         tier: 1,
       },
       {
@@ -469,7 +469,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://discuss.ens.domains/',
         description: 'Ethereum Name Service; working group coordination',
         token: 'ENS',
-        logoUrl: 'https://assets.coingecko.com/coins/images/19785/small/acatxTm8_400x400.jpg',
+        logoUrl: 'https://cryptologos.cc/logos/ethereum-name-service-ens-logo.png',
         tier: 1,
       },
       {
