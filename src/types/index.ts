@@ -61,6 +61,17 @@ export interface KeywordAlert {
 export type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
 export type DateFilterMode = 'created' | 'activity';
 
+// Email digest preferences
+export type DigestFrequency = 'daily' | 'weekly' | 'never';
+
+export interface DigestPreferences {
+  frequency: DigestFrequency;
+  includeHotTopics: boolean;
+  includeNewProposals: boolean;
+  includeKeywordMatches: boolean;
+  email?: string; // Override email if different from account
+}
+
 export type SortOption = 'recent' | 'replies' | 'views' | 'likes';
 
 export interface Bookmark {

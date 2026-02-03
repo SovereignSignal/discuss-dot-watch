@@ -1,0 +1,311 @@
+/**
+ * Email Digest Service
+ * Generates AI-powered governance summaries and sends via Resend
+ */
+
+import Anthropic from '@anthropic-ai/sdk';
+
+// Types
+export interface DigestPreferences {
+  frequency: 'daily' | 'weekly' | 'never';
+  includeHotTopics: boolean;
+  includeNewProposals: boolean;
+  includeKeywordMatches: boolean;
+  forums: string[]; // forum IDs to include, empty = all
+  keywords: string[]; // keywords to track
+}
+
+export interface TopicSummary {
+  title: string;
+  protocol: string;
+  url: string;
+  replies: number;
+  views: number;
+  likes: number;
+  summary: string;
+  sentiment?: 'positive' | 'neutral' | 'contentious';
+}
+
+export interface DigestContent {
+  period: 'daily' | 'weekly';
+  startDate: Date;
+  endDate: Date;
+  hotTopics: TopicSummary[];
+  newProposals: TopicSummary[];
+  keywordMatches: TopicSummary[];
+  overallSummary: string;
+  stats: {
+    totalDiscussions: number;
+    totalReplies: number;
+    mostActiveProtocol: string;
+  };
+}
+
+// Initialize Anthropic client
+function getAnthropicClient(): Anthropic | null {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.error('ANTHROPIC_API_KEY not configured');
+    return null;
+  }
+  return new Anthropic({ apiKey });
+}
+
+/**
+ * Generate AI summary of governance discussions
+ */
+export async function generateDiscussionSummary(
+  discussions: Array<{
+    title: string;
+    protocol: string;
+    url: string;
+    replies: number;
+    views: number;
+    likes: number;
+    tags: string[];
+  }>
+): Promise<string> {
+  const client = getAnthropicClient();
+  if (!client) {
+    return 'AI summary unavailable - API key not configured';
+  }
+
+  const discussionList = discussions
+    .slice(0, 20) // Limit to top 20 for context window
+    .map((d, i) => `${i + 1}. [${d.protocol}] "${d.title}" - ${d.replies} replies, ${d.views} views`)
+    .join('\n');
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a DAO governance analyst. Summarize the following governance discussions into a concise 2-3 paragraph overview. Highlight the most important proposals, any contentious debates, and key themes across protocols. Be specific about proposal names and protocols.
+
+Discussions:
+${discussionList}
+
+Provide a brief, insightful summary focused on what governance participants need to know.`
+        }
+      ]
+    });
+
+    const textBlock = response.content.find(block => block.type === 'text');
+    return textBlock ? textBlock.text : 'Summary generation failed';
+  } catch (error) {
+    console.error('Error generating summary:', error);
+    return 'Summary temporarily unavailable';
+  }
+}
+
+/**
+ * Generate individual topic summary
+ */
+export async function generateTopicSummary(
+  title: string,
+  protocol: string,
+  context?: string
+): Promise<{ summary: string; sentiment: 'positive' | 'neutral' | 'contentious' }> {
+  const client = getAnthropicClient();
+  if (!client) {
+    return { summary: title, sentiment: 'neutral' };
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 256,
+      messages: [
+        {
+          role: 'user',
+          content: `Summarize this governance discussion title in one sentence and assess sentiment.
+
+Protocol: ${protocol}
+Title: "${title}"
+${context ? `Context: ${context}` : ''}
+
+Respond in JSON format:
+{"summary": "one sentence summary", "sentiment": "positive" | "neutral" | "contentious"}`
+        }
+      ]
+    });
+
+    const textBlock = response.content.find(block => block.type === 'text');
+    if (textBlock) {
+      const parsed = JSON.parse(textBlock.text);
+      return {
+        summary: parsed.summary || title,
+        sentiment: parsed.sentiment || 'neutral'
+      };
+    }
+  } catch (error) {
+    console.error('Error generating topic summary:', error);
+  }
+
+  return { summary: title, sentiment: 'neutral' };
+}
+
+/**
+ * Format digest content into HTML email
+ */
+export function formatDigestEmail(digest: DigestContent, userName?: string): string {
+  const greeting = userName ? `Hi ${userName}` : 'Hi there';
+  const periodLabel = digest.period === 'daily' ? 'Daily' : 'Weekly';
+  
+  const formatTopics = (topics: TopicSummary[], title: string, emoji: string) => {
+    if (topics.length === 0) return '';
+    
+    const items = topics.map(t => `
+      <tr>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+          <div style="font-weight: 600; color: #111827; margin-bottom: 4px;">
+            <span style="color: #6366f1;">[${t.protocol}]</span> ${t.title}
+          </div>
+          <div style="font-size: 14px; color: #6b7280; margin-bottom: 8px;">
+            ${t.summary}
+          </div>
+          <div style="font-size: 12px; color: #9ca3af;">
+            💬 ${t.replies} replies · 👁 ${t.views.toLocaleString()} views · 👍 ${t.likes} likes
+            ${t.sentiment === 'contentious' ? ' · ⚠️ Contentious' : ''}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div style="margin-bottom: 32px;">
+        <h2 style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 16px;">
+          ${emoji} ${title}
+        </h2>
+        <table style="width: 100%;">
+          ${items}
+        </table>
+      </div>
+    `;
+  };
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #374151; max-width: 600px; margin: 0 auto; padding: 20px;">
+  
+  <!-- Header -->
+  <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e5e7eb;">
+    <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0;">
+      🗳️ Gov Watch ${periodLabel} Digest
+    </h1>
+    <p style="color: #6b7280; margin-top: 8px; font-size: 14px;">
+      ${digest.startDate.toLocaleDateString()} - ${digest.endDate.toLocaleDateString()}
+    </p>
+  </div>
+
+  <!-- Greeting -->
+  <p style="font-size: 16px; margin-bottom: 24px;">
+    ${greeting}! Here's your governance roundup.
+  </p>
+
+  <!-- Overall Summary -->
+  <div style="background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); padding: 20px; border-radius: 12px; margin-bottom: 32px;">
+    <h2 style="font-size: 16px; font-weight: 600; color: #4338ca; margin: 0 0 12px 0;">
+      📊 Overview
+    </h2>
+    <p style="margin: 0; color: #374151; font-size: 14px;">
+      ${digest.overallSummary}
+    </p>
+    <div style="margin-top: 16px; font-size: 13px; color: #6366f1;">
+      <strong>${digest.stats.totalDiscussions}</strong> discussions · 
+      <strong>${digest.stats.totalReplies}</strong> replies · 
+      Most active: <strong>${digest.stats.mostActiveProtocol}</strong>
+    </div>
+  </div>
+
+  <!-- Hot Topics -->
+  ${formatTopics(digest.hotTopics, 'Hot This Week', '🔥')}
+  
+  <!-- New Proposals -->
+  ${formatTopics(digest.newProposals, 'New Proposals', '✨')}
+  
+  <!-- Keyword Matches -->
+  ${formatTopics(digest.keywordMatches, 'Your Keyword Alerts', '🔔')}
+
+  <!-- CTA -->
+  <div style="text-align: center; margin: 32px 0;">
+    <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://gov-watch.app'}/app" 
+       style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+      View All Discussions →
+    </a>
+  </div>
+
+  <!-- Footer -->
+  <div style="border-top: 1px solid #e5e7eb; padding-top: 24px; margin-top: 32px; text-align: center; font-size: 12px; color: #9ca3af;">
+    <p>
+      You're receiving this because you signed up for Gov Watch digests.
+      <br>
+      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://gov-watch.app'}/app?tab=settings" style="color: #6366f1;">
+        Manage email preferences
+      </a>
+      ·
+      <a href="{{unsubscribe_url}}" style="color: #6366f1;">
+        Unsubscribe
+      </a>
+    </p>
+    <p style="margin-top: 16px;">
+      🗳️ Gov Watch - Your Gateway to DAO Governance
+    </p>
+  </div>
+
+</body>
+</html>
+  `;
+}
+
+/**
+ * Format digest as plain text (for email clients that prefer it)
+ */
+export function formatDigestPlainText(digest: DigestContent, userName?: string): string {
+  const greeting = userName ? `Hi ${userName}` : 'Hi there';
+  const periodLabel = digest.period === 'daily' ? 'Daily' : 'Weekly';
+
+  let text = `🗳️ GOV WATCH ${periodLabel.toUpperCase()} DIGEST
+${digest.startDate.toLocaleDateString()} - ${digest.endDate.toLocaleDateString()}
+
+${greeting}! Here's your governance roundup.
+
+📊 OVERVIEW
+${digest.overallSummary}
+
+Stats: ${digest.stats.totalDiscussions} discussions · ${digest.stats.totalReplies} replies · Most active: ${digest.stats.mostActiveProtocol}
+
+`;
+
+  if (digest.hotTopics.length > 0) {
+    text += `\n🔥 HOT THIS WEEK\n`;
+    digest.hotTopics.forEach((t, i) => {
+      text += `${i + 1}. [${t.protocol}] ${t.title}\n   ${t.summary}\n   💬 ${t.replies} · 👁 ${t.views} · 👍 ${t.likes}\n\n`;
+    });
+  }
+
+  if (digest.newProposals.length > 0) {
+    text += `\n✨ NEW PROPOSALS\n`;
+    digest.newProposals.forEach((t, i) => {
+      text += `${i + 1}. [${t.protocol}] ${t.title}\n   ${t.summary}\n\n`;
+    });
+  }
+
+  if (digest.keywordMatches.length > 0) {
+    text += `\n🔔 YOUR KEYWORD ALERTS\n`;
+    digest.keywordMatches.forEach((t, i) => {
+      text += `${i + 1}. [${t.protocol}] ${t.title}\n   ${t.summary}\n\n`;
+    });
+  }
+
+  text += `\n---\nView all discussions: ${process.env.NEXT_PUBLIC_APP_URL || 'https://gov-watch.app'}/app\nManage preferences: ${process.env.NEXT_PUBLIC_APP_URL || 'https://gov-watch.app'}/app?tab=settings\n\n🗳️ Gov Watch - Your Gateway to DAO Governance`;
+
+  return text;
+}

@@ -10,6 +10,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastContainer } from '@/components/Toast';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
+import { EmailPreferences } from '@/components/EmailPreferences';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { SkipLinks } from '@/components/SkipLinks';
@@ -313,14 +314,14 @@ export default function AppPage() {
               <div className="flex-1 p-6">
                 <h2 className="text-xl font-semibold theme-text mb-6">Settings</h2>
                 <div className="space-y-4">
-                  <section className="p-4 bg-neutral-800 rounded-lg">
+                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
                     <h3 className="font-medium theme-text mb-2">About</h3>
                     <p className="theme-text-secondary text-sm">
                       Governance Forum Aggregator - A unified view of governance discussions from multiple
                       Discourse-based forums used by DAOs and blockchain protocols.
                     </p>
                   </section>
-                  <section className="p-4 bg-neutral-800 rounded-lg">
+                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
                     <h3 className="font-medium theme-text mb-2">Data Storage</h3>
                     <p className="theme-text-secondary text-sm mb-3">
                       All forum configurations and alerts are stored locally in your browser. No data is sent
@@ -352,14 +353,17 @@ export default function AppPage() {
                       </div>
                     )}
                   </section>
-                  <section className="p-4 bg-neutral-800 rounded-lg">
+                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
                     <h3 className="font-medium theme-text mb-2">Refresh Rate</h3>
                     <p className="theme-text-secondary text-sm">
                       Discussions are cached and can be manually refreshed using the Refresh button. API
                       responses are cached for 2 minutes to reduce load on forum servers.
                     </p>
                   </section>
-                  <section className="p-4 bg-neutral-800 rounded-lg">
+                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
+                    <EmailPreferences />
+                  </section>
+                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
                     <h3 className="font-medium theme-text mb-3">Export / Import</h3>
                     <ConfigExportImport
                       forums={forums}
@@ -368,7 +372,7 @@ export default function AppPage() {
                       onImport={handleConfigImport}
                     />
                   </section>
-                  <section className="p-4 bg-neutral-800 rounded-lg">
+                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
                     <KeyboardShortcuts />
                   </section>
                 </div>
