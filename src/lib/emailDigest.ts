@@ -101,50 +101,46 @@ Provide a brief, insightful summary focused on what governance participants need
 }
 
 /**
- * Generate individual topic summary
+ * Generate a short insight for a topic (1 sentence)
  */
-export async function generateTopicSummary(
+export async function generateTopicInsight(
   title: string,
   protocol: string,
-  context?: string
-): Promise<{ summary: string; sentiment: 'positive' | 'neutral' | 'contentious' }> {
+  replies: number,
+  views: number
+): Promise<string> {
   const client = getAnthropicClient();
   if (!client) {
-    return { summary: title, sentiment: 'neutral' };
+    // Fallback: generate a simple insight without AI
+    if (replies > 50) return 'Highly discussed topic generating significant community engagement.';
+    if (views > 1000) return 'Popular topic attracting wide attention from the community.';
+    return 'Active governance discussion in progress.';
   }
 
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
+      max_tokens: 100,
       messages: [
         {
           role: 'user',
-          content: `Summarize this governance discussion title in one sentence and assess sentiment.
+          content: `Write ONE short sentence (max 15 words) explaining what this DAO governance discussion is about based on its title. Be specific and informative.
 
 Protocol: ${protocol}
 Title: "${title}"
-${context ? `Context: ${context}` : ''}
+Engagement: ${replies} replies, ${views} views
 
-Respond in JSON format:
-{"summary": "one sentence summary", "sentiment": "positive" | "neutral" | "contentious"}`
+Just respond with the sentence, no quotes or explanation.`
         }
       ]
     });
 
     const textBlock = response.content.find(block => block.type === 'text');
-    if (textBlock) {
-      const parsed = JSON.parse(textBlock.text);
-      return {
-        summary: parsed.summary || title,
-        sentiment: parsed.sentiment || 'neutral'
-      };
-    }
+    return textBlock?.text?.trim() || 'Active governance discussion.';
   } catch (error) {
-    console.error('Error generating topic summary:', error);
+    console.error('Error generating topic insight:', error);
+    return 'Active governance discussion.';
   }
-
-  return { summary: title, sentiment: 'neutral' };
 }
 
 /**
@@ -160,15 +156,20 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
     const items = topics.map(t => `
       <tr>
         <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
-          <div style="font-weight: 600; color: #111827; margin-bottom: 4px;">
-            <span style="color: #6366f1;">[${t.protocol}]</span> ${t.title}
+          <div style="margin-bottom: 4px;">
+            <span style="color: #6366f1; font-size: 12px; font-weight: 500;">${t.protocol}</span>
+          </div>
+          <div style="font-weight: 600; margin-bottom: 6px;">
+            <a href="${t.url}" style="color: #111827; text-decoration: none; border-bottom: 1px solid #c7d2fe;" target="_blank">
+              ${t.title}
+            </a>
           </div>
           <div style="font-size: 14px; color: #6b7280; margin-bottom: 8px;">
             ${t.summary}
           </div>
           <div style="font-size: 12px; color: #9ca3af;">
             💬 ${t.replies} replies · 👁 ${t.views.toLocaleString()} views · 👍 ${t.likes} likes
-            ${t.sentiment === 'contentious' ? ' · ⚠️ Contentious' : ''}
+            ${t.sentiment === 'contentious' ? ' · 🔥 Hot debate' : ''}
           </div>
         </td>
       </tr>
@@ -210,18 +211,21 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
     ${greeting}! Here's your governance roundup.
   </p>
 
-  <!-- Overall Summary -->
-  <div style="background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); padding: 20px; border-radius: 12px; margin-bottom: 32px;">
-    <h2 style="font-size: 16px; font-weight: 600; color: #4338ca; margin: 0 0 12px 0;">
-      📊 Overview
-    </h2>
-    <p style="margin: 0; color: #374151; font-size: 14px;">
-      ${digest.overallSummary}
-    </p>
-    <div style="margin-top: 16px; font-size: 13px; color: #6366f1;">
-      <strong>${digest.stats.totalDiscussions}</strong> discussions · 
-      <strong>${digest.stats.totalReplies}</strong> replies · 
-      Most active: <strong>${digest.stats.mostActiveProtocol}</strong>
+  <!-- Quick Stats -->
+  <div style="background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); padding: 16px 20px; border-radius: 12px; margin-bottom: 32px;">
+    <div style="display: flex; justify-content: space-between; font-size: 14px;">
+      <div style="text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #4338ca;">${digest.stats.totalDiscussions}</div>
+        <div style="color: #6b7280; font-size: 12px;">Active Discussions</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #4338ca;">${digest.stats.totalReplies}</div>
+        <div style="color: #6b7280; font-size: 12px;">Total Replies</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #4338ca;">${digest.stats.mostActiveProtocol}</div>
+        <div style="color: #6b7280; font-size: 12px;">Most Active</div>
+      </div>
     </div>
   </div>
 
@@ -277,31 +281,29 @@ ${digest.startDate.toLocaleDateString()} - ${digest.endDate.toLocaleDateString()
 
 ${greeting}! Here's your governance roundup.
 
-📊 OVERVIEW
-${digest.overallSummary}
-
-Stats: ${digest.stats.totalDiscussions} discussions · ${digest.stats.totalReplies} replies · Most active: ${digest.stats.mostActiveProtocol}
+📊 QUICK STATS
+${digest.stats.totalDiscussions} active discussions · ${digest.stats.totalReplies} replies · Most active: ${digest.stats.mostActiveProtocol}
 
 `;
 
   if (digest.hotTopics.length > 0) {
-    text += `\n🔥 HOT THIS WEEK\n`;
+    text += `🔥 HOT THIS ${periodLabel.toUpperCase()}\n${'─'.repeat(30)}\n`;
     digest.hotTopics.forEach((t, i) => {
-      text += `${i + 1}. [${t.protocol}] ${t.title}\n   ${t.summary}\n   💬 ${t.replies} · 👁 ${t.views} · 👍 ${t.likes}\n\n`;
+      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   💬 ${t.replies} · 👁 ${t.views} · 👍 ${t.likes}\n   ${t.url}\n\n`;
     });
   }
 
   if (digest.newProposals.length > 0) {
-    text += `\n✨ NEW PROPOSALS\n`;
+    text += `✨ NEW THIS ${periodLabel.toUpperCase()}\n${'─'.repeat(30)}\n`;
     digest.newProposals.forEach((t, i) => {
-      text += `${i + 1}. [${t.protocol}] ${t.title}\n   ${t.summary}\n\n`;
+      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   💬 ${t.replies} · 👁 ${t.views}\n   ${t.url}\n\n`;
     });
   }
 
   if (digest.keywordMatches.length > 0) {
-    text += `\n🔔 YOUR KEYWORD ALERTS\n`;
+    text += `🔔 YOUR KEYWORD ALERTS\n${'─'.repeat(30)}\n`;
     digest.keywordMatches.forEach((t, i) => {
-      text += `${i + 1}. [${t.protocol}] ${t.title}\n   ${t.summary}\n\n`;
+      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   ${t.url}\n\n`;
     });
   }
 

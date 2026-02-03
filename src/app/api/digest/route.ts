@@ -7,13 +7,23 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  generateDiscussionSummary,
   formatDigestEmail,
   formatDigestPlainText,
   DigestContent,
   TopicSummary,
+  generateTopicInsight,
 } from '@/lib/emailDigest';
-import { sendTestDigestEmail, sendBatchDigestEmails } from '@/lib/emailService';
+import { sendTestDigestEmail } from '@/lib/emailService';
+
+// Forum presets to fetch from (same as app uses)
+const DIGEST_FORUMS = [
+  { name: 'Uniswap', url: 'https://gov.uniswap.org' },
+  { name: 'Arbitrum', url: 'https://forum.arbitrum.foundation' },
+  { name: 'Aave', url: 'https://governance.aave.com' },
+  { name: 'Optimism', url: 'https://gov.optimism.io' },
+  { name: 'Compound', url: 'https://www.comp.xyz' },
+  { name: 'ENS', url: 'https://discuss.ens.domains' },
+];
 
 // Helper to validate cron secret
 function validateCronSecret(request: NextRequest): boolean {
@@ -28,7 +38,63 @@ function validateCronSecret(request: NextRequest): boolean {
   return authHeader === `Bearer ${cronSecret}`;
 }
 
-// Mock function to get discussions - in production, this would fetch from your DB
+interface DiscourseTopicResponse {
+  topic_list?: {
+    topics?: Array<{
+      id: number;
+      title: string;
+      posts_count: number;
+      views: number;
+      like_count: number;
+      created_at: string;
+      bumped_at: string;
+      slug: string;
+      tags?: string[];
+    }>;
+  };
+}
+
+// Fetch REAL discussions from Discourse forums
+async function fetchForumDiscussions(forumUrl: string, forumName: string): Promise<Array<{
+  title: string;
+  protocol: string;
+  url: string;
+  replies: number;
+  views: number;
+  likes: number;
+  tags: string[];
+  createdAt: Date;
+  bumpedAt: Date;
+}>> {
+  try {
+    const response = await fetch(`${forumUrl}/latest.json?order=activity`, {
+      headers: { 'Accept': 'application/json' },
+      next: { revalidate: 300 }, // Cache for 5 min
+    });
+    
+    if (!response.ok) return [];
+    
+    const data: DiscourseTopicResponse = await response.json();
+    const topics = data.topic_list?.topics || [];
+    
+    return topics.slice(0, 20).map(topic => ({
+      title: topic.title,
+      protocol: forumName,
+      url: `${forumUrl}/t/${topic.slug}/${topic.id}`,
+      replies: Math.max(0, topic.posts_count - 1),
+      views: topic.views,
+      likes: topic.like_count,
+      tags: topic.tags || [],
+      createdAt: new Date(topic.created_at),
+      bumpedAt: new Date(topic.bumped_at),
+    }));
+  } catch (error) {
+    console.error(`Failed to fetch from ${forumName}:`, error);
+    return [];
+  }
+}
+
+// Get discussions from all forums
 async function getTopDiscussions(period: 'daily' | 'weekly'): Promise<Array<{
   title: string;
   protocol: string;
@@ -40,68 +106,16 @@ async function getTopDiscussions(period: 'daily' | 'weekly'): Promise<Array<{
   createdAt: Date;
   bumpedAt: Date;
 }>> {
-  // This would be replaced with actual DB query
-  // For now, return sample data
-  return [
-    {
-      title: 'Temperature Check: Fee Switch Activation',
-      protocol: 'Uniswap',
-      url: 'https://gov.uniswap.org/t/fee-switch',
-      replies: 156,
-      views: 8420,
-      likes: 89,
-      tags: ['temperature-check', 'fee-switch'],
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      bumpedAt: new Date(),
-    },
-    {
-      title: '[AIP-X] Treasury Management Framework',
-      protocol: 'Arbitrum',
-      url: 'https://forum.arbitrum.foundation/t/treasury',
-      replies: 24,
-      views: 1847,
-      likes: 61,
-      tags: ['proposal', 'treasury'],
-      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      bumpedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    },
-    {
-      title: '[ARFC] Risk Parameter Updates - Increase wstETH Caps',
-      protocol: 'Aave',
-      url: 'https://governance.aave.com/t/risk-params',
-      replies: 12,
-      views: 892,
-      likes: 28,
-      tags: ['arfc', 'risk-parameters'],
-      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      bumpedAt: new Date(),
-    },
-    {
-      title: 'Season 5 Grants Council Elections',
-      protocol: 'Optimism',
-      url: 'https://gov.optimism.io/t/season-5',
-      replies: 45,
-      views: 2103,
-      likes: 34,
-      tags: ['elections', 'grants'],
-      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-      bumpedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    },
-    {
-      title: 'Deploy Compound III on Mantle Network',
-      protocol: 'Compound',
-      url: 'https://www.comp.xyz/t/mantle',
-      replies: 8,
-      views: 567,
-      likes: 19,
-      tags: ['deployment', 'mantle'],
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      bumpedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    },
-  ];
+  // Fetch from all forums in parallel
+  const results = await Promise.all(
+    DIGEST_FORUMS.map(forum => fetchForumDiscussions(forum.url, forum.name))
+  );
+  
+  // Flatten and return
+  return results.flat();
 }
 
-// Generate digest content
+// Generate digest content with REAL data
 async function generateDigestContent(period: 'daily' | 'weekly'): Promise<DigestContent> {
   const discussions = await getTopDiscussions(period);
   const periodDays = period === 'daily' ? 1 : 7;
@@ -109,47 +123,65 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
   const endDate = new Date();
   const startDate = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
 
-  // Get hot topics (sorted by engagement)
-  const hotTopics: TopicSummary[] = discussions
-    .sort((a, b) => (b.replies + b.likes) - (a.replies + a.likes))
-    .slice(0, 5)
-    .map(d => ({
-      title: d.title,
-      protocol: d.protocol,
-      url: d.url,
-      replies: d.replies,
-      views: d.views,
-      likes: d.likes,
-      summary: `Discussion about ${d.tags.join(', ')}`,
-      sentiment: d.replies > 100 ? 'contentious' as const : 'neutral' as const,
-    }));
+  // Filter discussions that had activity within the period
+  const recentlyActive = discussions.filter(d => d.bumpedAt > startDate);
+  
+  // Hot topics: Most engaged discussions that were ACTIVE this period
+  const hotTopicsRaw = recentlyActive
+    .sort((a, b) => (b.replies + b.likes + b.views/100) - (a.replies + a.likes + a.views/100))
+    .slice(0, 5);
+  
+  // Generate AI insights for hot topics
+  const hotTopics: TopicSummary[] = await Promise.all(
+    hotTopicsRaw.map(async (d) => {
+      const insight = await generateTopicInsight(d.title, d.protocol, d.replies, d.views);
+      return {
+        title: d.title,
+        protocol: d.protocol,
+        url: d.url,
+        replies: d.replies,
+        views: d.views,
+        likes: d.likes,
+        summary: insight,
+        sentiment: d.replies > 50 ? 'contentious' as const : 'neutral' as const,
+      };
+    })
+  );
 
-  // Get new proposals (created recently)
-  const newProposals: TopicSummary[] = discussions
+  // New proposals: Created within the period, sorted by engagement
+  const newProposalsRaw = discussions
     .filter(d => d.createdAt > startDate)
-    .slice(0, 5)
-    .map(d => ({
-      title: d.title,
-      protocol: d.protocol,
-      url: d.url,
-      replies: d.replies,
-      views: d.views,
-      likes: d.likes,
-      summary: `New ${d.tags.includes('proposal') ? 'proposal' : 'discussion'} from ${d.protocol}`,
-      sentiment: 'neutral' as const,
-    }));
+    .sort((a, b) => (b.replies + b.likes) - (a.replies + a.likes))
+    .slice(0, 5);
+  
+  // Generate AI insights for new proposals  
+  const newProposals: TopicSummary[] = await Promise.all(
+    newProposalsRaw.map(async (d) => {
+      const insight = await generateTopicInsight(d.title, d.protocol, d.replies, d.views);
+      return {
+        title: d.title,
+        protocol: d.protocol,
+        url: d.url,
+        replies: d.replies,
+        views: d.views,
+        likes: d.likes,
+        summary: insight,
+        sentiment: 'neutral' as const,
+      };
+    })
+  );
 
-  // Generate AI summary
-  const overallSummary = await generateDiscussionSummary(discussions);
-
-  // Calculate stats
-  const totalReplies = discussions.reduce((sum, d) => sum + d.replies, 0);
-  const protocolCounts = discussions.reduce((acc, d) => {
+  // Calculate stats from period data
+  const totalReplies = recentlyActive.reduce((sum, d) => sum + d.replies, 0);
+  const protocolCounts = recentlyActive.reduce((acc, d) => {
     acc[d.protocol] = (acc[d.protocol] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   const mostActiveProtocol = Object.entries(protocolCounts)
     .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Various';
+
+  // Quick stats summary instead of long overview
+  const overallSummary = `${recentlyActive.length} discussions were active across ${Object.keys(protocolCounts).length} protocols. ${newProposalsRaw.length} new proposals were created this ${period === 'daily' ? 'day' : 'week'}.`;
 
   return {
     period,
@@ -160,7 +192,7 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
     keywordMatches: [], // Would be populated based on user keywords
     overallSummary,
     stats: {
-      totalDiscussions: discussions.length,
+      totalDiscussions: recentlyActive.length,
       totalReplies,
       mostActiveProtocol,
     },
