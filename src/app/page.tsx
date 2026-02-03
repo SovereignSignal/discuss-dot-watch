@@ -173,37 +173,49 @@ export default function LandingPage() {
                   <span className="text-xs ml-2" style={{ color: isDark ? '#6b7280' : '#9ca3af' }}>gov-watch.app</span>
                 </div>
                 {/* Mock feed items */}
-                <div className="p-4 space-y-3">
+                <div className="p-3 space-y-2">
                   <MockFeedItem 
                     protocol="Arbitrum" 
                     title="[AIP-X] Treasury Management Framework"
                     replies={24}
                     views={1847}
+                    likes={61}
                     isHot
                     isDark={isDark}
+                    logoUrl="https://icons.llama.fi/arbitrum.jpg"
+                    date="Feb 1"
                   />
                   <MockFeedItem 
                     protocol="Uniswap" 
-                    title="Temperature Check: Fee Switch Activation"
-                    replies={156}
-                    views={8420}
-                    isHot
+                    title="[RFC] Deploy Uniswap v3 on Sei Network"
+                    replies={18}
+                    views={2420}
+                    likes={34}
+                    isNew
                     isDark={isDark}
+                    logoUrl="https://icons.llama.fi/uniswap.jpg"
+                    date="Feb 2"
                   />
                   <MockFeedItem 
                     protocol="Aave" 
-                    title="[ARFC] Risk Parameter Updates"
+                    title="[ARFC] Onboard weETH to Aave v3 on Ethereum"
                     replies={12}
                     views={892}
-                    isNew
+                    likes={28}
                     isDark={isDark}
+                    logoUrl="https://icons.llama.fi/aave.jpg"
+                    date="Jan 30"
                   />
                   <MockFeedItem 
                     protocol="Optimism" 
-                    title="Season 5 Grants Council Elections"
+                    title="Grants Council Season 6 Elections"
                     replies={45}
                     views={2103}
+                    likes={52}
+                    isHot
                     isDark={isDark}
+                    logoUrl="https://icons.llama.fi/optimism.jpg"
+                    date="Jan 28"
                   />
                 </div>
               </div>
@@ -349,47 +361,86 @@ export default function LandingPage() {
   );
 }
 
-function MockFeedItem({ protocol, title, replies, views, isHot, isNew, isDark }: {
+function MockFeedItem({ protocol, title, replies, views, likes, isHot, isNew, isDark, logoUrl, date }: {
   protocol: string;
   title: string;
   replies: number;
   views: number;
+  likes?: number;
   isHot?: boolean;
   isNew?: boolean;
   isDark: boolean;
+  logoUrl?: string;
+  date?: string;
 }) {
   return (
     <div 
-      className="p-3 rounded-lg"
+      className="p-4 rounded-xl flex items-start gap-3"
       style={{
         backgroundColor: isDark ? 'rgba(38, 38, 38, 0.5)' : 'rgba(249, 250, 251, 1)',
         border: `1px solid ${isDark ? 'rgba(64, 64, 64, 0.5)' : '#e5e7eb'}`
       }}
     >
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-xs font-medium text-indigo-500">{protocol}</span>
-        {isHot && (
-          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-500 text-[10px]">
-            <Flame className="w-2.5 h-2.5" />
-            Hot
-          </span>
-        )}
-        {isNew && (
-          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 text-[10px]">
-            NEW
-          </span>
+      {/* Protocol Logo */}
+      <div 
+        className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden ${
+          logoUrl ? '' : 'bg-gradient-to-br from-indigo-500 to-indigo-600'
+        }`}
+        style={logoUrl ? { 
+          backgroundColor: isDark ? '#262626' : '#f3f4f6',
+          border: `1px solid ${isDark ? '#404040' : '#e5e7eb'}`
+        } : undefined}
+      >
+        {logoUrl ? (
+          <img src={logoUrl} alt="" className="w-6 h-6 object-contain" />
+        ) : (
+          <span className="text-white text-xs font-bold">{protocol.slice(0, 2).toUpperCase()}</span>
         )}
       </div>
-      <p className="text-sm mb-2 line-clamp-1" style={{ color: isDark ? '#e5e7eb' : '#374151' }}>{title}</p>
-      <div className="flex items-center gap-3 text-[10px]" style={{ color: isDark ? '#6b7280' : '#9ca3af' }}>
-        <span className="flex items-center gap-1">
-          <MessageSquare className="w-3 h-3" />
-          {replies}
-        </span>
-        <span className="flex items-center gap-1">
-          <Eye className="w-3 h-3" />
-          {views.toLocaleString()}
-        </span>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        {/* Title */}
+        <p className="text-sm font-semibold mb-1.5 line-clamp-2 leading-snug" style={{ color: isDark ? '#f3f4f6' : '#111827' }}>
+          {title}
+        </p>
+        
+        {/* Meta row */}
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px]" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+          <span className="font-medium text-indigo-500">{protocol}</span>
+          <span style={{ color: isDark ? '#525252' : '#d1d5db' }}>·</span>
+          <span>{date || 'Jan 28'}</span>
+          
+          {isNew && (
+            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 text-[10px] font-semibold">
+              NEW
+            </span>
+          )}
+          {isHot && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-500 font-medium">
+              <Flame className="w-2.5 h-2.5" />
+              <span className="text-[10px]">Hot</span>
+            </span>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-3 mt-2 text-[11px]" style={{ color: isDark ? '#6b7280' : '#9ca3af' }}>
+          <span className="flex items-center gap-1">
+            <MessageSquare className="w-3 h-3" />
+            {replies}
+          </span>
+          <span className="flex items-center gap-1">
+            <Eye className="w-3 h-3" />
+            {views.toLocaleString()}
+          </span>
+          {likes !== undefined && (
+            <span className="flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" />
+              {likes}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
