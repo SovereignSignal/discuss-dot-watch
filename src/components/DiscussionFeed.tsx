@@ -150,7 +150,8 @@ export function DiscussionFeed({
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="flex items-center gap-2 px-3 py-2 min-h-[44px] bg-slate-200 dark:bg-neutral-700 hover:bg-slate-300 dark:hover:bg-neutral-600 text-slate-700 dark:text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="flex items-center gap-2 px-3 py-2 min-h-[44px] hover:opacity-80 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 theme-text-secondary"
+              style={{ backgroundColor: 'var(--card-border)' }}
               aria-label="Mark all visible as read"
               title="Mark all as read"
             >

@@ -37,14 +37,15 @@ export function FeedFilters({
   onSortChange,
 }: FeedFiltersProps) {
   return (
-    <div className="flex flex-wrap items-center gap-4 px-4 py-3 border-b border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+    <div className="flex flex-wrap items-center gap-4 px-4 py-3 border-b theme-card" style={{ borderColor: 'var(--card-border)' }}>
       {/* Date Range Filter */}
       <div className="flex items-center gap-2">
         <Calendar className="w-4 h-4 theme-text-muted" aria-hidden="true" />
         <div
           role="group"
           aria-label="Filter by date range"
-          className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800"
+          className="flex rounded-lg overflow-hidden border"
+          style={{ borderColor: 'var(--card-border)', backgroundColor: 'var(--card-bg)' }}
         >
           {DATE_RANGE_OPTIONS.map((option) => (
             <button
@@ -54,8 +55,9 @@ export function FeedFilters({
               className={`px-3 py-1.5 min-h-[32px] text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset ${
                 dateRange === option.value
                   ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-neutral-900'
+                  : 'theme-text-secondary hover:opacity-80'
               }`}
+              style={dateRange !== option.value ? { backgroundColor: 'var(--card-bg)' } : undefined}
             >
               {option.label}
             </button>
@@ -73,7 +75,8 @@ export function FeedFilters({
           id="forum-filter"
           value={selectedForumId || ''}
           onChange={(e) => onForumFilterChange(e.target.value || null)}
-          className="px-3 py-1.5 min-h-[32px] text-xs rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition-colors text-slate-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700"
+          className="px-3 py-1.5 min-h-[32px] text-xs rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition-colors theme-text-secondary"
+          style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
         >
           <option value="">All Forums</option>
           {forums.map((forum) => (
@@ -94,7 +97,8 @@ export function FeedFilters({
           id="sort-filter"
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortOption)}
-          className="px-3 py-1.5 min-h-[32px] text-xs rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition-colors text-slate-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700"
+          className="px-3 py-1.5 min-h-[32px] text-xs rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition-colors theme-text-secondary"
+          style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
         >
           {SORT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>

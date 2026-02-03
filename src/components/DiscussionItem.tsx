@@ -105,9 +105,10 @@ export function DiscussionItem({
     <article
       className={`relative group mx-3 my-2.5 p-4 rounded-xl border transition-all duration-200 ${
         hasMatchingKeyword
-          ? 'border-indigo-400/50 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/5 hover:bg-indigo-100 dark:hover:bg-indigo-500/10 hover:border-indigo-400 dark:hover:border-indigo-500/60 shadow-sm shadow-indigo-500/10'
-          : 'bg-white dark:bg-neutral-900 border-slate-200 dark:border-neutral-800 hover:shadow-md hover:border-slate-300 dark:hover:border-neutral-700 shadow-sm dark:shadow-none'
+          ? 'border-indigo-500/40 bg-indigo-500/5 hover:bg-indigo-500/10 hover:border-indigo-500/60 shadow-sm shadow-indigo-500/10'
+          : 'theme-card hover:shadow-md'
       } ${isRead ? 'opacity-50' : ''}`}
+      style={!hasMatchingKeyword ? { backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' } : undefined}
     >
       {/* Unread indicator */}
       {!isRead && (
@@ -138,11 +139,17 @@ export function DiscussionItem({
         className="flex items-start gap-4 pr-14 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-lg"
       >
         {/* Protocol Logo */}
-        <div className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden shadow-sm ring-1 ring-slate-200 dark:ring-white/10 ${
-          isValidImageUrl(forumLogoUrl) 
-            ? 'bg-slate-50 dark:bg-neutral-800' 
-            : 'bg-gradient-to-br from-indigo-500 to-indigo-600'
-        }`}>
+        <div 
+          className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden shadow-sm ring-1 ${
+            isValidImageUrl(forumLogoUrl) 
+              ? '' 
+              : 'bg-gradient-to-br from-indigo-500 to-indigo-600'
+          }`}
+          style={isValidImageUrl(forumLogoUrl) ? { 
+            backgroundColor: 'var(--card-bg)', 
+            boxShadow: '0 0 0 1px var(--card-border)' 
+          } : { boxShadow: '0 0 0 1px rgba(255,255,255,0.1)' }}
+        >
           {isValidImageUrl(forumLogoUrl) ? (
             <img
               src={forumLogoUrl}
@@ -182,9 +189,9 @@ export function DiscussionItem({
 
           {/* Meta row - Protocol, time, status */}
           <div className="flex items-center gap-2 text-xs mb-2.5">
-            <span className="font-medium text-indigo-600 dark:text-indigo-400 capitalize">{topic.protocol}</span>
-            <span className="text-neutral-400 dark:text-neutral-600" aria-hidden="true">·</span>
-            <span className="text-neutral-500 dark:text-neutral-500">{formatTimestamp(topic.bumpedAt)}</span>
+            <span className="font-medium text-indigo-500 capitalize">{topic.protocol}</span>
+            <span className="theme-text-muted" aria-hidden="true">·</span>
+            <span className="theme-text-muted">{formatTimestamp(topic.bumpedAt)}</span>
             {topic.pinned && (
               <span className="flex items-center gap-1 text-indigo-400">
                 <Pin className="w-3 h-3" aria-label="Pinned" />
@@ -205,7 +212,7 @@ export function DiscussionItem({
           {/* Bottom row - Stats and Tags */}
           <div className="flex items-center justify-between gap-4">
             {/* Stats - compact inline */}
-            <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-500">
+            <div className="flex items-center gap-3 text-xs theme-text-muted">
               <span className="flex items-center gap-1.5" aria-label={`${topic.replyCount} replies`}>
                 <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
                 <span className="tabular-nums">{topic.replyCount}</span>
@@ -228,7 +235,8 @@ export function DiscussionItem({
                   return (
                     <span 
                       key={tagName} 
-                      className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-neutral-400 border border-slate-200 dark:border-neutral-700"
+                      className="px-2 py-0.5 rounded-md text-[11px] font-medium theme-text-secondary"
+                      style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
                     >
                       {tagName}
                     </span>
