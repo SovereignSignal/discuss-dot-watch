@@ -40,6 +40,8 @@ export default function LandingPage() {
     localStorage.setItem('gov-watch-theme', newTheme);
     document.documentElement.classList.toggle('light', newTheme === 'light');
     document.documentElement.classList.toggle('dark', newTheme === 'dark');
+    // Dispatch custom event so Privy can update its theme
+    window.dispatchEvent(new Event('themechange'));
   };
 
   const isDark = theme === 'dark';
