@@ -192,7 +192,7 @@ export default function AppPage() {
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="flex items-center justify-between p-4 border-b border-gray-800">
+          <header className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--card-border)' }}>
             <FilterTabs
               filterMode={filterMode}
               onFilterChange={setFilterMode}
@@ -249,15 +249,15 @@ export default function AppPage() {
 
             {activeView === 'saved' && (
               <div className="flex-1 overflow-y-auto p-6">
-                <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                <h2 className="text-xl font-semibold theme-text mb-6 flex items-center gap-2">
                   <BookmarkIcon className="w-5 h-5" aria-hidden="true" />
                   Saved Discussions
                 </h2>
                 {bookmarks.length === 0 ? (
                   <div className="text-center py-12">
-                    <BookmarkIcon className="w-12 h-12 text-gray-600 mx-auto mb-4" aria-hidden="true" />
-                    <p className="text-gray-400 mb-2">No saved discussions yet</p>
-                    <p className="text-gray-500 text-sm">
+                    <BookmarkIcon className="w-12 h-12 theme-text-muted mx-auto mb-4" aria-hidden="true" />
+                    <p className="theme-text-secondary mb-2">No saved discussions yet</p>
+                    <p className="theme-text-muted text-sm">
                       Click the bookmark icon on any discussion to save it for later
                     </p>
                   </div>
@@ -266,18 +266,18 @@ export default function AppPage() {
                     {bookmarks.map((bookmark) => (
                       <li
                         key={bookmark.id}
-                        className="flex items-center justify-between p-4 bg-gray-800 rounded-lg"
+                        className="flex items-center justify-between p-4 bg-neutral-800 rounded-lg"
                       >
                         <div className="flex-1 min-w-0">
                           <a
                             href={bookmark.topicUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-white hover:text-indigo-400 font-medium line-clamp-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+                            className="theme-text hover:text-indigo-400 font-medium line-clamp-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
                           >
                             {bookmark.topicTitle}
                           </a>
-                          <p className="text-sm text-gray-500 mt-1">
+                          <p className="text-sm theme-text-muted mt-1">
                             {bookmark.protocol} · Saved {new Date(bookmark.createdAt).toLocaleDateString()}
                           </p>
                         </div>
@@ -286,7 +286,7 @@ export default function AppPage() {
                             href={bookmark.topicUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center theme-text-muted hover:theme-text transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                             aria-label={`Open ${bookmark.topicTitle}`}
                           >
                             <ExternalLink className="w-4 h-4" />
@@ -296,7 +296,7 @@ export default function AppPage() {
                               removeBookmark(bookmark.topicRefId);
                               success('Bookmark removed');
                             }}
-                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-gray-400 hover:text-indigo-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center theme-text-muted hover:text-rose-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                             aria-label={`Remove ${bookmark.topicTitle} from saved`}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -311,31 +311,31 @@ export default function AppPage() {
 
             {activeView === 'settings' && (
               <div className="flex-1 p-6">
-                <h2 className="text-xl font-semibold text-white mb-6">Settings</h2>
+                <h2 className="text-xl font-semibold theme-text mb-6">Settings</h2>
                 <div className="space-y-4">
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <h3 className="font-medium text-white mb-2">About</h3>
-                    <p className="text-gray-400 text-sm">
+                  <section className="p-4 bg-neutral-800 rounded-lg">
+                    <h3 className="font-medium theme-text mb-2">About</h3>
+                    <p className="theme-text-secondary text-sm">
                       Governance Forum Aggregator - A unified view of governance discussions from multiple
                       Discourse-based forums used by DAOs and blockchain protocols.
                     </p>
                   </section>
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <h3 className="font-medium text-white mb-2">Data Storage</h3>
-                    <p className="text-gray-400 text-sm mb-3">
+                  <section className="p-4 bg-neutral-800 rounded-lg">
+                    <h3 className="font-medium theme-text mb-2">Data Storage</h3>
+                    <p className="theme-text-secondary text-sm mb-3">
                       All forum configurations and alerts are stored locally in your browser. No data is sent
                       to any external servers except for fetching discussions from the configured Discourse
                       forums.
                     </p>
                     {quota && (
                       <div className="mt-3">
-                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                        <div className="flex justify-between text-xs theme-text-muted mb-1">
                           <span>Storage used</span>
                           <span>{(quota.used / 1024).toFixed(1)} KB / {(quota.available / 1024 / 1024).toFixed(0)} MB</span>
                         </div>
-                        <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div className="w-full bg-neutral-700 rounded-full h-2">
                           <div
-                            className={`h-2 rounded-full transition-all ${quota.isNearLimit ? 'bg-yellow-500' : 'bg-green-500'}`}
+                            className={`h-2 rounded-full transition-all ${quota.isNearLimit ? 'bg-amber-500' : 'bg-emerald-500'}`}
                             style={{ width: `${Math.min(quota.percentUsed, 100)}%` }}
                             role="progressbar"
                             aria-valuenow={quota.percentUsed}
@@ -345,22 +345,22 @@ export default function AppPage() {
                           />
                         </div>
                         {quota.isNearLimit && (
-                          <p className="text-yellow-400 text-xs mt-2">
+                          <p className="text-amber-400 text-xs mt-2">
                             Storage is nearly full. Consider exporting your data and clearing old items.
                           </p>
                         )}
                       </div>
                     )}
                   </section>
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <h3 className="font-medium text-white mb-2">Refresh Rate</h3>
-                    <p className="text-gray-400 text-sm">
+                  <section className="p-4 bg-neutral-800 rounded-lg">
+                    <h3 className="font-medium theme-text mb-2">Refresh Rate</h3>
+                    <p className="theme-text-secondary text-sm">
                       Discussions are cached and can be manually refreshed using the Refresh button. API
                       responses are cached for 2 minutes to reduce load on forum servers.
                     </p>
                   </section>
-                  <section className="p-4 bg-gray-800 rounded-lg">
-                    <h3 className="font-medium text-white mb-3">Export / Import</h3>
+                  <section className="p-4 bg-neutral-800 rounded-lg">
+                    <h3 className="font-medium theme-text mb-3">Export / Import</h3>
                     <ConfigExportImport
                       forums={forums}
                       alerts={alerts}
@@ -368,7 +368,7 @@ export default function AppPage() {
                       onImport={handleConfigImport}
                     />
                   </section>
-                  <section className="p-4 bg-gray-800 rounded-lg">
+                  <section className="p-4 bg-neutral-800 rounded-lg">
                     <KeyboardShortcuts />
                   </section>
                 </div>

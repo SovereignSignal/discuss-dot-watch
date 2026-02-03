@@ -14,13 +14,13 @@ export function FilterTabs({
   enabledCount,
 }: FilterTabsProps) {
   return (
-    <div className="flex items-center gap-1 p-1 bg-gray-800 rounded-lg">
+    <div className="flex items-center gap-1 p-1 bg-neutral-800 rounded-lg">
       <button
         onClick={() => onFilterChange('your')}
         className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
           filterMode === 'your'
             ? 'bg-indigo-600 text-white'
-            : 'text-gray-400 hover:text-white'
+            : 'theme-text-muted hover:theme-text'
         }`}
       >
         Your Projects ({enabledCount})
@@ -30,7 +30,7 @@ export function FilterTabs({
         className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
           filterMode === 'all'
             ? 'bg-indigo-600 text-white'
-            : 'text-gray-400 hover:text-white'
+            : 'theme-text-muted hover:theme-text'
         }`}
       >
         All Projects ({totalCount})

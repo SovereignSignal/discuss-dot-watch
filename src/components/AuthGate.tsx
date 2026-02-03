@@ -15,6 +15,11 @@ interface AuthGateProps {
 export function AuthGate({ children }: AuthGateProps) {
   const { isAuthenticated, isLoading, isConfigured, login } = useAuth();
 
+  // In development without Privy configured, bypass auth for testing
+  if (process.env.NODE_ENV === 'development' && !isConfigured) {
+    return <>{children}</>;
+  }
+
   // Show loading state while checking auth
   if (isLoading) {
     return (

@@ -101,7 +101,7 @@ export function DiscussionItem({
 
   return (
     <article
-      className={`relative group mx-3 my-2 p-4 rounded-xl border transition-all duration-200 ${
+      className={`relative group mx-3 my-2 p-4 rounded-lg border transition-all duration-200 ${
         hasMatchingKeyword
           ? 'border-indigo-500/40 bg-indigo-500/5 hover:bg-indigo-500/10 hover:border-indigo-500/60'
           : 'theme-card hover:opacity-90'
@@ -118,10 +118,10 @@ export function DiscussionItem({
       {onToggleBookmark && (
         <button
           onClick={handleBookmarkClick}
-          className={`absolute top-4 right-4 z-10 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+          className={`absolute top-4 right-4 z-10 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
             isBookmarked
               ? 'text-indigo-400 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30'
-              : 'text-gray-500 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-gray-700/80 border border-transparent hover:border-gray-600'
+              : 'theme-text-muted opacity-0 group-hover:opacity-100 hover:theme-text hover:bg-neutral-700/80 border border-transparent hover:border-neutral-600'
           }`}
           aria-label={`${isBookmarked ? 'Remove from' : 'Add to'} bookmarks: ${topic.title}`}
           aria-pressed={isBookmarked}
@@ -137,7 +137,7 @@ export function DiscussionItem({
         onClick={handleLinkClick}
         className="flex items-start gap-3 pr-14 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-lg"
       >
-        <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center overflow-hidden shadow-lg shadow-indigo-500/20 ring-1 ring-white/10">
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center overflow-hidden shadow-lg shadow-indigo-500/20 ring-1 ring-white/10">
           {isValidImageUrl(topic.imageUrl) ? (
             <img
               src={topic.imageUrl}

@@ -18,7 +18,7 @@ import {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen text-white" style={{ backgroundColor: '#121212' }}>
       {/* Hero Section */}
       <header className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-transparent to-purple-900/20" />
@@ -50,33 +50,33 @@ export default function LandingPage() {
       </header>
 
       {/* Key Benefits */}
-      <section className="py-16 border-t border-gray-800">
+      <section className="py-16 border-t border-neutral-800">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center p-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-green-500/10 rounded-lg mb-4">
-                <Zap className="w-6 h-6 text-green-400" />
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-500/10 rounded-lg mb-4">
+                <Zap className="w-6 h-6 text-emerald-400" />
               </div>
               <h3 className="font-semibold text-lg mb-2">Save Time</h3>
-              <p className="text-gray-400 text-sm">
+              <p className="text-neutral-400 text-sm">
                 Stop switching between dozens of forum tabs. See all governance activity in one place.
               </p>
             </div>
             <div className="text-center p-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-500/10 rounded-lg mb-4">
-                <Bell className="w-6 h-6 text-blue-400" />
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-sky-500/10 rounded-lg mb-4">
+                <Bell className="w-6 h-6 text-sky-400" />
               </div>
               <h3 className="font-semibold text-lg mb-2">Never Miss a Vote</h3>
-              <p className="text-gray-400 text-sm">
+              <p className="text-neutral-400 text-sm">
                 Set keyword alerts for topics you care about. Get highlighted matches instantly.
               </p>
             </div>
             <div className="text-center p-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-500/10 rounded-lg mb-4">
-                <Shield className="w-6 h-6 text-purple-400" />
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-500/10 rounded-lg mb-4">
+                <Shield className="w-6 h-6 text-indigo-400" />
               </div>
               <h3 className="font-semibold text-lg mb-2">Privacy First</h3>
-              <p className="text-gray-400 text-sm">
+              <p className="text-neutral-400 text-sm">
                 Optional sign-in to sync across devices. Works offline with local storage.
               </p>
             </div>
@@ -85,15 +85,15 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 bg-gray-900/50">
+      <section className="py-20 bg-neutral-900/50">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-4">How It Works</h2>
-          <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+          <p className="text-neutral-400 text-center mb-12 max-w-2xl mx-auto">
             Get started in minutes with a simple three-step process
           </p>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="relative">
-              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
+              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold">
                 1
               </div>
               <div className="pl-8">
@@ -101,14 +101,14 @@ export default function LandingPage() {
                   <FolderOpen className="w-5 h-5 text-indigo-400" />
                   Add Forums
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-neutral-400 text-sm">
                   Choose from 70+ pre-configured governance forums or add any Discourse forum URL. Enable only
                   the forums relevant to your interests.
                 </p>
               </div>
             </div>
             <div className="relative">
-              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
+              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold">
                 2
               </div>
               <div className="pl-8">
@@ -116,14 +116,14 @@ export default function LandingPage() {
                   <Bell className="w-5 h-5 text-indigo-400" />
                   Set Alerts
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-neutral-400 text-sm">
                   Create keyword alerts for proposals, protocols, or topics you want to track. Matching
-                  discussions are highlighted in yellow.
+                  discussions are highlighted.
                 </p>
               </div>
             </div>
             <div className="relative">
-              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
+              <div className="absolute -left-4 top-0 w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold">
                 3
               </div>
               <div className="pl-8">
@@ -131,7 +131,7 @@ export default function LandingPage() {
                   <LayoutGrid className="w-5 h-5 text-indigo-400" />
                   Browse Feed
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-neutral-400 text-sm">
                   View all discussions in a unified feed. Filter by forum, date range, or search. Bookmark
                   important topics for later reference.
                 </p>
@@ -145,7 +145,7 @@ export default function LandingPage() {
       <section className="py-20">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-4">Powerful Features</h2>
-          <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+          <p className="text-neutral-400 text-center mb-12 max-w-2xl mx-auto">
             Everything you need to stay on top of governance across the ecosystem
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -184,10 +184,10 @@ export default function LandingPage() {
       </section>
 
       {/* Pro Tips */}
-      <section className="py-20 bg-gray-900/50">
+      <section className="py-20 bg-neutral-900/50">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-4">Pro Tips</h2>
-          <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+          <p className="text-neutral-400 text-center mb-12 max-w-2xl mx-auto">
             Get the most out of Gov Watch with these power user tips
           </p>
           <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
@@ -235,7 +235,7 @@ export default function LandingPage() {
       <section className="py-20">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-4">Supported Forums</h2>
-          <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+          <p className="text-neutral-400 text-center mb-12 max-w-2xl mx-auto">
             Pre-configured support for major DeFi protocols, L2s, DAOs, and more
           </p>
           <div className="flex flex-wrap justify-center gap-3 mb-8">
@@ -258,7 +258,7 @@ export default function LandingPage() {
             ].map((forum) => (
               <span
                 key={forum}
-                className="px-4 py-2 bg-gray-800 rounded-lg text-sm text-gray-300"
+                className="px-4 py-2 bg-neutral-800 rounded-lg text-sm text-neutral-300"
               >
                 {forum}
               </span>
@@ -267,17 +267,17 @@ export default function LandingPage() {
               +55 more
             </span>
           </div>
-          <p className="text-center text-gray-500 text-sm">
+          <p className="text-center text-neutral-500 text-sm">
             Plus support for adding any custom Discourse forum URL
           </p>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-indigo-900/30 to-purple-900/30">
+      <section className="py-20 bg-gradient-to-r from-indigo-900/30 to-indigo-800/20">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to Streamline Your Governance Workflow?</h2>
-          <p className="text-gray-400 mb-8">
+          <p className="text-neutral-400 mb-8">
             Start aggregating governance discussions from across the ecosystem today.
             Sign in to sync your preferences across devices.
           </p>
@@ -292,8 +292,8 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-gray-800">
-        <div className="max-w-6xl mx-auto px-6 text-center text-gray-500 text-sm">
+      <footer className="py-8 border-t border-neutral-800">
+        <div className="max-w-6xl mx-auto px-6 text-center text-neutral-500 text-sm">
           <p>Gov Watch - Governance Forum Aggregator</p>
           <p className="mt-2">
             Open source. Privacy-focused. Optional sync with secure authentication.
@@ -314,12 +314,12 @@ function FeatureCard({
   description: string;
 }) {
   return (
-    <div className="p-6 bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-colors">
+    <div className="p-6 bg-neutral-900 border border-neutral-800 rounded-lg hover:border-neutral-700 transition-colors">
       <div className="inline-flex items-center justify-center w-10 h-10 bg-indigo-500/10 rounded-lg mb-4 text-indigo-400">
         {icon}
       </div>
       <h3 className="font-semibold mb-2">{title}</h3>
-      <p className="text-gray-400 text-sm">{description}</p>
+      <p className="text-neutral-400 text-sm">{description}</p>
     </div>
   );
 }
@@ -334,17 +334,17 @@ function TipCard({
   tips: string[];
 }) {
   return (
-    <div className="p-6 bg-gray-800/50 border border-gray-700 rounded-xl">
+    <div className="p-6 bg-neutral-800/50 border border-neutral-700 rounded-lg">
       <div className="flex items-center gap-3 mb-4">
-        <span className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
+        <span className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold">
           {number}
         </span>
         <h3 className="font-semibold">{title}</h3>
       </div>
       <ul className="space-y-2">
         {tips.map((tip, index) => (
-          <li key={index} className="flex items-start gap-2 text-sm text-gray-400">
-            <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+          <li key={index} className="flex items-start gap-2 text-sm text-neutral-400">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
             <span>{tip}</span>
           </li>
         ))}

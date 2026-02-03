@@ -159,13 +159,13 @@ export function ConfigExportImport({
       <div className="flex flex-wrap gap-3">
         <button
           onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
           <Download className="w-4 h-4" />
           Export Configuration
         </button>
 
-        <label className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-indigo-500">
+        <label className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-indigo-500">
           <Upload className="w-4 h-4" />
           Import Configuration
           <input
@@ -183,8 +183,8 @@ export function ConfigExportImport({
         <div
           className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
             importStatus === 'success'
-              ? 'bg-green-900/20 text-green-400'
-              : 'bg-indigo-900/20 text-indigo-400'
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : 'bg-rose-500/10 text-rose-400'
           }`}
         >
           {importStatus === 'success' ? (
@@ -207,12 +207,12 @@ export function ConfigExportImport({
             aria-labelledby="import-dialog-title"
           >
             <div className="flex items-start justify-between mb-4">
-              <h3 id="import-dialog-title" className="text-lg font-semibold text-white">
+              <h3 id="import-dialog-title" className="text-lg font-semibold theme-text">
                 Import Configuration
               </h3>
               <button
                 onClick={handleCancelImport}
-                className="p-1 text-gray-400 hover:text-white rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="p-1 theme-text-muted hover:theme-text rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 aria-label="Cancel import"
               >
                 <X className="w-5 h-5" />
@@ -220,27 +220,27 @@ export function ConfigExportImport({
             </div>
 
             <div className="space-y-3 mb-6">
-              <p className="text-gray-400 text-sm">
+              <p className="theme-text-secondary text-sm">
                 This file contains:
               </p>
               <ul className="space-y-1 text-sm">
                 {pendingImport.forums && pendingImport.forums.length > 0 && (
-                  <li className="text-white">
+                  <li className="theme-text">
                     {pendingImport.forums.length} forum{pendingImport.forums.length !== 1 ? 's' : ''}
                   </li>
                 )}
                 {pendingImport.alerts && pendingImport.alerts.length > 0 && (
-                  <li className="text-white">
+                  <li className="theme-text">
                     {pendingImport.alerts.length} keyword alert{pendingImport.alerts.length !== 1 ? 's' : ''}
                   </li>
                 )}
                 {pendingImport.bookmarks && pendingImport.bookmarks.length > 0 && (
-                  <li className="text-white">
+                  <li className="theme-text">
                     {pendingImport.bookmarks.length} bookmark{pendingImport.bookmarks.length !== 1 ? 's' : ''}
                   </li>
                 )}
               </ul>
-              <p className="text-gray-500 text-xs">
+              <p className="theme-text-muted text-xs">
                 Exported on {new Date(pendingImport.exportedAt).toLocaleDateString()}
               </p>
             </div>
@@ -254,13 +254,13 @@ export function ConfigExportImport({
               </button>
               <button
                 onClick={() => handleImportConfirm(false)}
-                className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="w-full px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 Replace all data
               </button>
               <button
                 onClick={handleCancelImport}
-                className="w-full px-4 py-2 text-gray-400 hover:text-white text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
+                className="w-full px-4 py-2 theme-text-muted hover:theme-text text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
               >
                 Cancel
               </button>
@@ -269,7 +269,7 @@ export function ConfigExportImport({
         </div>
       )}
 
-      <p className="text-gray-500 text-xs">
+      <p className="theme-text-muted text-xs">
         Export your forums, keyword alerts, and bookmarks to a JSON file. You can import this file on another device or browser to restore your configuration.
       </p>
     </div>

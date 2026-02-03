@@ -25,17 +25,17 @@ const TOAST_ICONS = {
 };
 
 const TOAST_STYLES = {
-  success: 'bg-green-900/90 border-green-700 text-green-100',
-  error: 'bg-red-900/90 border-red-700 text-red-100',
-  warning: 'bg-yellow-900/90 border-yellow-700 text-yellow-100',
-  info: 'bg-blue-900/90 border-blue-700 text-blue-100',
+  success: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200',
+  error: 'bg-rose-500/10 border-rose-500/30 text-rose-200',
+  warning: 'bg-amber-500/10 border-amber-500/30 text-amber-200',
+  info: 'bg-sky-500/10 border-sky-500/30 text-sky-200',
 };
 
 const TOAST_ICON_STYLES = {
-  success: 'text-green-400',
-  error: 'text-red-400',
-  warning: 'text-yellow-400',
-  info: 'text-blue-400',
+  success: 'text-emerald-400',
+  error: 'text-rose-400',
+  warning: 'text-amber-400',
+  info: 'text-sky-400',
 };
 
 function Toast({ toast, onDismiss }: ToastProps) {

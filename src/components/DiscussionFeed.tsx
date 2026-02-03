@@ -129,7 +129,7 @@ export function DiscussionFeed({
             </span>
           )}
           {lastUpdated && (
-            <span className="flex items-center gap-1 text-xs text-gray-400 hidden sm:flex">
+            <span className="flex items-center gap-1 text-xs theme-text-muted hidden sm:flex">
               <Clock className="w-3 h-3" aria-hidden="true" />
               <span>Updated {format(lastUpdated, 'HH:mm:ss')}</span>
             </span>
@@ -139,7 +139,7 @@ export function DiscussionFeed({
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="flex items-center gap-2 px-3 py-2 min-h-[44px] bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="flex items-center gap-2 px-3 py-2 min-h-[44px] bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               aria-label="Mark all visible as read"
               title="Mark all as read"
             >
@@ -171,20 +171,20 @@ export function DiscussionFeed({
 
       {/* Show defunct forums with remove option */}
       {onRemoveForum && forumStates.some((s) => s.isDefunct) && (
-        <div className="p-4 bg-yellow-900/20 border-b border-yellow-800" role="alert">
-          <p className="text-yellow-400 text-sm mb-2">Some forums have shut down or moved:</p>
+        <div className="p-4 bg-amber-500/10 border-b border-amber-500/30" role="alert">
+          <p className="text-amber-400 text-sm mb-2">Some forums have shut down or moved:</p>
           <div className="flex flex-wrap gap-2">
             {forumStates
               .filter((s) => s.isDefunct)
               .map((state) => (
                 <span
                   key={state.forumId}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-yellow-900/30 rounded text-xs text-yellow-300"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 rounded-lg text-xs text-amber-300"
                 >
                   {state.forumName}
                   <button
                     onClick={() => onRemoveForum(state.forumId)}
-                    className="p-1 min-w-[28px] min-h-[28px] flex items-center justify-center hover:bg-yellow-800/50 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500"
+                    className="p-1 min-w-[28px] min-h-[28px] flex items-center justify-center hover:bg-amber-500/30 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                     aria-label={`Remove ${state.forumName}`}
                   >
                     <Trash2 className="w-3 h-3" />
@@ -197,7 +197,8 @@ export function DiscussionFeed({
 
       {isLoading && forumStates.length > 0 && (
         <div
-          className="px-4 py-2 bg-gray-800/50 border-b border-gray-800"
+          className="px-4 py-2 bg-neutral-800/50 border-b"
+          style={{ borderColor: 'var(--card-border)' }}
           role="status"
           aria-live="polite"
           aria-atomic="true"
@@ -207,9 +208,9 @@ export function DiscussionFeed({
             const total = forumStates.length;
             const failed = forumStates.filter(s => s.status === 'error').length;
             return (
-              <p className="text-xs text-gray-400 mb-2">
+              <p className="text-xs theme-text-muted mb-2">
                 Loading forums: {completed} of {total} complete
-                {failed > 0 && <span className="text-indigo-400"> ({failed} failed)</span>}
+                {failed > 0 && <span className="text-rose-400"> ({failed} failed)</span>}
               </p>
             );
           })()}
@@ -217,14 +218,14 @@ export function DiscussionFeed({
             {forumStates.map((state) => (
               <span
                 key={state.forumId}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs ${
                   state.status === 'loading'
-                    ? 'bg-indigo-900/30 text-indigo-300'
+                    ? 'bg-indigo-500/10 text-indigo-300'
                     : state.status === 'success'
-                      ? 'bg-green-900/30 text-green-300'
+                      ? 'bg-emerald-500/10 text-emerald-300'
                       : state.status === 'error'
-                        ? 'bg-indigo-900/30 text-indigo-300'
-                        : 'bg-gray-700 text-gray-400'
+                        ? 'bg-rose-500/10 text-rose-300'
+                        : 'bg-neutral-700 theme-text-muted'
                 }`}
                 aria-label={`${state.forumName}: ${state.status === 'loading' ? 'loading' : state.status === 'success' ? 'loaded' : state.status === 'error' ? 'failed to load' : 'pending'}`}
               >
@@ -246,15 +247,15 @@ export function DiscussionFeed({
         ) : displayedDiscussions.length === 0 ? (
           <div className="flex items-center justify-center h-64" role="status">
             <div className="text-center">
-              <p className="text-gray-400 mb-2">No discussions found</p>
+              <p className="theme-text-secondary mb-2">No discussions found</p>
               {forums.length === 0 ? (
-                <p className="text-gray-500 text-sm">Add some forums in the Projects tab to get started</p>
+                <p className="theme-text-muted text-sm">Add some forums in the Projects tab to get started</p>
               ) : enabledForumIds.length === 0 ? (
-                <p className="text-gray-500 text-sm">Enable some forums in the Projects tab to see discussions</p>
+                <p className="theme-text-muted text-sm">Enable some forums in the Projects tab to see discussions</p>
               ) : searchQuery ? (
-                <p className="text-gray-500 text-sm">Try a different search term</p>
+                <p className="theme-text-muted text-sm">Try a different search term</p>
               ) : dateRange !== 'all' || selectedForumId ? (
-                <p className="text-gray-500 text-sm">Try adjusting your filters</p>
+                <p className="theme-text-muted text-sm">Try adjusting your filters</p>
               ) : (
                 <button
                   onClick={onRefresh}
@@ -282,7 +283,7 @@ export function DiscussionFeed({
               <div className="p-4 flex justify-center">
                 <button
                   onClick={handleLoadMore}
-                  className="px-4 py-2 min-h-[44px] bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  className="px-4 py-2 min-h-[44px] bg-neutral-800 hover:bg-neutral-700 theme-text-secondary text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   Load more ({filteredAndSortedDiscussions.length - displayCount} remaining)
                 </button>

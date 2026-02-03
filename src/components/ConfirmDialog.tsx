@@ -90,7 +90,7 @@ export function ConfirmDialog({
       />
       <div
         ref={dialogRef}
-        className="relative bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6"
+        className="relative rounded-lg shadow-xl max-w-md w-full mx-4 p-6 theme-card"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
@@ -98,28 +98,28 @@ export function ConfirmDialog({
       >
         <button
           onClick={onCancel}
-          className="absolute top-4 right-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="absolute top-4 right-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center theme-text-muted hover:theme-text transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           aria-label="Close dialog"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="flex items-start gap-4">
-          <div className={`p-2 rounded-full flex-shrink-0 ${
-            variant === 'danger' ? 'bg-indigo-500/20' : 'bg-yellow-500/20'
+          <div className={`p-2 rounded-lg flex-shrink-0 ${
+            variant === 'danger' ? 'bg-rose-500/10' : 'bg-amber-500/10'
           }`} aria-hidden="true">
             <AlertTriangle className={`w-6 h-6 ${
-              variant === 'danger' ? 'text-indigo-400' : 'text-yellow-400'
+              variant === 'danger' ? 'text-rose-400' : 'text-amber-400'
             }`} />
           </div>
           <div className="flex-1">
             <h2
               id="confirm-dialog-title"
-              className="text-lg font-semibold text-white mb-2"
+              className="text-lg font-semibold theme-text mb-2"
             >
               {title}
             </h2>
-            <p id="confirm-dialog-description" className="text-gray-400 text-sm mb-6">
+            <p id="confirm-dialog-description" className="theme-text-secondary text-sm mb-6">
               {message}
             </p>
 
@@ -127,7 +127,7 @@ export function ConfirmDialog({
               <button
                 data-cancel-button
                 onClick={onCancel}
-                className="px-4 py-2 min-h-[44px] bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="px-4 py-2 min-h-[44px] bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 {cancelLabel}
               </button>
@@ -135,8 +135,8 @@ export function ConfirmDialog({
                 onClick={onConfirm}
                 className={`px-4 py-2 min-h-[44px] text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                   variant === 'danger'
-                    ? 'bg-indigo-600 hover:bg-indigo-700'
-                    : 'bg-yellow-600 hover:bg-yellow-700'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-amber-600 hover:bg-amber-700'
                 }`}
               >
                 {confirmLabel}
