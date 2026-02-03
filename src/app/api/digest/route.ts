@@ -94,30 +94,70 @@ async function fetchForumDiscussions(forumUrl: string, forumName: string): Promi
   }
 }
 
+// Detect if a discussion is delegate-related
+function isDelegateThread(title: string, tags: string[]): boolean {
+  const titleLower = title.toLowerCase();
+  
+  // Title patterns that indicate delegate threads
+  const delegatePatterns = [
+    'delegate',
+    'delegation',
+    'delegator',
+    'voting power',
+    'delegate platform',
+    'delegate thread',
+    'delegate communication',
+    'delegate statement',
+    'delegate commitment',
+    'seeking delegation',
+  ];
+  
+  // Check title
+  if (delegatePatterns.some(pattern => titleLower.includes(pattern))) {
+    return true;
+  }
+  
+  // Check tags
+  const delegateTags = ['delegate', 'delegation', 'delegates', 'delegate-platform', 'delegate-thread'];
+  if (tags.some(tag => delegateTags.includes(tag.toLowerCase()))) {
+    return true;
+  }
+  
+  return false;
+}
+
 // Get discussions from all forums
-async function getTopDiscussions(period: 'daily' | 'weekly'): Promise<Array<{
-  title: string;
-  protocol: string;
-  url: string;
-  replies: number;
-  views: number;
-  likes: number;
-  tags: string[];
-  createdAt: Date;
-  bumpedAt: Date;
-}>> {
+async function getTopDiscussions(period: 'daily' | 'weekly'): Promise<{
+  discussions: Array<{
+    title: string;
+    protocol: string;
+    url: string;
+    replies: number;
+    views: number;
+    likes: number;
+    tags: string[];
+    createdAt: Date;
+    bumpedAt: Date;
+    isDelegate: boolean;
+  }>;
+}> {
   // Fetch from all forums in parallel
   const results = await Promise.all(
     DIGEST_FORUMS.map(forum => fetchForumDiscussions(forum.url, forum.name))
   );
   
-  // Flatten and return
-  return results.flat();
+  // Flatten and tag delegate threads
+  const all = results.flat().map(d => ({
+    ...d,
+    isDelegate: isDelegateThread(d.title, d.tags),
+  }));
+  
+  return { discussions: all };
 }
 
 // Generate digest content with REAL data
 async function generateDigestContent(period: 'daily' | 'weekly'): Promise<DigestContent> {
-  const discussions = await getTopDiscussions(period);
+  const { discussions } = await getTopDiscussions(period);
   const periodDays = period === 'daily' ? 1 : 7;
   
   const endDate = new Date();
@@ -126,8 +166,12 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
   // Filter discussions that had activity within the period
   const recentlyActive = discussions.filter(d => d.bumpedAt > startDate);
   
-  // Hot topics: Most engaged discussions that were ACTIVE this period
-  const hotTopicsRaw = recentlyActive
+  // Separate delegate threads from regular discussions
+  const regularDiscussions = recentlyActive.filter(d => !d.isDelegate);
+  const delegateThreads = recentlyActive.filter(d => d.isDelegate);
+  
+  // Hot topics: Most engaged NON-DELEGATE discussions
+  const hotTopicsRaw = regularDiscussions
     .sort((a, b) => (b.replies + b.likes + b.views/100) - (a.replies + a.likes + a.views/100))
     .slice(0, 5);
   
@@ -148,8 +192,8 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
     })
   );
 
-  // New proposals: Created within the period, sorted by engagement
-  const newProposalsRaw = discussions
+  // New proposals: Created within the period, NON-DELEGATE, sorted by engagement
+  const newProposalsRaw = regularDiscussions
     .filter(d => d.createdAt > startDate)
     .sort((a, b) => (b.replies + b.likes) - (a.replies + a.likes))
     .slice(0, 5);
@@ -171,7 +215,28 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
     })
   );
 
-  // Calculate stats from period data
+  // Delegate Corner: Active delegate threads, summarized
+  const delegateCornerRaw = delegateThreads
+    .sort((a, b) => (b.replies + b.views/100) - (a.replies + a.views/100))
+    .slice(0, 3);
+  
+  const delegateCorner: TopicSummary[] = await Promise.all(
+    delegateCornerRaw.map(async (d) => {
+      const insight = await generateTopicInsight(d.title, d.protocol, d.replies, d.views);
+      return {
+        title: d.title,
+        protocol: d.protocol,
+        url: d.url,
+        replies: d.replies,
+        views: d.views,
+        likes: d.likes,
+        summary: insight,
+        sentiment: 'neutral' as const,
+      };
+    })
+  );
+
+  // Calculate stats from period data (all discussions)
   const totalReplies = recentlyActive.reduce((sum, d) => sum + d.replies, 0);
   const protocolCounts = recentlyActive.reduce((acc, d) => {
     acc[d.protocol] = (acc[d.protocol] || 0) + 1;
@@ -180,8 +245,8 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
   const mostActiveProtocol = Object.entries(protocolCounts)
     .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Various';
 
-  // Quick stats summary instead of long overview
-  const overallSummary = `${recentlyActive.length} discussions were active across ${Object.keys(protocolCounts).length} protocols. ${newProposalsRaw.length} new proposals were created this ${period === 'daily' ? 'day' : 'week'}.`;
+  // Quick stats summary
+  const overallSummary = `${regularDiscussions.length} governance discussions + ${delegateThreads.length} delegate threads active.`;
 
   return {
     period,
@@ -189,6 +254,7 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
     endDate,
     hotTopics,
     newProposals,
+    delegateCorner,
     keywordMatches: [], // Would be populated based on user keywords
     overallSummary,
     stats: {

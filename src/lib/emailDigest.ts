@@ -32,6 +32,7 @@ export interface DigestContent {
   endDate: Date;
   hotTopics: TopicSummary[];
   newProposals: TopicSummary[];
+  delegateCorner?: TopicSummary[];
   keywordMatches: TopicSummary[];
   overallSummary: string;
   stats: {
@@ -230,10 +231,41 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
   </div>
 
   <!-- Hot Topics -->
-  ${formatTopics(digest.hotTopics, 'Hot This Week', '🔥')}
+  ${formatTopics(digest.hotTopics, `Hot This ${digest.period === 'daily' ? 'Day' : 'Week'}`, '🔥')}
   
   <!-- New Proposals -->
-  ${formatTopics(digest.newProposals, 'New Proposals', '✨')}
+  ${formatTopics(digest.newProposals, `New This ${digest.period === 'daily' ? 'Day' : 'Week'}`, '✨')}
+  
+  <!-- Delegate Corner -->
+  ${digest.delegateCorner && digest.delegateCorner.length > 0 ? `
+  <div style="margin-bottom: 32px; padding: 20px; background: #faf5ff; border-radius: 12px; border-left: 4px solid #9333ea;">
+    <h2 style="font-size: 18px; font-weight: 600; color: #111827; margin: 0 0 8px 0;">
+      👥 Delegate Corner
+    </h2>
+    <p style="font-size: 13px; color: #6b7280; margin: 0 0 16px 0;">
+      Updates from active delegates across protocols
+    </p>
+    <table style="width: 100%;">
+      ${digest.delegateCorner.map(t => `
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #e9d5ff;">
+            <div style="margin-bottom: 4px;">
+              <span style="color: #9333ea; font-size: 12px; font-weight: 500;">${t.protocol}</span>
+            </div>
+            <div style="font-weight: 500; margin-bottom: 4px;">
+              <a href="${t.url}" style="color: #111827; text-decoration: none;" target="_blank">
+                ${t.title}
+              </a>
+            </div>
+            <div style="font-size: 13px; color: #6b7280;">
+              ${t.summary}
+            </div>
+          </td>
+        </tr>
+      `).join('')}
+    </table>
+  </div>
+  ` : ''}
   
   <!-- Keyword Matches -->
   ${formatTopics(digest.keywordMatches, 'Your Keyword Alerts', '🔔')}
@@ -297,6 +329,14 @@ ${digest.stats.totalDiscussions} active discussions · ${digest.stats.totalRepli
     text += `✨ NEW THIS ${periodLabel.toUpperCase()}\n${'─'.repeat(30)}\n`;
     digest.newProposals.forEach((t, i) => {
       text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   💬 ${t.replies} · 👁 ${t.views}\n   ${t.url}\n\n`;
+    });
+  }
+
+  if (digest.delegateCorner && digest.delegateCorner.length > 0) {
+    text += `👥 DELEGATE CORNER\n${'─'.repeat(30)}\n`;
+    text += `Updates from active delegates:\n\n`;
+    digest.delegateCorner.forEach((t, i) => {
+      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   ${t.url}\n\n`;
     });
   }
 
