@@ -55,6 +55,17 @@ export function DiscussionFeed({
   const [selectedForumId, setSelectedForumId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('recent');
 
+  // Create a lookup map for forum logos by cname
+  const forumLogoMap = useMemo(() => {
+    const map = new Map<string, string>();
+    forums.forEach((forum) => {
+      if (forum.logoUrl) {
+        map.set(forum.cname.toLowerCase(), forum.logoUrl);
+      }
+    });
+    return map;
+  }, [forums]);
+
   const filteredAndSortedDiscussions = useMemo(() => {
     // First filter
     const filtered = discussions.filter((topic) => {
@@ -277,6 +288,7 @@ export function DiscussionFeed({
                 isRead={isRead(topic.refId)}
                 onToggleBookmark={onToggleBookmark}
                 onMarkAsRead={onMarkAsRead}
+                forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
               />
             ))}
             {hasMore && (

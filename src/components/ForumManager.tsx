@@ -165,6 +165,7 @@ export function ForumManager({
       name: preset.name,
       description: preset.description,
       token: preset.token,
+      logoUrl: preset.logoUrl,
       category: categoryId as ForumCategoryId,
       discourseForum: {
         url: preset.url,
@@ -234,8 +235,24 @@ export function ForumManager({
             : 'bg-neutral-800/50 hover:bg-neutral-700/50 motion-safe:hover:scale-[1.01]'
         }`}
       >
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-xs font-bold">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center flex-shrink-0 overflow-hidden">
+          {preset.logoUrl ? (
+            <img
+              src={preset.logoUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const fallback = target.nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <span 
+            className="text-white text-xs font-bold"
+            style={{ display: preset.logoUrl ? 'none' : 'flex' }}
+          >
             {preset.name.slice(0, 2).toUpperCase()}
           </span>
         </div>
@@ -523,8 +540,24 @@ export function ForumManager({
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-xs font-bold">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {forum.logoUrl ? (
+                        <img
+                          src={forum.logoUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const fallback = target.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <span 
+                        className="text-white text-xs font-bold"
+                        style={{ display: forum.logoUrl ? 'none' : 'flex' }}
+                      >
                         {forum.name.slice(0, 2).toUpperCase()}
                       </span>
                     </div>

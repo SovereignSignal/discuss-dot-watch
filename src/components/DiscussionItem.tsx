@@ -30,6 +30,7 @@ interface DiscussionItemProps {
   isRead?: boolean;
   onToggleBookmark?: (topic: DiscussionTopic) => void;
   onMarkAsRead?: (refId: string) => void;
+  forumLogoUrl?: string;
 }
 
 function formatTimestamp(dateString: string): string {
@@ -83,6 +84,7 @@ export function DiscussionItem({
   isRead = false,
   onToggleBookmark,
   onMarkAsRead,
+  forumLogoUrl,
 }: DiscussionItemProps) {
   const topicUrl = `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
   const hasMatchingKeyword = alerts.some(
@@ -138,22 +140,28 @@ export function DiscussionItem({
         className="flex items-start gap-3 pr-14 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-lg"
       >
         <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center overflow-hidden shadow-lg shadow-indigo-500/20 ring-1 ring-white/10">
-          {isValidImageUrl(topic.imageUrl) ? (
+          {isValidImageUrl(forumLogoUrl) ? (
             <img
-              src={topic.imageUrl}
+              src={forumLogoUrl}
               alt=""
               aria-hidden="true"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const fallback = target.nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
               }}
             />
-          ) : (
-            <span className="text-white text-xs font-bold tracking-wide" aria-hidden="true">
-              {topic.protocol.slice(0, 2).toUpperCase()}
-            </span>
-          )}
+          ) : null}
+          <span 
+            className="text-white text-xs font-bold tracking-wide" 
+            aria-hidden="true"
+            style={{ display: isValidImageUrl(forumLogoUrl) ? 'none' : 'flex' }}
+          >
+            {topic.protocol.slice(0, 2).toUpperCase()}
+          </span>
         </div>
 
         <div className="flex-1 min-w-0">
