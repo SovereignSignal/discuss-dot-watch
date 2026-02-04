@@ -33,7 +33,7 @@ The app works without these variables (localStorage-only mode):
 
 ```bash
 # Already done - project exists at:
-# https://discuss.watch/
+# https://discuss-dot-watch-production.up.railway.app/
 ```
 
 ### 2. Add Postgres Database
@@ -73,7 +73,7 @@ railway run psql -f src/lib/schema.sql
 2. Create new app (or use existing)
 3. **Settings** → Copy **App ID**
 4. **Allowed Origins** → Add:
-   - `https://discuss.watch`
+   - `https://discuss-dot-watch-production.up.railway.app`
    - `http://localhost:3000` (for local dev)
 5. In Railway, add variable:
    - `NEXT_PUBLIC_PRIVY_APP_ID` = your app ID
@@ -116,7 +116,7 @@ git commit --allow-empty -m "Trigger redeploy" && git push
 
 ### Check Application
 
-1. Visit https://discuss.watch/
+1. Visit https://discuss-dot-watch-production.up.railway.app/
 2. Verify:
    - [ ] Landing page loads
    - [ ] "Launch App" button works
