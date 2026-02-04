@@ -200,7 +200,7 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
   <!-- Header -->
   <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e5e7eb;">
     <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0;">
-      📡 discuss.watch ${periodLabel} Digest
+      💬 discuss.watch ${periodLabel} Digest
     </h1>
     <p style="color: #6b7280; margin-top: 8px; font-size: 14px;">
       ${digest.startDate.toLocaleDateString()} - ${digest.endDate.toLocaleDateString()}
@@ -292,7 +292,7 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
       </a>
     </p>
     <p style="margin-top: 16px;">
-      📡 discuss.watch - All your forums, one feed
+      💬 discuss.watch - All your forums, one feed
     </p>
   </div>
 
@@ -308,7 +308,7 @@ export function formatDigestPlainText(digest: DigestContent, userName?: string):
   const greeting = userName ? `Hi ${userName}` : 'Hi there';
   const periodLabel = digest.period === 'daily' ? 'Daily' : 'Weekly';
 
-  let text = `📡 GOV WATCH ${periodLabel.toUpperCase()} DIGEST
+  let text = `💬 GOV WATCH ${periodLabel.toUpperCase()} DIGEST
 ${digest.startDate.toLocaleDateString()} - ${digest.endDate.toLocaleDateString()}
 
 ${greeting}! Here's your governance roundup.
@@ -347,7 +347,7 @@ ${digest.stats.totalDiscussions} active discussions · ${digest.stats.totalRepli
     });
   }
 
-  text += `\n---\nView all discussions: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app\nManage preferences: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app?tab=settings\n\n📡 discuss.watch - All your forums, one feed`;
+  text += `\n---\nView all discussions: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app\nManage preferences: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app?tab=settings\n\n💬 discuss.watch - All your forums, one feed`;
 
   return text;
 }
