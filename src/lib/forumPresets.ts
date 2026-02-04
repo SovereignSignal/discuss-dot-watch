@@ -1,6 +1,5 @@
 /**
- * Comprehensive directory of Discourse-based forums
- * organized by vertical and category.
+ * Forum directory organized by three verticals: Crypto, AI, Open Source
  */
 
 export interface ForumPreset {
@@ -21,13 +20,10 @@ export interface ForumCategory {
 }
 
 export const FORUM_CATEGORIES: ForumCategory[] = [
-  // ============================================
-  // CRYPTO
-  // ============================================
   {
-    id: 'crypto-governance',
-    name: 'Crypto - Governance',
-    description: 'L1s, L2s, DAOs, and infrastructure protocol governance',
+    id: 'crypto',
+    name: 'Crypto',
+    description: 'Blockchain protocols, DeFi, DAOs, and governance',
     forums: [
       // L2 Protocols
       {
@@ -345,13 +341,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/28161/small/across.png',
         tier: 2,
       },
-    ],
-  },
-  {
-    id: 'crypto-defi',
-    name: 'Crypto - DeFi',
-    description: 'Decentralized finance protocols',
-    forums: [
+    
       // Lending
       {
         name: 'Aave',
@@ -573,13 +563,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/8365/small/reserve.png',
         tier: 2,
       },
-    ],
-  },
-  {
-    id: 'crypto-niche',
-    name: 'Crypto - Niche',
-    description: 'Privacy protocols and AI-crypto projects',
-    forums: [
+    
       // Privacy
       {
         name: 'Zcash',
@@ -621,16 +605,13 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/12451/small/phala.png',
         tier: 3,
       },
+    
     ],
   },
-
-  // ============================================
-  // AI / ML
-  // ============================================
   {
-    id: 'ai-research',
-    name: 'AI - Research & Safety',
-    description: 'AI safety, alignment, and ML research communities',
+    id: 'ai',
+    name: 'AI',
+    description: 'AI research, ML tools, and developer communities',
     forums: [
       {
         name: 'Hugging Face',
@@ -653,13 +634,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://pytorch.org/assets/images/pytorch-logo.png',
         tier: 2,
       },
-    ],
-  },
-  {
-    id: 'ai-tools',
-    name: 'AI - Developer Tools',
-    description: 'AI developer platforms and tooling',
-    forums: [
+    
       {
         name: 'OpenAI Community',
         url: 'https://community.openai.com/',
@@ -681,16 +656,13 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://www.gstatic.com/devrel-devsite/prod/v45f61267e22826169cf5d5f452882f7812c8cfb5f8b103a48c0d88727908b295/developers/images/touchicon-180.png',
         tier: 2,
       },
+    
     ],
   },
-
-  // ============================================
-  // OPEN SOURCE
-  // ============================================
   {
-    id: 'oss-languages',
-    name: 'OSS - Programming Languages',
-    description: 'Open source programming language communities',
+    id: 'oss',
+    name: 'Open Source',
+    description: 'Programming languages, frameworks, and infrastructure',
     forums: [
       {
         name: 'Rust Users',
@@ -748,13 +720,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://clojure.org/images/clojure-logo-120b.png',
         tier: 2,
       },
-    ],
-  },
-  {
-    id: 'oss-frameworks',
-    name: 'OSS - Frameworks & Tools',
-    description: 'Open source frameworks, tools, and applications',
-    forums: [
+    
       {
         name: 'Django Forum',
         url: 'https://forum.djangoproject.com/',
@@ -804,13 +770,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://d11a6trkgmumsb.cloudfront.net/original/3X/c/b/cb4bec8501c1027e386940c479d91593aeb61b4d.svg',
         tier: 2,
       },
-    ],
-  },
-  {
-    id: 'oss-infrastructure',
-    name: 'OSS - Infrastructure & Systems',
-    description: 'Operating systems, distros, and infrastructure projects',
-    forums: [
+    
       {
         name: 'NixOS Discourse',
         url: 'https://discourse.nixos.org/',
@@ -874,12 +834,13 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://tailscale.com/files/tailscale-logo.svg',
         tier: 2,
       },
+    
     ],
   },
 ];
 
 /**
- * Flat list of all forum presets for backwards compatibility
+ * Flat list of all forum presets
  */
 export const ALL_FORUM_PRESETS: ForumPreset[] = FORUM_CATEGORIES.flatMap(
   (category) => category.forums
@@ -908,7 +869,7 @@ export function getTotalForumCount(): number {
 }
 
 /**
- * Search forums by name or description
+ * Search forums by name, description, or token
  */
 export function searchForums(query: string): ForumPreset[] {
   const lowerQuery = query.toLowerCase().replace(/^\$/, '');

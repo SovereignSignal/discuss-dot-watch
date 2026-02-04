@@ -4,7 +4,7 @@
  * 
  * Query params:
  * - forums: comma-separated forum URLs or names
- * - category: category ID (crypto-governance, ai-research, etc.)
+ * - category: category ID (crypto, ai, oss)
  * - limit: max results per forum (default 20, max 50)
  * - hot: boolean, filter to hot discussions only
  * - since: ISO date, discussions created/updated after this date

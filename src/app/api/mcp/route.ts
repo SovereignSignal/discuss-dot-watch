@@ -29,7 +29,7 @@ export async function GET() {
             },
             category: {
               type: 'string',
-              description: 'Filter by category: crypto-governance, crypto-defi, crypto-niche, ai-research, ai-tools, oss-languages, oss-frameworks, oss-infrastructure',
+              description: 'Filter by category: crypto, ai, oss',
             },
             limit: {
               type: 'number',
@@ -49,7 +49,7 @@ export async function GET() {
           properties: {
             category: {
               type: 'string',
-              description: 'Category ID (e.g., crypto-governance, ai-research)',
+              description: 'Category ID (crypto, ai, oss)',
             },
             forums: {
               type: 'string',
@@ -134,8 +134,8 @@ export async function GET() {
       note: 'All tools map to REST endpoints. Convert inputSchema to query params.',
       example: {
         tool: 'search_discussions',
-        input: { query: 'grants', category: 'crypto-governance' },
-        request: `GET ${baseUrl}/api/v1/search?q=grants&category=crypto-governance`,
+        input: { query: 'grants', category: 'crypto' },
+        request: `GET ${baseUrl}/api/v1/search?q=grants&category=crypto`,
       },
     },
   });

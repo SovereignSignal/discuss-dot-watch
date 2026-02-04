@@ -1,16 +1,16 @@
 export type ForumCategoryId =
-  // Crypto (3)
+  | 'crypto'
+  | 'ai'
+  | 'oss'
+  // Legacy IDs for backwards compatibility
   | 'crypto-governance'
   | 'crypto-defi'
   | 'crypto-niche'
-  // AI (2)
   | 'ai-research'
   | 'ai-tools'
-  // OSS (3)
   | 'oss-languages'
   | 'oss-frameworks'
   | 'oss-infrastructure'
-  // Custom
   | 'custom';
 
 export interface Forum {

@@ -90,7 +90,12 @@ function safeSetItem(key: string, value: string): boolean {
 
 // Zod schemas for data validation
 const ForumCategoryIdSchema = z.enum([
-  // New consolidated categories
+  // Current categories (v3)
+  'crypto',
+  'ai',
+  'oss',
+  'custom',
+  // Legacy v2 categories
   'crypto-governance',
   'crypto-defi',
   'crypto-niche',
@@ -99,8 +104,7 @@ const ForumCategoryIdSchema = z.enum([
   'oss-languages',
   'oss-frameworks',
   'oss-infrastructure',
-  'custom',
-  // Legacy categories (for backwards compatibility during migration)
+  // Legacy v1 categories
   'l2-protocols',
   'l1-protocols',
   'defi-lending',

@@ -29,7 +29,7 @@ export async function GET() {
         method: 'GET',
         description: 'List all available forums',
         params: {
-          category: 'Filter by category ID (e.g., crypto-governance, ai-research)',
+          category: 'Filter by category ID (crypto, ai, oss)',
           tier: 'Filter by tier (1, 2, or 3)',
         },
       },
@@ -62,11 +62,11 @@ export async function GET() {
     },
 
     examples: {
-      listCryptoForums: '/api/v1/forums?category=crypto-governance',
-      hotDiscussions: '/api/v1/discussions?category=crypto-defi&hot=true',
-      searchGrants: '/api/v1/search?q=grants&category=crypto-governance',
+      listCryptoForums: '/api/v1/forums?category=crypto',
+      hotAiDiscussions: '/api/v1/discussions?category=ai&hot=true',
+      searchGrants: '/api/v1/search?q=grants&category=crypto',
       specificForums: '/api/v1/discussions?forums=arbitrum,optimism,uniswap',
-      recentActivity: '/api/v1/discussions?since=2024-01-01&sort=activity',
+      ossDiscussions: '/api/v1/discussions?category=oss&limit=30',
     },
 
     feeds: {
