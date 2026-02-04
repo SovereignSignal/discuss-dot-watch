@@ -1,0 +1,83 @@
+# discuss.watch — AI/Agent Instructions
+
+> Unified forum feed for crypto, AI, and open source communities.
+> 100+ Discourse forums aggregated into one API.
+
+## What This Site Does
+
+discuss.watch aggregates discussions from 100+ Discourse-based forums across three verticals:
+- **Crypto**: Governance forums (Arbitrum, Uniswap, Aave, ENS, Optimism, etc.)
+- **AI/ML**: Research and developer communities (OpenAI, Hugging Face, PyTorch, etc.)
+- **Open Source**: Programming languages and projects (Rust, Swift, NixOS, Godot, etc.)
+
+## API Access
+
+Base URL: https://discuss.watch/api/v1
+
+### Endpoints
+
+GET /api/v1
+  Returns API documentation and status.
+
+GET /api/v1/forums
+  List all available forums.
+  Params: category, tier
+
+GET /api/v1/categories  
+  List all categories with forum counts.
+
+GET /api/v1/discussions
+  Fetch latest discussions from forums.
+  Params: forums, category, limit, hot, since, sort
+
+GET /api/v1/search?q={query}
+  Search discussions across forums.
+  Params: q (required), forums, category, limit
+
+### Example Queries
+
+# Get hot crypto governance discussions
+GET /api/v1/discussions?category=crypto-governance&hot=true
+
+# Search for "grants" across all forums
+GET /api/v1/search?q=grants
+
+# Get AI research discussions from the past week
+GET /api/v1/discussions?category=ai-research&since=2024-01-20
+
+# Fetch from specific forums
+GET /api/v1/discussions?forums=arbitrum,optimism,uniswap
+
+### Response Format
+
+All endpoints return JSON:
+{
+  "data": [...],
+  "meta": { "total": N, ... }
+}
+
+### Rate Limits
+
+No authentication required. Please limit to ~10 requests/minute.
+Responses are cached (5 min for discussions, 1 min for search).
+
+## Categories
+
+Crypto:
+- crypto-governance: L1s, L2s, DAOs, infrastructure (44 forums)
+- crypto-defi: DeFi protocols (28 forums)
+- crypto-niche: Privacy, AI-crypto (5 forums)
+
+AI:
+- ai-research: Safety, alignment, ML research (4 forums)
+- ai-tools: Developer platforms (3 forums)
+
+OSS:
+- oss-languages: Programming languages (8 forums)
+- oss-frameworks: Frameworks and tools (7 forums)
+- oss-infrastructure: OS, distros, infra (9 forums)
+
+## Contact
+
+Part of the Sovereign Signal ecosystem.
+https://sovereignsignal.substack.com

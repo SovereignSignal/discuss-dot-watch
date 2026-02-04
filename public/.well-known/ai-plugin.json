@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "discuss.watch",
+  "name_for_model": "discuss_watch",
+  "description_for_human": "Unified forum feed for crypto, AI, and open source communities.",
+  "description_for_model": "Access discussions from 100+ Discourse forums across crypto governance (Arbitrum, Uniswap, Aave, ENS), AI/ML (OpenAI, Hugging Face, PyTorch), and open source (Rust, Swift, NixOS). Use this to monitor forum activity, search discussions, find governance proposals, track community sentiment, or discover trending topics.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://discuss.watch/api/v1/openapi.json"
+  },
+  "logo_url": "https://discuss.watch/icon.svg",
+  "contact_email": "hello@sovereignsignal.com",
+  "legal_info_url": "https://sovereignsignal.substack.com"
+}

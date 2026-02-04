@@ -11,6 +11,11 @@ export async function GET() {
     name: 'discuss.watch API',
     version: '1.0.0',
     description: 'Unified forum feed API for crypto, AI, and open source communities',
+    
+    // Agent discovery
+    llms_txt: 'https://discuss.watch/llms.txt',
+    openapi: 'https://discuss.watch/api/v1/openapi.json',
+    ai_plugin: 'https://discuss.watch/.well-known/ai-plugin.json',
     documentation: 'https://github.com/SovereignSignal/gov-forum-watcher',
     
     stats: {

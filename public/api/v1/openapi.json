@@ -1,0 +1,217 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "discuss.watch API",
+    "version": "1.0.0",
+    "description": "Unified forum feed API for crypto, AI, and open source communities. Aggregates 100+ Discourse forums."
+  },
+  "servers": [
+    {
+      "url": "https://discuss.watch/api/v1"
+    }
+  ],
+  "paths": {
+    "/forums": {
+      "get": {
+        "operationId": "listForums",
+        "summary": "List all available forums",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Filter by category ID (e.g., crypto-governance, ai-research)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "tier",
+            "in": "query",
+            "description": "Filter by tier (1=major, 2=established, 3=emerging)",
+            "schema": { "type": "integer", "enum": [1, 2, 3] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of forums",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "url": { "type": "string" },
+                          "description": { "type": "string" },
+                          "token": { "type": "string" },
+                          "tier": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "meta": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "operationId": "listCategories",
+        "summary": "List all forum categories",
+        "responses": {
+          "200": {
+            "description": "List of categories with forum counts"
+          }
+        }
+      }
+    },
+    "/discussions": {
+      "get": {
+        "operationId": "getDiscussions",
+        "summary": "Fetch latest discussions from forums",
+        "parameters": [
+          {
+            "name": "forums",
+            "in": "query",
+            "description": "Comma-separated forum names or URLs",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Category ID (e.g., crypto-governance, ai-research, oss-languages)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max results per forum (default 20, max 50)",
+            "schema": { "type": "integer", "default": 20 }
+          },
+          {
+            "name": "hot",
+            "in": "query",
+            "description": "Filter to hot/trending discussions only",
+            "schema": { "type": "boolean" }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "ISO date - only discussions after this date",
+            "schema": { "type": "string", "format": "date" }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort order",
+            "schema": { "type": "string", "enum": ["activity", "created", "replies", "views"], "default": "activity" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of discussions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "title": { "type": "string" },
+                          "url": { "type": "string" },
+                          "forum": { "type": "object" },
+                          "createdAt": { "type": "string" },
+                          "lastActivityAt": { "type": "string" },
+                          "replies": { "type": "integer" },
+                          "views": { "type": "integer" },
+                          "likes": { "type": "integer" },
+                          "isHot": { "type": "boolean" }
+                        }
+                      }
+                    },
+                    "meta": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "operationId": "searchDiscussions",
+        "summary": "Search discussions across forums",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search query (min 2 characters)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "forums",
+            "in": "query",
+            "description": "Comma-separated forum names or URLs",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Category ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max results per forum (default 10, max 25)",
+            "schema": { "type": "integer", "default": 10 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "title": { "type": "string" },
+                          "url": { "type": "string" },
+                          "blurb": { "type": "string" },
+                          "forum": { "type": "object" },
+                          "replies": { "type": "integer" },
+                          "views": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "meta": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query"
+          }
+        }
+      }
+    }
+  }
+}
