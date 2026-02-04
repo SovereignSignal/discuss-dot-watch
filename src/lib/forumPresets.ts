@@ -403,14 +403,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
       },
       {
-        name: 'Venus Protocol',
-        url: 'https://forum.venus.io/',
-        description: 'BNB Chain money market',
-        token: 'XVS',
-        logoUrl: 'https://assets.coingecko.com/coins/images/12677/small/venus.png',
-        tier: 2,
-      },
-      {
         name: 'Goldfinch',
         url: 'https://gov.goldfinch.finance/',
         description: 'Credit protocol for real-world lending',
@@ -419,27 +411,11 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 3,
       },
       {
-        name: 'Maple Finance',
-        url: 'https://forum.maple.finance/',
-        description: 'Institutional lending',
-        token: 'MPL',
-        logoUrl: 'https://assets.coingecko.com/coins/images/14097/small/maple.png',
-        tier: 3,
-      },
-      {
         name: 'Inverse Finance',
         url: 'https://forum.inverse.finance/',
         description: 'Fixed-rate lending',
         token: 'INV',
         logoUrl: 'https://assets.coingecko.com/coins/images/14205/small/inverse.png',
-        tier: 3,
-      },
-      {
-        name: 'Radiant Capital',
-        url: 'https://forum.radiant.capital/',
-        description: 'Omnichain lending',
-        token: 'RDNT',
-        logoUrl: 'https://assets.coingecko.com/coins/images/26536/small/radiant.png',
         tier: 3,
       },
       // DEX
@@ -542,14 +518,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
       },
       {
-        name: 'Instadapp/Fluid',
-        url: 'https://forum.instadapp.io/',
-        description: 'DeFi smart accounts',
-        token: 'INST',
-        logoUrl: 'https://assets.coingecko.com/coins/images/14688/small/instadapp.png',
-        tier: 2,
-      },
-      {
         name: 'Centrifuge',
         url: 'https://gov.centrifuge.io/',
         description: 'Real-world asset financing',
@@ -595,13 +563,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         description: 'Privacy-preserving smart contracts',
         token: 'SCRT',
         logoUrl: 'https://assets.coingecko.com/coins/images/11871/small/secret.png',
-        tier: 2,
-      },
-      {
-        name: 'Aztec',
-        url: 'https://discourse.aztec.network/',
-        description: 'ZK privacy layer for Ethereum',
-        logoUrl: 'https://assets.coingecko.com/coins/images/26116/small/aztec.jpeg',
         tier: 2,
       },
       // AI-Crypto
