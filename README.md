@@ -1,45 +1,75 @@
-# Gov Watch - Governance Forum Aggregator
+# discuss.watch
 
-A unified interface for aggregating and monitoring governance discussions from Discourse-based forums used by DAOs, blockchain protocols, and developer communities.
+Unified monitoring for community discussions across crypto, AI, and open source.
 
-**Live Demo:** https://gov-forum-watcher-production.up.railway.app/
+**Part of the [Sovereign Signal](https://sovereignsignal.substack.com/) ecosystem.**
+
+**Live:** https://gov-forum-watcher-production.up.railway.app/ (rebranding in progress)
+
+---
+
+## What It Does
+
+Aggregates discussions from Discourse forums, GitHub Discussions, Commonwealth, and other platforms where grants, funding, governance, and ecosystem decisions happen.
+
+**Three verticals:**
+- **Crypto** — DAO governance, protocol proposals, grants programs
+- **AI/ML** — AI safety funding, research communities, ML tooling
+- **Open Source** — Foundation governance, project funding, maintainer discussions
+
+---
 
 ## Features
 
-- **Multi-Forum Aggregation** - Monitor 70+ pre-configured governance forums from a single dashboard
-- **Unified Discussion Feed** - View all discussions sorted by recent activity
-- **Keyword Alerts** - Set up alerts to highlight discussions containing specific keywords
-- **Forum Management** - Add, remove, enable/disable forums with a visual directory
-- **Search & Filter** - Search discussions and filter by enabled forums
-- **Dark/Light Theme** - Toggle between dark and light modes with preference persistence
-- **Bookmark Discussions** - Save important discussions for later reference
-- **Advanced Filtering** - Filter by date range (Today, This Week, This Month) and forum source
-- **Mobile Responsive** - Collapsible sidebar with hamburger menu, floating search button on mobile
-- **Privacy-First** - All data stored locally in browser; no external database
+- **Multi-Platform Aggregation** — Discourse forums, GitHub Discussions, Commonwealth (expanding)
+- **100+ Forums Monitored** — Crypto governance, expanding to AI and OSS
+- **AI-Powered Digests** — Weekly/daily email summaries with Claude Sonnet
+- **Keyword Alerts** — Track specific terms across all sources
+- **Activity Badges** — Hot, Active, NEW indicators
+- **Delegate Filtering** — Separates delegate threads from main governance
+- **Search & Filter** — By date, platform, vertical, or keyword
+- **Privacy-First** — Local storage, no tracking
 
-## Supported Forums
+---
 
-Includes pre-configured support for major governance forums across categories:
+## Supported Platforms
 
-- **Layer 2**: Arbitrum, Optimism, zkSync, Polygon, Starknet, Scroll
-- **Layer 1**: Ethereum Magicians, Cosmos, Solana, Polkadot, Cardano
-- **DeFi**: Aave, Compound, Uniswap, Curve, Lido, MakerDAO, dYdX
-- **DAOs**: ENS, Gitcoin, GnosisDAO, ApeCoin, Nouns
-- **AI/ML**: OpenAI, Hugging Face, PyTorch, LangChain
+### Live Now
+- **Discourse** — 100+ forums across crypto governance
 
-...and 50+ more. See [CLAUDE.md](./CLAUDE.md) for the full list.
+### Coming Soon
+- **Discourse (AI)** — EA Forum, OpenAI, Hugging Face
+- **Discourse (OSS)** — Rust, Swift, Mozilla, NixOS, Django, etc.
+- **GitHub Discussions** — Node.js, React, LangChain, llama.cpp, etc.
+- **Commonwealth** — Cosmos ecosystem (Osmosis, Celestia, etc.)
+
+See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for the complete target list.
+See [docs/ROADMAP.md](./docs/ROADMAP.md) for implementation timeline.
+
+---
 
 ## Quick Start
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
-
 # Open http://localhost:3000
 ```
+
+### Environment Variables
+
+```bash
+# Required for email digests
+ANTHROPIC_API_KEY=sk-ant-...
+RESEND_API_KEY=re_...
+
+# Optional
+NEXT_PUBLIC_PRIVY_APP_ID=...  # Authentication
+RESEND_FROM_EMAIL=...         # Sender address
+CRON_SECRET=...               # Scheduled jobs
+```
+
+---
 
 ## Tech Stack
 
@@ -49,52 +79,63 @@ npm run dev
 | Language | TypeScript 5 |
 | UI | React 19 |
 | Styling | Tailwind CSS 4 |
-| Icons | Lucide React |
+| Auth | Privy |
+| AI | Claude Sonnet (Anthropic) |
+| Email | Resend |
+
+---
 
 ## Project Structure
 
-```text
+```
 src/
-├── app/                    # Next.js App Router
-│   ├── api/                # API routes (discourse proxy, validation)
-│   ├── page.tsx            # Main page
-│   └── layout.tsx          # Root layout
-├── components/             # React components (8 total)
-├── hooks/                  # Custom hooks (useForums, useDiscussions, useAlerts, useTheme, useBookmarks)
-├── lib/                    # Utilities (storage, URL handling, forum presets)
-└── types/                  # TypeScript interfaces
+├── app/
+│   ├── api/
+│   │   ├── discourse/    # Discourse proxy
+│   │   ├── digest/       # Email digest generation
+│   │   └── validate-discourse/
+│   ├── app/              # Main application
+│   └── page.tsx          # Landing page
+├── components/           # React components
+├── hooks/                # Custom hooks
+├── lib/
+│   ├── forumPresets.ts   # Forum configurations
+│   ├── logoUtils.ts      # Protocol logo handling
+│   ├── emailDigest.ts    # AI summarization
+│   └── emailService.ts   # Resend integration
+└── types/
+docs/
+├── FORUM_TARGETS.md      # Complete target list
+└── ROADMAP.md            # Implementation timeline
 ```
 
-## Available Scripts
+---
 
-```bash
-npm run dev      # Start development server (localhost:3000)
-npm run build    # Production build
-npm start        # Start production server
-npm run lint     # Run ESLint
+## Documentation
+
+- [FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) — Complete list of target platforms and forums
+- [ROADMAP.md](./docs/ROADMAP.md) — Implementation phases and timeline
+- [CLAUDE.md](./CLAUDE.md) — Technical documentation for AI assistants
+
+---
+
+## Sovereign Signal Ecosystem
+
+discuss.watch is part of the Intelligence layer:
+
+```
+SOVEREIGN SIGNAL
+├── Thought Leadership — Blog, analysis
+├── Intelligence
+│   ├── Crypto Grant Wire (live)
+│   ├── AI Grant Wire (building)
+│   ├── OSS Grant Wire (building)
+│   └── discuss.watch ← YOU ARE HERE
+└── Discovery
+    └── Grants Registry
 ```
 
-## Data Storage
-
-All configuration is stored in browser localStorage:
-
-- **Forums**: Your added/enabled forum configurations
-- **Alerts**: Your keyword alert settings
-- **Bookmarks**: Your saved discussions
-- **Theme**: Your dark/light mode preference
-
-No data is sent to external servers except for fetching discussions directly from the configured Discourse forums.
-
-## For AI Assistants
-
-See [CLAUDE.md](./CLAUDE.md) for comprehensive documentation including:
-
-- Complete project architecture
-- Type definitions and interfaces
-- API endpoint specifications
-- Component and hook references
-- Code conventions and patterns
-- Common development tasks
+---
 
 ## License
 

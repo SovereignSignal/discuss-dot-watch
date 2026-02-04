@@ -1,15 +1,23 @@
-# CLAUDE.md - Gov Forum Watcher
+# CLAUDE.md - discuss.watch
 
 This document provides essential context for AI assistants working with this codebase.
 
 ## Project Overview
 
-**Gov Watch** is a Governance Forum Aggregator - a unified interface for aggregating and displaying governance discussions from multiple Discourse-based forums used by DAOs and blockchain protocols (Aave, Compound, Uniswap, Arbitrum, Optimism, etc.).
+**discuss.watch** (formerly Gov Watch) is a unified monitoring tool for community discussions across crypto, AI, and open source. Part of the Sovereign Signal ecosystem.
+
+**Three verticals:**
+- Crypto — DAO governance, protocol proposals, grants programs
+- AI/ML — AI safety funding, research communities, ML tooling  
+- Open Source — Foundation governance, project funding, maintainer discussions
 
 ### Key Features
-- Forum aggregation from multiple Discourse-based governance forums
-- Unified discussion feed with search and filtering
+- Multi-platform aggregation (Discourse now, GitHub/Commonwealth planned)
+- 100+ forums monitored across crypto governance
+- AI-powered email digests (Claude Sonnet + Resend)
 - Keyword alerts with highlighting
+- Activity badges (Hot, Active, NEW)
+- Delegate thread filtering (separates delegate content)
 - Forum management (add/remove/enable/disable)
 - Dark/light theme toggle with persistence
 - Discussion bookmarking with dedicated "Saved" view
@@ -20,10 +28,11 @@ This document provides essential context for AI assistants working with this cod
 - Export/import configuration backup
 - Keyboard shortcuts for power users
 - Offline detection with banner notification
-- Error retry with exponential backoff
-- Rate limiting to protect forum APIs
-- Skip links for accessibility
-- Client-side only - no backend database, uses browser localStorage
+- Privy authentication (optional)
+
+### Roadmap
+See [docs/ROADMAP.md](./docs/ROADMAP.md) for implementation phases.
+See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for complete platform/forum target list.
 
 ## Tech Stack
 
