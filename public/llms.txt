@@ -77,6 +77,36 @@ OSS:
 - oss-frameworks: Frameworks and tools (7 forums)
 - oss-infrastructure: OS, distros, infra (9 forums)
 
+## RSS/Atom Feeds
+
+Subscribe to discussion feeds:
+
+/feed/all.xml      - All discussions (top forums)
+/feed/crypto.xml   - Crypto governance
+/feed/ai.xml       - AI / ML communities
+/feed/oss.xml      - Open source projects
+
+Category-specific feeds also available:
+/feed/crypto-governance.xml
+/feed/ai-research.xml
+/feed/oss-languages.xml
+
+## MCP (Model Context Protocol)
+
+For agents supporting MCP:
+
+GET /api/mcp
+  Returns MCP-compatible tool definitions.
+
+Standalone MCP server available:
+  node mcp-server.js
+
+Tools:
+- search_discussions: Search across all forums
+- get_discussions: Get latest/trending discussions
+- list_forums: List available forums
+- list_categories: List category structure
+
 ## Contact
 
 Part of the Sovereign Signal ecosystem.

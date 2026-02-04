@@ -69,6 +69,19 @@ export async function GET() {
       recentActivity: '/api/v1/discussions?since=2024-01-01&sort=activity',
     },
 
+    feeds: {
+      all: '/feed/all.xml',
+      crypto: '/feed/crypto.xml',
+      ai: '/feed/ai.xml',
+      oss: '/feed/oss.xml',
+      note: 'Atom feeds for any category: /feed/{category-id}.xml',
+    },
+
+    mcp: {
+      tools: '/api/mcp',
+      note: 'MCP-compatible tool definitions for AI agents',
+    },
+
     rateLimit: {
       note: 'No authentication required. Please be respectful with request volume.',
       recommended: '10 requests per minute',
