@@ -1,19 +1,16 @@
 export type ForumCategoryId =
-  | 'l2-protocols'
-  | 'l1-protocols'
-  | 'defi-lending'
-  | 'defi-dex'
-  | 'defi-staking'
-  | 'defi-other'
-  | 'major-daos'
-  | 'infrastructure'
-  | 'privacy'
-  | 'ai-crypto'
-  | 'ai-safety'
-  | 'ai-developer'
+  // Crypto (3)
+  | 'crypto-governance'
+  | 'crypto-defi'
+  | 'crypto-niche'
+  // AI (2)
+  | 'ai-research'
+  | 'ai-tools'
+  // OSS (3)
   | 'oss-languages'
   | 'oss-frameworks'
   | 'oss-infrastructure'
+  // Custom
   | 'custom';
 
 export interface Forum {

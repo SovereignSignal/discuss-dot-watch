@@ -1,9 +1,6 @@
 /**
- * Comprehensive directory of Discourse-based governance forums
- * organized by category and tier.
- *
- * Only Discourse-based forums are included as the API proxy
- * is designed to work with Discourse's API structure.
+ * Comprehensive directory of Discourse-based forums
+ * organized by vertical and category.
  */
 
 export interface ForumPreset {
@@ -24,11 +21,15 @@ export interface ForumCategory {
 }
 
 export const FORUM_CATEGORIES: ForumCategory[] = [
+  // ============================================
+  // CRYPTO
+  // ============================================
   {
-    id: 'l2-protocols',
-    name: 'Layer 2 Protocols',
-    description: 'Ethereum scaling solutions and rollups',
+    id: 'crypto-governance',
+    name: 'Crypto - Governance',
+    description: 'L1s, L2s, DAOs, and infrastructure protocol governance',
     forums: [
+      // L2 Protocols
       {
         name: 'Arbitrum',
         url: 'https://forum.arbitrum.foundation/',
@@ -101,13 +102,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/36632/small/linea.jpeg',
         tier: 2,
       },
-    ],
-  },
-  {
-    id: 'l1-protocols',
-    name: 'Layer 1 Protocols',
-    description: 'Base layer blockchain networks',
-    forums: [
+      // L1 Protocols
       {
         name: 'Ethereum Magicians',
         url: 'https://ethereum-magicians.org/',
@@ -175,7 +170,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Polkadot',
         url: 'https://forum.polkadot.network/',
-        description: 'OpenGov referenda and parachain discussions; 400+ governance topics',
+        description: 'OpenGov referenda and parachain discussions',
         token: 'DOT',
         logoUrl: 'https://assets.coingecko.com/coins/images/12171/small/polkadot.png',
         tier: 1,
@@ -191,7 +186,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Solana',
         url: 'https://forum.solana.com/',
-        description: 'SIMD proposals and validator policies; on-chain voting',
+        description: 'SIMD proposals and validator policies',
         token: 'SOL',
         logoUrl: 'https://assets.coingecko.com/coins/images/4128/small/solana.png',
         tier: 1,
@@ -199,7 +194,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Tezos Agora',
         url: 'https://forum.tezosagora.org/',
-        description: 'Protocol amendments; 69+ on-chain proposals discussed',
+        description: 'Protocol amendments and governance',
         token: 'XTZ',
         logoUrl: 'https://assets.coingecko.com/coins/images/976/small/Tezos-logo.png',
         tier: 2,
@@ -220,278 +215,19 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/1094/small/tron-logo.png',
         tier: 3,
       },
-    ],
-  },
-  {
-    id: 'defi-lending',
-    name: 'DeFi - Lending & Borrowing',
-    description: 'Lending protocols and money markets',
-    forums: [
-      {
-        name: 'Aave',
-        url: 'https://governance.aave.com/',
-        categoryId: 4,
-        description: 'Largest DeFi lending protocol; highly active governance',
-        token: 'AAVE',
-        logoUrl: 'https://cryptologos.cc/logos/aave-aave-logo.png',
-        tier: 1,
-      },
-      {
-        name: 'Compound',
-        url: 'https://www.comp.xyz/',
-        description: 'Pioneer lending protocol with Governor Bravo',
-        token: 'COMP',
-        logoUrl: 'https://assets.coingecko.com/coins/images/10775/small/COMP.png',
-        tier: 1,
-      },
-      {
-        name: 'Sky (MakerDAO)',
-        url: 'https://forum.sky.money/',
-        description: 'Rebranded from Maker; Endgame transition discussions',
-        token: 'MKR',
-        logoUrl: 'https://assets.coingecko.com/coins/images/1364/small/Mark_Maker.png',
-        tier: 1,
-      },
-      {
-        name: 'MakerDAO (Legacy)',
-        url: 'https://forum.makerdao.com/',
-        description: 'Original Maker forum; MIPs, DAI policy, risk parameters',
-        token: 'MKR',
-        logoUrl: 'https://assets.coingecko.com/coins/images/1364/small/Mark_Maker.png',
-        tier: 1,
-      },
-      {
-        name: 'Morpho',
-        url: 'https://forum.morpho.org/',
-        description: 'Lending optimization and vault curator discussions',
-        token: 'MORPHO',
-        logoUrl: 'https://assets.coingecko.com/coins/images/29837/small/morpho-token-icon.png',
-        tier: 2,
-      },
-      {
-        name: 'Euler Finance',
-        url: 'https://forum.euler.finance/',
-        description: 'Modular lending with eIP risk parameters',
-        token: 'EUL',
-        logoUrl: 'https://assets.coingecko.com/coins/images/26149/small/YCvKDfl8_400x400.jpeg',
-        tier: 2,
-      },
-      {
-        name: 'Venus Protocol',
-        url: 'https://community.venus.io/',
-        description: 'BNB Chain money market',
-        token: 'XVS',
-        logoUrl: 'https://assets.coingecko.com/coins/images/12677/small/download.jpg',
-        tier: 2,
-      },
-      {
-        name: 'Goldfinch',
-        url: 'https://gov.goldfinch.finance/',
-        description: 'Emerging market lending',
-        token: 'GFI',
-        logoUrl: 'https://assets.coingecko.com/coins/images/19081/small/GOLDFINCH.png',
-        tier: 3,
-      },
-      {
-        name: 'Maple Finance',
-        url: 'https://community.maple.finance/',
-        description: 'Institutional on-chain lending',
-        token: 'MPL',
-        logoUrl: 'https://assets.coingecko.com/coins/images/14097/small/photo_2021-05-03_14.20.41.jpeg',
-        tier: 3,
-      },
-      {
-        name: 'Inverse Finance',
-        url: 'https://forum.inverse.finance/',
-        description: 'Fixed-rate lending; DOLA stablecoin',
-        token: 'INV',
-        logoUrl: 'https://assets.coingecko.com/coins/images/14205/small/inverse_finance.jpg',
-        tier: 3,
-      },
-      {
-        name: 'Radiant Capital',
-        url: 'https://community.radiant.capital/',
-        description: 'Omnichain money market',
-        token: 'RDNT',
-        logoUrl: 'https://assets.coingecko.com/coins/images/26536/small/Radiant-Logo-200x200.png',
-        tier: 3,
-      },
-    ],
-  },
-  {
-    id: 'defi-dex',
-    name: 'DeFi - DEX & AMMs',
-    description: 'Decentralized exchanges and automated market makers',
-    forums: [
-      {
-        name: 'Uniswap',
-        url: 'https://gov.uniswap.org/',
-        description: 'Leading DEX with mature multi-phase governance',
-        token: 'UNI',
-        logoUrl: 'https://cryptologos.cc/logos/uniswap-uni-logo.png',
-        tier: 1,
-      },
-      {
-        name: 'Curve Finance',
-        url: 'https://gov.curve.finance/',
-        description: 'Stableswap AMM; gauge voting and Curve Wars',
-        token: 'CRV',
-        logoUrl: 'https://assets.coingecko.com/coins/images/12124/small/Curve.png',
-        tier: 1,
-      },
-      {
-        name: 'Balancer',
-        url: 'https://forum.balancer.fi/',
-        description: 'Programmable AMM with veBAL gauge voting',
-        token: 'BAL',
-        logoUrl: 'https://assets.coingecko.com/coins/images/11683/small/Balancer.png',
-        tier: 2,
-      },
-      {
-        name: 'PancakeSwap',
-        url: 'https://forum.pancakeswap.finance/',
-        description: 'Leading BNB Chain DEX; CAKE emissions governance',
-        token: 'CAKE',
-        logoUrl: 'https://assets.coingecko.com/coins/images/12632/small/pancakeswap-cake-logo_%281%29.png',
-        tier: 2,
-      },
-      {
-        name: 'SushiSwap',
-        url: 'https://forum.sushi.com/',
-        description: 'Multichain DEX; governance restructuring',
-        token: 'SUSHI',
-        logoUrl: 'https://assets.coingecko.com/coins/images/12271/small/512x512_Logo_no_chop.png',
-        tier: 2,
-      },
-      {
-        name: 'dYdX',
-        url: 'https://dydx.forum/',
-        description: 'Decentralized perpetuals; V4 chain governance',
-        token: 'DYDX',
-        logoUrl: 'https://assets.coingecko.com/coins/images/17500/small/hjnIm9bV.jpg',
-        tier: 1,
-      },
-      {
-        name: 'Bancor',
-        url: 'https://gov.bancor.network/',
-        description: 'Liquidity protocol; whitelisting assets and treasury management',
-        token: 'BNT',
-        logoUrl: 'https://assets.coingecko.com/coins/images/736/small/bancor-bnt.png',
-        tier: 2,
-      },
-      {
-        name: '1inch',
-        url: 'https://gov.1inch.io/',
-        description: 'DEX aggregator with 1IP proposals',
-        token: '1INCH',
-        logoUrl: 'https://assets.coingecko.com/coins/images/13469/small/1inch-token.png',
-        tier: 3,
-      },
-    ],
-  },
-  {
-    id: 'defi-staking',
-    name: 'DeFi - Staking & Restaking',
-    description: 'Liquid staking and restaking protocols',
-    forums: [
-      {
-        name: 'Lido Finance',
-        url: 'https://research.lido.fi/',
-        description: 'Largest liquid staking protocol',
-        token: 'LDO',
-        logoUrl: 'https://assets.coingecko.com/coins/images/13573/small/Lido_DAO.png',
-        tier: 1,
-      },
-      {
-        name: 'EigenLayer',
-        url: 'https://forum.eigenlayer.xyz/',
-        description: 'Restaking protocol; AVS governance discussions',
-        token: 'EIGEN',
-        logoUrl: 'https://assets.coingecko.com/coins/images/37540/small/eigen.jpg',
-        tier: 1,
-      },
-      {
-        name: 'Rocket Pool',
-        url: 'https://dao.rocketpool.net/',
-        description: 'Decentralized ETH staking with roadmap governance',
-        token: 'RPL',
-        logoUrl: 'https://assets.coingecko.com/coins/images/2090/small/rocket_pool_%28RPL%29.png',
-        tier: 2,
-      },
-    ],
-  },
-  {
-    id: 'defi-other',
-    name: 'DeFi - Stablecoins & Other',
-    description: 'Stablecoins, RWA, yield aggregators, and other DeFi protocols',
-    forums: [
-      {
-        name: 'Yearn Finance',
-        url: 'https://gov.yearn.fi/',
-        description: 'Yield aggregator; YIP proposals and vault strategies',
-        token: 'YFI',
-        logoUrl: 'https://assets.coingecko.com/coins/images/11849/small/yearn.jpg',
-        tier: 1,
-      },
-      {
-        name: 'Frax Finance',
-        url: 'https://gov.frax.finance/',
-        description: 'Fractional stablecoin with FIP proposals',
-        token: 'FXS',
-        logoUrl: 'https://assets.coingecko.com/coins/images/13423/small/Frax_Shares_icon.png',
-        tier: 2,
-      },
-      {
-        name: 'Instadapp/Fluid',
-        url: 'https://gov.instadapp.io/',
-        description: 'DeFi management and Fluid lending',
-        token: 'INST',
-        logoUrl: 'https://assets.coingecko.com/coins/images/14688/small/30hfmgJK_400x400.jpg',
-        tier: 2,
-      },
-      {
-        name: 'Centrifuge',
-        url: 'https://gov.centrifuge.io/',
-        description: 'RWA tokenization; $700M+ financed',
-        token: 'CFG',
-        logoUrl: 'https://assets.coingecko.com/coins/images/13539/small/centrifuge-logo.png',
-        tier: 3,
-      },
-      {
-        name: 'Angle Protocol',
-        url: 'https://gov.angle.money/',
-        description: 'Euro stablecoin governance',
-        token: 'ANGLE',
-        logoUrl: 'https://assets.coingecko.com/coins/images/19060/small/ANGLE_Token-light.png',
-        tier: 3,
-      },
-      {
-        name: 'Reserve Protocol',
-        url: 'https://forum.reserve.org/',
-        description: 'Permissionless stablecoin issuance',
-        token: 'RSR',
-        logoUrl: 'https://assets.coingecko.com/coins/images/8365/small/rsr.png',
-        tier: 3,
-      },
-    ],
-  },
-  {
-    id: 'major-daos',
-    name: 'Major DAOs',
-    description: 'High-profile decentralized autonomous organizations',
-    forums: [
+      // Major DAOs
       {
         name: 'ENS',
         url: 'https://discuss.ens.domains/',
-        description: 'Ethereum Name Service; working group coordination',
+        description: 'Ethereum Name Service governance',
         token: 'ENS',
-        logoUrl: 'https://cryptologos.cc/logos/ethereum-name-service-ens-logo.png',
+        logoUrl: 'https://assets.coingecko.com/coins/images/19785/small/acatxTm8_400x400.jpg',
         tier: 1,
       },
       {
         name: 'Gitcoin',
         url: 'https://gov.gitcoin.co/',
-        description: 'Public goods funding and grants program',
+        description: 'Public goods funding governance',
         token: 'GTC',
         logoUrl: 'https://assets.coingecko.com/coins/images/15810/small/gitcoin.png',
         tier: 1,
@@ -499,7 +235,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'GnosisDAO',
         url: 'https://forum.gnosis.io/',
-        description: 'Gnosis Chain and ecosystem governance',
+        description: 'Gnosis Chain and Safe ecosystem',
         token: 'GNO',
         logoUrl: 'https://assets.coingecko.com/coins/images/662/small/logo_square_simple_300px.png',
         tier: 1,
@@ -507,23 +243,23 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'ApeCoin DAO',
         url: 'https://forum.apecoin.com/',
-        description: 'BAYC universe; AIPs for ecosystem fund',
+        description: 'BAYC ecosystem governance',
         token: 'APE',
         logoUrl: 'https://assets.coingecko.com/coins/images/24383/small/apecoin.jpg',
-        tier: 1,
+        tier: 2,
       },
       {
         name: 'Nouns DAO',
         url: 'https://discourse.nouns.wtf/',
-        description: 'NFT governance; 1 Noun = 1 vote',
-        token: 'NOUN',
-        logoUrl: 'https://assets.coingecko.com/coins/images/22427/small/nouns.png',
-        tier: 1,
+        description: 'Prop House and small grants',
+        token: 'NOUNS',
+        logoUrl: 'https://assets.coingecko.com/coins/images/28571/small/nouns.jpg',
+        tier: 2,
       },
       {
         name: 'Decentraland',
         url: 'https://forum.decentraland.org/',
-        description: 'Metaverse governance',
+        description: 'Virtual world governance',
         token: 'MANA',
         logoUrl: 'https://assets.coingecko.com/coins/images/878/small/decentraland-mana.png',
         tier: 2,
@@ -544,13 +280,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/15227/small/bankless.jpg',
         tier: 3,
       },
-    ],
-  },
-  {
-    id: 'infrastructure',
-    name: 'Infrastructure & Tooling',
-    description: 'Protocol infrastructure, oracles, and developer tools',
-    forums: [
+      // Infrastructure
       {
         name: 'The Graph',
         url: 'https://forum.thegraph.com/',
@@ -650,41 +380,271 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
     ],
   },
   {
-    id: 'privacy',
-    name: 'Privacy Protocols',
-    description: 'Privacy-focused blockchain networks',
+    id: 'crypto-defi',
+    name: 'Crypto - DeFi',
+    description: 'Decentralized finance protocols',
     forums: [
+      // Lending
       {
-        name: 'Zcash',
-        url: 'https://forum.zcashcommunity.com/',
-        description: 'Primary ZEC governance; ZIP 1014 development fund',
-        token: 'ZEC',
-        logoUrl: 'https://assets.coingecko.com/coins/images/486/small/circle-zcash-color.png',
+        name: 'Aave',
+        url: 'https://governance.aave.com/',
+        categoryId: 4,
+        description: 'Largest DeFi lending protocol',
+        token: 'AAVE',
+        logoUrl: 'https://cryptologos.cc/logos/aave-aave-logo.png',
+        tier: 1,
+      },
+      {
+        name: 'Compound',
+        url: 'https://www.comp.xyz/',
+        description: 'Pioneer lending protocol with Governor Bravo',
+        token: 'COMP',
+        logoUrl: 'https://assets.coingecko.com/coins/images/10775/small/COMP.png',
+        tier: 1,
+      },
+      {
+        name: 'Sky (MakerDAO)',
+        url: 'https://forum.sky.money/',
+        description: 'Rebranded from Maker; Endgame transition',
+        token: 'MKR',
+        logoUrl: 'https://assets.coingecko.com/coins/images/1364/small/Mark_Maker.png',
+        tier: 1,
+      },
+      {
+        name: 'MakerDAO (Legacy)',
+        url: 'https://forum.makerdao.com/',
+        description: 'Original Maker forum; MIPs, DAI policy',
+        token: 'MKR',
+        logoUrl: 'https://assets.coingecko.com/coins/images/1364/small/Mark_Maker.png',
+        tier: 1,
+      },
+      {
+        name: 'Morpho',
+        url: 'https://forum.morpho.org/',
+        description: 'Optimized lending layer',
+        token: 'MORPHO',
+        logoUrl: 'https://assets.coingecko.com/coins/images/29837/small/morpho.png',
+        tier: 2,
+      },
+      {
+        name: 'Euler Finance',
+        url: 'https://forum.euler.finance/',
+        description: 'Modular lending protocol',
+        token: 'EUL',
+        logoUrl: 'https://assets.coingecko.com/coins/images/26149/small/euler.png',
+        tier: 2,
+      },
+      {
+        name: 'Venus Protocol',
+        url: 'https://forum.venus.io/',
+        description: 'BNB Chain money market',
+        token: 'XVS',
+        logoUrl: 'https://assets.coingecko.com/coins/images/12677/small/venus.png',
+        tier: 2,
+      },
+      {
+        name: 'Goldfinch',
+        url: 'https://gov.goldfinch.finance/',
+        description: 'Credit protocol for real-world lending',
+        token: 'GFI',
+        logoUrl: 'https://assets.coingecko.com/coins/images/19081/small/goldfinch.png',
         tier: 3,
       },
       {
-        name: 'Secret Network',
-        url: 'https://forum.scrt.network/',
-        description: 'Privacy blockchain; weekly governance meetings',
-        token: 'SCRT',
-        logoUrl: 'https://assets.coingecko.com/coins/images/11871/small/Secret.png',
+        name: 'Maple Finance',
+        url: 'https://forum.maple.finance/',
+        description: 'Institutional lending',
+        token: 'MPL',
+        logoUrl: 'https://assets.coingecko.com/coins/images/14097/small/maple.png',
         tier: 3,
       },
       {
-        name: 'Aztec',
-        url: 'https://discourse.aztec.network/',
-        description: 'ZK-privacy L2; sequencer signaling votes',
-        token: 'AZTEC',
-        logoUrl: 'https://assets.coingecko.com/coins/images/54133/small/aztec.jpg',
+        name: 'Inverse Finance',
+        url: 'https://forum.inverse.finance/',
+        description: 'Fixed-rate lending',
+        token: 'INV',
+        logoUrl: 'https://assets.coingecko.com/coins/images/14205/small/inverse.png',
         tier: 3,
+      },
+      {
+        name: 'Radiant Capital',
+        url: 'https://forum.radiant.capital/',
+        description: 'Omnichain lending',
+        token: 'RDNT',
+        logoUrl: 'https://assets.coingecko.com/coins/images/26536/small/radiant.png',
+        tier: 3,
+      },
+      // DEX
+      {
+        name: 'Uniswap',
+        url: 'https://gov.uniswap.org/',
+        description: 'Largest DEX governance',
+        token: 'UNI',
+        logoUrl: 'https://cryptologos.cc/logos/uniswap-uni-logo.png',
+        tier: 1,
+      },
+      {
+        name: 'Curve Finance',
+        url: 'https://gov.curve.fi/',
+        description: 'Stablecoin DEX with veCRV gauge',
+        token: 'CRV',
+        logoUrl: 'https://assets.coingecko.com/coins/images/12124/small/Curve.png',
+        tier: 1,
+      },
+      {
+        name: 'Balancer',
+        url: 'https://forum.balancer.fi/',
+        description: 'Programmable liquidity protocol',
+        token: 'BAL',
+        logoUrl: 'https://assets.coingecko.com/coins/images/11683/small/Balancer.png',
+        tier: 1,
+      },
+      {
+        name: 'PancakeSwap',
+        url: 'https://forum.pancakeswap.finance/',
+        description: 'Multi-chain DEX',
+        token: 'CAKE',
+        logoUrl: 'https://assets.coingecko.com/coins/images/12632/small/pancakeswap.png',
+        tier: 2,
+      },
+      {
+        name: 'SushiSwap',
+        url: 'https://forum.sushi.com/',
+        description: 'Multi-chain DEX',
+        token: 'SUSHI',
+        logoUrl: 'https://assets.coingecko.com/coins/images/12271/small/sushi.jpg',
+        tier: 2,
+      },
+      {
+        name: 'dYdX',
+        url: 'https://dydx.forum/',
+        description: 'Decentralized perpetuals exchange',
+        token: 'DYDX',
+        logoUrl: 'https://assets.coingecko.com/coins/images/17500/small/dydx.jpg',
+        tier: 1,
+      },
+      {
+        name: 'Bancor',
+        url: 'https://gov.bancor.network/',
+        description: 'Single-sided liquidity',
+        token: 'BNT',
+        logoUrl: 'https://assets.coingecko.com/coins/images/736/small/bancor-bnt.png',
+        tier: 2,
+      },
+      {
+        name: '1inch',
+        url: 'https://gov.1inch.io/',
+        description: 'DEX aggregator governance',
+        token: '1INCH',
+        logoUrl: 'https://assets.coingecko.com/coins/images/13469/small/1inch.png',
+        tier: 2,
+      },
+      // Staking
+      {
+        name: 'Lido Finance',
+        url: 'https://research.lido.fi/',
+        description: 'Liquid staking governance',
+        token: 'LDO',
+        logoUrl: 'https://assets.coingecko.com/coins/images/13573/small/lido.png',
+        tier: 1,
+      },
+      {
+        name: 'EigenLayer',
+        url: 'https://forum.eigenlayer.xyz/',
+        description: 'Restaking protocol governance',
+        token: 'EIGEN',
+        logoUrl: 'https://assets.coingecko.com/coins/images/37441/small/eigenlayer.jpeg',
+        tier: 1,
+      },
+      {
+        name: 'Rocket Pool',
+        url: 'https://dao.rocketpool.net/',
+        description: 'Decentralized ETH staking',
+        token: 'RPL',
+        logoUrl: 'https://assets.coingecko.com/coins/images/2090/small/rocket_pool.png',
+        tier: 2,
+      },
+      // Other DeFi
+      {
+        name: 'Yearn Finance',
+        url: 'https://gov.yearn.fi/',
+        description: 'Yield aggregator governance',
+        token: 'YFI',
+        logoUrl: 'https://assets.coingecko.com/coins/images/11849/small/yearn.jpg',
+        tier: 1,
+      },
+      {
+        name: 'Frax Finance',
+        url: 'https://gov.frax.finance/',
+        description: 'Fractional-algorithmic stablecoin',
+        token: 'FXS',
+        logoUrl: 'https://assets.coingecko.com/coins/images/13423/small/frax.png',
+        tier: 2,
+      },
+      {
+        name: 'Instadapp/Fluid',
+        url: 'https://forum.instadapp.io/',
+        description: 'DeFi smart accounts',
+        token: 'INST',
+        logoUrl: 'https://assets.coingecko.com/coins/images/14688/small/instadapp.png',
+        tier: 2,
+      },
+      {
+        name: 'Centrifuge',
+        url: 'https://gov.centrifuge.io/',
+        description: 'Real-world asset financing',
+        token: 'CFG',
+        logoUrl: 'https://assets.coingecko.com/coins/images/16441/small/centrifuge.png',
+        tier: 2,
+      },
+      {
+        name: 'Angle Protocol',
+        url: 'https://gov.angle.money/',
+        description: 'Decentralized stablecoin',
+        token: 'ANGLE',
+        logoUrl: 'https://assets.coingecko.com/coins/images/19060/small/angle.png',
+        tier: 2,
+      },
+      {
+        name: 'Reserve Protocol',
+        url: 'https://forum.reserve.org/',
+        description: 'Asset-backed stablecoins',
+        token: 'RSR',
+        logoUrl: 'https://assets.coingecko.com/coins/images/8365/small/reserve.png',
+        tier: 2,
       },
     ],
   },
   {
-    id: 'ai-crypto',
-    name: 'AI & Crypto',
-    description: 'Decentralized AI and crypto-AI hybrid projects',
+    id: 'crypto-niche',
+    name: 'Crypto - Niche',
+    description: 'Privacy protocols and AI-crypto projects',
     forums: [
+      // Privacy
+      {
+        name: 'Zcash',
+        url: 'https://forum.zcashcommunity.com/',
+        description: 'Privacy coin governance; ZIP 1014 dev fund',
+        token: 'ZEC',
+        logoUrl: 'https://assets.coingecko.com/coins/images/486/small/zcash.png',
+        tier: 2,
+      },
+      {
+        name: 'Secret Network',
+        url: 'https://forum.scrt.network/',
+        description: 'Privacy-preserving smart contracts',
+        token: 'SCRT',
+        logoUrl: 'https://assets.coingecko.com/coins/images/11871/small/secret.png',
+        tier: 2,
+      },
+      {
+        name: 'Aztec',
+        url: 'https://discourse.aztec.network/',
+        description: 'ZK privacy layer for Ethereum',
+        logoUrl: 'https://assets.coingecko.com/coins/images/26116/small/aztec.jpeg',
+        tier: 2,
+      },
+      // AI-Crypto
       {
         name: 'Numerai',
         url: 'https://forum.numer.ai/',
@@ -703,30 +663,20 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       },
     ],
   },
+
+  // ============================================
+  // AI / ML
+  // ============================================
   {
-    id: 'ai-safety',
-    name: 'AI Safety & Research',
-    description: 'AI safety, alignment, and research communities',
+    id: 'ai-research',
+    name: 'AI - Research & Safety',
+    description: 'AI safety, alignment, and ML research communities',
     forums: [
       {
         name: 'EA Forum',
         url: 'https://forum.effectivealtruism.org/',
         description: 'Primary hub for AI safety funding; grants, career, grantmaking',
         logoUrl: 'https://forum.effectivealtruism.org/images/ea-logo-square-1024x1024.png',
-        tier: 1,
-      },
-    ],
-  },
-  {
-    id: 'ai-developer',
-    name: 'AI Developer Communities',
-    description: 'AI/ML developer forums and communities',
-    forums: [
-      {
-        name: 'OpenAI Community',
-        url: 'https://community.openai.com/',
-        description: 'Primary API developer forum for OpenAI',
-        logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/OpenAI_Logo.svg/200px-OpenAI_Logo.svg.png',
         tier: 1,
       },
       {
@@ -750,6 +700,20 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://pytorch.org/assets/images/pytorch-logo.png',
         tier: 2,
       },
+    ],
+  },
+  {
+    id: 'ai-tools',
+    name: 'AI - Developer Tools',
+    description: 'AI developer platforms and tooling',
+    forums: [
+      {
+        name: 'OpenAI Community',
+        url: 'https://community.openai.com/',
+        description: 'Primary API developer forum for OpenAI',
+        logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/OpenAI_Logo.svg/200px-OpenAI_Logo.svg.png',
+        tier: 1,
+      },
       {
         name: 'LangChain',
         url: 'https://forum.langchain.com/',
@@ -766,6 +730,10 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       },
     ],
   },
+
+  // ============================================
+  // OPEN SOURCE
+  // ============================================
   {
     id: 'oss-languages',
     name: 'OSS - Programming Languages',
@@ -990,7 +958,6 @@ export function getTotalForumCount(): number {
  * Search forums by name or description
  */
 export function searchForums(query: string): ForumPreset[] {
-  // Strip $ prefix from query to support token symbol searches like "$ARB"
   const lowerQuery = query.toLowerCase().replace(/^\$/, '');
   return ALL_FORUM_PRESETS.filter(
     (forum) =>
