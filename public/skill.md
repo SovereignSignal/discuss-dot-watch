@@ -44,7 +44,7 @@ curl https://discuss.watch/api/mcp
 
 Or run the standalone MCP server:
 ```bash
-curl -O https://raw.githubusercontent.com/SovereignSignal/gov-forum-watcher/main/mcp-server.js
+curl -O https://raw.githubusercontent.com/SovereignSignal/discuss-dot-watch/main/mcp-server.js
 node mcp-server.js
 ```
 

@@ -16,7 +16,7 @@ export async function GET() {
     llms_txt: 'https://discuss.watch/llms.txt',
     openapi: 'https://discuss.watch/api/v1/openapi.json',
     ai_plugin: 'https://discuss.watch/.well-known/ai-plugin.json',
-    documentation: 'https://github.com/SovereignSignal/gov-forum-watcher',
+    documentation: 'https://github.com/SovereignSignal/discuss-dot-watch',
     
     stats: {
       totalForums: ALL_FORUM_PRESETS.length,
