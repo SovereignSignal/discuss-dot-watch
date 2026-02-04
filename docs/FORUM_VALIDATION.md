@@ -3,55 +3,60 @@
 Last updated: 2026-02-04
 
 ## Summary
-- Total forums: 105
-- Tested: 28
-- Passed: 26
-- Failed: 2 (removed)
+- **Starting forums: 107**
+- **Final forums: 96**
+- **Removed: 11**
+- **Pass rate: 90%**
 
-## Wave 1 (2026-02-04) - Mixed sample
+## Removed Forums (11 total)
 
-| Forum | URL | Status | Notes |
-|-------|-----|--------|-------|
-| Uniswap | gov.uniswap.org | ✅ Pass | |
-| EigenLayer | forum.eigenlayer.xyz | ✅ Pass | |
-| Ethereum Magicians | ethereum-magicians.org | ✅ Pass | |
-| Radworks | community.radworks.org | ✅ Pass | |
-| ApeCoin | forum.apecoin.com | ✅ Pass | |
-| Blender DevTalk | devtalk.blender.org | ✅ Pass | |
-| Clojureverse | clojureverse.org | ✅ Pass | |
-| Decentraland | forum.decentraland.org | ✅ Pass | |
-| EA Forum | forum.effectivealtruism.org | ❌ Fail | NOT Discourse - removed |
-| SushiSwap | forum.sushi.com | ❌ Fail | Dead/broken - removed |
+| Forum | URL | Reason |
+|-------|-----|--------|
+| EA Forum | forum.effectivealtruism.org | Not Discourse (custom LessWrong platform) |
+| SushiSwap | forum.sushi.com | Dead/broken site |
+| GnosisDAO | forum.gnosis.io | 403 Forbidden (blocking requests) |
+| Nouns DAO | discourse.nouns.wtf | DNS not found |
+| BanklessDAO | forum.bankless.community | DNS not found |
+| Aragon | forum.aragon.org | Requires login to view |
+| Venus Protocol | forum.venus.io | DNS not found |
+| Maple Finance | forum.maple.finance | DNS not found |
+| Radiant Capital | forum.radiant.capital | DNS not found |
+| Instadapp/Fluid | forum.instadapp.io | DNS not found |
+| Aztec | discourse.aztec.network | DNS not found |
 
-## Wave 2 (2026-02-04) - L1/L2 Protocols
+## Validation History
 
-| Forum | URL | Status | Notes |
-|-------|-----|--------|-------|
-| Arbitrum | forum.arbitrum.foundation | ✅ Pass | |
-| Optimism | gov.optimism.io | ✅ Pass | |
-| zkSync | forum.zknation.io | ✅ Pass | |
-| Polygon | forum.polygon.technology | ✅ Pass | |
-| Starknet | community.starknet.io | ✅ Pass | |
-| Scroll | forum.scroll.io | ✅ Pass | |
-| Mantle | forum.mantle.xyz | ✅ Pass | |
-| Mode | forum.mode.network | ✅ Pass | |
-| Linea | community.linea.build | ✅ Pass | |
-| Ethereum Research | ethresear.ch | ✅ Pass | |
-| Cosmos | forum.cosmos.network | ✅ Pass | |
-| NEAR | gov.near.org | ✅ Pass | |
-| Celestia | forum.celestia.org | ✅ Pass | |
-| Aptos | forum.aptosfoundation.org | ✅ Pass | |
-| BNB Chain | forum.bnbchain.org | ✅ Pass | |
-| Fantom | forum.fantom.network | ✅ Pass | |
-| Polkadot | forum.polkadot.network | ✅ Pass | |
-| Cardano | forum.cardano.org | ✅ Pass | |
-| Solana | forum.solana.com | ✅ Pass | |
-| Tezos | forum.tezosagora.org | ✅ Pass | |
+### Wave 1 - Mixed sample (10 forums)
+- 8 passed, 2 removed (EA Forum, SushiSwap)
 
-## Wave 3 (pending)
+### Wave 2 - L1/L2 Protocols (20 forums)
+- 20/20 passed ✅
 
-Testing next batch...
+### Wave 3 - DAOs & Infrastructure (20 forums)
+- 16 passed, 4 removed (Gnosis, Nouns, Bankless, Aragon)
 
-## Removed Forums
-- EA Forum (forum.effectivealtruism.org) - Not a Discourse forum
-- SushiSwap (forum.sushi.com) - Site is dead/broken
+### Wave 4 - DeFi (20 forums)
+- 17 passed, 3 removed (Venus, Maple, Radiant)
+
+### Wave 5 - Crypto niche + AI + OSS (28 forums)
+- 26 passed, 2 removed (Instadapp, Aztec)
+
+## Final Forum Count by Category
+
+| Category | Count |
+|----------|-------|
+| crypto-governance | 41 |
+| crypto-defi | 25 |
+| crypto-niche | 3 |
+| ai-research | 3 |
+| ai-tools | 3 |
+| oss-languages | 8 |
+| oss-frameworks | 6 |
+| oss-infrastructure | 7 |
+| **Total** | **96** |
+
+## Notes
+
+- MakerDAO (forum.makerdao.com) redirects to Sky (forum.sky.money) - both work
+- Curve (gov.curve.fi) redirects to gov.curve.finance - works
+- 1inch (gov.1inch.io) redirects to gov.1inch.network - works
