@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DiscourseLatestResponse, DiscourseTopicResponse, DiscussionTopic } from '@/types';
 import { isAllowedUrl, isAllowedRedirectUrl } from '@/lib/url';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
+import { getCachedForum, startBackgroundRefresh } from '@/lib/forumCache';
+
+// Start background refresh on first import (server startup)
+if (typeof window === 'undefined') {
+  startBackgroundRefresh();
+}
 
 /**
  * Safely parse a URL, returning null if invalid
@@ -17,6 +23,7 @@ function safeParseUrl(url: string): URL | null {
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const forumUrl = searchParams.get('forumUrl');
+  const bypassCache = searchParams.get('bypass') === 'true';
 
   // Rate limiting: 60 requests per minute per IP (global)
   const globalRateLimitKey = `discourse:${getRateLimitKey(request)}`;
@@ -36,32 +43,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Per-forum rate limiting: 5 requests per minute per forum per IP
-  // This prevents one slow/failing forum from blocking all others
-  if (forumUrl) {
-    const parsedForumUrl = safeParseUrl(forumUrl);
-    if (!parsedForumUrl) {
-      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
-    }
-
-    const forumDomain = parsedForumUrl.hostname;
-    const forumRateLimitKey = `discourse:${getRateLimitKey(request)}:${forumDomain}`;
-    const forumRateLimit = checkRateLimit(forumRateLimitKey, { windowMs: 60000, maxRequests: 5 });
-
-    if (!forumRateLimit.allowed) {
-      return NextResponse.json(
-        { error: `Rate limit exceeded for ${forumDomain}. Please try again later.` },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': Math.ceil((forumRateLimit.resetAt - Date.now()) / 1000).toString(),
-            'X-RateLimit-Remaining': forumRateLimit.remaining.toString(),
-            'X-RateLimit-Reset': forumRateLimit.resetAt.toString(),
-          },
-        }
-      );
-    }
-  }
   const categoryId = searchParams.get('categoryId');
 
   // Validate protocol: alphanumeric, dashes, and underscores only, max 100 chars
@@ -96,6 +77,59 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid or disallowed URL' }, { status: 400 });
   }
 
+  // Try to serve from cache first (unless bypassed or has categoryId filter)
+  if (!bypassCache && !validatedCategoryId) {
+    const cached = getCachedForum(forumUrl);
+    if (cached && cached.topics.length > 0) {
+      // Update protocol and logoUrl for cached topics if provided
+      const topics = cached.topics.map(topic => ({
+        ...topic,
+        protocol: protocol !== 'unknown' ? protocol : topic.protocol,
+        imageUrl: logoUrl || topic.imageUrl,
+      }));
+      
+      return NextResponse.json({ 
+        topics,
+        cached: true,
+        cachedAt: cached.fetchedAt,
+      });
+    }
+    
+    // If cached but has error, return appropriate message
+    if (cached && cached.error) {
+      return NextResponse.json(
+        { 
+          error: `Forum temporarily unavailable: ${cached.error}`,
+          cached: true,
+          cachedAt: cached.fetchedAt,
+        },
+        { status: 503 }
+      );
+    }
+  }
+
+  // Per-forum rate limiting for cache misses: 3 requests per minute per forum per IP
+  const parsedForumUrl = safeParseUrl(forumUrl);
+  if (!parsedForumUrl) {
+    return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+  }
+
+  const forumDomain = parsedForumUrl.hostname;
+  const forumRateLimitKey = `discourse:${getRateLimitKey(request)}:${forumDomain}`;
+  const forumRateLimit = checkRateLimit(forumRateLimitKey, { windowMs: 60000, maxRequests: 3 });
+
+  if (!forumRateLimit.allowed) {
+    return NextResponse.json(
+      { error: `Rate limit exceeded for ${forumDomain}. Data will be available soon from cache.` },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': Math.ceil((forumRateLimit.resetAt - Date.now()) / 1000).toString(),
+        },
+      }
+    );
+  }
+
   try {
     const baseUrl = forumUrl.endsWith('/') ? forumUrl.slice(0, -1) : forumUrl;
     let apiUrl: string;
@@ -107,52 +141,45 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch with manual redirect handling for security
-    // Longer cache (10 min) to reduce rate limiting from Discourse forums
     let response = await fetch(apiUrl, {
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'discuss.watch/1.0 (forum aggregator)',
+        'User-Agent': 'discuss.watch/1.0 (forum aggregator; https://discuss.watch)',
       },
       next: { revalidate: 600 }, // 10 minute cache
-      redirect: 'manual', // Don't follow redirects automatically - we validate them first
+      redirect: 'manual',
     });
 
-    // Handle redirects - Discourse often redirects /c/{id}.json to /c/{slug}/{id}.json
+    // Handle redirects
     if (response.status >= 300 && response.status < 400) {
       const redirectUrl = response.headers.get('location');
 
-      // Validate redirect URL to prevent SSRF via redirect
       if (!redirectUrl || !isAllowedRedirectUrl(apiUrl, redirectUrl)) {
         throw new Error('Forum redirected to a disallowed URL');
       }
 
-      // Check if redirect is to the same domain (acceptable for category slug redirects)
       const originalHost = new URL(apiUrl).hostname;
       const redirectHost = new URL(redirectUrl).hostname;
 
       if (originalHost === redirectHost) {
-        // Same domain redirect - this is normal Discourse behavior for category URLs
-        // Follow the redirect by fetching the new URL
         response = await fetch(redirectUrl, {
           headers: {
             'Accept': 'application/json',
-            'User-Agent': 'discuss.watch/1.0 (forum aggregator)',
+            'User-Agent': 'discuss.watch/1.0 (forum aggregator; https://discuss.watch)',
           },
-          next: { revalidate: 600 }, // 10 minute cache
+          next: { revalidate: 600 },
           redirect: 'manual',
         });
 
-        // If the redirect target also redirects, treat it as moved
         if (response.status >= 300 && response.status < 400) {
           throw new Error(`Forum has moved (multiple redirects from ${apiUrl})`);
         }
       } else {
-        // Different domain - forum has actually moved
         throw new Error(`Forum has moved or shut down (redirects to ${redirectUrl})`);
       }
     }
 
-    // Handle rate limiting from upstream Discourse forums
+    // Handle rate limiting from upstream
     if (response.status === 429) {
       const retryAfter = response.headers.get('retry-after') || '60';
       return NextResponse.json(
@@ -168,10 +195,9 @@ export async function GET(request: NextRequest) {
       throw new Error(`Failed to fetch: HTTP ${response.status}`);
     }
 
-    // Verify we got JSON, not HTML (some forums return HTML on error)
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      throw new Error('Forum returned invalid response (not JSON) - it may have shut down');
+      throw new Error('Forum returned invalid response (not JSON)');
     }
 
     const data: DiscourseLatestResponse = await response.json();
@@ -182,7 +208,6 @@ export async function GET(request: NextRequest) {
       protocol,
       title: topic.title,
       slug: topic.slug,
-      // Normalize tags: Discourse API can return string[] or object[] with {id, name, slug}
       tags: (topic.tags || []).map((tag: string | { id: number; name: string; slug: string }) =>
         typeof tag === 'string' ? tag : tag.name
       ),
@@ -201,7 +226,7 @@ export async function GET(request: NextRequest) {
       forumUrl: baseUrl,
     }));
 
-    return NextResponse.json({ topics });
+    return NextResponse.json({ topics, cached: false });
   } catch (error) {
     console.error('Discourse API error:', error);
     return NextResponse.json(
