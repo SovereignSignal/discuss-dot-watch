@@ -50,7 +50,7 @@ export function AuthGate({ children }: AuthGateProps) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: isDark ? '#0a0a0f' : '#f8f9fa' }}>
         <div className="text-center max-w-md">
-          <span className="text-5xl block mb-4">💬</span>
+          <span className="text-5xl block mb-4">👁️‍🗨️</span>
           <h1 className="text-2xl font-bold mb-2" style={{ color: isDark ? '#fff' : '#111827' }}>discuss.watch</h1>
           <p style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
             Authentication not configured. Set up Privy to enable login.
@@ -76,7 +76,7 @@ export function AuthGate({ children }: AuthGateProps) {
         >
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-3xl">💬</span>
+              <span className="text-3xl">👁️‍🗨️</span>
               <span className="font-bold text-2xl" style={{ color: isDark ? '#fff' : '#111827' }}>discuss.watch</span>
             </div>
             <p style={{ color: isDark ? '#6b7280' : '#6b7280' }}>Unified forum feed</p>
@@ -119,7 +119,7 @@ export function AuthGate({ children }: AuthGateProps) {
             <div className="w-full max-w-md">
               {/* Mobile header */}
               <div className="lg:hidden text-center mb-8">
-                <span className="text-4xl block mb-2">💬</span>
+                <span className="text-4xl block mb-2">👁️‍🗨️</span>
                 <h1 className="text-2xl font-bold" style={{ color: isDark ? '#fff' : '#111827' }}>discuss.watch</h1>
                 <p className="text-sm mt-1" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
                   All your forums, one feed

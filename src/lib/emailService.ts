@@ -138,7 +138,7 @@ export async function sendTestDigestEmail(
 ): Promise<{ success: boolean; error?: string }> {
   return sendEmail({
     to: email,
-    subject: '💬 [TEST] discuss.watch Weekly Digest',
+    subject: '👁️‍🗨️ [TEST] discuss.watch Weekly Digest',
     html: htmlContent,
     text: textContent,
     tags: [

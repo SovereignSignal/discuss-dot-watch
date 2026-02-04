@@ -169,7 +169,7 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
             ${t.summary}
           </div>
           <div style="font-size: 12px; color: #9ca3af;">
-            💬 ${t.replies} replies · 👁 ${t.views.toLocaleString()} views · 👍 ${t.likes} likes
+            👁️‍🗨️ ${t.replies} replies · 👁 ${t.views.toLocaleString()} views · 👍 ${t.likes} likes
             ${t.sentiment === 'contentious' ? ' · 🔥 Hot debate' : ''}
           </div>
         </td>
@@ -200,7 +200,7 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
   <!-- Header -->
   <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e5e7eb;">
     <h1 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0;">
-      💬 discuss.watch ${periodLabel} Digest
+      👁️‍🗨️ discuss.watch ${periodLabel} Digest
     </h1>
     <p style="color: #6b7280; margin-top: 8px; font-size: 14px;">
       ${digest.startDate.toLocaleDateString()} - ${digest.endDate.toLocaleDateString()}
@@ -292,7 +292,7 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
       </a>
     </p>
     <p style="margin-top: 16px;">
-      💬 discuss.watch - All your forums, one feed
+      👁️‍🗨️ discuss.watch - All your forums, one feed
     </p>
   </div>
 
@@ -308,7 +308,7 @@ export function formatDigestPlainText(digest: DigestContent, userName?: string):
   const greeting = userName ? `Hi ${userName}` : 'Hi there';
   const periodLabel = digest.period === 'daily' ? 'Daily' : 'Weekly';
 
-  let text = `💬 GOV WATCH ${periodLabel.toUpperCase()} DIGEST
+  let text = `👁️‍🗨️ GOV WATCH ${periodLabel.toUpperCase()} DIGEST
 ${digest.startDate.toLocaleDateString()} - ${digest.endDate.toLocaleDateString()}
 
 ${greeting}! Here's your governance roundup.
@@ -321,14 +321,14 @@ ${digest.stats.totalDiscussions} active discussions · ${digest.stats.totalRepli
   if (digest.hotTopics.length > 0) {
     text += `🔥 HOT THIS ${periodLabel.toUpperCase()}\n${'─'.repeat(30)}\n`;
     digest.hotTopics.forEach((t, i) => {
-      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   💬 ${t.replies} · 👁 ${t.views} · 👍 ${t.likes}\n   ${t.url}\n\n`;
+      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   👁️‍🗨️ ${t.replies} · 👁 ${t.views} · 👍 ${t.likes}\n   ${t.url}\n\n`;
     });
   }
 
   if (digest.newProposals.length > 0) {
     text += `✨ NEW THIS ${periodLabel.toUpperCase()}\n${'─'.repeat(30)}\n`;
     digest.newProposals.forEach((t, i) => {
-      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   💬 ${t.replies} · 👁 ${t.views}\n   ${t.url}\n\n`;
+      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   👁️‍🗨️ ${t.replies} · 👁 ${t.views}\n   ${t.url}\n\n`;
     });
   }
 
@@ -347,7 +347,7 @@ ${digest.stats.totalDiscussions} active discussions · ${digest.stats.totalRepli
     });
   }
 
-  text += `\n---\nView all discussions: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app\nManage preferences: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app?tab=settings\n\n💬 discuss.watch - All your forums, one feed`;
+  text += `\n---\nView all discussions: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app\nManage preferences: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app?tab=settings\n\n👁️‍🗨️ discuss.watch - All your forums, one feed`;
 
   return text;
 }
