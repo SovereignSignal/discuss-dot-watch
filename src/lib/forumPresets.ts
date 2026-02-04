@@ -434,6 +434,22 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/14097/small/maple.png',
         tier: 3,
       },
+      {
+        name: 'Radiant Capital',
+        url: 'https://community.radiant.capital/',
+        description: 'Omnichain lending',
+        token: 'RDNT',
+        logoUrl: 'https://assets.coingecko.com/coins/images/26536/small/radiant.png',
+        tier: 3,
+      },
+      {
+        name: 'Fluid (Instadapp)',
+        url: 'https://gov.fluid.io/',
+        description: 'DeFi smart accounts and lending',
+        token: 'INST',
+        logoUrl: 'https://assets.coingecko.com/coins/images/14688/small/instadapp.png',
+        tier: 2,
+      },
       // DEX
       {
         name: 'Uniswap',
