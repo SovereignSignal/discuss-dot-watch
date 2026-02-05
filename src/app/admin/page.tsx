@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft } from 'lucide-react';
+import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { FORUM_CATEGORIES, ForumPreset, getTotalForumCount } from '@/lib/forumPresets';
 
 interface SystemStats {
   database: {
@@ -369,132 +370,25 @@ export default function AdminPage() {
         </div>
 
         {/* Backfill Status */}
-        <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-semibold text-white">Historical Backfill</h2>
-            <div className="flex items-center gap-4 text-sm">
-              <span className="flex items-center gap-1.5 text-emerald-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                {backfillStatus?.complete || 0} complete
-              </span>
-              <span className="flex items-center gap-1.5 text-amber-400">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                {backfillStatus?.running || 0} running
-              </span>
-              <span className="flex items-center gap-1.5 text-zinc-500">
-                <span className="w-2 h-2 rounded-full bg-zinc-500"></span>
-                {backfillStatus?.pending || 0} pending
-              </span>
-              {(backfillStatus?.failed || 0) > 0 && (
-                <span className="flex items-center gap-1.5 text-red-400">
-                  <span className="w-2 h-2 rounded-full bg-red-400"></span>
-                  {backfillStatus?.failed} failed
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-3 mb-6">
-            <button
-              onClick={() => handleBackfillAction('init-all')}
-              disabled={actionLoading !== null}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-all disabled:opacity-50"
-            >
-              Queue All Forums
-            </button>
-            <button
-              onClick={() => handleBackfillAction('run-cycle')}
-              disabled={actionLoading !== null}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-violet-600 hover:bg-violet-500 rounded-lg transition-all disabled:opacity-50"
-            >
-              <Play className="w-3 h-3" />
-              Run Cycle
-            </button>
-          </div>
-
-          {backfillStatus?.jobs && backfillStatus.jobs.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-zinc-500 border-b border-zinc-800">
-                    <th className="pb-3 pr-4 font-medium">Forum</th>
-                    <th className="pb-3 pr-4 font-medium">Status</th>
-                    <th className="pb-3 pr-4 font-medium">Progress</th>
-                    <th className="pb-3 pr-4 font-medium">Topics</th>
-                    <th className="pb-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {backfillStatus.jobs.slice(0, 10).map((job) => (
-                    <tr key={job.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
-                      <td className="py-3 pr-4">
-                        <a 
-                          href={job.forum_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-violet-400 hover:text-violet-300 transition-colors"
-                        >
-                          {job.forum_name}
-                        </a>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                          job.status === 'complete' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                          job.status === 'running' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                          job.status === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                          job.status === 'paused' ? 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20' :
-                          'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                        }`}>
-                          {job.status}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4 font-mono text-zinc-400">
-                        Page {job.current_page}{job.total_pages ? ` / ${job.total_pages}` : ''}
-                      </td>
-                      <td className="py-3 pr-4 font-mono text-white">{job.topics_fetched.toLocaleString()}</td>
-                      <td className="py-3">
-                        <div className="flex gap-1">
-                          {job.status === 'running' && (
-                            <button
-                              onClick={() => handleBackfillAction('pause', job.id)}
-                              className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors"
-                              title="Pause"
-                            >
-                              <Pause className="w-4 h-4" />
-                            </button>
-                          )}
-                          {job.status === 'paused' && (
-                            <button
-                              onClick={() => handleBackfillAction('resume', job.id)}
-                              className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors"
-                              title="Resume"
-                            >
-                              <Play className="w-4 h-4" />
-                            </button>
-                          )}
-                          {job.status === 'failed' && (
-                            <button
-                              onClick={() => handleBackfillAction('retry', job.id)}
-                              className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors"
-                              title="Retry"
-                            >
-                              <RotateCcw className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {backfillStatus.jobs.length > 10 && (
-                <p className="text-sm text-zinc-500 mt-4">
-                  Showing 10 of {backfillStatus.jobs.length} jobs
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+        <BackfillSection
+          backfillStatus={backfillStatus}
+          actionLoading={actionLoading}
+          onAction={handleBackfillAction}
+          onQueueForum={async (url: string) => {
+            setActionLoading(`backfill-start-${url}`);
+            try {
+              await fetch('/api/backfill', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-admin-email': adminEmail },
+                body: JSON.stringify({ action: 'start', forumUrl: url }),
+              });
+              await fetchData();
+            } finally {
+              setActionLoading(null);
+            }
+          }}
+          adminEmail={adminEmail}
+        />
 
         {/* Users */}
         <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
@@ -538,6 +432,210 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum, adminEmail }: {
+  backfillStatus: BackfillStatus | null;
+  actionLoading: string | null;
+  onAction: (action: string, jobId?: number) => void;
+  onQueueForum: (url: string) => Promise<void>;
+  adminEmail: string;
+}) {
+  const [search, setSearch] = useState('');
+  const [showForumPicker, setShowForumPicker] = useState(false);
+
+  // All presets flattened
+  const allForums = useMemo(() => {
+    const forums: (ForumPreset & { categoryName: string })[] = [];
+    FORUM_CATEGORIES.forEach(cat => {
+      cat.forums.forEach(f => forums.push({ ...f, categoryName: cat.name }));
+    });
+    return forums;
+  }, []);
+
+  // Which URLs already have backfill jobs
+  const queuedUrls = useMemo(() => {
+    const set = new Set<string>();
+    backfillStatus?.jobs?.forEach(j => set.add(j.forum_url.replace(/\/$/, '')));
+    return set;
+  }, [backfillStatus]);
+
+  const filteredForums = useMemo(() => {
+    if (!search.trim()) return allForums;
+    const q = search.toLowerCase();
+    return allForums.filter(f =>
+      f.name.toLowerCase().includes(q) ||
+      f.url.toLowerCase().includes(q) ||
+      f.categoryName.toLowerCase().includes(q) ||
+      (f.token && f.token.toLowerCase().includes(q))
+    );
+  }, [allForums, search]);
+
+  return (
+    <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="font-semibold text-white">Historical Backfill</h2>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="flex items-center gap-1.5 text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            {backfillStatus?.complete || 0} complete
+          </span>
+          <span className="flex items-center gap-1.5 text-amber-400">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            {backfillStatus?.running || 0} running
+          </span>
+          <span className="flex items-center gap-1.5 text-zinc-500">
+            <span className="w-2 h-2 rounded-full bg-zinc-500" />
+            {backfillStatus?.pending || 0} pending
+          </span>
+          {(backfillStatus?.failed || 0) > 0 && (
+            <span className="flex items-center gap-1.5 text-red-400">
+              <span className="w-2 h-2 rounded-full bg-red-400" />
+              {backfillStatus?.failed} failed
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3 mb-6">
+        <button onClick={() => setShowForumPicker(!showForumPicker)}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-all">
+          <Plus className="w-3 h-3" />
+          {showForumPicker ? 'Hide Forums' : 'Queue Forums'}
+        </button>
+        <button onClick={() => onAction('init-all')} disabled={actionLoading !== null}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-all disabled:opacity-50">
+          Queue All
+        </button>
+        <button onClick={() => onAction('run-cycle')} disabled={actionLoading !== null}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-200 text-zinc-900 hover:bg-zinc-300 rounded-lg transition-all disabled:opacity-50">
+          <Play className="w-3 h-3" />
+          Run Cycle
+        </button>
+      </div>
+
+      {/* Forum Picker */}
+      {showForumPicker && (
+        <div className="mb-6 border border-zinc-800 rounded-xl overflow-hidden">
+          <div className="p-3 border-b border-zinc-800">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search forums..."
+                className="w-full pl-10 pr-4 py-2 bg-zinc-800 text-white rounded-lg text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {filteredForums.map(forum => {
+              const normalizedUrl = forum.url.replace(/\/$/, '');
+              const isQueued = queuedUrls.has(normalizedUrl);
+              const job = backfillStatus?.jobs?.find(j => j.forum_url.replace(/\/$/, '') === normalizedUrl);
+              const isLoading = actionLoading === `backfill-start-${forum.url}`;
+              return (
+                <div key={forum.url} className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white font-medium truncate">{forum.name}</span>
+                      {forum.token && <span className="text-xs text-zinc-500 font-mono">${forum.token}</span>}
+                      <span className="text-[11px] text-zinc-600">{forum.categoryName}</span>
+                    </div>
+                    <p className="text-xs text-zinc-600 truncate">{forum.url}</p>
+                  </div>
+                  <div className="flex-shrink-0 ml-3">
+                    {isQueued && job ? (
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                        job.status === 'complete' ? 'bg-emerald-500/10 text-emerald-400' :
+                        job.status === 'running' ? 'bg-amber-500/10 text-amber-400' :
+                        job.status === 'failed' ? 'bg-red-500/10 text-red-400' :
+                        'bg-blue-500/10 text-blue-400'
+                      }`}>
+                        {job.status} {job.topics_fetched > 0 ? `(${job.topics_fetched.toLocaleString()})` : ''}
+                      </span>
+                    ) : (
+                      <button onClick={() => onQueueForum(forum.url)} disabled={isLoading || actionLoading !== null}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-md transition-colors disabled:opacity-50">
+                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                        Queue
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="px-4 py-2 border-t border-zinc-800 text-xs text-zinc-600">
+            {filteredForums.length} forums · {queuedUrls.size} queued
+          </div>
+        </div>
+      )}
+
+      {/* Jobs Table */}
+      {backfillStatus?.jobs && backfillStatus.jobs.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                <th className="pb-3 pr-4 font-medium">Forum</th>
+                <th className="pb-3 pr-4 font-medium">Status</th>
+                <th className="pb-3 pr-4 font-medium">Progress</th>
+                <th className="pb-3 pr-4 font-medium">Topics</th>
+                <th className="pb-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {backfillStatus.jobs.map((job) => (
+                <tr key={job.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+                  <td className="py-3 pr-4">
+                    <a href={job.forum_url} target="_blank" rel="noopener noreferrer"
+                      className="text-zinc-300 hover:text-white transition-colors">
+                      {job.forum_name}
+                    </a>
+                  </td>
+                  <td className="py-3 pr-4">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      job.status === 'complete' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                      job.status === 'running' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                      job.status === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                      job.status === 'paused' ? 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20' :
+                      'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                    }`}>{job.status}</span>
+                  </td>
+                  <td className="py-3 pr-4 font-mono text-zinc-400">
+                    Page {job.current_page}{job.total_pages ? ` / ${job.total_pages}` : ''}
+                  </td>
+                  <td className="py-3 pr-4 font-mono text-white">{job.topics_fetched.toLocaleString()}</td>
+                  <td className="py-3">
+                    <div className="flex gap-1">
+                      {job.status === 'running' && (
+                        <button onClick={() => onAction('pause', job.id)}
+                          className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors" title="Pause">
+                          <Pause className="w-4 h-4" />
+                        </button>
+                      )}
+                      {job.status === 'paused' && (
+                        <button onClick={() => onAction('resume', job.id)}
+                          className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors" title="Resume">
+                          <Play className="w-4 h-4" />
+                        </button>
+                      )}
+                      {job.status === 'failed' && (
+                        <button onClick={() => onAction('retry', job.id)}
+                          className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors" title="Retry">
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
