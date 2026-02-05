@@ -72,7 +72,7 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
         body: JSON.stringify({ period: 'weekly', testEmail: email }),
       });
       const data = await response.json();
-      setTestMessage(data.success ? `Test email sent to ${email}!` : (data.message || 'Failed to send'));
+      setTestMessage(data.success ? `Test email sent to ${email}!` : (data.error || data.message || 'Failed to send'));
     } catch {
       setTestMessage('Failed to send test email');
     } finally {

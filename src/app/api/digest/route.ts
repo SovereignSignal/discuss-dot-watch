@@ -326,24 +326,69 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-
-    // Generate digest content
-    const digest = await generateDigestContent(period);
-    const subject = `🗳️ Your ${period === 'daily' ? 'Daily' : 'Weekly'} Governance Digest`;
-    const html = formatDigestEmail(digest);
-    const text = formatDigestPlainText(digest);
-
-    // If test email provided, just send to that address
+    // For test emails, try a simple send first to validate the email pipeline.
+    // If that works, then try the full digest generation.
     if (testEmail) {
+      // First, try sending a simple test email to validate Resend config
+      const simpleTest = body.simple !== false;
+      
+      if (simpleTest) {
+        // Send a quick test email without the heavy digest generation
+        const { sendEmail } = await import('@/lib/emailService');
+        const quickResult = await sendEmail({
+          to: testEmail,
+          subject: '👁️‍🗨️ discuss.watch — Test Email',
+          html: `
+            <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+              <h1 style="font-size: 24px; font-weight: 700; color: #111827;">👁️‍🗨️ discuss.watch</h1>
+              <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+                Your email is set up and working. You'll receive digest emails at this address.
+              </p>
+              <div style="margin-top: 24px; padding: 16px; background: #f3f4f6; border-radius: 8px;">
+                <p style="margin: 0; font-size: 14px; color: #6b7280;">
+                  ✅ Email delivery confirmed<br>
+                  📬 Recipient: ${testEmail}<br>
+                  🕐 Sent: ${new Date().toUTCString()}
+                </p>
+              </div>
+              <p style="margin-top: 24px; font-size: 13px; color: #9ca3af;">
+                This is a test from discuss.watch. Your digest preferences will determine when you receive full summaries.
+              </p>
+            </div>
+          `,
+          text: `discuss.watch - Test Email\n\nYour email is set up and working. You'll receive digest emails at this address.\n\nRecipient: ${testEmail}\nSent: ${new Date().toUTCString()}`,
+        });
+        
+        if (!quickResult.success) {
+          return NextResponse.json({
+            success: false,
+            error: `Email delivery failed: ${quickResult.error}`,
+          });
+        }
+        
+        return NextResponse.json({
+          success: true,
+          message: `Test email sent to ${testEmail}`,
+        });
+      }
+      
+      // Full digest test (when simple=false)
+      const digest = await generateDigestContent(period);
+      const html = formatDigestEmail(digest);
+      const text = formatDigestPlainText(digest);
       const result = await sendTestDigestEmail(testEmail, html, text);
       return NextResponse.json({
         success: result.success,
-        message: result.success ? `Test email sent to ${testEmail}` : result.error,
+        message: result.success ? `Digest email sent to ${testEmail}` : result.error,
+        error: result.success ? undefined : result.error,
       });
     }
 
-    // In production, fetch users with this digest preference from DB
-    // For now, return success without sending
+    // Production: generate digest and send to subscribers
+    const digest = await generateDigestContent(period);
+    const subject = `🗳️ Your ${period === 'daily' ? 'Daily' : 'Weekly'} Governance Digest`;
+
+    // TODO: fetch users with this digest preference from DB and send
     return NextResponse.json({
       success: true,
       message: 'Digest generation complete',
