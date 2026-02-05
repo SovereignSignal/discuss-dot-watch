@@ -301,19 +301,31 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Generate and send digests (called by cron)
+// POST - Generate and send digests (called by cron or admin test)
 export async function POST(request: NextRequest) {
-  // Validate cron secret
-  if (!validateCronSecret(request)) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
-    );
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 });
+  }
+  const { period = 'weekly', testEmail } = body;
+
+  // Test emails: allow if user is admin (via header) or via cron secret
+  if (testEmail) {
+    const adminEmail = request.headers.get('x-admin-email');
+    const { isAdminEmail } = await import('@/lib/admin');
+    if (!isAdminEmail(adminEmail) && !validateCronSecret(request)) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+  } else {
+    // Production sends require cron secret
+    if (!validateCronSecret(request)) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {
-    const body = await request.json();
-    const { period = 'weekly', testEmail } = body;
 
     // Generate digest content
     const digest = await generateDigestContent(period);

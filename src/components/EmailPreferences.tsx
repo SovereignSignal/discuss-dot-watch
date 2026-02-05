@@ -68,7 +68,7 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
     try {
       const response = await fetch('/api/digest', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-email': email },
         body: JSON.stringify({ period: 'weekly', testEmail: email }),
       });
       const data = await response.json();
