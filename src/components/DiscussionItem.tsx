@@ -4,19 +4,12 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Flame, TrendingUp, Sparkles, Clock } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert } from '@/types';
 
-// Validate image URLs to prevent malicious content
 function isValidImageUrl(url: string | undefined): boolean {
   if (!url) return false;
   try {
     const parsed = new URL(url);
-    // Only allow https (and http for local dev)
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-      return false;
-    }
-    // Block data: and javascript: URLs (double-check even though URL() should reject these)
-    if (url.toLowerCase().startsWith('data:') || url.toLowerCase().startsWith('javascript:')) {
-      return false;
-    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    if (url.toLowerCase().startsWith('data:') || url.toLowerCase().startsWith('javascript:')) return false;
     return true;
   } catch {
     return false;
@@ -31,16 +24,13 @@ interface DiscussionItemProps {
   onToggleBookmark?: (topic: DiscussionTopic) => void;
   onMarkAsRead?: (refId: string) => void;
   forumLogoUrl?: string;
+  isDark?: boolean;
 }
 
 function formatTimestamp(dateString: string, short = false): string {
   const date = new Date(dateString);
-  if (isToday(date)) {
-    return short ? format(date, 'HH:mm') : format(date, 'HH:mm');
-  }
-  if (isYesterday(date)) {
-    return short ? 'Yesterday' : 'Yesterday ' + format(date, 'HH:mm');
-  }
+  if (isToday(date)) return short ? format(date, 'HH:mm') : format(date, 'HH:mm');
+  if (isYesterday(date)) return short ? 'Yesterday' : 'Yesterday ' + format(date, 'HH:mm');
   return short ? format(date, 'MMM dd') : format(date, 'MMM dd, HH:mm');
 }
 
@@ -51,31 +41,19 @@ function isNewTopic(createdAt: string): boolean {
   return created > sevenDaysAgo;
 }
 
-// Limits for keyword matching to prevent ReDoS attacks
 const MAX_KEYWORD_LENGTH = 100;
 const MAX_KEYWORDS = 50;
 
-// Calculate activity level based on engagement metrics
 function getActivityLevel(topic: DiscussionTopic): 'hot' | 'trending' | 'normal' {
   const { replyCount, views, likeCount } = topic;
-  
-  // Hot: Very high engagement
-  if (replyCount >= 20 || views >= 2000 || likeCount >= 30) {
-    return 'hot';
-  }
-  
-  // Trending: Good engagement
-  if (replyCount >= 8 || views >= 500 || likeCount >= 10) {
-    return 'trending';
-  }
-  
+  if (replyCount >= 20 || views >= 2000 || likeCount >= 30) return 'hot';
+  if (replyCount >= 8 || views >= 500 || likeCount >= 10) return 'trending';
   return 'normal';
 }
 
-function highlightKeywords(text: string, alerts: KeywordAlert[]): React.ReactNode {
+function highlightKeywords(text: string, alerts: KeywordAlert[], isDark: boolean): React.ReactNode {
   if (alerts.length === 0) return text;
 
-  // Filter and limit keywords to prevent ReDoS
   const enabledKeywords = alerts
     .filter((a) => a.isEnabled && a.keyword.length <= MAX_KEYWORD_LENGTH)
     .slice(0, MAX_KEYWORDS)
@@ -92,7 +70,14 @@ function highlightKeywords(text: string, alerts: KeywordAlert[]): React.ReactNod
   return parts.map((part, i) => {
     if (enabledKeywords.includes(part.toLowerCase())) {
       return (
-        <mark key={i} className="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md font-semibold border border-indigo-500/30">
+        <mark 
+          key={i} 
+          className="px-1.5 py-0.5 rounded font-semibold"
+          style={{
+            backgroundColor: isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.15)',
+            color: isDark ? '#c4b5fd' : '#7c3aed'
+          }}
+        >
           {part}
         </mark>
       );
@@ -109,46 +94,58 @@ export function DiscussionItem({
   onToggleBookmark,
   onMarkAsRead,
   forumLogoUrl,
+  isDark = true,
 }: DiscussionItemProps) {
   const topicUrl = `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
   const hasMatchingKeyword = alerts.some(
     (a) => a.isEnabled && topic.title.toLowerCase().includes(a.keyword.toLowerCase())
   );
 
-  const handleBookmarkClick = () => {
-    onToggleBookmark?.(topic);
-  };
-
+  const handleBookmarkClick = () => onToggleBookmark?.(topic);
   const handleLinkClick = () => {
-    if (!isRead && onMarkAsRead) {
-      onMarkAsRead(topic.refId);
-    }
+    if (!isRead && onMarkAsRead) onMarkAsRead(topic.refId);
   };
 
   return (
     <article
-      className="relative group mx-3 my-2 p-4 rounded-2xl border backdrop-blur-sm transition-all duration-200 hover:border-zinc-700/80"
+      className="relative group transition-all duration-200"
       style={{ 
-        backgroundColor: hasMatchingKeyword ? 'rgba(139, 92, 246, 0.08)' : 'rgba(24, 24, 27, 0.6)', 
-        borderColor: hasMatchingKeyword ? 'rgba(139, 92, 246, 0.3)' : 'rgba(63, 63, 70, 0.4)' 
+        backgroundColor: isDark 
+          ? (hasMatchingKeyword ? 'rgba(139, 92, 246, 0.08)' : 'rgba(255, 255, 255, 0.02)')
+          : (hasMatchingKeyword ? 'rgba(139, 92, 246, 0.05)' : '#ffffff'),
+        borderRadius: '16px',
+        border: isDark 
+          ? `1px solid ${hasMatchingKeyword ? 'rgba(139, 92, 246, 0.2)' : 'rgba(255, 255, 255, 0.06)'}`
+          : `1px solid ${hasMatchingKeyword ? 'rgba(139, 92, 246, 0.2)' : 'rgba(0, 0, 0, 0.06)'}`,
+        boxShadow: isDark 
+          ? 'none' 
+          : '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)'
       }}
     >
-      {/* Unread indicator - subtle left border */}
+      {/* Unread indicator */}
       {!isRead && (
-        <div className="absolute left-0 top-4 bottom-4 w-1 rounded-full bg-gradient-to-b from-violet-500 to-violet-600" aria-label="Unread" />
+        <div 
+          className="absolute left-0 top-4 bottom-4 w-1 rounded-full"
+          style={{ backgroundColor: '#8b5cf6' }}
+        />
       )}
 
-      {/* Bookmark button - positioned outside the link for accessibility */}
+      {/* Bookmark button */}
       {onToggleBookmark && (
         <button
           onClick={handleBookmarkClick}
-          className={`absolute top-4 right-4 z-10 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
+          className={`absolute top-4 right-4 z-10 p-2.5 rounded-xl transition-all duration-200 ${
             isBookmarked
-              ? 'text-indigo-400 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30'
-              : 'theme-text-muted opacity-0 group-hover:opacity-100 hover:theme-text hover:bg-neutral-700/80 border border-transparent hover:border-neutral-600'
+              ? ''
+              : 'opacity-0 group-hover:opacity-100'
           }`}
-          aria-label={`${isBookmarked ? 'Remove from' : 'Add to'} bookmarks: ${topic.title}`}
-          aria-pressed={isBookmarked}
+          style={{
+            backgroundColor: isBookmarked 
+              ? (isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)')
+              : (isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'),
+            color: isBookmarked ? '#8b5cf6' : (isDark ? '#71717a' : '#a1a1aa')
+          }}
+          aria-label={`${isBookmarked ? 'Remove from' : 'Add to'} bookmarks`}
         >
           {isBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
         </button>
@@ -159,151 +156,163 @@ export function DiscussionItem({
         target="_blank"
         rel="noopener noreferrer"
         onClick={handleLinkClick}
-        className="flex items-start gap-4 pr-14 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-lg"
+        className="flex items-start gap-4 p-5 pr-14 pl-6"
       >
         {/* Protocol Logo */}
         <div 
-          className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden shadow-sm"
+          className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden"
           style={{ 
-            backgroundColor: isValidImageUrl(forumLogoUrl) ? 'var(--card-bg)' : undefined,
-            boxShadow: isValidImageUrl(forumLogoUrl) ? '0 0 0 1px var(--card-border)' : '0 0 0 1px rgba(255,255,255,0.1)',
-            background: isValidImageUrl(forumLogoUrl) ? undefined : 'linear-gradient(to bottom right, #6366f1, #4f46e5)'
+            backgroundColor: isValidImageUrl(forumLogoUrl) 
+              ? (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)') 
+              : 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+            boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.05)'
           }}
         >
           {isValidImageUrl(forumLogoUrl) ? (
             <img
               src={forumLogoUrl}
               alt=""
-              aria-hidden="true"
               className="w-7 h-7 object-contain"
               referrerPolicy="no-referrer"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
-                const fallback = target.nextElementSibling as HTMLElement;
-                if (fallback) fallback.style.display = 'flex';
                 const parent = target.parentElement;
                 if (parent) {
-                  parent.style.background = 'linear-gradient(to bottom right, #6366f1, #4f46e5)';
-                  parent.style.boxShadow = '0 0 0 1px rgba(255,255,255,0.1)';
+                  parent.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)';
                 }
               }}
             />
-          ) : null}
-          <span 
-            className="text-white text-xs font-bold tracking-wide" 
-            aria-hidden="true"
-            style={{ display: isValidImageUrl(forumLogoUrl) ? 'none' : 'flex' }}
-          >
-            {topic.protocol.slice(0, 2).toUpperCase()}
-          </span>
+          ) : (
+            <span className="text-white text-xs font-bold tracking-wide">
+              {topic.protocol.slice(0, 2).toUpperCase()}
+            </span>
+          )}
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 py-0.5">
-          {/* Title - Primary focus */}
+        <div className="flex-1 min-w-0">
+          {/* Title */}
           <h3
-            className={`text-[15px] font-semibold leading-snug mb-2 line-clamp-2 ${isRead ? 'theme-text-muted' : 'theme-text'}`}
+            className="text-[15px] font-semibold leading-snug mb-2.5 line-clamp-2"
+            style={{ 
+              color: isRead 
+                ? (isDark ? '#71717a' : '#a1a1aa') 
+                : (isDark ? '#fafafa' : '#18181b')
+            }}
           >
-            {highlightKeywords(topic.title, alerts)}
+            {highlightKeywords(topic.title, alerts, isDark)}
           </h3>
 
-          {/* Meta row - Protocol, dates, activity, status */}
-          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs mb-2.5">
-            <span className="font-medium text-indigo-500 capitalize">{topic.protocol}</span>
-            <span className="theme-text-muted" aria-hidden="true">·</span>
+          {/* Meta row */}
+          <div 
+            className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs mb-3"
+            style={{ color: isDark ? '#71717a' : '#a1a1aa' }}
+          >
+            <span className="font-medium capitalize" style={{ color: '#8b5cf6' }}>
+              {topic.protocol}
+            </span>
+            <span>·</span>
             
-            {/* Created date */}
-            <span className="flex items-center gap-1 theme-text-muted" title={`Created: ${format(new Date(topic.createdAt), 'PPP')}`}>
-              <Sparkles className="w-3 h-3 text-emerald-500" aria-hidden="true" />
-              <span>{formatTimestamp(topic.createdAt, true)}</span>
+            <span className="flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-500" />
+              {formatTimestamp(topic.createdAt, true)}
             </span>
             
-            {/* Last activity - only show if different from created */}
             {topic.bumpedAt !== topic.createdAt && (
               <>
-                <span className="theme-text-muted" aria-hidden="true">·</span>
-                <span className="flex items-center gap-1 theme-text-muted" title={`Last activity: ${format(new Date(topic.bumpedAt), 'PPP p')}`}>
-                  <Clock className="w-3 h-3 text-amber-500" aria-hidden="true" />
-                  <span>{formatTimestamp(topic.bumpedAt, true)}</span>
+                <span>·</span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-amber-500" />
+                  {formatTimestamp(topic.bumpedAt, true)}
                 </span>
               </>
             )}
             
-            {/* NEW badge for recently created topics */}
             {isNewTopic(topic.createdAt) && (
-              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 text-[10px] font-semibold">
+              <span 
+                className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                  color: '#10b981'
+                }}
+              >
                 NEW
               </span>
             )}
             
-            {/* Activity indicators */}
             {getActivityLevel(topic) === 'hot' && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-500 font-medium" title="High activity">
-                <Flame className="w-3 h-3" aria-hidden="true" />
+              <span 
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full font-medium"
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(249, 115, 22, 0.15)' : 'rgba(249, 115, 22, 0.1)',
+                  color: '#f97316'
+                }}
+              >
+                <Flame className="w-3 h-3" />
                 <span className="text-[10px]">Hot</span>
               </span>
             )}
+            
             {getActivityLevel(topic) === 'trending' && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-500 font-medium" title="Trending">
-                <TrendingUp className="w-3 h-3" aria-hidden="true" />
+              <span 
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full font-medium"
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(14, 165, 233, 0.15)' : 'rgba(14, 165, 233, 0.1)',
+                  color: '#0ea5e9'
+                }}
+              >
+                <TrendingUp className="w-3 h-3" />
                 <span className="text-[10px]">Active</span>
               </span>
             )}
             
-            {/* Status icons */}
-            {topic.pinned && (
-              <span className="flex items-center gap-1 text-indigo-400" title="Pinned">
-                <Pin className="w-3 h-3" aria-label="Pinned" />
-              </span>
-            )}
-            {topic.closed && (
-              <span className="flex items-center gap-1 text-amber-500" title="Closed">
-                <Lock className="w-3 h-3" aria-label="Closed" />
-              </span>
-            )}
-            {topic.archived && (
-              <span className="flex items-center gap-1 theme-text-muted" title="Archived">
-                <Archive className="w-3 h-3" aria-label="Archived" />
-              </span>
-            )}
+            {topic.pinned && <span title="Pinned"><Pin className="w-3 h-3 text-violet-400" /></span>}
+            {topic.closed && <span title="Closed"><Lock className="w-3 h-3 text-amber-500" /></span>}
+            {topic.archived && <span title="Archived"><Archive className="w-3 h-3" /></span>}
           </div>
 
-          {/* Bottom row - Stats and Tags */}
+          {/* Stats and tags */}
           <div className="flex items-center justify-between gap-4">
-            {/* Stats - compact inline */}
-            <div className="flex items-center gap-3 text-xs theme-text-muted">
-              <span className="flex items-center gap-1.5" aria-label={`${topic.replyCount} replies`}>
-                <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+            <div 
+              className="flex items-center gap-4 text-xs"
+              style={{ color: isDark ? '#52525b' : '#a1a1aa' }}
+            >
+              <span className="flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5" />
                 <span className="tabular-nums">{topic.replyCount}</span>
               </span>
-              <span className="flex items-center gap-1.5 hidden sm:flex" aria-label={`${topic.views} views`}>
-                <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5" />
                 <span className="tabular-nums">{topic.views.toLocaleString()}</span>
               </span>
-              <span className="flex items-center gap-1.5" aria-label={`${topic.likeCount} likes`}>
-                <ThumbsUp className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="flex items-center gap-1.5">
+                <ThumbsUp className="w-3.5 h-3.5" />
                 <span className="tabular-nums">{topic.likeCount}</span>
               </span>
             </div>
 
-            {/* Tags - right aligned */}
             {topic.tags.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              <div className="flex items-center gap-1.5">
                 {topic.tags.slice(0, 2).map((tag) => {
                   const tagName = typeof tag === 'string' ? tag : (tag as { name: string }).name;
                   return (
                     <span 
                       key={tagName} 
-                      className="px-2 py-0.5 rounded-md text-[11px] font-medium theme-text-secondary"
-                      style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
+                      className="px-2 py-0.5 rounded-md text-[11px] font-medium"
+                      style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                        color: isDark ? '#a1a1aa' : '#71717a'
+                      }}
                     >
                       {tagName}
                     </span>
                   );
                 })}
                 {topic.tags.length > 2 && (
-                  <span className="text-[11px] theme-text-muted font-medium">+{topic.tags.length - 2}</span>
+                  <span className="text-[11px] font-medium" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
+                    +{topic.tags.length - 2}
+                  </span>
                 )}
               </div>
             )}

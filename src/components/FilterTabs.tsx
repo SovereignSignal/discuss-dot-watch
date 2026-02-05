@@ -5,6 +5,7 @@ interface FilterTabsProps {
   onFilterChange: (mode: 'all' | 'your') => void;
   totalCount: number;
   enabledCount: number;
+  isDark?: boolean;
 }
 
 export function FilterTabs({
@@ -12,26 +13,30 @@ export function FilterTabs({
   onFilterChange,
   totalCount,
   enabledCount,
+  isDark = true,
 }: FilterTabsProps) {
   return (
-    <div className="flex items-center gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--card-border)' }}>
+    <div 
+      className="flex items-center gap-1 p-1 rounded-xl"
+      style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+    >
       <button
         onClick={() => onFilterChange('your')}
-        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-          filterMode === 'your'
-            ? 'bg-indigo-600 text-white shadow-sm'
-            : 'theme-text-secondary hover:opacity-80'
-        }`}
+        className="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+        style={{
+          backgroundColor: filterMode === 'your' ? '#8b5cf6' : 'transparent',
+          color: filterMode === 'your' ? 'white' : (isDark ? '#a1a1aa' : '#71717a')
+        }}
       >
         Your Projects ({enabledCount})
       </button>
       <button
         onClick={() => onFilterChange('all')}
-        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-          filterMode === 'all'
-            ? 'bg-indigo-600 text-white shadow-sm'
-            : 'theme-text-secondary hover:opacity-80'
-        }`}
+        className="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+        style={{
+          backgroundColor: filterMode === 'all' ? '#8b5cf6' : 'transparent',
+          color: filterMode === 'all' ? 'white' : (isDark ? '#a1a1aa' : '#71717a')
+        }}
       >
         All Projects ({totalCount})
       </button>

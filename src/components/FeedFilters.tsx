@@ -13,6 +13,7 @@ interface FeedFiltersProps {
   forums: Forum[];
   sortBy: SortOption;
   onSortChange: (sort: SortOption) => void;
+  isDark?: boolean;
 }
 
 const DATE_RANGE_OPTIONS: { value: DateRangeFilter; label: string }[] = [
@@ -39,42 +40,43 @@ export function FeedFilters({
   forums,
   sortBy,
   onSortChange,
+  isDark = true,
 }: FeedFiltersProps) {
+  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const bgColor = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
+  const textMuted = isDark ? '#71717a' : '#a1a1aa';
+  const textSecondary = isDark ? '#a1a1aa' : '#71717a';
+
   return (
-    <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b" style={{ borderColor: 'var(--card-border)', backgroundColor: 'var(--card-bg)' }}>
+    <div 
+      className="flex flex-wrap items-center gap-3 px-6 py-3 border-b"
+      style={{ borderColor, backgroundColor: bgColor }}
+    >
       {/* Date Filter Mode Toggle */}
       <div className="flex items-center gap-1.5">
-        <span className="text-xs theme-text-muted hidden sm:inline">Filter by:</span>
+        <span className="text-xs hidden sm:inline" style={{ color: textMuted }}>Filter by:</span>
         <div
-          role="group"
-          aria-label="Date filter mode"
-          className="flex rounded-lg overflow-hidden border"
-          style={{ borderColor: 'var(--card-border)' }}
+          className="flex rounded-xl overflow-hidden"
+          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
         >
           <button
             onClick={() => onDateFilterModeChange('created')}
-            aria-pressed={dateFilterMode === 'created'}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 min-h-[32px] text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset ${
-              dateFilterMode === 'created'
-                ? 'bg-emerald-600 text-white'
-                : 'theme-text-secondary hover:opacity-80'
-            }`}
-            style={dateFilterMode !== 'created' ? { backgroundColor: 'var(--card-bg)' } : undefined}
-            title="Filter by when topics were created"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all"
+            style={{
+              backgroundColor: dateFilterMode === 'created' ? '#10b981' : 'transparent',
+              color: dateFilterMode === 'created' ? 'white' : textSecondary
+            }}
           >
             <Sparkles className="w-3 h-3" />
             <span>Created</span>
           </button>
           <button
             onClick={() => onDateFilterModeChange('activity')}
-            aria-pressed={dateFilterMode === 'activity'}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 min-h-[32px] text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset ${
-              dateFilterMode === 'activity'
-                ? 'bg-amber-600 text-white'
-                : 'theme-text-secondary hover:opacity-80'
-            }`}
-            style={dateFilterMode !== 'activity' ? { backgroundColor: 'var(--card-bg)' } : undefined}
-            title="Filter by last activity/comment"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all"
+            style={{
+              backgroundColor: dateFilterMode === 'activity' ? '#f59e0b' : 'transparent',
+              color: dateFilterMode === 'activity' ? 'white' : textSecondary
+            }}
           >
             <Clock className="w-3 h-3" />
             <span>Activity</span>
@@ -84,24 +86,20 @@ export function FeedFilters({
 
       {/* Date Range Filter */}
       <div className="flex items-center gap-2">
-        <Calendar className="w-4 h-4 theme-text-muted" aria-hidden="true" />
+        <Calendar className="w-4 h-4" style={{ color: textMuted }} />
         <div
-          role="group"
-          aria-label="Filter by date range"
-          className="flex rounded-lg overflow-hidden border"
-          style={{ borderColor: 'var(--card-border)', backgroundColor: 'var(--card-bg)' }}
+          className="flex rounded-xl overflow-hidden"
+          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
         >
           {DATE_RANGE_OPTIONS.map((option) => (
             <button
               key={option.value}
               onClick={() => onDateRangeChange(option.value)}
-              aria-pressed={dateRange === option.value}
-              className={`px-3 py-1.5 min-h-[32px] text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset ${
-                dateRange === option.value
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'theme-text-secondary hover:opacity-80'
-              }`}
-              style={dateRange !== option.value ? { backgroundColor: 'var(--card-bg)' } : undefined}
+              className="px-3 py-2 text-xs font-medium transition-all"
+              style={{
+                backgroundColor: dateRange === option.value ? '#8b5cf6' : 'transparent',
+                color: dateRange === option.value ? 'white' : textSecondary
+              }}
             >
               {option.label}
             </button>
@@ -109,41 +107,53 @@ export function FeedFilters({
         </div>
       </div>
 
-      {/* Forum Source Filter */}
-      <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 theme-text-muted" aria-hidden="true" />
-        <select
-          id="forum-filter"
-          value={selectedForumId || ''}
-          onChange={(e) => onForumFilterChange(e.target.value || null)}
-          className="px-3 py-1.5 min-h-[32px] text-xs rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition-colors theme-text-secondary"
-          style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
-          aria-label="Filter by forum"
-        >
-          <option value="">All Forums</option>
-          {forums.map((forum) => (
-            <option key={forum.id} value={forum.id}>
-              {forum.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Forum Filter */}
+      {forums.length > 0 && (
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4" style={{ color: textMuted }} />
+          <select
+            value={selectedForumId || ''}
+            onChange={(e) => onForumFilterChange(e.target.value || null)}
+            className="px-3 py-2 rounded-xl text-xs font-medium transition-all appearance-none cursor-pointer pr-8"
+            style={{ 
+              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+              color: textSecondary,
+              border: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23${isDark ? '71717a' : 'a1a1aa'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+              backgroundPosition: 'right 0.5rem center',
+              backgroundRepeat: 'no-repeat',
+              backgroundSize: '1.2em 1.2em'
+            }}
+          >
+            <option value="">All Forums</option>
+            {forums.map((forum) => (
+              <option key={forum.id} value={forum.id}>
+                {forum.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
-      {/* Sort Options */}
+      {/* Sort */}
       <div className="flex items-center gap-2 ml-auto">
-        <ArrowUpDown className="w-4 h-4 theme-text-muted" aria-hidden="true" />
-        <label htmlFor="sort-filter" className="text-xs theme-text-muted hidden sm:inline">
-          Sort
-        </label>
+        <ArrowUpDown className="w-4 h-4" style={{ color: textMuted }} />
         <select
-          id="sort-filter"
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortOption)}
-          className="px-3 py-1.5 min-h-[32px] text-xs font-medium rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition-colors"
-          style={{ backgroundColor: 'var(--accent)', color: 'white', border: 'none' }}
+          className="px-3 py-2 rounded-xl text-xs font-medium transition-all appearance-none cursor-pointer pr-8"
+          style={{ 
+            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+            color: textSecondary,
+            border: 'none',
+            backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23${isDark ? '71717a' : 'a1a1aa'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+            backgroundPosition: 'right 0.5rem center',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '1.2em 1.2em'
+          }}
         >
           {SORT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value} style={{ backgroundColor: 'var(--card-bg)', color: 'var(--text-primary)' }}>
+            <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}

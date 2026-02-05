@@ -46,7 +46,6 @@ export default function AppPage() {
   const { theme, toggleTheme } = useTheme();
   const { toasts, dismissToast, success, error: showError, warning } = useToast();
 
-  // Storage monitoring with error notifications
   const { quota, lastError: storageError } = useStorageMonitor(
     useCallback((error: StorageError) => {
       if (error.type === 'quota_exceeded') {
@@ -59,11 +58,9 @@ export default function AppPage() {
     }, [showError, warning])
   );
 
-  // Calculate unread count for currently displayed discussions
   const unreadCount = getUnreadCount(discussions.map((d) => d.refId));
-
-  // Debounce search query to avoid filtering on every keystroke
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const isDark = theme === 'dark';
 
   const handleToggleBookmark = useCallback((topic: DiscussionTopic) => {
     if (isBookmarked(topic.refId)) {
@@ -89,7 +86,6 @@ export default function AppPage() {
   }, [markMultipleAsRead, success]);
 
   const handleOnboardingComplete = useCallback((selectedForums: ForumPreset[]) => {
-    // Add selected forums
     selectedForums.forEach((preset) => {
       addForum({
         name: preset.name,
@@ -130,7 +126,6 @@ export default function AppPage() {
     }
   }, [importForums, importAlerts, importBookmarks]);
 
-  // Show toast when there are errors
   useEffect(() => {
     if (error && !error.includes('All forums failed')) {
       warning(error);
@@ -145,10 +140,8 @@ export default function AppPage() {
     }
   }, [enabledForums.length, discussions.length, isLoading, refresh]);
 
-  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -156,11 +149,9 @@ export default function AppPage() {
       switch (e.key) {
         case '/':
           e.preventDefault();
-          // Open mobile alerts panel on mobile, focus search
           if (window.innerWidth < 768) {
             setIsMobileAlertsOpen(true);
           }
-          // Focus search input after a short delay to allow panel to open
           setTimeout(() => {
             const searchInput = document.getElementById('discussion-search') as HTMLInputElement;
             searchInput?.focus();
@@ -177,8 +168,6 @@ export default function AppPage() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const isDark = theme === 'dark';
-  
   return (
     <AuthGate>
       <ErrorBoundary>
@@ -188,241 +177,305 @@ export default function AppPage() {
           className="flex h-screen overflow-hidden pt-14 md:pt-0"
           style={{ 
             backgroundColor: isDark ? '#09090b' : '#fafafa',
-            color: isDark ? '#fafafa' : '#09090b'
+            color: isDark ? '#fafafa' : '#18181b'
           }}
         >
-        {/* Ambient gradient background */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-violet-600/8' : 'bg-violet-400/15'}`} />
-          <div className={`absolute top-1/3 -left-20 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-cyan-600/5' : 'bg-cyan-400/10'}`} />
-          <div className={`absolute bottom-20 right-1/4 w-80 h-80 rounded-full blur-3xl ${isDark ? 'bg-indigo-600/5' : 'bg-indigo-400/10'}`} />
-        </div>
-        
-        <Sidebar
-          activeView={activeView}
-          onViewChange={setActiveView}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          savedCount={bookmarks.length}
-          isMobileOpen={isMobileMenuOpen}
-          onMobileToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        />
-
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--card-border)' }}>
-            <FilterTabs
-              filterMode={filterMode}
-              onFilterChange={setFilterMode}
-              totalCount={forums.length}
-              enabledCount={enabledForums.length}
+          {/* Ambient gradient background */}
+          <div className="fixed inset-0 overflow-hidden pointer-events-none">
+            <div 
+              className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full blur-3xl"
+              style={{ backgroundColor: isDark ? 'rgba(139, 92, 246, 0.08)' : 'rgba(139, 92, 246, 0.12)' }}
             />
-          </header>
+            <div 
+              className="absolute top-1/3 -left-40 w-[400px] h-[400px] rounded-full blur-3xl"
+              style={{ backgroundColor: isDark ? 'rgba(34, 211, 238, 0.05)' : 'rgba(34, 211, 238, 0.08)' }}
+            />
+            <div 
+              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full blur-3xl"
+              style={{ backgroundColor: isDark ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.08)' }}
+            />
+          </div>
 
-          <main id="main-content" className="flex-1 flex overflow-hidden">
-            {activeView === 'feed' && (
-              <>
-                <DiscussionFeed
-                  discussions={discussions}
-                  isLoading={isLoading}
-                  error={error}
-                  lastUpdated={lastUpdated}
-                  onRefresh={refresh}
-                  alerts={alerts}
-                  searchQuery={debouncedSearchQuery}
-                  enabledForumIds={enabledForums.map((f) => f.id)}
-                  forumStates={forumStates}
-                  forums={enabledForums}
-                  isBookmarked={isBookmarked}
-                  isRead={isRead}
-                  onToggleBookmark={handleToggleBookmark}
-                  onMarkAsRead={markAsRead}
-                  onMarkAllAsRead={handleMarkAllAsRead}
-                  unreadCount={unreadCount}
-                  onRemoveForum={handleRemoveForum}
-                />
-                <RightSidebar
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  alerts={alerts}
-                  onAddAlert={addAlert}
-                  onRemoveAlert={removeAlert}
-                  onToggleAlert={toggleAlert}
-                  isMobileOpen={isMobileAlertsOpen}
-                  onMobileToggle={() => setIsMobileAlertsOpen(!isMobileAlertsOpen)}
-                />
-              </>
-            )}
-
-            {activeView === 'projects' && (
-              <div className="flex-1 overflow-y-auto">
-                <ForumManager
-                  forums={forums}
-                  onAddForum={addForum}
-                  onRemoveForum={handleRemoveForum}
-                  onToggleForum={toggleForum}
-                />
-              </div>
-            )}
-
-            {activeView === 'saved' && (
-              <div className="flex-1 overflow-y-auto p-6">
-                <h2 className="text-xl font-semibold theme-text mb-6 flex items-center gap-2">
-                  <BookmarkIcon className="w-5 h-5" aria-hidden="true" />
-                  Saved Discussions
-                </h2>
-                {bookmarks.length === 0 ? (
-                  <div className="text-center py-12">
-                    <BookmarkIcon className="w-12 h-12 theme-text-muted mx-auto mb-4" aria-hidden="true" />
-                    <p className="theme-text-secondary mb-2">No saved discussions yet</p>
-                    <p className="theme-text-muted text-sm">
-                      Click the bookmark icon on any discussion to save it for later
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="space-y-2" role="list">
-                    {bookmarks.map((bookmark) => (
-                      <li
-                        key={bookmark.id}
-                        className="flex items-center justify-between p-4 bg-neutral-800 rounded-lg"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={bookmark.topicUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="theme-text hover:text-indigo-400 font-medium line-clamp-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
-                          >
-                            {bookmark.topicTitle}
-                          </a>
-                          <p className="text-sm theme-text-muted mt-1">
-                            {bookmark.protocol} · Saved {new Date(bookmark.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={bookmark.topicUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center theme-text-muted hover:theme-text transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            aria-label={`Open ${bookmark.topicTitle}`}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                          <button
-                            onClick={() => {
-                              removeBookmark(bookmark.topicRefId);
-                              success('Bookmark removed');
-                            }}
-                            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center theme-text-muted hover:text-rose-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            aria-label={`Remove ${bookmark.topicTitle} from saved`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {activeView === 'settings' && (
-              <div className="flex-1 p-6">
-                <h2 className="text-xl font-semibold theme-text mb-6">Settings</h2>
-                <div className="space-y-4">
-                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-                    <h3 className="font-medium theme-text mb-2">About</h3>
-                    <p className="theme-text-secondary text-sm">
-                      Governance Forum Aggregator - A unified view of governance discussions from multiple
-                      Discourse-based forums used by DAOs and blockchain protocols.
-                    </p>
-                  </section>
-                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-                    <h3 className="font-medium theme-text mb-2">Data Storage</h3>
-                    <p className="theme-text-secondary text-sm mb-3">
-                      All forum configurations and alerts are stored locally in your browser. No data is sent
-                      to any external servers except for fetching discussions from the configured Discourse
-                      forums.
-                    </p>
-                    {quota && (
-                      <div className="mt-3">
-                        <div className="flex justify-between text-xs theme-text-muted mb-1">
-                          <span>Storage used</span>
-                          <span>{(quota.used / 1024).toFixed(1)} KB / {(quota.available / 1024 / 1024).toFixed(0)} MB</span>
-                        </div>
-                        <div className="w-full bg-neutral-700 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all ${quota.isNearLimit ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${Math.min(quota.percentUsed, 100)}%` }}
-                            role="progressbar"
-                            aria-valuenow={quota.percentUsed}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={`Storage ${quota.percentUsed.toFixed(1)}% used`}
-                          />
-                        </div>
-                        {quota.isNearLimit && (
-                          <p className="text-amber-400 text-xs mt-2">
-                            Storage is nearly full. Consider exporting your data and clearing old items.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-                    <h3 className="font-medium theme-text mb-2">Refresh Rate</h3>
-                    <p className="theme-text-secondary text-sm">
-                      Discussions are cached and can be manually refreshed using the Refresh button. API
-                      responses are cached for 2 minutes to reduce load on forum servers.
-                    </p>
-                  </section>
-                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-                    <EmailPreferences />
-                  </section>
-                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-                    <h3 className="font-medium theme-text mb-3">Export / Import</h3>
-                    <ConfigExportImport
-                      forums={forums}
-                      alerts={alerts}
-                      bookmarks={bookmarks}
-                      onImport={handleConfigImport}
-                    />
-                  </section>
-                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-                    <KeyboardShortcuts />
-                  </section>
-                  <section className="p-4 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-                    <h3 className="font-medium theme-text mb-2">Onboarding</h3>
-                    <p className="theme-text-secondary text-sm mb-3">
-                      Reset the onboarding wizard to see the welcome flow again.
-                    </p>
-                    <button
-                      onClick={() => {
-                        resetOnboarding();
-                        success('Onboarding reset. Refresh the page to see the wizard.');
-                      }}
-                      className="px-4 py-2 text-sm font-medium rounded-lg transition-colors bg-neutral-700 hover:bg-neutral-600 theme-text"
-                    >
-                      Reset Onboarding
-                    </button>
-                  </section>
-                </div>
-              </div>
-            )}
-          </main>
-        </div>
-
-        {/* Toast notifications */}
-        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-
-        {/* Onboarding wizard for new users */}
-        {shouldShowOnboarding && (
-          <OnboardingWizard
-            onComplete={handleOnboardingComplete}
-            onSkip={handleOnboardingSkip}
+          <Sidebar
+            activeView={activeView}
+            onViewChange={setActiveView}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            savedCount={bookmarks.length}
+            isMobileOpen={isMobileMenuOpen}
+            onMobileToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           />
-        )}
-      </div>
+
+          <div className="flex-1 flex flex-col overflow-hidden relative">
+            {/* Header */}
+            <header 
+              className="flex items-center justify-between px-6 py-4 border-b backdrop-blur-xl"
+              style={{ 
+                borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                backgroundColor: isDark ? 'rgba(9, 9, 11, 0.8)' : 'rgba(250, 250, 250, 0.8)'
+              }}
+            >
+              <FilterTabs
+                filterMode={filterMode}
+                onFilterChange={setFilterMode}
+                totalCount={forums.length}
+                enabledCount={enabledForums.length}
+                isDark={isDark}
+              />
+            </header>
+
+            <main id="main-content" className="flex-1 flex overflow-hidden relative">
+              {activeView === 'feed' && (
+                <>
+                  <DiscussionFeed
+                    discussions={discussions}
+                    isLoading={isLoading}
+                    error={error}
+                    lastUpdated={lastUpdated}
+                    onRefresh={refresh}
+                    alerts={alerts}
+                    searchQuery={debouncedSearchQuery}
+                    enabledForumIds={enabledForums.map((f) => f.id)}
+                    forumStates={forumStates}
+                    forums={enabledForums}
+                    isBookmarked={isBookmarked}
+                    isRead={isRead}
+                    onToggleBookmark={handleToggleBookmark}
+                    onMarkAsRead={markAsRead}
+                    onMarkAllAsRead={handleMarkAllAsRead}
+                    unreadCount={unreadCount}
+                    onRemoveForum={handleRemoveForum}
+                    isDark={isDark}
+                  />
+                  <RightSidebar
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    alerts={alerts}
+                    onAddAlert={addAlert}
+                    onRemoveAlert={removeAlert}
+                    onToggleAlert={toggleAlert}
+                    isMobileOpen={isMobileAlertsOpen}
+                    onMobileToggle={() => setIsMobileAlertsOpen(!isMobileAlertsOpen)}
+                    isDark={isDark}
+                  />
+                </>
+              )}
+
+              {activeView === 'projects' && (
+                <div className="flex-1 overflow-y-auto">
+                  <ForumManager
+                    forums={forums}
+                    onAddForum={addForum}
+                    onRemoveForum={handleRemoveForum}
+                    onToggleForum={toggleForum}
+                  />
+                </div>
+              )}
+
+              {activeView === 'saved' && (
+                <div className="flex-1 overflow-y-auto p-6">
+                  <h2 
+                    className="text-xl font-semibold mb-6 flex items-center gap-2"
+                    style={{ color: isDark ? '#fafafa' : '#18181b' }}
+                  >
+                    <BookmarkIcon className="w-5 h-5" />
+                    Saved Discussions
+                  </h2>
+                  {bookmarks.length === 0 ? (
+                    <div className="text-center py-12">
+                      <BookmarkIcon 
+                        className="w-12 h-12 mx-auto mb-4"
+                        style={{ color: isDark ? '#52525b' : '#a1a1aa' }}
+                      />
+                      <p className="mb-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
+                        No saved discussions yet
+                      </p>
+                      <p className="text-sm" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
+                        Click the bookmark icon on any discussion to save it for later
+                      </p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-3">
+                      {bookmarks.map((bookmark) => (
+                        <li
+                          key={bookmark.id}
+                          className="flex items-center justify-between p-4 rounded-2xl transition-all"
+                          style={{ 
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
+                            border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                            boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+                          }}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={bookmark.topicUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium line-clamp-1 hover:text-violet-500 transition-colors"
+                              style={{ color: isDark ? '#fafafa' : '#18181b' }}
+                            >
+                              {bookmark.topicTitle}
+                            </a>
+                            <p className="text-sm mt-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>
+                              {bookmark.protocol} · Saved {new Date(bookmark.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={bookmark.topicUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2.5 rounded-xl transition-all"
+                              style={{ 
+                                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                                color: isDark ? '#71717a' : '#a1a1aa'
+                              }}
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                            <button
+                              onClick={() => {
+                                removeBookmark(bookmark.topicRefId);
+                                success('Bookmark removed');
+                              }}
+                              className="p-2.5 rounded-xl transition-all hover:text-rose-500"
+                              style={{ 
+                                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                                color: isDark ? '#71717a' : '#a1a1aa'
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {activeView === 'settings' && (
+                <div className="flex-1 p-6 overflow-y-auto">
+                  <h2 
+                    className="text-xl font-semibold mb-6"
+                    style={{ color: isDark ? '#fafafa' : '#18181b' }}
+                  >
+                    Settings
+                  </h2>
+                  <div className="space-y-4 max-w-2xl">
+                    <section 
+                      className="p-5 rounded-2xl"
+                      style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
+                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <h3 className="font-medium mb-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>About</h3>
+                      <p className="text-sm" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
+                        discuss.watch — A unified view of discussions from Discourse forums used by crypto, AI, and open source communities.
+                      </p>
+                    </section>
+                    
+                    <section 
+                      className="p-5 rounded-2xl"
+                      style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
+                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <h3 className="font-medium mb-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Data Storage</h3>
+                      <p className="text-sm mb-3" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
+                        All forum configurations and alerts are stored locally in your browser. No data is sent to any external servers except for fetching discussions from the configured Discourse forums.
+                      </p>
+                      {quota && (
+                        <div className="text-xs" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
+                          Storage: {(quota.used / 1024).toFixed(1)}KB used
+                          {(quota as { total?: number }).total && ` of ${((quota as { total?: number }).total! / 1024 / 1024).toFixed(1)}MB`}
+                        </div>
+                      )}
+                    </section>
+
+                    <section 
+                      className="p-5 rounded-2xl"
+                      style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
+                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <h3 className="font-medium mb-3" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Import / Export</h3>
+                      <ConfigExportImport
+                        forums={forums}
+                        alerts={alerts}
+                        bookmarks={bookmarks}
+                        onImport={handleConfigImport}
+                      />
+                    </section>
+
+                    <section 
+                      className="p-5 rounded-2xl"
+                      style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
+                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <h3 className="font-medium mb-3" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Email Preferences</h3>
+                      <EmailPreferences />
+                    </section>
+
+                    <section 
+                      className="p-5 rounded-2xl"
+                      style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
+                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <h3 className="font-medium mb-3" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Keyboard Shortcuts</h3>
+                      <KeyboardShortcuts />
+                    </section>
+
+                    <section 
+                      className="p-5 rounded-2xl"
+                      style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
+                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <h3 className="font-medium mb-3" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Reset</h3>
+                      <p className="text-sm mb-3" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
+                        Show the onboarding wizard again to add more forums.
+                      </p>
+                      <button
+                        onClick={resetOnboarding}
+                        className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                        style={{ 
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                          color: isDark ? '#a1a1aa' : '#71717a'
+                        }}
+                      >
+                        Show Onboarding
+                      </button>
+                    </section>
+                  </div>
+                </div>
+              )}
+            </main>
+          </div>
+
+          {shouldShowOnboarding && (
+            <OnboardingWizard
+              onComplete={handleOnboardingComplete}
+              onSkip={handleOnboardingSkip}
+            />
+          )}
+
+          <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        </div>
       </ErrorBoundary>
     </AuthGate>
   );

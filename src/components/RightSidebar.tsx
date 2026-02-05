@@ -14,6 +14,7 @@ interface RightSidebarProps {
   onToggleAlert: (id: string) => void;
   isMobileOpen: boolean;
   onMobileToggle: () => void;
+  isDark?: boolean;
 }
 
 export function RightSidebar({
@@ -25,6 +26,7 @@ export function RightSidebar({
   onToggleAlert,
   isMobileOpen,
   onMobileToggle,
+  isDark = true,
 }: RightSidebarProps) {
   const [newKeyword, setNewKeyword] = useState('');
 
@@ -45,156 +47,190 @@ export function RightSidebar({
     }
   };
 
+  const borderColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const bgSurface = isDark ? 'rgba(255,255,255,0.03)' : '#ffffff';
+  const textPrimary = isDark ? '#fafafa' : '#18181b';
+  const textSecondary = isDark ? '#a1a1aa' : '#71717a';
+  const textMuted = isDark ? '#71717a' : '#a1a1aa';
+
   return (
     <>
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
           onClick={onMobileToggle}
-          aria-hidden="true"
         />
       )}
       
       {/* Mobile toggle button */}
       <button
         onClick={onMobileToggle}
-        className="md:hidden fixed bottom-4 right-4 z-30 p-3 min-w-[48px] min-h-[48px] flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+        className="md:hidden fixed bottom-4 right-4 z-30 p-3.5 rounded-full shadow-lg transition-all"
+        style={{ backgroundColor: '#8b5cf6', color: 'white' }}
         aria-label={isMobileOpen ? 'Close search & alerts' : 'Open search & alerts'}
-        aria-expanded={isMobileOpen}
       >
         {isMobileOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
       </button>
 
-      <aside className={`
-        fixed md:relative
-        w-80 theme-sidebar border-l flex flex-col h-full
-        z-50 md:z-auto
-        transition-transform duration-300 ease-in-out
-        ${isMobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
-        right-0 top-14 md:top-0
-        max-h-[calc(100vh-3.5rem)] md:max-h-full
-      `}>
-      <div id="search" className="p-4 border-b" style={{ borderColor: 'var(--card-border)' }}>
-        <div className="relative">
-          <label htmlFor="discussion-search" className="sr-only">
-            Search discussions
-          </label>
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 theme-text-muted" aria-hidden="true" />
-          <input
-            id="discussion-search"
-            type="search"
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search discussions..."
-            className="w-full pl-10 pr-10 py-2 min-h-[44px] rounded-lg theme-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm"
-            style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 min-w-[32px] min-h-[32px] flex items-center justify-center text-gray-500 hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              aria-label="Clear search"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="mb-6">
-          <h3 className="flex items-center gap-2 text-sm font-medium theme-text-secondary mb-3">
-            <Bell className="w-4 h-4" />
-            Keyword Alerts
-          </h3>
-          <div className="text-xs theme-text-muted mb-3 p-2 rounded-lg" style={{ backgroundColor: 'var(--card-bg)' }}>
-            <p className="mb-1"><strong className="theme-text-secondary">Note:</strong> Alerts highlight matching keywords in discussion titles.</p>
-            <p>Use the search box above to filter/hide non-matching discussions.</p>
-          </div>
-
-          <div className="flex gap-2 mb-3">
-            <label htmlFor="new-keyword" className="sr-only">
-              Add keyword alert
-            </label>
-            <input
-              id="new-keyword"
-              type="text"
-              value={newKeyword}
-              onChange={(e) => setNewKeyword(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Add keyword..."
-              className="flex-1 px-3 py-2 min-h-[44px] rounded-lg theme-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm"
-              style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
+      <aside 
+        className={`
+          fixed md:relative
+          w-80 flex flex-col h-full
+          z-50 md:z-auto
+          transition-transform duration-300 ease-in-out
+          ${isMobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+          right-0 top-14 md:top-0
+          max-h-[calc(100vh-3.5rem)] md:max-h-full
+          backdrop-blur-xl border-l
+        `}
+        style={{ 
+          backgroundColor: isDark ? 'rgba(24, 24, 27, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          borderColor
+        }}
+      >
+        {/* Search */}
+        <div className="p-5 border-b" style={{ borderColor }}>
+          <div className="relative">
+            <Search 
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4"
+              style={{ color: textMuted }}
             />
-            <button
-              onClick={handleAddAlert}
-              disabled={!newKeyword.trim()}
-              aria-label="Add keyword alert"
-              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            <input
+              id="discussion-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search discussions..."
+              className="w-full pl-10 pr-10 py-3 rounded-xl text-sm transition-all"
+              style={{ 
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                color: textPrimary,
+                border: 'none',
+                outline: 'none'
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => onSearchChange('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded transition-colors"
+                style={{ color: textMuted }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Alerts */}
+        <div className="flex-1 p-5 overflow-y-auto">
+          <div className="mb-6">
+            <h3 
+              className="flex items-center gap-2 text-sm font-medium mb-4"
+              style={{ color: textSecondary }}
             >
-              <Plus className="w-5 h-5" />
-            </button>
+              <Bell className="w-4 h-4" />
+              Keyword Alerts
+            </h3>
+            
+            <div 
+              className="text-xs p-3 rounded-xl mb-4"
+              style={{ 
+                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                color: textMuted
+              }}
+            >
+              <p className="mb-1">
+                <strong style={{ color: textSecondary }}>Note:</strong> Alerts highlight matching keywords in discussion titles.
+              </p>
+              <p>Use the search box above to filter/hide non-matching discussions.</p>
+            </div>
+
+            {/* Add keyword */}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Add keyword..."
+                className="flex-1 px-4 py-3 rounded-xl text-sm transition-all"
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                  color: textPrimary,
+                  border: 'none'
+                }}
+              />
+              <button
+                onClick={handleAddAlert}
+                disabled={!newKeyword.trim()}
+                className="p-3 rounded-xl transition-all disabled:opacity-40"
+                style={{ backgroundColor: '#8b5cf6', color: 'white' }}
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Alert list */}
+            {alerts.length === 0 ? (
+              <p className="text-sm" style={{ color: textMuted }}>No keyword alerts set</p>
+            ) : (
+              <ul className="space-y-2">
+                {alerts.map((alert) => (
+                  <li
+                    key={alert.id}
+                    className="flex items-center justify-between px-4 py-3 rounded-xl transition-all"
+                    style={{
+                      backgroundColor: alert.isEnabled 
+                        ? (isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.08)')
+                        : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
+                      border: alert.isEnabled 
+                        ? '1px solid rgba(139, 92, 246, 0.2)'
+                        : `1px solid ${borderColor}`
+                    }}
+                  >
+                    <span 
+                      className="text-sm font-medium"
+                      style={{ color: alert.isEnabled ? textPrimary : textMuted }}
+                    >
+                      {alert.keyword}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onToggleAlert(alert.id)}
+                        className="p-2 rounded-lg transition-all"
+                        style={{ 
+                          color: alert.isEnabled ? '#8b5cf6' : textMuted,
+                          backgroundColor: alert.isEnabled ? 'rgba(139, 92, 246, 0.1)' : 'transparent'
+                        }}
+                      >
+                        {alert.isEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => onRemoveAlert(alert.id)}
+                        className="p-2 rounded-lg transition-all hover:text-rose-500"
+                        style={{ color: textMuted }}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
-          {alerts.length === 0 ? (
-            <p className="theme-text-muted text-sm" role="status">No keyword alerts set</p>
-          ) : (
-            <ul className="space-y-2" role="list" aria-label="Keyword alerts">
-              {alerts.map((alert) => (
-                <li
-                  key={alert.id}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
-                    alert.isEnabled
-                      ? 'bg-indigo-500/10 border-indigo-500/30 hover:bg-indigo-500/15'
-                      : 'hover:opacity-80'
-                  }`}
-                  style={!alert.isEnabled ? { backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' } : undefined}
-                >
-                  <span className={`text-sm font-medium ${alert.isEnabled ? 'theme-text' : 'theme-text-muted'}`}>
-                    {alert.keyword}
-                  </span>
-                  <div className="flex items-center gap-0.5">
-                    <button
-                      onClick={() => onToggleAlert(alert.id)}
-                      className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                        alert.isEnabled
-                          ? 'text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/20'
-                          : 'theme-text-muted hover:opacity-80'
-                      }`}
-                      aria-label={alert.isEnabled ? `Disable alert for "${alert.keyword}"` : `Enable alert for "${alert.keyword}"`}
-                      aria-pressed={alert.isEnabled}
-                    >
-                      {alert.isEnabled ? (
-                        <Bell className="w-4 h-4" />
-                      ) : (
-                        <BellOff className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => onRemoveAlert(alert.id)}
-                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center theme-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                      aria-label={`Remove alert for "${alert.keyword}"`}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </li>
-              ))}
+          {/* Tips */}
+          <div className="pt-4 border-t" style={{ borderColor }}>
+            <h3 className="text-sm font-medium mb-3" style={{ color: textSecondary }}>Tips</h3>
+            <ul className="text-xs space-y-1.5" style={{ color: textMuted }}>
+              <li>• Click on a discussion to open it in a new tab</li>
+              <li>• Matching keywords are highlighted in the title</li>
+              <li>• Enable/disable forums in the Communities tab</li>
             </ul>
-          )}
+          </div>
         </div>
-
-        <div className="pt-4 border-t" style={{ borderColor: 'var(--card-border)' }}>
-          <h3 className="text-sm font-medium theme-text-secondary mb-2">Tips</h3>
-          <ul className="text-xs theme-text-muted space-y-1">
-            <li>• Click on a discussion to open it in a new tab</li>
-            <li>• Matching keywords are highlighted in the title</li>
-            <li>• Enable/disable forums in the Projects tab</li>
-          </ul>
-        </div>
-      </div>
-    </aside>
+      </aside>
     </>
   );
 }
