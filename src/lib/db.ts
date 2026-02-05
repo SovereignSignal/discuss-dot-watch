@@ -105,6 +105,107 @@ export async function initializeSchema() {
     )
   `;
   
+  // Users table
+  await db`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      privy_did TEXT UNIQUE NOT NULL,
+      email TEXT,
+      wallet_address TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+
+  // User preferences
+  await db`
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+      theme TEXT DEFAULT 'dark',
+      onboarding_completed BOOLEAN DEFAULT false,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+
+  // Keyword alerts
+  await db`
+    CREATE TABLE IF NOT EXISTS keyword_alerts (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      keyword TEXT NOT NULL,
+      is_enabled BOOLEAN DEFAULT true,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+
+  // User bookmarks
+  await db`
+    CREATE TABLE IF NOT EXISTS user_bookmarks (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      topic_ref_id TEXT NOT NULL,
+      topic_title TEXT,
+      topic_url TEXT,
+      protocol TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE(user_id, topic_ref_id)
+    )
+  `;
+
+  // Alias for admin query compatibility
+  await db`
+    CREATE TABLE IF NOT EXISTS bookmarks (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      topic_ref_id TEXT NOT NULL,
+      topic_title TEXT,
+      topic_url TEXT,
+      protocol TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE(user_id, topic_ref_id)
+    )
+  `;
+
+  // User forums (which preset forums a user has enabled)
+  await db`
+    CREATE TABLE IF NOT EXISTS user_forums (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      forum_cname TEXT NOT NULL,
+      is_enabled BOOLEAN DEFAULT true,
+      UNIQUE(user_id, forum_cname)
+    )
+  `;
+
+  // Custom forums added by users
+  await db`
+    CREATE TABLE IF NOT EXISTS custom_forums (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      cname TEXT NOT NULL,
+      description TEXT,
+      logo_url TEXT,
+      token TEXT,
+      discourse_url TEXT NOT NULL,
+      discourse_category_id INTEGER,
+      is_enabled BOOLEAN DEFAULT true,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+
+  // Read state
+  await db`
+    CREATE TABLE IF NOT EXISTS read_state (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      topic_ref_id TEXT NOT NULL,
+      read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE(user_id, topic_ref_id)
+    )
+  `;
+
   // Create indexes for common queries
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;
   await db`CREATE INDEX IF NOT EXISTS idx_topics_created_at ON topics(created_at DESC)`;
@@ -113,6 +214,9 @@ export async function initializeSchema() {
   await db`CREATE INDEX IF NOT EXISTS idx_topic_snapshots_topic_id ON topic_snapshots(topic_id)`;
   await db`CREATE INDEX IF NOT EXISTS idx_forums_category ON forums(category)`;
   await db`CREATE INDEX IF NOT EXISTS idx_backfill_status ON backfill_jobs(status)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_keyword_alerts_user ON keyword_alerts(user_id)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_read_state_user ON read_state(user_id)`;
   
   console.log('[DB] Schema initialized');
 }

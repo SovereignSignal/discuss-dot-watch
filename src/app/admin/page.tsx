@@ -67,6 +67,20 @@ export default function AdminPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [isDark, setIsDark] = useState(true);
+
+  // Sync theme with rest of app
+  useEffect(() => {
+    const saved = localStorage.getItem('gov-watch-theme');
+    setIsDark(saved !== 'light');
+    const handler = () => {
+      const t = localStorage.getItem('gov-watch-theme');
+      setIsDark(t !== 'light');
+    };
+    window.addEventListener('themechange', handler);
+    window.addEventListener('storage', handler);
+    return () => { window.removeEventListener('themechange', handler); window.removeEventListener('storage', handler); };
+  }, []);
 
   const adminEmail = user?.email?.address || '';
 
@@ -171,7 +185,7 @@ export default function AdminPage() {
 
   if (!ready || loading) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+      <div className="min-h-screen admin-bg admin-page flex items-center justify-center">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl bg-violet-600/10" />
           <div className="absolute top-20 -left-20 w-60 h-60 rounded-full blur-3xl bg-cyan-600/10" />
@@ -183,12 +197,12 @@ export default function AdminPage() {
 
   if (error === 'Unauthorized - not an admin' || error === 'Please log in to access admin panel') {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+      <div className="min-h-screen admin-bg admin-page flex items-center justify-center">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl bg-violet-600/10" />
           <div className="absolute top-20 -left-20 w-60 h-60 rounded-full blur-3xl bg-cyan-600/10" />
         </div>
-        <div className="relative bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl p-8 max-w-md text-center">
+        <div className="relative admin-card rounded-2xl p-8 max-w-md text-center">
           <h1 className="text-xl font-semibold text-white mb-4">Access Denied</h1>
           <p className="text-zinc-400">{error}</p>
           <Link 
@@ -204,7 +218,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100">
+    <div className="min-h-screen admin-bg admin-text admin-page">
       {/* Ambient gradient background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl bg-violet-600/10" />
@@ -250,7 +264,7 @@ export default function AdminPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Database */}
-          <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+          <div className="admin-card rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="p-2.5 rounded-xl bg-violet-500/10">
                 <Database className="w-5 h-5 text-violet-400" />
@@ -285,7 +299,7 @@ export default function AdminPage() {
           </div>
 
           {/* Redis */}
-          <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+          <div className="admin-card rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="p-2.5 rounded-xl bg-cyan-500/10">
                 <Server className="w-5 h-5 text-cyan-400" />
@@ -316,7 +330,7 @@ export default function AdminPage() {
           </div>
 
           {/* Memory Cache */}
-          <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+          <div className="admin-card rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="p-2.5 rounded-xl bg-amber-500/10">
                 <RefreshCw className={`w-5 h-5 text-amber-400 ${stats?.memoryCache?.isRefreshing ? 'animate-spin' : ''}`} />
@@ -339,7 +353,7 @@ export default function AdminPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+        <div className="admin-card rounded-2xl p-6">
           <h2 className="font-semibold text-white mb-4">Quick Actions</h2>
           <div className="flex flex-wrap gap-3">
             <button
@@ -394,7 +408,7 @@ export default function AdminPage() {
         />
 
         {/* Users */}
-        <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+        <div className="admin-card rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2.5 rounded-xl bg-indigo-500/10">
               <Users className="w-5 h-5 text-indigo-400" />
@@ -477,7 +491,7 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
   }, [allForums, search]);
 
   return (
-    <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+    <div className="admin-card rounded-2xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="font-semibold text-white">Historical Backfill</h2>
         <div className="flex items-center gap-4 text-sm">
@@ -698,7 +712,7 @@ function ForumHealthSection({ adminEmail }: { adminEmail: string }) {
   const displayResults = filter === 'issues' ? issues : results.filter(r => r.status !== 'pending');
 
   return (
-    <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+    <div className="admin-card rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-white">Forum Health</h2>
         <div className="flex items-center gap-3">
