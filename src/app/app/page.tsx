@@ -248,7 +248,6 @@ export default function AppPage() {
                     forums={forums}
                     onAddForum={addForum}
                     onRemoveForum={handleRemoveForum}
-                    onToggleForum={toggleForum}
                   />
                 </div>
               )}

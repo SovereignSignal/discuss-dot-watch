@@ -5,14 +5,9 @@ import {
   Plus,
   Trash2,
   ExternalLink,
-  ToggleLeft,
-  ToggleRight,
   Search,
   ChevronDown,
   ChevronRight,
-  Star,
-  Zap,
-  Circle,
   Loader2,
   CheckCircle,
   XCircle,
@@ -33,14 +28,12 @@ interface ForumManagerProps {
   forums: Forum[];
   onAddForum: (forum: Omit<Forum, 'id' | 'createdAt'>) => void;
   onRemoveForum: (id: string) => void;
-  onToggleForum: (id: string) => void;
 }
 
 export function ForumManager({
   forums,
   onAddForum,
   onRemoveForum,
-  onToggleForum,
 }: ForumManagerProps) {
   const [newUrl, setNewUrl] = useState('');
   const [newName, setNewName] = useState('');
@@ -209,7 +202,7 @@ export function ForumManager({
         <div>
           <h2 className="text-2xl font-bold" style={{ color: fg }}>Communities</h2>
           <p className="text-sm mt-1" style={{ color: fgDim }}>
-            {forums.length} of {totalAvailable}+ forums added
+            {forums.filter(f => f.isEnabled).length} of {totalAvailable}+ forums added
           </p>
         </div>
       </div>
@@ -219,7 +212,7 @@ export function ForumManager({
         <button onClick={() => setActiveTab('added')}
           className="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors"
           style={{ backgroundColor: activeTab === 'added' ? activeBg : 'transparent', color: activeTab === 'added' ? fg : fgDim }}>
-          Your Forums ({forums.length})
+          Your Forums ({forums.filter(f => f.isEnabled).length})
         </button>
         <button onClick={() => setActiveTab('browse')}
           className="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors"
@@ -230,7 +223,7 @@ export function ForumManager({
 
       {activeTab === 'added' ? (
         <div className="flex-1 overflow-y-auto">
-          {forums.length === 0 ? (
+          {forums.filter(f => f.isEnabled).length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center"
               style={{ borderColor: border }}>
               <p className="font-semibold" style={{ color: fg }}>No forums added yet</p>
@@ -242,14 +235,14 @@ export function ForumManager({
             </div>
           ) : (
             <div className="space-y-1">
-              {forums.map((forum) => {
+              {forums.filter(f => f.isEnabled).map((forum) => {
                 const logoUrl = forum.logoUrl || getProtocolLogo(forum.name);
                 return (
                   <div key={forum.id}
                     className="group flex items-center justify-between p-3 rounded-lg transition-colors"
-                    style={{ backgroundColor: forum.isEnabled ? cardBg : 'transparent', border: `1px solid ${forum.isEnabled ? border : 'transparent'}` }}
+                    style={{ backgroundColor: cardBg, border: `1px solid ${border}` }}
                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = forum.isEnabled ? border : 'transparent'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = border; }}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
@@ -262,7 +255,7 @@ export function ForumManager({
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate" style={{ color: forum.isEnabled ? fg : fgDim }}>
+                        <p className="font-medium text-sm truncate" style={{ color: fg }}>
                           {forum.name}
                           {forum.token && <span className="ml-2 font-mono text-xs" style={{ color: fgDim }}>${forum.token}</span>}
                         </p>
@@ -277,11 +270,6 @@ export function ForumManager({
                         style={{ color: fgDim }}>
                         <ExternalLink className="w-4 h-4" />
                       </a>
-                      <button onClick={() => onToggleForum(forum.id)}
-                        className="p-2 rounded-lg transition-colors"
-                        style={{ color: forum.isEnabled ? fg : fgDim }}>
-                        {forum.isEnabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                      </button>
                       <button onClick={() => setDeleteConfirm({ id: forum.id, name: forum.name })}
                         className="p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 hover:text-red-500"
                         style={{ color: fgDim }}>
