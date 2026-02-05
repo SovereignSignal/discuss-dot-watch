@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, Filter, ArrowUpDown, Clock, Sparkles } from 'lucide-react';
+import { ArrowUpDown, Filter } from 'lucide-react';
 import { DateRangeFilter, DateFilterMode, SortOption, Forum } from '@/types';
 
 interface FeedFiltersProps {
@@ -17,17 +17,17 @@ interface FeedFiltersProps {
 }
 
 const DATE_RANGE_OPTIONS: { value: DateRangeFilter; label: string }[] = [
-  { value: 'all', label: 'All Time' },
+  { value: 'all', label: 'All' },
   { value: 'today', label: 'Today' },
-  { value: 'week', label: 'This Week' },
-  { value: 'month', label: 'This Month' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
 ];
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'recent', label: 'Most Recent' },
-  { value: 'replies', label: 'Most Replies' },
-  { value: 'views', label: 'Most Views' },
-  { value: 'likes', label: 'Most Likes' },
+  { value: 'recent', label: 'Recent' },
+  { value: 'replies', label: 'Replies' },
+  { value: 'views', label: 'Views' },
+  { value: 'likes', label: 'Likes' },
 ];
 
 export function FeedFilters({
@@ -42,120 +42,100 @@ export function FeedFilters({
   onSortChange,
   isDark = true,
 }: FeedFiltersProps) {
-  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
-  const bgColor = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
-  const textMuted = isDark ? '#71717a' : '#a1a1aa';
+  const borderColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const textMuted = isDark ? '#52525b' : '#a1a1aa';
   const textSecondary = isDark ? '#a1a1aa' : '#71717a';
+  const activeBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const selectBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
 
   return (
     <div 
-      className="flex flex-wrap items-center gap-3 px-6 py-3 border-b"
-      style={{ borderColor, backgroundColor: bgColor }}
+      className="flex flex-wrap items-center gap-2 px-5 py-2.5 border-b text-[12px]"
+      style={{ borderColor }}
     >
-      {/* Date Filter Mode Toggle */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs hidden sm:inline" style={{ color: textMuted }}>Filter by:</span>
-        <div
-          className="flex rounded-xl overflow-hidden"
-          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+      {/* Date filter mode */}
+      <div className="flex items-center gap-1 mr-1">
+        <button
+          onClick={() => onDateFilterModeChange('created')}
+          className="px-2 py-1 rounded-md font-medium transition-colors"
+          style={{
+            backgroundColor: dateFilterMode === 'created' ? activeBg : 'transparent',
+            color: dateFilterMode === 'created' ? textSecondary : textMuted
+          }}
         >
-          <button
-            onClick={() => onDateFilterModeChange('created')}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all"
-            style={{
-              backgroundColor: dateFilterMode === 'created' ? '#10b981' : 'transparent',
-              color: dateFilterMode === 'created' ? 'white' : textSecondary
-            }}
-          >
-            <Sparkles className="w-3 h-3" />
-            <span>Created</span>
-          </button>
-          <button
-            onClick={() => onDateFilterModeChange('activity')}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all"
-            style={{
-              backgroundColor: dateFilterMode === 'activity' ? '#f59e0b' : 'transparent',
-              color: dateFilterMode === 'activity' ? 'white' : textSecondary
-            }}
-          >
-            <Clock className="w-3 h-3" />
-            <span>Activity</span>
-          </button>
-        </div>
+          Created
+        </button>
+        <button
+          onClick={() => onDateFilterModeChange('activity')}
+          className="px-2 py-1 rounded-md font-medium transition-colors"
+          style={{
+            backgroundColor: dateFilterMode === 'activity' ? activeBg : 'transparent',
+            color: dateFilterMode === 'activity' ? textSecondary : textMuted
+          }}
+        >
+          Activity
+        </button>
       </div>
 
-      {/* Date Range Filter */}
-      <div className="flex items-center gap-2">
-        <Calendar className="w-4 h-4" style={{ color: textMuted }} />
-        <div
-          className="flex rounded-xl overflow-hidden"
-          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
-        >
-          {DATE_RANGE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => onDateRangeChange(option.value)}
-              className="px-3 py-2 text-xs font-medium transition-all"
-              style={{
-                backgroundColor: dateRange === option.value ? '#8b5cf6' : 'transparent',
-                color: dateRange === option.value ? 'white' : textSecondary
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+      {/* Separator */}
+      <div className="w-px h-4" style={{ backgroundColor: borderColor }} />
+
+      {/* Date range */}
+      <div className="flex items-center gap-1">
+        {DATE_RANGE_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            onClick={() => onDateRangeChange(option.value)}
+            className="px-2 py-1 rounded-md font-medium transition-colors"
+            style={{
+              backgroundColor: dateRange === option.value ? activeBg : 'transparent',
+              color: dateRange === option.value ? textSecondary : textMuted
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
 
-      {/* Forum Filter */}
+      {/* Separator */}
+      <div className="w-px h-4" style={{ backgroundColor: borderColor }} />
+
+      {/* Forum filter */}
       {forums.length > 0 && (
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4" style={{ color: textMuted }} />
-          <select
-            value={selectedForumId || ''}
-            onChange={(e) => onForumFilterChange(e.target.value || null)}
-            className="px-3 py-2 rounded-xl text-xs font-medium transition-all appearance-none cursor-pointer pr-8"
-            style={{ 
-              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-              color: textSecondary,
-              border: 'none',
-              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23${isDark ? '71717a' : 'a1a1aa'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-              backgroundPosition: 'right 0.5rem center',
-              backgroundRepeat: 'no-repeat',
-              backgroundSize: '1.2em 1.2em'
-            }}
-          >
-            <option value="">All Forums</option>
-            {forums.map((forum) => (
-              <option key={forum.id} value={forum.id}>
-                {forum.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={selectedForumId || ''}
+          onChange={(e) => onForumFilterChange(e.target.value || null)}
+          className="px-2 py-1 rounded-md font-medium transition-colors cursor-pointer"
+          style={{ 
+            backgroundColor: selectedForumId ? activeBg : selectBg,
+            color: textSecondary,
+            border: 'none',
+            fontSize: '12px'
+          }}
+        >
+          <option value="">All forums</option>
+          {forums.map((forum) => (
+            <option key={forum.id} value={forum.id}>{forum.name}</option>
+          ))}
+        </select>
       )}
 
-      {/* Sort */}
-      <div className="flex items-center gap-2 ml-auto">
-        <ArrowUpDown className="w-4 h-4" style={{ color: textMuted }} />
+      {/* Sort - right aligned */}
+      <div className="flex items-center gap-1 ml-auto">
+        <ArrowUpDown className="w-3 h-3" style={{ color: textMuted }} />
         <select
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortOption)}
-          className="px-3 py-2 rounded-xl text-xs font-medium transition-all appearance-none cursor-pointer pr-8"
+          className="px-2 py-1 rounded-md font-medium transition-colors cursor-pointer"
           style={{ 
-            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+            backgroundColor: selectBg,
             color: textSecondary,
             border: 'none',
-            backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23${isDark ? '71717a' : 'a1a1aa'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-            backgroundPosition: 'right 0.5rem center',
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: '1.2em 1.2em'
+            fontSize: '12px'
           }}
         >
           {SORT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
+            <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
       </div>

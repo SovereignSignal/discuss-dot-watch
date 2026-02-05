@@ -180,22 +180,6 @@ export default function AppPage() {
             color: isDark ? '#fafafa' : '#18181b'
           }}
         >
-          {/* Ambient gradient background */}
-          <div className="fixed inset-0 overflow-hidden pointer-events-none">
-            <div 
-              className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full blur-3xl"
-              style={{ backgroundColor: isDark ? 'rgba(139, 92, 246, 0.08)' : 'rgba(139, 92, 246, 0.12)' }}
-            />
-            <div 
-              className="absolute top-1/3 -left-40 w-[400px] h-[400px] rounded-full blur-3xl"
-              style={{ backgroundColor: isDark ? 'rgba(34, 211, 238, 0.05)' : 'rgba(34, 211, 238, 0.08)' }}
-            />
-            <div 
-              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full blur-3xl"
-              style={{ backgroundColor: isDark ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.08)' }}
-            />
-          </div>
-
           <Sidebar
             activeView={activeView}
             onViewChange={setActiveView}
@@ -206,14 +190,11 @@ export default function AppPage() {
             onMobileToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           />
 
-          <div className="flex-1 flex flex-col overflow-hidden relative">
+          <div className="flex-1 flex flex-col overflow-hidden">
             {/* Header */}
             <header 
-              className="flex items-center justify-between px-6 py-4 border-b backdrop-blur-xl"
-              style={{ 
-                borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-                backgroundColor: isDark ? 'rgba(9, 9, 11, 0.8)' : 'rgba(250, 250, 250, 0.8)'
-              }}
+              className="flex items-center justify-between px-5 h-14 border-b flex-shrink-0"
+              style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}
             >
               <FilterTabs
                 filterMode={filterMode}
@@ -224,7 +205,7 @@ export default function AppPage() {
               />
             </header>
 
-            <main id="main-content" className="flex-1 flex overflow-hidden relative">
+            <main id="main-content" className="flex-1 flex overflow-hidden">
               {activeView === 'feed' && (
                 <>
                   <DiscussionFeed
@@ -282,74 +263,60 @@ export default function AppPage() {
                     Saved Discussions
                   </h2>
                   {bookmarks.length === 0 ? (
-                    <div className="text-center py-12">
-                      <BookmarkIcon 
-                        className="w-12 h-12 mx-auto mb-4"
-                        style={{ color: isDark ? '#52525b' : '#a1a1aa' }}
-                      />
-                      <p className="mb-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
+                    <div className="text-center py-16">
+                      <p className="text-[13px] mb-1" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
                         No saved discussions yet
                       </p>
-                      <p className="text-sm" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
-                        Click the bookmark icon on any discussion to save it for later
+                      <p className="text-[12px]" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
+                        Click the bookmark icon on any discussion to save it
                       </p>
                     </div>
                   ) : (
-                    <ul className="space-y-3">
+                    <div>
                       {bookmarks.map((bookmark) => (
-                        <li
+                        <div
                           key={bookmark.id}
-                          className="flex items-center justify-between p-4 rounded-2xl transition-all"
-                          style={{ 
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
-                            border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                            boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
-                          }}
+                          className="group flex items-center justify-between py-3 border-b transition-colors"
+                          style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}
                         >
                           <div className="flex-1 min-w-0">
                             <a
                               href={bookmark.topicUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-medium line-clamp-1 hover:text-violet-500 transition-colors"
-                              style={{ color: isDark ? '#fafafa' : '#18181b' }}
+                              className="text-[14px] font-medium line-clamp-1 transition-opacity hover:opacity-70"
+                              style={{ color: isDark ? '#e4e4e7' : '#18181b' }}
                             >
                               {bookmark.topicTitle}
                             </a>
-                            <p className="text-sm mt-1" style={{ color: isDark ? '#71717a' : '#a1a1aa' }}>
-                              {bookmark.protocol} · Saved {new Date(bookmark.createdAt).toLocaleDateString()}
+                            <p className="text-[12px] mt-0.5" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
+                              {bookmark.protocol} · {new Date(bookmark.createdAt).toLocaleDateString()}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <a
                               href={bookmark.topicUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-2.5 rounded-xl transition-all"
-                              style={{ 
-                                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                                color: isDark ? '#71717a' : '#a1a1aa'
-                              }}
+                              className="p-1.5 rounded-md"
+                              style={{ color: isDark ? '#52525b' : '#a1a1aa' }}
                             >
-                              <ExternalLink className="w-4 h-4" />
+                              <ExternalLink className="w-3.5 h-3.5" />
                             </a>
                             <button
                               onClick={() => {
                                 removeBookmark(bookmark.topicRefId);
                                 success('Bookmark removed');
                               }}
-                              className="p-2.5 rounded-xl transition-all hover:text-rose-500"
-                              style={{ 
-                                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                                color: isDark ? '#71717a' : '#a1a1aa'
-                              }}
+                              className="p-1.5 rounded-md hover:text-red-500 transition-colors"
+                              style={{ color: isDark ? '#52525b' : '#a1a1aa' }}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                        </li>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
               )}
@@ -357,55 +324,33 @@ export default function AppPage() {
               {activeView === 'settings' && (
                 <div className="flex-1 p-6 overflow-y-auto">
                   <h2 
-                    className="text-xl font-semibold mb-6"
-                    style={{ color: isDark ? '#fafafa' : '#18181b' }}
+                    className="text-[15px] font-semibold mb-6"
+                    style={{ color: isDark ? '#e4e4e7' : '#18181b' }}
                   >
                     Settings
                   </h2>
-                  <div className="space-y-4 max-w-2xl">
-                    <section 
-                      className="p-5 rounded-2xl"
-                      style={{ 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
-                      }}
-                    >
-                      <h3 className="font-medium mb-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>About</h3>
-                      <p className="text-sm" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
-                        discuss.watch — A unified view of discussions from Discourse forums used by crypto, AI, and open source communities.
+                  <div className="max-w-2xl space-y-6">
+                    <section className="pb-6 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                      <h3 className="text-[13px] font-medium mb-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>About</h3>
+                      <p className="text-[13px]" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
+                        discuss.watch — Unified view of Discourse forums across crypto, AI, and open source communities.
                       </p>
                     </section>
-                    
-                    <section 
-                      className="p-5 rounded-2xl"
-                      style={{ 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
-                      }}
-                    >
-                      <h3 className="font-medium mb-2" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Data Storage</h3>
-                      <p className="text-sm mb-3" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
-                        All forum configurations and alerts are stored locally in your browser. No data is sent to any external servers except for fetching discussions from the configured Discourse forums.
+
+                    <section className="pb-6 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                      <h3 className="text-[13px] font-medium mb-2" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>Data</h3>
+                      <p className="text-[13px] mb-2" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
+                        All data stored locally in your browser.
                       </p>
                       {quota && (
-                        <div className="text-xs" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}>
-                          Storage: {(quota.used / 1024).toFixed(1)}KB used
-                          {(quota as { total?: number }).total && ` of ${((quota as { total?: number }).total! / 1024 / 1024).toFixed(1)}MB`}
-                        </div>
+                        <p className="text-[11px]" style={{ color: isDark ? '#3f3f46' : '#d4d4d8' }}>
+                          {(quota.used / 1024).toFixed(1)}KB used
+                        </p>
                       )}
                     </section>
 
-                    <section 
-                      className="p-5 rounded-2xl"
-                      style={{ 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
-                      }}
-                    >
-                      <h3 className="font-medium mb-3" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Import / Export</h3>
+                    <section className="pb-6 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                      <h3 className="text-[13px] font-medium mb-3" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>Import / Export</h3>
                       <ConfigExportImport
                         forums={forums}
                         alerts={alerts}
@@ -414,47 +359,22 @@ export default function AppPage() {
                       />
                     </section>
 
-                    <section 
-                      className="p-5 rounded-2xl"
-                      style={{ 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
-                      }}
-                    >
-                      <h3 className="font-medium mb-3" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Email Preferences</h3>
+                    <section className="pb-6 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                      <h3 className="text-[13px] font-medium mb-3" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>Email Preferences</h3>
                       <EmailPreferences />
                     </section>
 
-                    <section 
-                      className="p-5 rounded-2xl"
-                      style={{ 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
-                      }}
-                    >
-                      <h3 className="font-medium mb-3" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Keyboard Shortcuts</h3>
+                    <section className="pb-6 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                      <h3 className="text-[13px] font-medium mb-3" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>Keyboard Shortcuts</h3>
                       <KeyboardShortcuts />
                     </section>
 
-                    <section 
-                      className="p-5 rounded-2xl"
-                      style={{ 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
-                      }}
-                    >
-                      <h3 className="font-medium mb-3" style={{ color: isDark ? '#fafafa' : '#18181b' }}>Reset</h3>
-                      <p className="text-sm mb-3" style={{ color: isDark ? '#a1a1aa' : '#71717a' }}>
-                        Show the onboarding wizard again to add more forums.
-                      </p>
+                    <section>
                       <button
                         onClick={resetOnboarding}
-                        className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                        className="px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors"
                         style={{ 
-                          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
                           color: isDark ? '#a1a1aa' : '#71717a'
                         }}
                       >
