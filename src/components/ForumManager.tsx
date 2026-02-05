@@ -46,6 +46,7 @@ export function ForumManager({
     new Set(['l2-protocols', 'defi-lending', 'major-daos'])
   );
   const [activeTab, setActiveTab] = useState<'browse' | 'added'>(forums.length > 0 ? 'added' : 'browse');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationSuccess, setValidationSuccess] = useState(false);
@@ -240,6 +241,40 @@ export function ForumManager({
 
       {activeTab === 'added' ? (
         <div className="flex-1 overflow-y-auto">
+          {/* Category filters for Your Forums */}
+          {forums.filter(f => f.isEnabled).length > 0 && (() => {
+            const enabled = forums.filter(f => f.isEnabled);
+            const counts: Record<string, number> = {};
+            enabled.forEach(f => {
+              const cat = (f.category || 'crypto').toLowerCase()
+                .replace('crypto-governance', 'crypto').replace('ai-ml', 'ai').replace('open-source', 'oss');
+              const mapped = cat.includes('ai') ? 'ai' : cat.includes('oss') || cat.includes('open') ? 'oss' : 'crypto';
+              counts[mapped] = (counts[mapped] || 0) + 1;
+            });
+            const cats = [
+              { key: null, label: 'All', count: enabled.length },
+              ...Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([key, count]) => ({
+                key, label: key.toUpperCase(), count,
+              })),
+            ];
+            // Only show filter if there are multiple categories
+            if (Object.keys(counts).length <= 1) return null;
+            return (
+              <div className="flex gap-1 mb-3">
+                {cats.map(c => (
+                  <button key={c.key ?? 'all'} onClick={() => setCategoryFilter(c.key)}
+                    className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors"
+                    style={{
+                      backgroundColor: categoryFilter === c.key ? activeBg : 'transparent',
+                      color: categoryFilter === c.key ? fg : fgDim,
+                      border: `1px solid ${categoryFilter === c.key ? border : 'transparent'}`,
+                    }}>
+                    {c.label} {c.count}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
           {forums.filter(f => f.isEnabled).length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center"
               style={{ borderColor: border }}>
@@ -252,7 +287,13 @@ export function ForumManager({
             </div>
           ) : (
             <div className="space-y-1">
-              {forums.filter(f => f.isEnabled).map((forum) => {
+              {forums.filter(f => f.isEnabled).filter(f => {
+                if (!categoryFilter) return true;
+                const cat = (f.category || 'crypto').toLowerCase()
+                  .replace('crypto-governance', 'crypto').replace('ai-ml', 'ai').replace('open-source', 'oss');
+                const mapped = cat.includes('ai') ? 'ai' : cat.includes('oss') || cat.includes('open') ? 'oss' : 'crypto';
+                return mapped === categoryFilter;
+              }).map((forum) => {
                 const logoUrl = forum.logoUrl || getProtocolLogo(forum.name);
                 return (
                   <div key={forum.id}
