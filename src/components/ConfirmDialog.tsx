@@ -98,7 +98,7 @@ export function ConfirmDialog({
       >
         <button
           onClick={onCancel}
-          className="absolute top-4 right-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center theme-text-muted hover:theme-text transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="absolute top-4 right-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center theme-text-muted hover:theme-text transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
           aria-label="Close dialog"
         >
           <X className="w-5 h-5" />
@@ -127,13 +127,13 @@ export function ConfirmDialog({
               <button
                 data-cancel-button
                 onClick={onCancel}
-                className="px-4 py-2 min-h-[44px] bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="px-4 py-2 min-h-[44px] bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
               >
                 {cancelLabel}
               </button>
               <button
                 onClick={onConfirm}
-                className={`px-4 py-2 min-h-[44px] text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                className={`px-4 py-2 min-h-[44px] text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${
                   variant === 'danger'
                     ? 'bg-rose-600 hover:bg-rose-700'
                     : 'bg-amber-600 hover:bg-amber-700'

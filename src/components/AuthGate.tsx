@@ -51,7 +51,7 @@ export function AuthGate({ children }: AuthGateProps) {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: isDark ? '#0a0a0f' : '#f8f9fa' }}>
-        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-zinc-400 animate-spin" />
       </div>
     );
   }
@@ -100,7 +100,7 @@ export function AuthGate({ children }: AuthGateProps) {
           <div className="space-y-8">
             <h2 className="text-3xl font-bold leading-tight" style={{ color: isDark ? '#fff' : '#111827' }}>
               All your forums.<br />
-              <span className="text-indigo-500">One feed.</span>
+              <span className="text-zinc-400">One feed.</span>
             </h2>
             
             <div className="space-y-4">
@@ -158,7 +158,7 @@ export function AuthGate({ children }: AuthGateProps) {
 
                 <button
                   onClick={login}
-                  className="flex items-center justify-center gap-2 w-full px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-colors"
+                  className="flex items-center justify-center gap-2 w-full px-6 py-4 bg-zinc-700 hover:bg-zinc-600 text-white font-semibold rounded-xl transition-colors"
                 >
                   <LogIn className="w-5 h-5" />
                   Sign In
@@ -217,7 +217,7 @@ function FeatureItem({ icon, title, description, isDark }: {
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="flex-shrink-0 w-10 h-10 bg-indigo-500/10 rounded-lg flex items-center justify-center text-indigo-500">
+      <div className="flex-shrink-0 w-10 h-10 bg-zinc-600/10 rounded-lg flex items-center justify-center text-zinc-400">
         {icon}
       </div>
       <div>
@@ -237,7 +237,7 @@ function MobileBenefit({ icon, text, isDark }: { icon: React.ReactNode; text: st
         color: isDark ? '#9ca3af' : '#6b7280'
       }}
     >
-      <span className="text-indigo-500">{icon}</span>
+      <span className="text-zinc-400">{icon}</span>
       {text}
     </div>
   );

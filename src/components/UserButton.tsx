@@ -26,7 +26,7 @@ export function UserButton() {
     return (
       <button
         onClick={login}
-        className="flex items-center gap-2 px-3 py-2 w-full rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        className="flex items-center gap-2 px-3 py-2 w-full rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
       >
         <LogIn className="w-4 h-4" />
         <span className="text-sm font-medium">Sign In</span>
@@ -40,7 +40,7 @@ export function UserButton() {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2 px-3 py-2">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-700 flex items-center justify-center">
           <User className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1 min-w-0">
@@ -50,7 +50,7 @@ export function UserButton() {
       </div>
       <button
         onClick={logout}
-        className="flex items-center gap-2 px-3 py-1.5 w-full rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition-colors text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        className="flex items-center gap-2 px-3 py-1.5 w-full rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition-colors text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
       >
         <LogOut className="w-3.5 h-3.5" />
         <span>Sign Out</span>

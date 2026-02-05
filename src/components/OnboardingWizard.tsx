@@ -164,7 +164,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
         <button
           ref={firstFocusableRef}
           onClick={handleSkip}
-          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 z-10"
+          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 z-10"
           aria-label="Skip onboarding"
         >
           <X className="w-5 h-5" />
@@ -177,9 +177,9 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
               key={index}
               className={`h-1.5 w-12 rounded-full transition-colors ${
                 index === currentStep
-                  ? 'bg-indigo-500'
+                  ? 'bg-zinc-300 dark:bg-zinc-600'
                   : index < currentStep
-                    ? 'bg-indigo-700'
+                    ? 'bg-zinc-300 dark:bg-zinc-600'
                     : 'bg-neutral-700'
               }`}
               role="presentation"
@@ -199,8 +199,8 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 bg-neutral-800 rounded-lg">
-                  <div className="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-3">
-                    <Bell className="w-5 h-5 text-indigo-400" />
+                  <div className="w-10 h-10 bg-zinc-200 dark:bg-zinc-700/20 rounded-lg flex items-center justify-center mb-3">
+                    <Bell className="w-5 h-5 text-zinc-300" />
                   </div>
                   <h3 className="theme-text font-medium mb-1">Keyword Alerts</h3>
                   <p className="theme-text-secondary text-sm">
@@ -208,8 +208,8 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                   </p>
                 </div>
                 <div className="p-4 bg-neutral-800 rounded-lg">
-                  <div className="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-3">
-                    <Bookmark className="w-5 h-5 text-indigo-400" />
+                  <div className="w-10 h-10 bg-zinc-200 dark:bg-zinc-700/20 rounded-lg flex items-center justify-center mb-3">
+                    <Bookmark className="w-5 h-5 text-zinc-300" />
                   </div>
                   <h3 className="theme-text font-medium mb-1">Save Discussions</h3>
                   <p className="theme-text-secondary text-sm">
@@ -217,8 +217,8 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                   </p>
                 </div>
                 <div className="p-4 bg-neutral-800 rounded-lg">
-                  <div className="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-3">
-                    <Search className="w-5 h-5 text-indigo-400" />
+                  <div className="w-10 h-10 bg-zinc-200 dark:bg-zinc-700/20 rounded-lg flex items-center justify-center mb-3">
+                    <Search className="w-5 h-5 text-zinc-300" />
                   </div>
                   <h3 className="theme-text font-medium mb-1">Search & Filter</h3>
                   <p className="theme-text-secondary text-sm">
@@ -226,8 +226,8 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                   </p>
                 </div>
                 <div className="p-4 bg-neutral-800 rounded-lg">
-                  <div className="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-3">
-                    <Plus className="w-5 h-5 text-indigo-400" />
+                  <div className="w-10 h-10 bg-zinc-200 dark:bg-zinc-700/20 rounded-lg flex items-center justify-center mb-3">
+                    <Plus className="w-5 h-5 text-zinc-300" />
                   </div>
                   <h3 className="theme-text font-medium mb-1">Add Any Forum</h3>
                   <p className="theme-text-secondary text-sm">
@@ -247,7 +247,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                 </span>
                 <button
                   onClick={handleSelectPopular}
-                  className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+                  className="text-sm text-zinc-300 hover:text-zinc-300 transition-colors"
                 >
                   Select popular
                 </button>
@@ -269,13 +269,13 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                     <div key={category.id} className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--card-border)' }}>
                       <button
                         onClick={() => setExpandedCategory(isExpanded ? null : category.id)}
-                        className="w-full flex items-center justify-between p-3 bg-neutral-800/50 hover:bg-neutral-800 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset"
+                        className="w-full flex items-center justify-between p-3 bg-neutral-800/50 hover:bg-neutral-800 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-inset"
                         aria-expanded={isExpanded}
                       >
                         <span className="theme-text font-medium">{category.name}</span>
                         <span className="flex items-center gap-2 text-sm theme-text-muted">
                           {selectedInCategory > 0 && (
-                            <span className="text-indigo-400">{selectedInCategory} selected</span>
+                            <span className="text-zinc-300">{selectedInCategory} selected</span>
                           )}
                           <ChevronRight
                             className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
@@ -291,9 +291,9 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                               <button
                                 key={forum.url}
                                 onClick={() => handleToggleForum(forum.url)}
-                                className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                                className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${
                                   isSelected
-                                    ? 'bg-indigo-900/30 border border-indigo-700'
+                                    ? 'bg-zinc-800/50 border border-zinc-600'
                                     : 'hover:bg-neutral-800 border border-transparent'
                                 }`}
                                 aria-pressed={isSelected}
@@ -301,7 +301,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                                 <div
                                   className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border ${
                                     isSelected
-                                      ? 'bg-indigo-600 border-indigo-600'
+                                      ? 'bg-zinc-200 dark:bg-zinc-700 border-zinc-600'
                                       : 'border-neutral-600'
                                   }`}
                                 >
@@ -329,7 +329,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
           {currentStep === 2 && (
             <div className="space-y-4">
               <div className="p-4 bg-neutral-800 rounded-lg flex gap-4">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold">
+                <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-700 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold">
                   1
                 </div>
                 <div>
@@ -340,7 +340,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                 </div>
               </div>
               <div className="p-4 bg-neutral-800 rounded-lg flex gap-4">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold">
+                <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-700 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold">
                   2
                 </div>
                 <div>
@@ -351,7 +351,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                 </div>
               </div>
               <div className="p-4 bg-neutral-800 rounded-lg flex gap-4">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold">
+                <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-700 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold">
                   3
                 </div>
                 <div>
@@ -387,14 +387,14 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
           <button
             onClick={handleBack}
             disabled={currentStep === 0}
-            className="flex items-center gap-2 px-4 py-2 theme-text-muted hover:theme-text disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
+            className="flex items-center gap-2 px-4 py-2 theme-text-muted hover:theme-text disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 rounded-lg"
           >
             <ChevronLeft className="w-4 h-4" />
             Back
           </button>
           <button
             onClick={handleNext}
-            className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+            className="flex items-center gap-2 px-6 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:bg-zinc-600 text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
           >
             {currentStep === STEPS.length - 1 ? 'Get Started' : 'Next'}
             {currentStep < STEPS.length - 1 && <ChevronRight className="w-4 h-4" />}

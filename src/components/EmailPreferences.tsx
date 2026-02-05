@@ -24,23 +24,22 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState<string | null>(null);
 
-  // Load preferences on mount
+  const isDark = typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') || !document.documentElement.classList.contains('light') : true;
+  const fg = isDark ? '#fafafa' : '#09090b';
+  const fgMuted = isDark ? '#a1a1aa' : '#71717a';
+  const fgDim = isDark ? '#52525b' : '#a1a1aa';
+  const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const cardBg = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
+  const activeBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setPrefs(prev => ({ ...prev, ...parsed }));
-      } catch (e) {
-        console.error('Failed to parse saved preferences:', e);
-      }
+      try { setPrefs(prev => ({ ...prev, ...JSON.parse(saved) })); } catch {}
     }
   }, []);
 
-  const handleFrequencyChange = (frequency: DigestFrequency) => {
-    setPrefs(prev => ({ ...prev, frequency }));
-  };
-
+  const handleFrequencyChange = (frequency: DigestFrequency) => setPrefs(prev => ({ ...prev, frequency }));
   const handleToggle = (key: keyof DigestPreferences) => {
     if (key === 'frequency' || key === 'email') return;
     setPrefs(prev => ({ ...prev, [key]: !prev[key] }));
@@ -49,19 +48,12 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
   const handleSave = async () => {
     setIsSaving(true);
     setSaveMessage(null);
-
     try {
-      // Save to localStorage
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-      
-      // In production, also save to server
-      // await fetch('/api/user/preferences', { method: 'POST', body: JSON.stringify(prefs) });
-      
       setSaveMessage('Preferences saved!');
       onSave?.(prefs);
-      
       setTimeout(() => setSaveMessage(null), 3000);
-    } catch (error) {
+    } catch {
       setSaveMessage('Failed to save preferences');
     } finally {
       setIsSaving(false);
@@ -70,32 +62,18 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
 
   const handleSendTest = async () => {
     const email = user?.email || prefs.email;
-    if (!email) {
-      setTestMessage('No email address found');
-      return;
-    }
-
+    if (!email) { setTestMessage('No email address found'); return; }
     setIsSendingTest(true);
     setTestMessage(null);
-
     try {
       const response = await fetch('/api/digest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          period: 'weekly',
-          testEmail: email,
-        }),
+        body: JSON.stringify({ period: 'weekly', testEmail: email }),
       });
-
       const data = await response.json();
-      
-      if (data.success) {
-        setTestMessage(`Test email sent to ${email}!`);
-      } else {
-        setTestMessage(data.message || 'Failed to send test email');
-      }
-    } catch (error) {
+      setTestMessage(data.success ? `Test email sent to ${email}!` : (data.message || 'Failed to send'));
+    } catch {
       setTestMessage('Failed to send test email');
     } finally {
       setIsSendingTest(false);
@@ -108,131 +86,98 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold theme-text mb-1 flex items-center gap-2">
-          <Mail className="w-5 h-5 text-indigo-500" />
+        <h3 className="text-lg font-semibold mb-1 flex items-center gap-2" style={{ color: fg }}>
+          <Mail className="w-5 h-5" style={{ color: fgMuted }} />
           Email Digests
         </h3>
-        <p className="text-sm theme-text-muted">
+        <p className="text-sm" style={{ color: fgDim }}>
           Get AI-powered summaries of governance activity delivered to your inbox
         </p>
       </div>
 
-      {/* Email address */}
       {userEmail && (
-        <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
+        <div className="p-3 rounded-lg" style={{ backgroundColor: cardBg, border: `1px solid ${border}` }}>
           <div className="text-sm">
-            <span className="theme-text-muted">Sending to: </span>
-            <span className="theme-text font-medium">{userEmail}</span>
+            <span style={{ color: fgDim }}>Sending to: </span>
+            <span className="font-medium" style={{ color: fg }}>{userEmail}</span>
           </div>
         </div>
       )}
 
-      {/* Frequency selection */}
       <div>
-        <label className="block text-sm font-medium theme-text mb-3">Digest Frequency</label>
+        <label className="block text-sm font-medium mb-3" style={{ color: fg }}>Digest Frequency</label>
         <div className="grid grid-cols-3 gap-3">
-          {(['daily', 'weekly', 'never'] as DigestFrequency[]).map((freq) => (
-            <button
-              key={freq}
-              onClick={() => handleFrequencyChange(freq)}
-              className={`p-3 rounded-lg border text-sm font-medium transition-all ${
-                prefs.frequency === freq
-                  ? 'bg-indigo-600 border-indigo-600 text-white'
-                  : 'theme-text-secondary hover:border-indigo-500'
-              }`}
-              style={prefs.frequency !== freq ? { borderColor: 'var(--card-border)', backgroundColor: 'var(--card-bg)' } : undefined}
-            >
-              {freq === 'daily' && '📅 Daily'}
-              {freq === 'weekly' && '📆 Weekly'}
-              {freq === 'never' && '🔕 Never'}
-            </button>
-          ))}
+          {(['daily', 'weekly', 'never'] as DigestFrequency[]).map((freq) => {
+            const isActive = prefs.frequency === freq;
+            return (
+              <button key={freq} onClick={() => handleFrequencyChange(freq)}
+                className="p-3 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  backgroundColor: isActive ? activeBg : cardBg,
+                  border: `1px solid ${isActive ? (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)') : border}`,
+                  color: isActive ? fg : fgMuted,
+                }}>
+                {freq === 'daily' && '📅 Daily'}
+                {freq === 'weekly' && '📆 Weekly'}
+                {freq === 'never' && '🔕 Never'}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Content preferences */}
       {prefs.frequency !== 'never' && (
         <div>
-          <label className="block text-sm font-medium theme-text mb-3">Include in Digest</label>
+          <label className="block text-sm font-medium mb-3" style={{ color: fg }}>Include in Digest</label>
           <div className="space-y-3">
-            <ToggleOption
-              checked={prefs.includeHotTopics}
-              onChange={() => handleToggle('includeHotTopics')}
-              icon={<Flame className="w-4 h-4 text-orange-500" />}
-              label="Hot Topics"
-              description="Most discussed and viewed proposals"
-            />
-            <ToggleOption
-              checked={prefs.includeNewProposals}
-              onChange={() => handleToggle('includeNewProposals')}
-              icon={<Sparkles className="w-4 h-4 text-emerald-500" />}
-              label="New Proposals"
-              description="Recently created discussions"
-            />
-            <ToggleOption
-              checked={prefs.includeKeywordMatches}
-              onChange={() => handleToggle('includeKeywordMatches')}
-              icon={<Bell className="w-4 h-4 text-sky-500" />}
-              label="Keyword Alerts"
-              description="Matches for your tracked keywords"
-            />
+            <ToggleOption checked={prefs.includeHotTopics} onChange={() => handleToggle('includeHotTopics')}
+              icon={<Flame className="w-4 h-4" />} label="Hot Topics" description="Most discussed and viewed proposals"
+              fg={fg} fgDim={fgDim} border={border} cardBg={cardBg} activeBg={activeBg} isDark={isDark} />
+            <ToggleOption checked={prefs.includeNewProposals} onChange={() => handleToggle('includeNewProposals')}
+              icon={<Sparkles className="w-4 h-4" />} label="New Proposals" description="Recently created discussions"
+              fg={fg} fgDim={fgDim} border={border} cardBg={cardBg} activeBg={activeBg} isDark={isDark} />
+            <ToggleOption checked={prefs.includeKeywordMatches} onChange={() => handleToggle('includeKeywordMatches')}
+              icon={<Bell className="w-4 h-4" />} label="Keyword Alerts" description="Matches for your tracked keywords"
+              fg={fg} fgDim={fgDim} border={border} cardBg={cardBg} activeBg={activeBg} isDark={isDark} />
           </div>
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex flex-wrap gap-3 pt-4 border-t" style={{ borderColor: 'var(--card-border)' }}>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white font-medium rounded-lg transition-colors"
-        >
-          {isSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Check className="w-4 h-4" />
-          )}
+      <div className="flex flex-wrap gap-3 pt-4 border-t" style={{ borderColor: border }}>
+        <button onClick={handleSave} disabled={isSaving}
+          className="flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition-colors disabled:opacity-50"
+          style={{ backgroundColor: fg, color: isDark ? '#09090b' : '#fafafa' }}>
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           Save Preferences
         </button>
 
         {prefs.frequency !== 'never' && userEmail && (
-          <button
-            onClick={handleSendTest}
-            disabled={isSendingTest}
-            className="flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition-colors theme-text-secondary"
-            style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
-          >
-            {isSendingTest ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+          <button onClick={handleSendTest} disabled={isSendingTest}
+            className="flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition-colors disabled:opacity-50"
+            style={{ backgroundColor: cardBg, border: `1px solid ${border}`, color: fgMuted }}>
+            {isSendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Send Test Email
           </button>
         )}
       </div>
 
-      {/* Status messages */}
       {saveMessage && (
-        <div className={`p-3 rounded-lg text-sm ${saveMessage.includes('Failed') ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-          {saveMessage}
-        </div>
+        <div className="p-3 rounded-lg text-sm" style={{
+          backgroundColor: saveMessage.includes('Failed') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+          color: saveMessage.includes('Failed') ? '#ef4444' : '#10b981'
+        }}>{saveMessage}</div>
       )}
       {testMessage && (
-        <div className={`p-3 rounded-lg text-sm ${testMessage.includes('Failed') ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-          {testMessage}
-        </div>
+        <div className="p-3 rounded-lg text-sm" style={{
+          backgroundColor: testMessage.includes('Failed') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+          color: testMessage.includes('Failed') ? '#ef4444' : '#10b981'
+        }}>{testMessage}</div>
       )}
 
-      {/* Preview link */}
       {prefs.frequency !== 'never' && (
-        <div className="text-sm theme-text-muted">
-          <a 
-            href="/api/digest?format=html&period=weekly" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-indigo-500 hover:text-indigo-400"
-          >
+        <div className="text-sm">
+          <a href="/api/digest?format=html&period=weekly" target="_blank" rel="noopener noreferrer"
+            style={{ color: fgMuted }} className="hover:underline">
             Preview digest email →
           </a>
         </div>
@@ -241,41 +186,30 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
   );
 }
 
-function ToggleOption({
-  checked,
-  onChange,
-  icon,
-  label,
-  description,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  icon: React.ReactNode;
-  label: string;
-  description: string;
+function ToggleOption({ checked, onChange, icon, label, description, fg, fgDim, border, cardBg, activeBg, isDark }: {
+  checked: boolean; onChange: () => void; icon: React.ReactNode; label: string; description: string;
+  fg: string; fgDim: string; border: string; cardBg: string; activeBg: string; isDark: boolean;
 }) {
   return (
-    <button
-      onClick={onChange}
+    <button onClick={onChange}
       className="flex items-start gap-3 w-full p-3 rounded-lg text-left transition-all"
-      style={{ 
-        backgroundColor: checked ? 'rgba(99, 102, 241, 0.1)' : 'var(--card-bg)',
-        border: `1px solid ${checked ? 'rgba(99, 102, 241, 0.3)' : 'var(--card-border)'}`,
-      }}
-    >
-      <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center ${
-        checked ? 'bg-indigo-600 border-indigo-600' : ''
-      }`}
-      style={!checked ? { borderColor: 'var(--card-border)' } : undefined}
-      >
-        {checked && <Check className="w-3 h-3 text-white" />}
+      style={{
+        backgroundColor: checked ? activeBg : cardBg,
+        border: `1px solid ${checked ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)') : border}`,
+      }}>
+      <div className="mt-0.5 w-5 h-5 rounded border flex items-center justify-center"
+        style={{
+          backgroundColor: checked ? fg : 'transparent',
+          borderColor: checked ? fg : border,
+        }}>
+        {checked && <Check className="w-3 h-3" style={{ color: isDark ? '#09090b' : '#fafafa' }} />}
       </div>
       <div className="flex-1">
         <div className="flex items-center gap-2">
-          {icon}
-          <span className="font-medium theme-text">{label}</span>
+          <span style={{ color: fgDim }}>{icon}</span>
+          <span className="font-medium" style={{ color: fg }}>{label}</span>
         </div>
-        <p className="text-sm theme-text-muted mt-0.5">{description}</p>
+        <p className="text-sm mt-0.5" style={{ color: fgDim }}>{description}</p>
       </div>
     </button>
   );

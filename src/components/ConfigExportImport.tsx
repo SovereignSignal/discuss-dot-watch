@@ -159,13 +159,13 @@ export function ConfigExportImport({
       <div className="flex flex-wrap gap-3">
         <button
           onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
         >
           <Download className="w-4 h-4" />
           Export Configuration
         </button>
 
-        <label className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-indigo-500">
+        <label className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-zinc-400">
           <Upload className="w-4 h-4" />
           Import Configuration
           <input
@@ -212,7 +212,7 @@ export function ConfigExportImport({
               </h3>
               <button
                 onClick={handleCancelImport}
-                className="p-1 theme-text-muted hover:theme-text rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="p-1 theme-text-muted hover:theme-text rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
                 aria-label="Cancel import"
               >
                 <X className="w-5 h-5" />
@@ -248,19 +248,19 @@ export function ConfigExportImport({
             <div className="space-y-2">
               <button
                 onClick={() => handleImportConfirm(true)}
-                className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                className="w-full px-4 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:bg-zinc-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
               >
                 Merge with existing data
               </button>
               <button
                 onClick={() => handleImportConfirm(false)}
-                className="w-full px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="w-full px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
               >
                 Replace all data
               </button>
               <button
                 onClick={handleCancelImport}
-                className="w-full px-4 py-2 theme-text-muted hover:theme-text text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
+                className="w-full px-4 py-2 theme-text-muted hover:theme-text text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 rounded-lg"
               >
                 Cancel
               </button>
