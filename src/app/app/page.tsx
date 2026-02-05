@@ -177,12 +177,27 @@ export default function AppPage() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const isDark = theme === 'dark';
+  
   return (
     <AuthGate>
       <ErrorBoundary>
         <SkipLinks />
         <OfflineBanner />
-        <div className="flex h-screen overflow-hidden theme-bg theme-text pt-14 md:pt-0">
+        <div 
+          className="flex h-screen overflow-hidden pt-14 md:pt-0"
+          style={{ 
+            backgroundColor: isDark ? '#09090b' : '#fafafa',
+            color: isDark ? '#fafafa' : '#09090b'
+          }}
+        >
+        {/* Ambient gradient background */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-violet-600/8' : 'bg-violet-400/15'}`} />
+          <div className={`absolute top-1/3 -left-20 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-cyan-600/5' : 'bg-cyan-400/10'}`} />
+          <div className={`absolute bottom-20 right-1/4 w-80 h-80 rounded-full blur-3xl ${isDark ? 'bg-indigo-600/5' : 'bg-indigo-400/10'}`} />
+        </div>
+        
         <Sidebar
           activeView={activeView}
           onViewChange={setActiveView}

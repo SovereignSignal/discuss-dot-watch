@@ -14,6 +14,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedCount = 0, isMobileOpen, onMobileToggle }: SidebarProps) {
+  const isDark = theme === 'dark';
+  
   const navItems = [
     { id: 'feed' as const, label: 'Feed', icon: LayoutGrid },
     { id: 'projects' as const, label: 'Communities', icon: FolderOpen },
@@ -31,65 +33,87 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedC
   return (
     <>
       {/* Mobile Header Bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3 py-3 theme-sidebar border-b" style={{ borderColor: 'var(--card-border)' }}>
+      <div 
+        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 backdrop-blur-xl border-b"
+        style={{ 
+          backgroundColor: isDark ? 'rgba(9, 9, 11, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+          borderColor: isDark ? 'rgba(63, 63, 70, 0.4)' : 'rgba(0, 0, 0, 0.1)'
+        }}
+      >
         <button
           onClick={onMobileToggle}
-          className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center theme-text-secondary rounded-lg flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-colors"
+          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
           aria-label={isMobileOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={isMobileOpen}
         >
           {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-lg flex-shrink-0">👁️‍🗨️</span>
-          <span className="font-medium theme-text text-sm tracking-tight truncate">discuss.watch</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-xl">👁️‍🗨️</span>
+          <span className="font-semibold text-sm tracking-tight">discuss.watch</span>
         </div>
         <button
           onClick={onToggleTheme}
-          className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center theme-text-secondary rounded-lg flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-colors"
+          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
           aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
         >
-          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
       </div>
 
       {/* Mobile Overlay */}
       {isMobileOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
           onClick={onMobileToggle}
           aria-hidden="true"
         />
       )}
 
       {/* Sidebar */}
-      <aside className={`
-        fixed md:relative
-        w-64 theme-sidebar border-r flex flex-col h-full
-        z-50 md:z-auto
-        transition-transform duration-300 ease-in-out
-        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-        top-0 md:top-auto
-        pt-14 md:pt-0
-      `}>
-        <div className="p-4 border-b" style={{ borderColor: 'var(--card-border)' }}>
+      <aside 
+        className={`
+          fixed md:relative
+          w-72 flex flex-col h-full
+          z-50 md:z-auto
+          transition-transform duration-300 ease-in-out
+          ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          top-0 md:top-auto
+          pt-14 md:pt-0
+          backdrop-blur-xl border-r
+        `}
+        style={{ 
+          backgroundColor: isDark ? 'rgba(24, 24, 27, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          borderColor: isDark ? 'rgba(63, 63, 70, 0.4)' : 'rgba(0, 0, 0, 0.1)'
+        }}
+      >
+        {/* Logo Section */}
+        <div 
+          className="p-5 border-b hidden md:block"
+          style={{ borderColor: isDark ? 'rgba(63, 63, 70, 0.4)' : 'rgba(0, 0, 0, 0.1)' }}
+        >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <span className="text-2xl">👁️‍🗨️</span>
-              <h1 className="text-base font-semibold theme-text tracking-tight">discuss.watch</h1>
+              <div>
+                <h1 className="text-base font-semibold tracking-tight">discuss.watch</h1>
+                <p className="text-xs opacity-50">Unified forum feed</p>
+              </div>
             </div>
             <button
               onClick={onToggleTheme}
-              className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center theme-text-secondary hover:opacity-80 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              style={{ backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+              className="p-2 flex items-center justify-center rounded-lg transition-all hover:scale-105"
+              style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
           </div>
-          <p className="text-xs theme-text-muted mt-2">Unified forum feed</p>
         </div>
         
+        {/* Navigation */}
         <nav id="navigation" className="flex-1 p-3" aria-label="Main navigation">
           <ul className="space-y-1" role="list">
             {navItems.map((item) => {
@@ -99,23 +123,33 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedC
                 <li key={item.id}>
                   <button
                     onClick={() => handleNavClick(item.id)}
+                    className={`
+                      w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+                      transition-all duration-200
+                      ${isActive 
+                        ? isDark 
+                          ? 'bg-violet-500/15 text-violet-300' 
+                          : 'bg-violet-500/10 text-violet-600'
+                        : isDark
+                          ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                          : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+                      }
+                    `}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                      isActive
-                        ? 'bg-white text-black dark:bg-white dark:text-black'
-                        : 'theme-text-secondary hover:opacity-80'
-                    }`}
-                    style={!isActive ? { backgroundColor: 'transparent' } : undefined}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon className="w-4 h-4" aria-hidden="true" />
-                      {item.label}
-                    </div>
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-violet-400' : ''}`} />
+                    <span>{item.label}</span>
                     {item.count !== undefined && item.count > 0 && (
-                      <span
-                        className={`px-2 py-0.5 text-xs rounded-full ${isActive ? 'bg-black/10' : ''}`}
-                        style={!isActive ? { backgroundColor: 'var(--card-border)' } : undefined}
-                        aria-label={`${item.count} saved`}
+                      <span 
+                        className={`
+                          ml-auto px-2 py-0.5 text-xs rounded-full font-medium
+                          ${isActive 
+                            ? 'bg-violet-500/20 text-violet-300' 
+                            : isDark 
+                              ? 'bg-zinc-700 text-zinc-400' 
+                              : 'bg-zinc-200 text-zinc-600'
+                          }
+                        `}
                       >
                         {item.count}
                       </span>
@@ -126,16 +160,13 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedC
             })}
           </ul>
         </nav>
-        
-        {/* User authentication section */}
-        <div className="px-4 py-3 border-t hidden md:block" style={{ borderColor: 'var(--card-border)' }}>
-          <UserButton />
-        </div>
 
-        <div className="p-4 border-t hidden md:block" style={{ borderColor: 'var(--card-border)' }}>
-          <p className="text-xs theme-text-muted">
-            Crypto · AI · Open Source
-          </p>
+        {/* User Section */}
+        <div 
+          className="p-4 border-t"
+          style={{ borderColor: isDark ? 'rgba(63, 63, 70, 0.4)' : 'rgba(0, 0, 0, 0.1)' }}
+        >
+          <UserButton />
         </div>
       </aside>
     </>

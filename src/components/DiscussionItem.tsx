@@ -127,15 +127,15 @@ export function DiscussionItem({
 
   return (
     <article
-      className="relative group mx-3 my-2.5 p-4 rounded-xl border transition-all duration-200 hover:shadow-md"
+      className="relative group mx-3 my-2 p-4 rounded-2xl border backdrop-blur-sm transition-all duration-200 hover:border-zinc-700/80"
       style={{ 
-        backgroundColor: hasMatchingKeyword ? 'rgba(79, 70, 229, 0.05)' : 'var(--card-bg)', 
-        borderColor: hasMatchingKeyword ? 'rgba(79, 70, 229, 0.4)' : 'var(--card-border)' 
+        backgroundColor: hasMatchingKeyword ? 'rgba(139, 92, 246, 0.08)' : 'rgba(24, 24, 27, 0.6)', 
+        borderColor: hasMatchingKeyword ? 'rgba(139, 92, 246, 0.3)' : 'rgba(63, 63, 70, 0.4)' 
       }}
     >
       {/* Unread indicator - subtle left border */}
       {!isRead && (
-        <div className="absolute left-0 top-4 bottom-4 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-indigo-600" aria-label="Unread" />
+        <div className="absolute left-0 top-4 bottom-4 w-1 rounded-full bg-gradient-to-b from-violet-500 to-violet-600" aria-label="Unread" />
       )}
 
       {/* Bookmark button - positioned outside the link for accessibility */}

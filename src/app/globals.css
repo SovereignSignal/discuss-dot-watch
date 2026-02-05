@@ -1,21 +1,27 @@
 @import "tailwindcss";
 
-/* ===== COLOR SCHEME: Indigo Accent with Neutral Grays ===== */
-/* Dark theme (default) - neutral grays, no blue tint */
+/* ===== COLOR SCHEME: Modern Dark with Subtle Gradients ===== */
+/* Dark theme (default) - sleek, modern, matching landing page */
 html, html.dark {
-  --background: #121212;
+  --background: #09090b;
   --foreground: #fafafa;
-  --card-bg: #1a1a1a;
-  --card-border: #2a2a2a;
-  --sidebar-bg: #1a1a1a;
-  --header-bg: #0f0f0f;
+  --card-bg: rgba(24, 24, 27, 0.8);
+  --card-bg-solid: #18181b;
+  --card-border: rgba(63, 63, 70, 0.4);
+  --sidebar-bg: rgba(24, 24, 27, 0.95);
+  --header-bg: rgba(9, 9, 11, 0.8);
   --text-primary: #fafafa;
-  --text-secondary: #a1a1a1;
-  --text-muted: #737373;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-muted: #3730a3;
-  --accent-light: #a5b4fc;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --accent-muted: #6d28d9;
+  --accent-light: #c4b5fd;
+  
+  /* Gradient colors for ambient effects */
+  --gradient-violet: rgba(139, 92, 246, 0.15);
+  --gradient-cyan: rgba(34, 211, 238, 0.1);
+  --gradient-indigo: rgba(99, 102, 241, 0.1);
 
   /* Semantic status colors */
   --success: #10b981;
