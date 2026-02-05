@@ -117,7 +117,20 @@ export async function initializeSchema() {
     )
   `;
 
-  // User preferences
+  // User-dependent tables: drop empty ones that may have bad FK constraints from prior runs
+  const userTables = ['user_preferences', 'keyword_alerts', 'user_bookmarks', 'bookmarks', 'user_forums', 'custom_forums', 'read_state'];
+  for (const table of userTables) {
+    try {
+      const rows = await db`SELECT COUNT(*) as cnt FROM ${db(table)}`;
+      if (Number(rows[0]?.cnt) === 0) {
+        await db`DROP TABLE IF EXISTS ${db(table)} CASCADE`;
+      }
+    } catch {
+      // Table doesn't exist, that's fine
+    }
+  }
+
+  // Now create them fresh with correct FK constraints
   await db`
     CREATE TABLE IF NOT EXISTS user_preferences (
       id SERIAL PRIMARY KEY,
@@ -128,7 +141,6 @@ export async function initializeSchema() {
     )
   `;
 
-  // Keyword alerts
   await db`
     CREATE TABLE IF NOT EXISTS keyword_alerts (
       id SERIAL PRIMARY KEY,
@@ -139,7 +151,6 @@ export async function initializeSchema() {
     )
   `;
 
-  // User bookmarks
   await db`
     CREATE TABLE IF NOT EXISTS user_bookmarks (
       id SERIAL PRIMARY KEY,
@@ -153,7 +164,6 @@ export async function initializeSchema() {
     )
   `;
 
-  // Alias for admin query compatibility
   await db`
     CREATE TABLE IF NOT EXISTS bookmarks (
       id SERIAL PRIMARY KEY,
@@ -167,7 +177,6 @@ export async function initializeSchema() {
     )
   `;
 
-  // User forums (which preset forums a user has enabled)
   await db`
     CREATE TABLE IF NOT EXISTS user_forums (
       id SERIAL PRIMARY KEY,
@@ -178,7 +187,6 @@ export async function initializeSchema() {
     )
   `;
 
-  // Custom forums added by users
   await db`
     CREATE TABLE IF NOT EXISTS custom_forums (
       id SERIAL PRIMARY KEY,
@@ -195,7 +203,6 @@ export async function initializeSchema() {
     )
   `;
 
-  // Read state
   await db`
     CREATE TABLE IF NOT EXISTS read_state (
       id SERIAL PRIMARY KEY,

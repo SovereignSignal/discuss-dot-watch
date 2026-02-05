@@ -471,7 +471,7 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
             <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
             {backfillStatus?.running || 0} running
           </span>
-          <span className="flex items-center gap-1.5 text-zinc-500">
+          <span className="flex items-center gap-1.5 text-current opacity-50">
             <span className="w-2 h-2 rounded-full bg-zinc-500" />
             {backfillStatus?.pending || 0} pending
           </span>
@@ -485,18 +485,21 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-2 mb-6">
         <button onClick={() => setShowForumPicker(!showForumPicker)}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-all">
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity"
+          style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
           <Plus className="w-3 h-3" />
-          {showForumPicker ? 'Hide Forums' : 'Queue Forums'}
+          {showForumPicker ? 'Hide' : 'Queue Forums'}
         </button>
         <button onClick={() => onAction('init-all')} disabled={actionLoading !== null}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-all disabled:opacity-50">
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity disabled:opacity-40"
+          style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
           Queue All
         </button>
         <button onClick={() => onAction('run-cycle')} disabled={actionLoading !== null}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-200 text-zinc-900 hover:bg-zinc-300 rounded-lg transition-all disabled:opacity-50">
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity disabled:opacity-40"
+          style={{ backgroundColor: isDark ? '#fafafa' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
           <Play className="w-3 h-3" />
           Run Cycle
         </button>
@@ -504,13 +507,14 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
 
       {/* Forum Picker */}
       {showForumPicker && (
-        <div className="mb-6 border border-zinc-800 rounded-xl overflow-hidden">
-          <div className="p-3 border-b border-zinc-800">
+        <div className="mb-6 rounded-xl overflow-hidden" style={{ border: `1px solid ${cardBorder}` }}>
+          <div className="p-3" style={{ borderBottom: `1px solid ${cardBorder}` }}>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: textMuted }} />
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search forums..."
-                className="w-full pl-10 pr-4 py-2 bg-zinc-800 text-current rounded-lg text-sm focus:outline-none"
+                className="w-full pl-10 pr-4 py-2 rounded-lg text-sm outline-none"
+                style={{ backgroundColor: inputBg, color: textPrimary }}
               />
             </div>
           </div>
@@ -521,28 +525,24 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
               const job = backfillStatus?.jobs?.find(j => j.forum_url.replace(/\/$/, '') === normalizedUrl);
               const isLoading = actionLoading === `backfill-start-${forum.url}`;
               return (
-                <div key={forum.url} className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                <div key={forum.url} className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-current font-medium truncate">{forum.name}</span>
-                      {forum.token && <span className="text-xs text-zinc-500 font-mono">${forum.token}</span>}
-                      <span className="text-[11px] text-zinc-600">{forum.categoryName}</span>
+                      <span className="text-sm font-medium truncate" style={{ color: textPrimary }}>{forum.name}</span>
+                      {forum.token && <span className="text-xs font-mono" style={{ color: textMuted }}>${forum.token}</span>}
+                      <span className="text-[11px]" style={{ color: textDim }}>{forum.categoryName}</span>
                     </div>
-                    <p className="text-xs text-zinc-600 truncate">{forum.url}</p>
+                    <p className="text-xs truncate" style={{ color: textDim }}>{forum.url}</p>
                   </div>
                   <div className="flex-shrink-0 ml-3">
                     {isQueued && job ? (
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                        job.status === 'complete' ? 'bg-transparent text-current' :
-                        job.status === 'running' ? 'bg-transparent text-current' :
-                        job.status === 'failed' ? 'bg-transparent text-current' :
-                        'bg-transparent text-current'
-                      }`}>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: textSecondary }}>
                         {job.status} {job.topics_fetched > 0 ? `(${job.topics_fetched.toLocaleString()})` : ''}
                       </span>
                     ) : (
                       <button onClick={() => onQueueForum(forum.url)} disabled={isLoading || actionLoading !== null}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-md transition-colors disabled:opacity-50">
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-opacity disabled:opacity-40"
+                        style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
                         {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                         Queue
                       </button>
@@ -552,7 +552,7 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
               );
             })}
           </div>
-          <div className="px-4 py-2 border-t border-zinc-800 text-xs text-zinc-600">
+          <div className="px-4 py-2 text-xs" style={{ borderTop: `1px solid ${cardBorder}`, color: textDim }}>
             {filteredForums.length} forums · {queuedUrls.size} queued
           </div>
         </div>
@@ -563,7 +563,7 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-zinc-500 border-b border-zinc-800">
+              <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
                 <th className="pb-3 pr-4 font-medium">Forum</th>
                 <th className="pb-3 pr-4 font-medium">Status</th>
                 <th className="pb-3 pr-4 font-medium">Progress</th>
@@ -573,23 +573,23 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
             </thead>
             <tbody>
               {backfillStatus.jobs.map((job) => (
-                <tr key={job.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+                <tr key={job.id} style={{ borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}` }}>
                   <td className="py-3 pr-4">
                     <a href={job.forum_url} target="_blank" rel="noopener noreferrer"
-                      className="text-zinc-300 hover:text-current transition-colors">
+                      style={{ color: textSecondary }}>
                       {job.forum_name}
                     </a>
                   </td>
                   <td className="py-3 pr-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                      job.status === 'complete' ? 'px-2 py-0.5' :
-                      job.status === 'running' ? 'px-2 py-0.5' :
-                      job.status === 'failed' ? 'px-2 py-0.5' :
-                      job.status === 'paused' ? 'px-2 py-0.5' :
-                      'px-2 py-0.5'
-                    }`}>{job.status}</span>
+                    <span className="text-xs font-medium" style={{ color: textMuted }}>{job.status}</span>
+                    <span className="text-xs font-medium" style={{ color: textMuted }}>{job.status}</span>
+                    <span className="text-xs font-medium" style={{ color: textMuted }}>{job.status}</span>
+                    <span className="text-xs font-medium" style={{ color: textMuted }}>{job.status}</span>
+                    <span className="text-xs font-medium" style={{ color: textMuted }}>{job.status}</span>
+                    <span className="text-xs font-medium" style={{ color: textMuted }}>{job.status}</span>
+                    <span className="text-xs font-medium" style={{ color: textMuted }}>{job.status}</span>
                   </td>
-                  <td className="py-3 pr-4 font-mono text-zinc-400">
+                  <td className="py-3 pr-4 font-mono text-current opacity-60">
                     Page {job.current_page}{job.total_pages ? ` / ${job.total_pages}` : ''}
                   </td>
                   <td className="py-3 pr-4 font-mono text-current">{job.topics_fetched.toLocaleString()}</td>
@@ -597,19 +597,19 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
                     <div className="flex gap-1">
                       {job.status === 'running' && (
                         <button onClick={() => onAction('pause', job.id)}
-                          className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors" title="Pause">
+                          className="p-1.5 hover:opacity-80 rounded-lg transition-colors" title="Pause">
                           <Pause className="w-4 h-4" />
                         </button>
                       )}
                       {job.status === 'paused' && (
                         <button onClick={() => onAction('resume', job.id)}
-                          className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors" title="Resume">
+                          className="p-1.5 hover:opacity-80 rounded-lg transition-colors" title="Resume">
                           <Play className="w-4 h-4" />
                         </button>
                       )}
                       {job.status === 'failed' && (
                         <button onClick={() => onAction('retry', job.id)}
-                          className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors" title="Retry">
+                          className="p-1.5 hover:opacity-80 rounded-lg transition-colors" title="Retry">
                           <RotateCcw className="w-4 h-4" />
                         </button>
                       )}
@@ -697,12 +697,12 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
               <span className="text-current">{results.filter(r => r.status === 'ok').length} ok</span>
               {issues.length > 0 && <span className="text-current">{issues.length} issues</span>}
               {results.filter(r => r.status === 'pending' || r.status === 'testing').length > 0 && (
-                <span className="text-zinc-500">{results.filter(r => r.status === 'pending' || r.status === 'testing').length} remaining</span>
+                <span className="text-current opacity-50">{results.filter(r => r.status === 'pending' || r.status === 'testing').length} remaining</span>
               )}
             </div>
           )}
           <button onClick={testForums} disabled={testing}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-all disabled:opacity-50">
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-current opacity-5 hover:opacity-80 border border-zinc-700 rounded-lg transition-all disabled:opacity-50">
             {testing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
             {testing ? 'Testing...' : 'Test All Forums'}
           </button>
@@ -713,31 +713,31 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
         <>
           <div className="flex gap-2 mb-4">
             <button onClick={() => setFilter('issues')}
-              className={`px-2.5 py-1 text-xs rounded-md ${filter === 'issues' ? 'bg-zinc-700 text-current' : 'text-zinc-500'}`}>
+              className={`px-2.5 py-1 text-xs rounded-md ${filter === 'issues' ? 'bg-current opacity-10 text-current' : 'text-current opacity-50'}`}>
               Issues Only ({issues.length})
             </button>
             <button onClick={() => setFilter('all')}
-              className={`px-2.5 py-1 text-xs rounded-md ${filter === 'all' ? 'bg-zinc-700 text-current' : 'text-zinc-500'}`}>
+              className={`px-2.5 py-1 text-xs rounded-md ${filter === 'all' ? 'bg-current opacity-10 text-current' : 'text-current opacity-50'}`}>
               All Tested
             </button>
           </div>
 
           {displayResults.length === 0 ? (
-            <p className="text-sm text-zinc-500">{filter === 'issues' ? 'No issues found' : 'No results yet'}</p>
+            <p className="text-sm text-current opacity-50">{filter === 'issues' ? 'No issues found' : 'No results yet'}</p>
           ) : (
             <div className="space-y-1 max-h-64 overflow-y-auto">
               {displayResults.map(r => (
-                <div key={r.url} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-zinc-800/30">
+                <div key={r.url} className="flex items-center justify-between px-3 py-2 rounded-lg ">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm text-current">{r.name}</span>
-                    <span className="text-xs text-zinc-600 ml-2">{r.url}</span>
+                    <span className="text-xs text-current opacity-40 ml-2">{r.url}</span>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
                     r.status === 'ok' ? 'bg-transparent text-current' :
                     r.status === 'redirect' ? 'bg-transparent text-current' :
                     r.status === 'error' ? 'bg-transparent text-current' :
                     r.status === 'testing' ? 'bg-transparent text-current' :
-                    'bg-zinc-800 text-zinc-500'
+                    'bg-current opacity-5 text-current opacity-50'
                   }`}>
                     {r.status === 'testing' ? 'testing...' : r.status}
                     {r.error && r.status !== 'ok' ? `: ${r.error.slice(0, 40)}` : ''}
@@ -750,7 +750,7 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
       )}
 
       {results.length === 0 && (
-        <p className="text-sm text-zinc-500">Click "Test All Forums" to check which forum URLs are still reachable.</p>
+        <p className="text-sm text-current opacity-50">Click "Test All Forums" to check which forum URLs are still reachable.</p>
       )}
     </div>
   );
