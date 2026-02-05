@@ -8,20 +8,9 @@ interface AuthGateProps {
   children: ReactNode;
 }
 
-const GUEST_MODE_KEY = 'discuss-watch-guest-mode';
-
 export function AuthGate({ children }: AuthGateProps) {
   const { isAuthenticated, isLoading, isConfigured, login } = useAuth();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [isGuestMode, setIsGuestMode] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(GUEST_MODE_KEY) === 'true';
-  });
-
-  const continueAsGuest = () => {
-    localStorage.setItem(GUEST_MODE_KEY, 'true');
-    setIsGuestMode(true);
-  };
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('discuss-watch-theme') as 'dark' | 'light' | null;
@@ -71,8 +60,8 @@ export function AuthGate({ children }: AuthGateProps) {
     );
   }
 
-  // Allow access if authenticated OR in guest mode
-  if (isAuthenticated || isGuestMode) {
+  // Allow access only if authenticated
+  if (isAuthenticated) {
     return <>{children}</>;
   }
 
@@ -162,18 +151,6 @@ export function AuthGate({ children }: AuthGateProps) {
                 >
                   <LogIn className="w-5 h-5" />
                   Sign In
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={continueAsGuest}
-                  className="flex items-center justify-center gap-2 w-full px-6 py-3 mt-3 font-medium rounded-xl transition-colors"
-                  style={{
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                    color: isDark ? '#9ca3af' : '#6b7280'
-                  }}
-                >
-                  Continue as Guest
                   <ArrowRight className="w-4 h-4" />
                 </button>
 

@@ -72,6 +72,10 @@ function PrivyAuthInner({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await privyLogout();
+    // Clear guest mode so user returns to login screen
+    localStorage.removeItem('discuss-watch-guest-mode');
+    // Redirect to landing page
+    window.location.href = '/';
   }, [privyLogout]);
 
   const value: AuthContextType = {
