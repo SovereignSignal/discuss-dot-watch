@@ -167,18 +167,7 @@ export function DiscussionFeed({
         sortBy={sortBy} onSortChange={setSortBy} isDark={isDark}
       />
 
-      {/* Defunct forums */}
-      {onRemoveForum && forumStates.some((s) => s.isDefunct) && (
-        <div className="px-5 py-2 border-b text-xs" style={{ borderColor, color: textMuted }}>
-          <span>Defunct forums: </span>
-          {forumStates.filter((s) => s.isDefunct).map((state) => (
-            <span key={state.forumId} className="inline-flex items-center gap-1 mr-2">
-              {state.forumName}
-              <button onClick={() => onRemoveForum(state.forumId)} className="hover:opacity-70"><Trash2 className="w-3 h-3" /></button>
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Defunct forums - subtle inline note, not a loud banner */}
 
       {/* Loading progress */}
       {isLoading && forumStates.length > 0 && (

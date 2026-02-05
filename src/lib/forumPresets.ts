@@ -451,7 +451,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       },
       {
         name: 'Curve Finance',
-        url: 'https://gov.curve.fi/',
+        url: 'https://gov.curve.finance/',
         description: 'Stablecoin DEX with veCRV gauge',
         token: 'CRV',
         logoUrl: 'https://assets.coingecko.com/coins/images/12124/small/Curve.png',

@@ -369,6 +369,9 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Forum Health */}
+        <ForumHealthSection adminEmail={adminEmail} />
+
         {/* Backfill Status */}
         <BackfillSection
           backfillStatus={backfillStatus}
@@ -635,6 +638,129 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
             </tbody>
           </table>
         </div>
+      )}
+    </div>
+  );
+}
+
+interface ForumHealth {
+  name: string;
+  url: string;
+  status: 'ok' | 'redirect' | 'error' | 'pending' | 'testing';
+  statusCode?: number;
+  redirectUrl?: string;
+  error?: string;
+}
+
+function ForumHealthSection({ adminEmail }: { adminEmail: string }) {
+  const [results, setResults] = useState<ForumHealth[]>([]);
+  const [testing, setTesting] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'issues'>('issues');
+
+  const allForums = useMemo(() => {
+    const forums: { name: string; url: string }[] = [];
+    FORUM_CATEGORIES.forEach(cat => {
+      cat.forums.forEach(f => forums.push({ name: f.name, url: f.url }));
+    });
+    return forums;
+  }, []);
+
+  const testForums = async () => {
+    setTesting(true);
+    setResults(allForums.map(f => ({ ...f, status: 'pending' as const })));
+
+    // Test in batches of 5
+    const batchSize = 5;
+    for (let i = 0; i < allForums.length; i += batchSize) {
+      const batch = allForums.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (forum) => {
+        setResults(prev => prev.map(r => r.url === forum.url ? { ...r, status: 'testing' } : r));
+        try {
+          const res = await fetch(`/api/validate-discourse?url=${encodeURIComponent(forum.url)}`);
+          const data = await res.json();
+          setResults(prev => prev.map(r => {
+            if (r.url !== forum.url) return r;
+            if (data.valid) return { ...r, status: 'ok' };
+            if (data.error?.includes('redirect')) return { ...r, status: 'redirect', error: data.error, redirectUrl: data.redirectUrl };
+            return { ...r, status: 'error', error: data.error || 'Failed' };
+          }));
+        } catch (err) {
+          setResults(prev => prev.map(r =>
+            r.url === forum.url ? { ...r, status: 'error', error: 'Network error' } : r
+          ));
+        }
+      }));
+    }
+    setTesting(false);
+  };
+
+  const issues = results.filter(r => r.status === 'error' || r.status === 'redirect');
+  const displayResults = filter === 'issues' ? issues : results.filter(r => r.status !== 'pending');
+
+  return (
+    <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-semibold text-white">Forum Health</h2>
+        <div className="flex items-center gap-3">
+          {results.length > 0 && (
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-emerald-400">{results.filter(r => r.status === 'ok').length} ok</span>
+              {issues.length > 0 && <span className="text-red-400">{issues.length} issues</span>}
+              {results.filter(r => r.status === 'pending' || r.status === 'testing').length > 0 && (
+                <span className="text-zinc-500">{results.filter(r => r.status === 'pending' || r.status === 'testing').length} remaining</span>
+              )}
+            </div>
+          )}
+          <button onClick={testForums} disabled={testing}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-all disabled:opacity-50">
+            {testing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            {testing ? 'Testing...' : 'Test All Forums'}
+          </button>
+        </div>
+      </div>
+
+      {results.length > 0 && (
+        <>
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => setFilter('issues')}
+              className={`px-2.5 py-1 text-xs rounded-md ${filter === 'issues' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>
+              Issues Only ({issues.length})
+            </button>
+            <button onClick={() => setFilter('all')}
+              className={`px-2.5 py-1 text-xs rounded-md ${filter === 'all' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>
+              All Tested
+            </button>
+          </div>
+
+          {displayResults.length === 0 ? (
+            <p className="text-sm text-zinc-500">{filter === 'issues' ? 'No issues found' : 'No results yet'}</p>
+          ) : (
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {displayResults.map(r => (
+                <div key={r.url} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-zinc-800/30">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-white">{r.name}</span>
+                    <span className="text-xs text-zinc-600 ml-2">{r.url}</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                    r.status === 'ok' ? 'bg-emerald-500/10 text-emerald-400' :
+                    r.status === 'redirect' ? 'bg-amber-500/10 text-amber-400' :
+                    r.status === 'error' ? 'bg-red-500/10 text-red-400' :
+                    r.status === 'testing' ? 'bg-blue-500/10 text-blue-400' :
+                    'bg-zinc-800 text-zinc-500'
+                  }`}>
+                    {r.status === 'testing' ? 'testing...' : r.status}
+                    {r.error && r.status !== 'ok' ? `: ${r.error.slice(0, 40)}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {results.length === 0 && (
+        <p className="text-sm text-zinc-500">Click "Test All Forums" to check which forum URLs are still reachable.</p>
       )}
     </div>
   );
