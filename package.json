@@ -16,6 +16,7 @@
     "@neondatabase/serverless": "^1.0.2",
     "@privy-io/react-auth": "^3.13.0",
     "date-fns": "^4.1.0",
+    "ioredis": "^5.9.2",
     "lucide-react": "^0.562.0",
     "next": "^16.1.6",
     "react": "19.2.3",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/ioredis": "^4.28.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

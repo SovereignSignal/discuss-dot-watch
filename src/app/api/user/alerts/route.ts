@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
 
+interface User {
+  id: number;
+}
+
+interface Alert {
+  id: number;
+  keyword: string;
+  is_enabled: boolean;
+  created_at: string;
+}
+
 // POST /api/user/alerts - Add keyword alert
 export async function POST(request: NextRequest) {
   if (!isDatabaseConfigured()) {
@@ -26,9 +37,9 @@ export async function POST(request: NextRequest) {
     // Get user ID
     const users = await sql`
       SELECT id FROM users WHERE privy_did = ${privyDid}
-    `;
+    ` as User[];
 
-    if (users.length === 0) {
+    if (!users || users.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -41,7 +52,7 @@ export async function POST(request: NextRequest) {
       ON CONFLICT (user_id, LOWER(keyword))
       DO UPDATE SET is_enabled = ${isEnabled ?? true}
       RETURNING id, keyword, is_enabled, created_at
-    `;
+    ` as Alert[];
 
     return NextResponse.json({
       alert: {
@@ -79,9 +90,9 @@ export async function PATCH(request: NextRequest) {
     // Get user ID
     const users = await sql`
       SELECT id FROM users WHERE privy_did = ${privyDid}
-    `;
+    ` as User[];
 
-    if (users.length === 0) {
+    if (!users || users.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -93,9 +104,9 @@ export async function PATCH(request: NextRequest) {
       SET is_enabled = ${isEnabled}
       WHERE id = ${alertId} AND user_id = ${userId}
       RETURNING id, keyword, is_enabled, created_at
-    `;
+    ` as Alert[];
 
-    if (result.length === 0) {
+    if (!result || result.length === 0) {
       return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
     }
 
@@ -135,9 +146,9 @@ export async function DELETE(request: NextRequest) {
     // Get user ID
     const users = await sql`
       SELECT id FROM users WHERE privy_did = ${privyDid}
-    `;
+    ` as User[];
 
-    if (users.length === 0) {
+    if (!users || users.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -178,9 +189,9 @@ export async function PUT(request: NextRequest) {
     // Get user ID
     const users = await sql`
       SELECT id FROM users WHERE privy_did = ${privyDid}
-    `;
+    ` as User[];
 
-    if (users.length === 0) {
+    if (!users || users.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -199,8 +210,8 @@ export async function PUT(request: NextRequest) {
           VALUES (${userId}, ${sanitizedKeyword}, ${alert.isEnabled ?? true})
           ON CONFLICT (user_id, LOWER(keyword)) DO NOTHING
           RETURNING id, keyword, is_enabled, created_at
-        `;
-        if (result.length > 0) {
+        ` as Alert[];
+        if (result && result.length > 0) {
           insertedAlerts.push(result[0]);
         }
       }

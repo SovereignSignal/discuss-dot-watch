@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
 
   // Try to serve from cache first (unless bypassed or has categoryId filter)
   if (!bypassCache && !validatedCategoryId) {
-    const cached = getCachedForum(forumUrl);
-    if (cached && cached.topics.length > 0) {
+    const cached = await getCachedForum(forumUrl);
+    if (cached && cached.topics && cached.topics.length > 0) {
       // Update protocol and logoUrl for cached topics if provided
       const topics = cached.topics.map(topic => ({
         ...topic,
