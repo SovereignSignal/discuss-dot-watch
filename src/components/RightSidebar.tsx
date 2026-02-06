@@ -28,10 +28,10 @@ export function RightSidebar({
 }: RightSidebarProps) {
   const [newKeyword, setNewKeyword] = useState('');
 
-  const borderColor = isDark ? '#1f1f23' : 'rgba(0,0,0,0.06)';
-  const textPrimary = isDark ? '#e4e4e7' : '#09090b';
-  const textSecondary = isDark ? '#e5e5e5' : '#3f3f46';
-  const textMuted = isDark ? '#a3a3a3' : '#52525b';
+  const borderColor = isDark ? '#27272a' : 'rgba(0,0,0,0.06)';
+  const textPrimary = isDark ? '#fafafa' : '#09090b';
+  const textSecondary = isDark ? '#e4e4e7' : '#3f3f46';
+  const textMuted = isDark ? '#a1a1aa' : '#52525b';
   const inputBg = isDark ? '#18181b' : 'rgba(0,0,0,0.03)';
   const activeBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
 

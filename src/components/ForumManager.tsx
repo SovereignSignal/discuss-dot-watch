@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Forum, ForumCategoryId } from '@/types';
 import { getProtocolLogo } from '@/lib/logoUtils';
+import { getThemeColors } from '@/lib/theme';
 import {
   FORUM_CATEGORIES,
   ForumPreset,
@@ -76,12 +77,14 @@ export function ForumManager({
     };
   }, []);
 
-  const fg = isDark ? '#fafafa' : '#09090b';
-  const fgMuted = isDark ? '#e4e4e7' : '#3f3f46';
-  const fgDim = isDark ? '#a1a1aa' : '#52525b';
-  const border = isDark ? '#27272a' : 'rgba(0,0,0,0.08)';
-  const cardBg = isDark ? '#18181b' : 'rgba(0,0,0,0.02)';
-  const activeBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  // Use centralized theme colors
+  const t = getThemeColors(isDark);
+  const fg = t.text;
+  const fgMuted = isDark ? '#e4e4e7' : '#4b5563';
+  const fgDim = t.textSecondary;
+  const border = t.borderSolid;
+  const cardBg = t.cardBg;
+  const activeBg = t.hover;
 
   const addedForumUrls = useMemo(
     () => new Set(forums.map((f) => normalizeUrl(f.discourseForum.url))),

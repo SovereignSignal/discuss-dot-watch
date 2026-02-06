@@ -71,10 +71,10 @@ export function DiscussionFeed({
     };
   }, []);
 
-  const borderColor = isDark ? '#1f1f23' : 'rgba(0,0,0,0.06)';
-  const textPrimary = isDark ? '#e4e4e7' : '#09090b';
-  const textSecondary = isDark ? '#e5e5e5' : '#3f3f46';
-  const textMuted = isDark ? '#a3a3a3' : '#52525b';
+  const borderColor = isDark ? '#27272a' : 'rgba(0,0,0,0.06)';
+  const textPrimary = isDark ? '#fafafa' : '#09090b';
+  const textSecondary = isDark ? '#e4e4e7' : '#3f3f46';
+  const textMuted = isDark ? '#a1a1aa' : '#52525b';
 
   // Map cname → category for filtering
   const forumCategoryMap = useMemo(() => {

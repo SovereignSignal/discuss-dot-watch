@@ -17,9 +17,9 @@ interface SidebarProps {
 
 export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedCount = 0, isMobileOpen, onMobileToggle }: SidebarProps) {
   const isDark = theme === 'dark';
-  const borderColor = isDark ? '#1f1f23' : 'rgba(0,0,0,0.06)';
-  const textPrimary = isDark ? '#e4e4e7' : '#09090b';
-  const textMuted = isDark ? '#a3a3a3' : '#52525b';
+  const borderColor = isDark ? '#27272a' : 'rgba(0,0,0,0.06)';
+  const textPrimary = isDark ? '#fafafa' : '#09090b';
+  const textMuted = isDark ? '#a1a1aa' : '#52525b';
   const { user } = useAuth();
   const userIsAdmin = isAdminEmail(user?.email);
   
