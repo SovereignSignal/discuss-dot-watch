@@ -14,7 +14,7 @@ interface UrlState {
 
 const DEFAULT_STATE: UrlState = {
   search: '',
-  dateRange: 'all',
+  dateRange: 'today',
   sortBy: 'recent',
   forumId: null,
   view: 'feed',
@@ -46,7 +46,7 @@ export function useUrlState() {
       const params = new URLSearchParams();
 
       if (merged.search) params.set('q', merged.search);
-      if (merged.dateRange !== 'all') params.set('date', merged.dateRange);
+      if (merged.dateRange !== 'today') params.set('date', merged.dateRange);
       if (merged.sortBy !== 'recent') params.set('sort', merged.sortBy);
       if (merged.forumId) params.set('forum', merged.forumId);
       if (merged.view !== 'feed') params.set('view', merged.view);

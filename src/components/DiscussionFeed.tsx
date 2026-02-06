@@ -50,7 +50,7 @@ export function DiscussionFeed({
   unreadCount, onRemoveForum, activeKeywordFilter, isDark = true,
 }: DiscussionFeedProps) {
   const [displayCount, setDisplayCount] = useState(20);
-  const [dateRange, setDateRange] = useState<DateRangeFilter>('all');
+  const [dateRange, setDateRange] = useState<DateRangeFilter>('today');
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('activity');
   const [selectedForumId, setSelectedForumId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
