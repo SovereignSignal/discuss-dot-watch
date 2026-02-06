@@ -656,8 +656,10 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
     setTesting(true);
     setResults(allForums.map(f => ({ ...f, status: 'pending' as const })));
 
-    // Test in batches of 5
-    const batchSize = 5;
+    // Test in small batches with delays to avoid rate limiting
+    const batchSize = 3;
+    const delayMs = 2000; // 2 second delay between batches
+    
     for (let i = 0; i < allForums.length; i += batchSize) {
       const batch = allForums.slice(i, i + batchSize);
       await Promise.all(batch.map(async (forum) => {
@@ -669,6 +671,7 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
             if (r.url !== forum.url) return r;
             if (data.valid) return { ...r, status: 'ok' };
             if (data.error?.includes('redirect')) return { ...r, status: 'redirect', error: data.error, redirectUrl: data.redirectUrl };
+            if (data.error?.includes('Rate limit')) return { ...r, status: 'error', error: 'Rate limited' };
             return { ...r, status: 'error', error: data.error || 'Failed' };
           }));
         } catch (err) {
@@ -677,6 +680,11 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
           ));
         }
       }));
+      
+      // Delay between batches to avoid rate limiting
+      if (i + batchSize < allForums.length) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
     setTesting(false);
   };

@@ -129,16 +129,19 @@ export async function initializeSchema() {
     `;
   } else {
     // No users - safe to nuke and rebuild user tables from scratch
-    console.log('[DB] No users, dropping and recreating user tables...');
-    await db`DROP TABLE IF EXISTS read_state`;
-    await db`DROP TABLE IF EXISTS custom_forums`;
-    await db`DROP TABLE IF EXISTS user_forums`; 
-    await db`DROP TABLE IF EXISTS bookmarks`;
-    await db`DROP TABLE IF EXISTS user_bookmarks`;
-    await db`DROP TABLE IF EXISTS keyword_alerts`;
-    await db`DROP TABLE IF EXISTS user_preferences`;
-    await db`DROP TABLE IF EXISTS users`;
+    console.log('[DB] No users, dropping and recreating user tables with CASCADE...');
     
+    // Use CASCADE to force drop even with FK dependencies
+    await db`DROP TABLE IF EXISTS read_state CASCADE`;
+    await db`DROP TABLE IF EXISTS custom_forums CASCADE`;
+    await db`DROP TABLE IF EXISTS user_forums CASCADE`; 
+    await db`DROP TABLE IF EXISTS bookmarks CASCADE`;
+    await db`DROP TABLE IF EXISTS user_bookmarks CASCADE`;
+    await db`DROP TABLE IF EXISTS keyword_alerts CASCADE`;
+    await db`DROP TABLE IF EXISTS user_preferences CASCADE`;
+    await db`DROP TABLE IF EXISTS users CASCADE`;
+    
+    console.log('[DB] All user tables dropped, creating users table...');
     await db`
       CREATE TABLE users (
         id SERIAL PRIMARY KEY,
@@ -149,6 +152,7 @@ export async function initializeSchema() {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `;
+    console.log('[DB] Users table created successfully');
   }
 
   // Create user-dependent tables
