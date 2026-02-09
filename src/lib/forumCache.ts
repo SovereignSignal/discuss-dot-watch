@@ -130,7 +130,7 @@ export async function getCachedDiscussions(forumUrls: string[]): Promise<Array<{
       for (const topic of cached.topics) {
         results.push({
           title: topic.title,
-          url: `${forumUrl}/t/${topic.slug}/${topic.id}`,
+          url: `${forumUrl.replace(/\/$/, '')}/t/${topic.slug}/${topic.id}`,
           forumName: topic.protocol || forumUrl,
           replies: topic.replyCount || topic.postsCount - 1 || 0,
           views: topic.views || 0,

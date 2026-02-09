@@ -78,7 +78,7 @@ export async function generateDiscussionSummary(
 
   try {
     const response = await client.messages.create({
-      model: 'claude-opus-4-6-20250204',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1024,
       messages: [
         {
@@ -120,7 +120,7 @@ export async function generateTopicInsight(
 
   try {
     const response = await client.messages.create({
-      model: 'claude-opus-4-6-20250204',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 100,
       messages: [
         {
@@ -139,7 +139,11 @@ Just respond with the sentence, no quotes or explanation.`
     const textBlock = response.content.find(block => block.type === 'text');
     return textBlock?.text?.trim() || 'Active discussion.';
   } catch (error) {
-    console.error('Error generating topic insight:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`Error generating topic insight for "${title}":`, msg);
+    // Return engagement-based fallback
+    if (replies > 50) return 'Highly discussed topic generating significant community engagement.';
+    if (views > 1000) return 'Popular topic attracting wide attention from the community.';
     return 'Active discussion.';
   }
 }

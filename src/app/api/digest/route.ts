@@ -68,9 +68,9 @@ function isDelegateThread(title: string, tags: string[]): boolean {
     return true;
   }
   
-  // Check tags
+  // Check tags (some Discourse APIs return non-string tag values)
   const delegateTags = ['delegate', 'delegation', 'delegates', 'delegate-platform', 'delegate-thread'];
-  if (tags.some(tag => delegateTags.includes(tag.toLowerCase()))) {
+  if (tags.some(tag => typeof tag === 'string' && delegateTags.includes(tag.toLowerCase()))) {
     return true;
   }
   
@@ -100,7 +100,7 @@ function isMetaThread(title: string, tags: string[]): boolean {
   }
   // Check tags
   const metaTags = ['meta', 'guidelines', 'introductions', 'welcome', 'faq', 'rules'];
-  if (tags.some(tag => metaTags.includes(tag.toLowerCase()))) {
+  if (tags.some(tag => typeof tag === 'string' && metaTags.includes(tag.toLowerCase()))) {
     return true;
   }
   return false;
