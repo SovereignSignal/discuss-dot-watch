@@ -11,6 +11,7 @@ export interface DigestPreferences {
   includeHotTopics: boolean;
   includeNewProposals: boolean;
   includeKeywordMatches: boolean;
+  includeDelegateCorner: boolean;
   forums: string[]; // forum IDs to include, empty = all
   keywords: string[]; // keywords to track
 }
@@ -24,6 +25,7 @@ export interface TopicSummary {
   likes: number;
   summary: string;
   sentiment?: 'positive' | 'neutral' | 'contentious';
+  matchedKeywords?: string[];
 }
 
 export interface DigestContent {
@@ -157,7 +159,7 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
   
   const formatTopics = (topics: TopicSummary[], title: string, emoji: string) => {
     if (topics.length === 0) return '';
-    
+
     const items = topics.map(t => `
       <tr>
         <td style="padding: 16px; margin-bottom: 8px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
@@ -172,6 +174,11 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
           <div style="font-size: 13px; color: #52525b; margin-bottom: 10px; line-height: 1.5;">
             ${t.summary}
           </div>
+          ${t.matchedKeywords && t.matchedKeywords.length > 0 ? `
+          <div style="font-size: 11px; color: #92400e; background: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; display: inline-block;">
+            Matched: ${t.matchedKeywords.join(', ')}
+          </div>
+          ` : ''}
           <div style="font-size: 12px; color: #71717a;">
             💬 ${t.replies} · 👁 ${t.views.toLocaleString()} · ❤️ ${t.likes}
             ${t.sentiment === 'contentious' ? ' · 🔥 Active debate' : ''}
@@ -237,12 +244,15 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
     </table>
   </div>
 
-  <!-- Hot Topics -->
-  ${formatTopics(digest.hotTopics, `Hot This ${digest.period === 'daily' ? 'Day' : 'Week'}`, '🔥')}
-  
-  <!-- New This Week -->
-  ${formatTopics(digest.newProposals, `New This ${digest.period === 'daily' ? 'Day' : 'Week'}`, '✨')}
-  
+  <!-- Keyword Matches (highest priority) -->
+  ${formatTopics(digest.keywordMatches, 'Your Keyword Matches', '🔔')}
+
+  <!-- New Conversations -->
+  ${formatTopics(digest.newProposals, `New Conversations`, '✨')}
+
+  <!-- Trending -->
+  ${formatTopics(digest.hotTopics, `Trending`, '🔥')}
+
   <!-- Delegate Corner -->
   ${digest.delegateCorner && digest.delegateCorner.length > 0 ? `
   <div style="margin-bottom: 32px; padding: 20px; background: #fafafa; border-radius: 12px; border: 1px solid #e5e7eb;">
@@ -273,9 +283,6 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
     </table>
   </div>
   ` : ''}
-  
-  <!-- Keyword Matches -->
-  ${formatTopics(digest.keywordMatches, 'Your Keyword Alerts', '🔔')}
 
   <!-- CTA -->
   <div style="text-align: center; margin: 32px 0;">
@@ -326,17 +333,25 @@ ${digest.stats.totalDiscussions} active discussions · ${digest.stats.totalRepli
 
 `;
 
-  if (digest.hotTopics.length > 0) {
-    text += `🔥 HOT THIS ${periodLabel.toUpperCase()}\n${'─'.repeat(30)}\n`;
-    digest.hotTopics.forEach((t, i) => {
-      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   👁️‍🗨️ ${t.replies} · 👁 ${t.views} · 👍 ${t.likes}\n   ${t.url}\n\n`;
+  if (digest.keywordMatches.length > 0) {
+    text += `🔔 YOUR KEYWORD MATCHES\n${'─'.repeat(30)}\n`;
+    digest.keywordMatches.forEach((t, i) => {
+      const kw = t.matchedKeywords?.length ? `   Matched: ${t.matchedKeywords.join(', ')}\n` : '';
+      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n${kw}   ${t.url}\n\n`;
     });
   }
 
   if (digest.newProposals.length > 0) {
-    text += `✨ NEW THIS ${periodLabel.toUpperCase()}\n${'─'.repeat(30)}\n`;
+    text += `✨ NEW CONVERSATIONS\n${'─'.repeat(30)}\n`;
     digest.newProposals.forEach((t, i) => {
       text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   👁️‍🗨️ ${t.replies} · 👁 ${t.views}\n   ${t.url}\n\n`;
+    });
+  }
+
+  if (digest.hotTopics.length > 0) {
+    text += `🔥 TRENDING\n${'─'.repeat(30)}\n`;
+    digest.hotTopics.forEach((t, i) => {
+      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   👁️‍🗨️ ${t.replies} · 👁 ${t.views} · 👍 ${t.likes}\n   ${t.url}\n\n`;
     });
   }
 
@@ -344,13 +359,6 @@ ${digest.stats.totalDiscussions} active discussions · ${digest.stats.totalRepli
     text += `👥 DELEGATE CORNER\n${'─'.repeat(30)}\n`;
     text += `Updates from active delegates:\n\n`;
     digest.delegateCorner.forEach((t, i) => {
-      text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   ${t.url}\n\n`;
-    });
-  }
-
-  if (digest.keywordMatches.length > 0) {
-    text += `🔔 YOUR KEYWORD ALERTS\n${'─'.repeat(30)}\n`;
-    digest.keywordMatches.forEach((t, i) => {
       text += `${i + 1}. ${t.title}\n   [${t.protocol}] ${t.summary}\n   ${t.url}\n\n`;
     });
   }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Mail, Bell, Flame, Sparkles, Check, Loader2, Send } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Mail, Bell, Flame, Sparkles, Users, Check, Loader2, Send } from 'lucide-react';
 import { DigestPreferences, DigestFrequency } from '@/types';
 import { useAuth } from './AuthProvider';
 import { c } from '@/lib/theme';
@@ -19,21 +19,59 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
     includeHotTopics: true,
     includeNewProposals: true,
     includeKeywordMatches: true,
+    includeDelegateCorner: true,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const isDark = typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') || !document.documentElement.classList.contains('light') : true;
   const t = c(isDark);
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { setPrefs(prev => ({ ...prev, ...JSON.parse(saved) })); } catch {}
+  const privyDid = user?.id; // Privy DID from auth
+
+  // Load preferences: from API if authenticated, localStorage otherwise
+  const loadPreferences = useCallback(async () => {
+    if (privyDid) {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`/api/user/digest-preferences?privyDid=${encodeURIComponent(privyDid)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const dp = data.digestPreferences;
+          if (dp) {
+            setPrefs({
+              frequency: dp.frequency || 'weekly',
+              includeHotTopics: dp.includeHotTopics ?? true,
+              includeNewProposals: dp.includeNewProposals ?? true,
+              includeKeywordMatches: dp.includeKeywordMatches ?? true,
+              includeDelegateCorner: dp.includeDelegateCorner ?? true,
+              email: dp.digestEmail || undefined,
+            });
+          }
+        }
+      } catch {
+        // Fall back to localStorage
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try { setPrefs(prev => ({ ...prev, ...JSON.parse(saved) })); } catch {}
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try { setPrefs(prev => ({ ...prev, ...JSON.parse(saved) })); } catch {}
+      }
     }
-  }, []);
+  }, [privyDid]);
+
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
 
   const handleFrequencyChange = (frequency: DigestFrequency) => setPrefs(prev => ({ ...prev, frequency }));
   const handleToggle = (key: keyof DigestPreferences) => {
@@ -45,7 +83,27 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
     setIsSaving(true);
     setSaveMessage(null);
     try {
+      // Always save to localStorage as fallback
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+
+      // If authenticated, save to DB
+      if (privyDid) {
+        const res = await fetch('/api/user/digest-preferences', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            privyDid,
+            frequency: prefs.frequency,
+            digestEmail: prefs.email || null,
+            includeHotTopics: prefs.includeHotTopics,
+            includeNewProposals: prefs.includeNewProposals,
+            includeKeywordMatches: prefs.includeKeywordMatches,
+            includeDelegateCorner: prefs.includeDelegateCorner,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to save to server');
+      }
+
       setSaveMessage('Preferences saved!');
       onSave?.(prefs);
       setTimeout(() => setSaveMessage(null), 3000);
@@ -78,6 +136,19 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
   };
 
   const userEmail = user?.email || prefs.email;
+
+  // Build personalized preview URL
+  const previewUrl = privyDid
+    ? `/api/digest?format=html&period=weekly&privyDid=${encodeURIComponent(privyDid)}`
+    : '/api/digest?format=html&period=weekly';
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: t.fgMuted }} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -127,11 +198,13 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
           <label className="block text-sm font-medium mb-3" style={{ color: t.fg }}>Include in Digest</label>
           <div className="space-y-3">
             <ToggleOption checked={prefs.includeHotTopics} onChange={() => handleToggle('includeHotTopics')}
-              icon={<Flame className="w-4 h-4" />} label="Hot Topics" description="Most discussed and viewed proposals" t={t} isDark={isDark} />
+              icon={<Flame className="w-4 h-4" />} label="Trending" description="Active discussions with high engagement" t={t} isDark={isDark} />
             <ToggleOption checked={prefs.includeNewProposals} onChange={() => handleToggle('includeNewProposals')}
-              icon={<Sparkles className="w-4 h-4" />} label="New Proposals" description="Recently created discussions" t={t} isDark={isDark} />
+              icon={<Sparkles className="w-4 h-4" />} label="New Conversations" description="Recently created discussions" t={t} isDark={isDark} />
             <ToggleOption checked={prefs.includeKeywordMatches} onChange={() => handleToggle('includeKeywordMatches')}
-              icon={<Bell className="w-4 h-4" />} label="Keyword Alerts" description="Matches for your tracked keywords" t={t} isDark={isDark} />
+              icon={<Bell className="w-4 h-4" />} label="Keyword Matches" description="New topics matching your tracked keywords" t={t} isDark={isDark} />
+            <ToggleOption checked={prefs.includeDelegateCorner} onChange={() => handleToggle('includeDelegateCorner')}
+              icon={<Users className="w-4 h-4" />} label="Delegate Corner" description="Updates from active delegates" t={t} isDark={isDark} />
           </div>
         </div>
       )}
@@ -169,7 +242,7 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
 
       {prefs.frequency !== 'never' && (
         <div className="text-sm">
-          <a href="/api/digest?format=html&period=weekly" target="_blank" rel="noopener noreferrer"
+          <a href={previewUrl} target="_blank" rel="noopener noreferrer"
             style={{ color: t.fgMuted }} className="hover:underline">
             Preview digest email →
           </a>

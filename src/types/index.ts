@@ -69,6 +69,7 @@ export interface DigestPreferences {
   includeHotTopics: boolean;
   includeNewProposals: boolean;
   includeKeywordMatches: boolean;
+  includeDelegateCorner: boolean;
   email?: string; // Override email if different from account
 }
 

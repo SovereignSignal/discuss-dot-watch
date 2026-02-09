@@ -77,9 +77,13 @@ export async function GET(request: NextRequest) {
 
     const user = users[0];
 
-    // Get user preferences
+    // Get user preferences (including digest prefs)
     const preferences = await sql`
-      SELECT theme, onboarding_completed
+      SELECT theme, onboarding_completed,
+             digest_frequency, digest_email,
+             include_hot_topics, include_new_proposals,
+             include_keyword_matches, include_delegate_corner,
+             last_digest_sent_at
       FROM user_preferences
       WHERE user_id = ${user.id}
     `;
@@ -119,10 +123,21 @@ export async function GET(request: NextRequest) {
       WHERE user_id = ${user.id}
     `;
 
+    const pref = preferences[0];
     return NextResponse.json({
       user: {
         ...user,
-        preferences: preferences[0] || { theme: 'dark', onboarding_completed: false },
+        preferences: pref ? {
+          theme: pref.theme,
+          onboarding_completed: pref.onboarding_completed,
+          digestFrequency: pref.digest_frequency || 'never',
+          digestEmail: pref.digest_email,
+          includeHotTopics: pref.include_hot_topics ?? true,
+          includeNewProposals: pref.include_new_proposals ?? true,
+          includeKeywordMatches: pref.include_keyword_matches ?? true,
+          includeDelegateCorner: pref.include_delegate_corner ?? true,
+          lastDigestSentAt: pref.last_digest_sent_at,
+        } : { theme: 'dark', onboarding_completed: false, digestFrequency: 'never' },
         forums: forums.map((f) => ({
           cname: f.forum_cname,
           isEnabled: f.is_enabled

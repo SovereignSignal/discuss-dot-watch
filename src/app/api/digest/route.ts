@@ -1,10 +1,12 @@
 /**
  * Digest Generation API
- * 
+ *
  * GET /api/digest - Preview digest content (add ?format=html for email preview)
+ *   - ?privyDid=xxx for personalized preview
  * POST /api/digest - Generate and send digest emails
  *   - { testEmail: "x@y.com" } sends simple test email
- *   - { testEmail: "x@y.com", simple: false } sends full digest
+ *   - { testEmail: "x@y.com", simple: false } sends full personalized digest
+ *   - { period: "weekly" } sends batch to all subscribers
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,20 +17,27 @@ import {
   TopicSummary,
   generateTopicInsight,
 } from '@/lib/emailDigest';
-import { sendTestDigestEmail } from '@/lib/emailService';
+import { sendTestDigestEmail, sendBatchDigestEmails } from '@/lib/emailService';
 import { getCachedDiscussions } from '@/lib/forumCache';
 import { FORUM_CATEGORIES } from '@/lib/forumPresets';
+import {
+  isDatabaseConfigured,
+  getDigestSubscribers,
+  getUserForumUrls,
+  getUserKeywords,
+  updateLastDigestSent,
+} from '@/lib/db';
 
 // Helper to validate cron secret
 function validateCronSecret(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
-  
+
   // If no secret configured, allow in development
   if (!cronSecret && process.env.NODE_ENV === 'development') {
     return true;
   }
-  
+
   return authHeader === `Bearer ${cronSecret}`;
 }
 
@@ -48,7 +57,7 @@ function getDigestForums(): Array<{ name: string; url: string }> {
 // Detect if a discussion is delegate-related
 function isDelegateThread(title: string, tags: string[]): boolean {
   const titleLower = title.toLowerCase();
-  
+
   // Title patterns that indicate delegate threads
   const delegatePatterns = [
     'delegate',
@@ -62,18 +71,18 @@ function isDelegateThread(title: string, tags: string[]): boolean {
     'delegate commitment',
     'seeking delegation',
   ];
-  
+
   // Check title
   if (delegatePatterns.some(pattern => titleLower.includes(pattern))) {
     return true;
   }
-  
+
   // Check tags (some Discourse APIs return non-string tag values)
   const delegateTags = ['delegate', 'delegation', 'delegates', 'delegate-platform', 'delegate-thread'];
   if (tags.some(tag => typeof tag === 'string' && delegateTags.includes(tag.toLowerCase()))) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -106,30 +115,32 @@ function isMetaThread(title: string, tags: string[]): boolean {
   return false;
 }
 
-// Get discussions from cached data
-async function getTopDiscussions(period: 'daily' | 'weekly'): Promise<{
-  discussions: Array<{
-    title: string;
-    protocol: string;
-    url: string;
-    replies: number;
-    views: number;
-    likes: number;
-    tags: string[];
-    createdAt: Date;
-    bumpedAt: Date;
-    isDelegate: boolean;
-    pinned: boolean;
-  }>;
-}> {
-  const digestForums = getDigestForums();
-  const forumUrls = digestForums.map(f => f.url);
-  
-  // Use the cached discussions from forum cache
+// Match keywords against a title, return matching keywords
+function matchesKeywords(title: string, keywords: string[]): string[] {
+  const titleLower = title.toLowerCase();
+  return keywords.filter(kw => titleLower.includes(kw.toLowerCase()));
+}
+
+// Discussion shape used internally
+interface DigestDiscussion {
+  title: string;
+  protocol: string;
+  url: string;
+  replies: number;
+  views: number;
+  likes: number;
+  tags: string[];
+  createdAt: Date;
+  bumpedAt: Date;
+  isDelegate: boolean;
+  pinned: boolean;
+}
+
+// Get discussions from cached data for specific forum URLs
+async function getDiscussionsForUrls(forumUrls: string[]): Promise<DigestDiscussion[]> {
   const cached = await getCachedDiscussions(forumUrls);
-  
-  // Map to our format and tag delegate threads
-  const all = cached.map(d => ({
+
+  return cached.map(d => ({
     title: d.title,
     protocol: d.forumName || 'Unknown',
     url: d.url,
@@ -142,109 +153,129 @@ async function getTopDiscussions(period: 'daily' | 'weekly'): Promise<{
     isDelegate: isDelegateThread(d.title, d.tags || []),
     pinned: d.pinned || false,
   }));
-  
-  return { discussions: all };
 }
 
-// Generate digest content with REAL data
-async function generateDigestContent(period: 'daily' | 'weekly'): Promise<DigestContent> {
-  const { discussions } = await getTopDiscussions(period);
+// Build a TopicSummary from a discussion, using the insight cache
+async function toTopicSummary(
+  d: DigestDiscussion,
+  insightCache: Map<string, string>,
+  matchedKws?: string[],
+): Promise<TopicSummary> {
+  let insight = insightCache.get(d.url);
+  if (!insight) {
+    insight = await generateTopicInsight(d.title, d.protocol, d.replies, d.views);
+    insightCache.set(d.url, insight);
+  }
+  return {
+    title: d.title,
+    protocol: d.protocol,
+    url: d.url,
+    replies: d.replies,
+    views: d.views,
+    likes: d.likes,
+    summary: insight,
+    sentiment: d.replies > 50 ? 'contentious' as const : 'neutral' as const,
+    matchedKeywords: matchedKws,
+  };
+}
+
+/**
+ * Generate personalized digest for a specific user's forums and keywords
+ */
+async function generatePersonalizedDigest(
+  period: 'daily' | 'weekly',
+  forumUrls: string[],
+  keywords: string[],
+  contentToggles: {
+    includeHotTopics: boolean;
+    includeNewProposals: boolean;
+    includeKeywordMatches: boolean;
+    includeDelegateCorner: boolean;
+  },
+  insightCache: Map<string, string>,
+): Promise<DigestContent> {
+  const discussions = await getDiscussionsForUrls(forumUrls);
   const periodDays = period === 'daily' ? 1 : 7;
-  
+
   const endDate = new Date();
   const startDate = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
 
-  // Filter discussions that had activity within the period
-  // Exclude: pinned threads, meta/intro threads
-  const recentlyActive = discussions.filter(d => 
-    d.bumpedAt > startDate && 
-    !d.pinned && 
+  // Filter active discussions within the period, exclude pinned + meta
+  const recentlyActive = discussions.filter(d =>
+    d.bumpedAt > startDate &&
+    !d.pinned &&
     !isMetaThread(d.title, d.tags)
   );
-  
-  // Separate delegate threads from regular discussions
+
   const regularDiscussions = recentlyActive.filter(d => !d.isDelegate);
   const delegateThreads = recentlyActive.filter(d => d.isDelegate);
-  
-  // Hot topics: Weight by RECENT engagement, not all-time stats
-  // Boost newer threads and recent activity
-  const now = Date.now();
-  const hotTopicsRaw = regularDiscussions
-    .map(d => {
-      // Recency boost: threads created/bumped recently get higher scores
-      const ageHours = (now - d.bumpedAt.getTime()) / (1000 * 60 * 60);
-      const recencyMultiplier = Math.max(0.5, 1 - (ageHours / (periodDays * 24 * 2))); // Decay over 2x period
-      
-      // Base engagement score (replies matter most, then likes, views are just awareness)
-      const engagementScore = (d.replies * 10) + (d.likes * 3) + (d.views / 500);
-      
-      return { ...d, score: engagementScore * recencyMultiplier };
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
-  
-  // Generate AI insights for hot topics
-  const hotTopics: TopicSummary[] = await Promise.all(
-    hotTopicsRaw.map(async (d) => {
-      const insight = await generateTopicInsight(d.title, d.protocol, d.replies, d.views);
-      return {
-        title: d.title,
-        protocol: d.protocol,
-        url: d.url,
-        replies: d.replies,
-        views: d.views,
-        likes: d.likes,
-        summary: insight,
-        sentiment: d.replies > 50 ? 'contentious' as const : 'neutral' as const,
-      };
-    })
-  );
+  const newRegular = regularDiscussions.filter(d => d.createdAt > startDate);
 
-  // New proposals: Created within the period, NON-DELEGATE, sorted by engagement
-  const newProposalsRaw = regularDiscussions
-    .filter(d => d.createdAt > startDate)
-    .sort((a, b) => (b.replies + b.likes) - (a.replies + a.likes))
-    .slice(0, 5);
-  
-  // Generate AI insights for new proposals  
-  const newProposals: TopicSummary[] = await Promise.all(
-    newProposalsRaw.map(async (d) => {
-      const insight = await generateTopicInsight(d.title, d.protocol, d.replies, d.views);
-      return {
-        title: d.title,
-        protocol: d.protocol,
-        url: d.url,
-        replies: d.replies,
-        views: d.views,
-        likes: d.likes,
-        summary: insight,
-        sentiment: 'neutral' as const,
-      };
-    })
-  );
+  // 1. Keyword Matches — new topics matching user's keywords
+  let keywordMatches: TopicSummary[] = [];
+  const keywordMatchedUrls = new Set<string>();
+  if (contentToggles.includeKeywordMatches && keywords.length > 0) {
+    const matched = newRegular
+      .map(d => ({ d, kws: matchesKeywords(d.title, keywords) }))
+      .filter(({ kws }) => kws.length > 0)
+      .sort((a, b) => b.kws.length - a.kws.length || (b.d.replies + b.d.likes) - (a.d.replies + a.d.likes))
+      .slice(0, 5);
 
-  // Delegate Corner: Active delegate threads, summarized
-  const delegateCornerRaw = delegateThreads
-    .sort((a, b) => (b.replies + b.views/100) - (a.replies + a.views/100))
-    .slice(0, 3);
-  
-  const delegateCorner: TopicSummary[] = await Promise.all(
-    delegateCornerRaw.map(async (d) => {
-      const insight = await generateTopicInsight(d.title, d.protocol, d.replies, d.views);
-      return {
-        title: d.title,
-        protocol: d.protocol,
-        url: d.url,
-        replies: d.replies,
-        views: d.views,
-        likes: d.likes,
-        summary: insight,
-        sentiment: 'neutral' as const,
-      };
-    })
-  );
+    keywordMatches = await Promise.all(
+      matched.map(({ d, kws }) => {
+        keywordMatchedUrls.add(d.url);
+        return toTopicSummary(d, insightCache, kws);
+      })
+    );
+  }
 
-  // Calculate stats from period data (all discussions)
+  // 2. New Conversations — new topics not already in keyword matches
+  let newProposals: TopicSummary[] = [];
+  if (contentToggles.includeNewProposals) {
+    const newNonKw = newRegular
+      .filter(d => !keywordMatchedUrls.has(d.url))
+      .sort((a, b) => (b.replies + b.likes) - (a.replies + a.likes))
+      .slice(0, 5);
+
+    newProposals = await Promise.all(
+      newNonKw.map(d => toTopicSummary(d, insightCache))
+    );
+  }
+
+  // 3. Trending — active existing discussions (bumped in period, not new, not in above)
+  const usedUrls = new Set([...keywordMatchedUrls, ...newProposals.map(t => t.url)]);
+  let hotTopics: TopicSummary[] = [];
+  if (contentToggles.includeHotTopics) {
+    const now = Date.now();
+    const trending = regularDiscussions
+      .filter(d => !usedUrls.has(d.url) && d.createdAt <= startDate) // existing discussions only
+      .map(d => {
+        const ageHours = (now - d.bumpedAt.getTime()) / (1000 * 60 * 60);
+        const recencyMultiplier = Math.max(0.5, 1 - (ageHours / (periodDays * 24 * 2)));
+        const engagementScore = (d.replies * 10) + (d.likes * 3) + (d.views / 500);
+        return { ...d, score: engagementScore * recencyMultiplier };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    hotTopics = await Promise.all(
+      trending.map(d => toTopicSummary(d, insightCache))
+    );
+  }
+
+  // 4. Delegate Corner
+  let delegateCorner: TopicSummary[] = [];
+  if (contentToggles.includeDelegateCorner) {
+    const delegateRaw = delegateThreads
+      .sort((a, b) => (b.replies + b.views/100) - (a.replies + a.views/100))
+      .slice(0, 3);
+
+    delegateCorner = await Promise.all(
+      delegateRaw.map(d => toTopicSummary(d, insightCache))
+    );
+  }
+
+  // Stats
   const totalReplies = recentlyActive.reduce((sum, d) => sum + d.replies, 0);
   const protocolCounts = recentlyActive.reduce((acc, d) => {
     acc[d.protocol] = (acc[d.protocol] || 0) + 1;
@@ -253,7 +284,6 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
   const mostActiveProtocol = Object.entries(protocolCounts)
     .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Various';
 
-  // Quick stats summary
   const overallSummary = `${regularDiscussions.length} discussions + ${delegateThreads.length} delegate threads active across ${new Set(recentlyActive.map(d => d.protocol)).size} communities.`;
 
   return {
@@ -263,7 +293,7 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
     hotTopics,
     newProposals,
     delegateCorner,
-    keywordMatches: [], // Would be populated based on user keywords
+    keywordMatches,
     overallSummary,
     stats: {
       totalDiscussions: recentlyActive.length,
@@ -273,15 +303,66 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
   };
 }
 
-// GET - Preview digest (generates with Opus, doesn't send)
-// Note: Preview is accessible for testing; actual sends are admin-only via POST
+// Generate digest content with global tier-1 data (fallback for non-personalized)
+async function generateDigestContent(period: 'daily' | 'weekly'): Promise<DigestContent> {
+  const digestForums = getDigestForums();
+  const forumUrls = digestForums.map(f => f.url);
+  const insightCache = new Map<string, string>();
+
+  return generatePersonalizedDigest(period, forumUrls, [], {
+    includeHotTopics: true,
+    includeNewProposals: true,
+    includeKeywordMatches: false,
+    includeDelegateCorner: true,
+  }, insightCache);
+}
+
+// GET - Preview digest (generates content, doesn't send)
+// ?privyDid=xxx for personalized preview
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const period = (searchParams.get('period') as 'daily' | 'weekly') || 'weekly';
   const format = searchParams.get('format') || 'json';
+  const privyDid = searchParams.get('privyDid');
 
   try {
-    const digest = await generateDigestContent(period);
+    let digest: DigestContent;
+
+    if (privyDid && isDatabaseConfigured()) {
+      // Personalized preview for a specific user
+      const { getDb } = await import('@/lib/db');
+      const sql = getDb();
+      const users = await sql`SELECT id, email FROM users WHERE privy_did = ${privyDid}`;
+
+      if (users.length > 0) {
+        const userId = users[0].id;
+        const [forumUrls, keywords] = await Promise.all([
+          getUserForumUrls(userId),
+          getUserKeywords(userId),
+        ]);
+
+        // Get user content toggles
+        const prefs = await sql`
+          SELECT include_hot_topics, include_new_proposals, include_keyword_matches, include_delegate_corner
+          FROM user_preferences WHERE user_id = ${userId}
+        `;
+        const p = prefs[0];
+
+        const userForumUrls = forumUrls.length > 0 ? forumUrls : getDigestForums().map(f => f.url);
+        const insightCache = new Map<string, string>();
+
+        digest = await generatePersonalizedDigest(period, userForumUrls, keywords, {
+          includeHotTopics: p?.include_hot_topics ?? true,
+          includeNewProposals: p?.include_new_proposals ?? true,
+          includeKeywordMatches: p?.include_keyword_matches ?? true,
+          includeDelegateCorner: p?.include_delegate_corner ?? true,
+        }, insightCache);
+      } else {
+        digest = await generateDigestContent(period);
+      }
+    } else {
+      digest = await generateDigestContent(period);
+    }
 
     if (format === 'html') {
       const html = formatDigestEmail(digest, 'Test User');
@@ -324,20 +405,18 @@ export async function POST(request: NextRequest) {
   // All digest operations require admin auth (header) or cron secret
   const adminEmail = request.headers.get('x-admin-email');
   const { isAdminEmail } = await import('@/lib/admin');
-  
+
   if (!isAdminEmail(adminEmail) && !validateCronSecret(request)) {
     return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 401 });
   }
 
   try {
-    // For test emails, try a simple send first to validate the email pipeline.
-    // If that works, then try the full digest generation.
+    // Test email flow
     if (testEmail) {
-      // First, try sending a simple test email to validate Resend config
       const simpleTest = body.simple !== false;
-      
+
       if (simpleTest) {
-        // Send a quick test email without the heavy digest generation
+        // Send a quick test email without digest generation
         const { sendEmail } = await import('@/lib/emailService');
         const quickResult = await sendEmail({
           to: testEmail,
@@ -362,22 +441,56 @@ export async function POST(request: NextRequest) {
           `,
           text: `discuss.watch - Test Email\n\nYour email is set up and working. You'll receive digest emails at this address.\n\nRecipient: ${testEmail}\nSent: ${new Date().toUTCString()}`,
         });
-        
+
         if (!quickResult.success) {
           return NextResponse.json({
             success: false,
             error: `Email delivery failed: ${quickResult.error}`,
           });
         }
-        
+
         return NextResponse.json({
           success: true,
           message: `Test email sent to ${testEmail}`,
         });
       }
-      
-      // Full digest test (when simple=false)
-      const digest = await generateDigestContent(period);
+
+      // Full personalized digest test (simple=false)
+      // Try to find user in DB for personalization
+      let digest: DigestContent;
+      const insightCache = new Map<string, string>();
+
+      if (isDatabaseConfigured()) {
+        const { getDb } = await import('@/lib/db');
+        const sql = getDb();
+        const users = await sql`SELECT id, email FROM users WHERE email = ${testEmail}`;
+
+        if (users.length > 0) {
+          const userId = users[0].id;
+          const [forumUrls, keywords] = await Promise.all([
+            getUserForumUrls(userId),
+            getUserKeywords(userId),
+          ]);
+          const prefs = await sql`
+            SELECT include_hot_topics, include_new_proposals, include_keyword_matches, include_delegate_corner
+            FROM user_preferences WHERE user_id = ${userId}
+          `;
+          const p = prefs[0];
+          const userForumUrls = forumUrls.length > 0 ? forumUrls : getDigestForums().map(f => f.url);
+
+          digest = await generatePersonalizedDigest(period, userForumUrls, keywords, {
+            includeHotTopics: p?.include_hot_topics ?? true,
+            includeNewProposals: p?.include_new_proposals ?? true,
+            includeKeywordMatches: p?.include_keyword_matches ?? true,
+            includeDelegateCorner: p?.include_delegate_corner ?? true,
+          }, insightCache);
+        } else {
+          digest = await generateDigestContent(period);
+        }
+      } else {
+        digest = await generateDigestContent(period);
+      }
+
       const html = formatDigestEmail(digest);
       const text = formatDigestPlainText(digest);
       const result = await sendTestDigestEmail(testEmail, html, text);
@@ -388,20 +501,93 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Production: generate digest and send to subscribers
-    const digest = await generateDigestContent(period);
-    const subject = `👁️‍🗨️ Your ${period === 'daily' ? 'Daily' : 'Weekly'} Community Digest`;
+    // Production batch: generate and send to all subscribers for this period
+    if (!isDatabaseConfigured()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Database not configured — cannot send batch digests',
+      }, { status: 503 });
+    }
 
-    // TODO: fetch users with this digest preference from DB and send
+    const subscribers = await getDigestSubscribers(period as 'daily' | 'weekly');
+
+    if (subscribers.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'No subscribers for this period',
+        sent: 0,
+      });
+    }
+
+    console.log(`[Digest] Generating personalized digests for ${subscribers.length} ${period} subscribers`);
+
+    // Shared insight cache across all users to minimize AI calls
+    const insightCache = new Map<string, string>();
+    const recipients: Array<{ email: string; html: string; text: string; subject: string }> = [];
+    const subject = `👁️‍🗨️ Your ${period === 'daily' ? 'Daily' : 'Weekly'} Community Digest`;
+    const skipped: string[] = [];
+
+    for (const sub of subscribers) {
+      const email = sub.digest_email || sub.email;
+      if (!email) { skipped.push(`user ${sub.id}: no email`); continue; }
+
+      try {
+        const [forumUrls, keywords] = await Promise.all([
+          getUserForumUrls(sub.id),
+          getUserKeywords(sub.id),
+        ]);
+
+        // Fall back to global tier-1 forums if user has no forums configured
+        const userForumUrls = forumUrls.length > 0 ? forumUrls : getDigestForums().map(f => f.url);
+
+        const digest = await generatePersonalizedDigest(period as 'daily' | 'weekly', userForumUrls, keywords, {
+          includeHotTopics: sub.include_hot_topics ?? true,
+          includeNewProposals: sub.include_new_proposals ?? true,
+          includeKeywordMatches: sub.include_keyword_matches ?? true,
+          includeDelegateCorner: sub.include_delegate_corner ?? true,
+        }, insightCache);
+
+        // Skip empty digests
+        const totalTopics = digest.hotTopics.length + digest.newProposals.length
+          + digest.keywordMatches.length + (digest.delegateCorner?.length || 0);
+        if (totalTopics === 0) {
+          skipped.push(`${email}: empty digest`);
+          continue;
+        }
+
+        recipients.push({
+          email,
+          html: formatDigestEmail(digest, email.split('@')[0]),
+          text: formatDigestPlainText(digest, email.split('@')[0]),
+          subject,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[Digest] Error generating for ${email}:`, msg);
+        skipped.push(`${email}: ${msg}`);
+      }
+    }
+
+    // Send all emails
+    const results = await sendBatchDigestEmails(recipients, period as 'daily' | 'weekly');
+
+    // Update last_digest_sent_at for successfully sent users
+    for (const sub of subscribers) {
+      const email = sub.digest_email || sub.email;
+      if (recipients.some(r => r.email === email)) {
+        await updateLastDigestSent(sub.id);
+      }
+    }
+
+    console.log(`[Digest] Batch complete: ${results.sent} sent, ${results.failed} failed, ${skipped.length} skipped`);
+
     return NextResponse.json({
       success: true,
-      message: 'Digest generation complete',
-      digest: {
-        period,
-        hotTopicsCount: digest.hotTopics.length,
-        newProposalsCount: digest.newProposals.length,
-        summary: digest.overallSummary.substring(0, 200) + '...',
-      },
+      message: `Digest batch complete`,
+      sent: results.sent,
+      failed: results.failed,
+      skipped: skipped.length,
+      errors: results.errors.length > 0 ? results.errors : undefined,
     });
   } catch (error) {
     console.error('Error generating/sending digest:', error);
