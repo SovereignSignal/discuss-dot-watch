@@ -425,14 +425,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/26536/small/radiant.png',
         tier: 3,
       },
-      {
-        name: 'Fluid (Instadapp)',
-        url: 'https://gov.fluid.io/',
-        description: 'DeFi smart accounts and lending',
-        token: 'INST',
-        logoUrl: 'https://assets.coingecko.com/coins/images/14688/small/instadapp.png',
-        tier: 2,
-      },
       // DEX
       {
         name: 'Uniswap',
@@ -818,13 +810,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://community.openstreetmap.org/',
         description: 'OSM governance and OSMF',
         logoUrl: 'https://wiki.openstreetmap.org/w/images/7/79/Public-images-osm_logo.svg',
-        tier: 2,
-      },
-      {
-        name: 'Tailscale Forum',
-        url: 'https://forum.tailscale.com/',
-        description: 'Tailscale community discussions',
-        logoUrl: 'https://tailscale.com/files/tailscale-logo.svg',
         tier: 2,
       },
     
