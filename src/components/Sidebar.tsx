@@ -1,14 +1,14 @@
 'use client';
 
-import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield } from 'lucide-react';
+import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper } from 'lucide-react';
 import { UserButton } from './UserButton';
 import { useAuth } from './AuthProvider';
 import { isAdminEmail } from '@/lib/admin';
 import { c } from '@/lib/theme';
 
 interface SidebarProps {
-  activeView: 'feed' | 'projects' | 'saved' | 'settings';
-  onViewChange: (view: 'feed' | 'projects' | 'saved' | 'settings') => void;
+  activeView: 'feed' | 'briefs' | 'projects' | 'saved' | 'settings';
+  onViewChange: (view: 'feed' | 'briefs' | 'projects' | 'saved' | 'settings') => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   savedCount?: number;
@@ -24,6 +24,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedC
   
   const navItems = [
     { id: 'feed' as const, label: 'Feed', icon: LayoutGrid },
+    { id: 'briefs' as const, label: 'Briefs', icon: Newspaper },
     { id: 'projects' as const, label: 'Communities', icon: FolderOpen },
     { id: 'saved' as const, label: 'Saved', icon: Bookmark, count: savedCount },
     { id: 'settings' as const, label: 'Settings', icon: Settings },

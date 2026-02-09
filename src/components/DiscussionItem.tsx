@@ -1,7 +1,7 @@
 'use client';
 
 import { format, isToday, isYesterday } from 'date-fns';
-import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles } from 'lucide-react';
+import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert } from '@/types';
 import { c } from '@/lib/theme';
 
@@ -15,8 +15,10 @@ interface DiscussionItemProps {
   alerts: KeywordAlert[];
   isBookmarked?: boolean;
   isRead?: boolean;
+  isSelected?: boolean;
   onToggleBookmark?: (topic: DiscussionTopic) => void;
   onMarkAsRead?: (refId: string) => void;
+  onSelect?: (topic: DiscussionTopic) => void;
   forumLogoUrl?: string;
   isDark?: boolean;
 }
@@ -68,8 +70,8 @@ function highlightKeywords(text: string, alerts: KeywordAlert[], isDark: boolean
 }
 
 export function DiscussionItem({
-  topic, alerts, isBookmarked, isRead = false,
-  onToggleBookmark, onMarkAsRead, forumLogoUrl, isDark = true,
+  topic, alerts, isBookmarked, isRead = false, isSelected = false,
+  onToggleBookmark, onMarkAsRead, onSelect, forumLogoUrl, isDark = true,
 }: DiscussionItemProps) {
   const topicUrl = `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
   const activity = getActivityLevel(topic);
@@ -79,8 +81,8 @@ export function DiscussionItem({
     <article
       className="group relative overflow-hidden rounded-lg border transition-all duration-150"
       style={{
-        borderColor: isRead ? t.readBorder : t.border,
-        backgroundColor: isRead ? 'transparent' : t.bgCard,
+        borderColor: isSelected ? t.borderActive : isRead ? t.readBorder : t.border,
+        backgroundColor: isSelected ? t.bgActive : isRead ? 'transparent' : t.bgCard,
       }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = t.hoverBorder; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = isRead ? t.readBorder : t.border; }}
@@ -134,14 +136,44 @@ export function DiscussionItem({
               )}
             </div>
 
-            <h3 className="mt-1 text-sm sm:text-[15px] font-medium leading-snug line-clamp-2"
-              style={{ color: isRead ? t.readFg : t.fg }}>
-              <a href={topicUrl} target="_blank" rel="noopener noreferrer"
-                onClick={() => { if (!isRead && onMarkAsRead) onMarkAsRead(topic.refId); }}
-                className="hover:underline">
-                {highlightKeywords(topic.title, alerts, isDark)}
-              </a>
-            </h3>
+            <div className="mt-1 flex items-start gap-1.5">
+              <h3 className="text-sm sm:text-[15px] font-medium leading-snug line-clamp-2 flex-1"
+                style={{ color: isRead ? t.readFg : t.fg }}>
+                {onSelect ? (
+                  <button
+                    onClick={() => {
+                      if (!isRead && onMarkAsRead) onMarkAsRead(topic.refId);
+                      onSelect(topic);
+                    }}
+                    className="text-left hover:underline"
+                  >
+                    {highlightKeywords(topic.title, alerts, isDark)}
+                  </button>
+                ) : (
+                  <a href={topicUrl} target="_blank" rel="noopener noreferrer"
+                    onClick={() => { if (!isRead && onMarkAsRead) onMarkAsRead(topic.refId); }}
+                    className="hover:underline">
+                    {highlightKeywords(topic.title, alerts, isDark)}
+                  </a>
+                )}
+              </h3>
+              {onSelect && (
+                <a href={topicUrl} target="_blank" rel="noopener noreferrer"
+                  className="mt-0.5 p-0.5 rounded opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0"
+                  style={{ color: t.fgDim }}
+                  title="Open in new tab"
+                  onClick={(e) => e.stopPropagation()}>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
+
+            {topic.excerpt && (
+              <p className="mt-0.5 text-[12px] leading-relaxed line-clamp-2"
+                style={{ color: t.fgDim }}>
+                {topic.excerpt}
+              </p>
+            )}
 
             {/* Meta inline */}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" style={{ color: t.fgDim }}>

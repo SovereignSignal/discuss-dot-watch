@@ -40,6 +40,8 @@ interface DiscussionFeedProps {
   unreadCount: number;
   onRemoveForum?: (forumId: string) => void;
   activeKeywordFilter?: string | null;
+  onSelectTopic?: (topic: DiscussionTopic) => void;
+  selectedTopicRefId?: string | null;
   isDark?: boolean;
 }
 
@@ -47,7 +49,8 @@ export function DiscussionFeed({
   discussions, isLoading, error: _error, lastUpdated, onRefresh,
   alerts, searchQuery, enabledForumIds, forumStates, forums,
   isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
-  unreadCount, onRemoveForum, activeKeywordFilter, isDark = true,
+  unreadCount, onRemoveForum, activeKeywordFilter,
+  onSelectTopic, selectedTopicRefId, isDark = true,
 }: DiscussionFeedProps) {
   const [displayCount, setDisplayCount] = useState(20);
   const [dateRange, setDateRange] = useState<DateRangeFilter>('today');
@@ -222,8 +225,10 @@ export function DiscussionFeed({
                 topic={topic} alerts={alerts}
                 isBookmarked={isBookmarked(topic.refId)}
                 isRead={isRead(topic.refId)}
+                isSelected={selectedTopicRefId === topic.refId}
                 onToggleBookmark={onToggleBookmark}
                 onMarkAsRead={onMarkAsRead}
+                onSelect={onSelectTopic}
                 forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
                 isDark={isDark}
               />

@@ -39,7 +39,7 @@ export function FilterTabs({
           color: filterMode === 'all' ? t.fg : t.fgMuted
         }}
       >
-        All ({totalCount})
+        All Forums ({totalCount})
       </button>
     </div>
   );

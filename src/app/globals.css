@@ -513,3 +513,129 @@ html.light .border-amber-500\/30 {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ===== DISCOURSE CONTENT STYLING ===== */
+/* Styles for inline-rendered Discourse post HTML */
+.discourse-content {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.discourse-content p {
+  margin-bottom: 0.75em;
+}
+
+.discourse-content p:last-child {
+  margin-bottom: 0;
+}
+
+.discourse-content h1,
+.discourse-content h2,
+.discourse-content h3,
+.discourse-content h4 {
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  color: var(--text-primary);
+}
+
+.discourse-content h1 { font-size: 1.25em; }
+.discourse-content h2 { font-size: 1.125em; }
+.discourse-content h3 { font-size: 1em; }
+
+.discourse-content ul,
+.discourse-content ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.discourse-content ul { list-style: disc; }
+.discourse-content ol { list-style: decimal; }
+
+.discourse-content li {
+  margin-bottom: 0.25em;
+}
+
+.discourse-content blockquote {
+  margin: 0.75em 0;
+  padding: 0.5em 1em;
+  border-left: 3px solid var(--card-border);
+  color: var(--text-secondary);
+}
+
+.discourse-content pre {
+  margin: 0.75em 0;
+  padding: 0.75em 1em;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  font-size: 0.85em;
+  background-color: rgba(0, 0, 0, 0.3);
+  color: #e4e4e7;
+}
+
+html.light .discourse-content pre {
+  background-color: #f1f5f9;
+  color: #1e293b;
+}
+
+.discourse-content code {
+  font-size: 0.85em;
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+html.light .discourse-content code {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.discourse-content pre code {
+  padding: 0;
+  background: none;
+}
+
+.discourse-content a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.discourse-content a:hover {
+  opacity: 0.8;
+}
+
+.discourse-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+  margin: 0.5em 0;
+}
+
+.discourse-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  font-size: 0.85em;
+}
+
+.discourse-content th,
+.discourse-content td {
+  padding: 0.5em 0.75em;
+  border: 1px solid var(--card-border);
+  text-align: left;
+}
+
+.discourse-content th {
+  font-weight: 600;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+html.light .discourse-content th {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.discourse-content hr {
+  border: none;
+  border-top: 1px solid var(--card-border);
+  margin: 1em 0;
+}

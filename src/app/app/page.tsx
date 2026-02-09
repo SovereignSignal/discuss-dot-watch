@@ -29,16 +29,19 @@ import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { StorageError } from '@/lib/storage';
 import { ForumPreset } from '@/lib/forumPresets';
 import { DiscussionTopic } from '@/types';
+import { DiscussionReader } from '@/components/DiscussionReader';
+import { DigestView } from '@/components/DigestView';
 import { Bookmark as BookmarkIcon, ExternalLink, Trash2 } from 'lucide-react';
 
 export default function AppPage() {
-  const [activeView, setActiveView] = useState<'feed' | 'projects' | 'saved' | 'settings'>('feed');
+  const [activeView, setActiveView] = useState<'feed' | 'briefs' | 'projects' | 'saved' | 'settings'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'your'>('your');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileAlertsOpen, setIsMobileAlertsOpen] = useState(false);
   const [activeKeywordFilter, setActiveKeywordFilter] = useState<string | null>(null);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<DiscussionTopic | null>(null);
 
   const { forums, enabledForums, addForum, removeForum, toggleForum, importForums } = useForums();
   const { discussions, isLoading, error, lastUpdated, forumStates, refresh } = useDiscussions(enabledForums);
@@ -129,6 +132,17 @@ export default function AppPage() {
     }
   }, [importForums, importAlerts, importBookmarks]);
 
+  const handleSelectTopic = useCallback((topic: DiscussionTopic) => {
+    setSelectedTopic(topic);
+    if (!isRead(topic.refId)) {
+      markAsRead(topic.refId);
+    }
+  }, [isRead, markAsRead]);
+
+  const handleCloseReader = useCallback(() => {
+    setSelectedTopic(null);
+  }, []);
+
   useEffect(() => {
     if (error && !error.includes('All forums failed')) {
       warning(error);
@@ -169,16 +183,20 @@ export default function AppPage() {
           }, 100);
           break;
         case 'Escape':
-          setIsMobileMenuOpen(false);
-          setIsMobileAlertsOpen(false);
-          setIsCommandMenuOpen(false);
+          if (selectedTopic) {
+            setSelectedTopic(null);
+          } else {
+            setIsMobileMenuOpen(false);
+            setIsMobileAlertsOpen(false);
+            setIsCommandMenuOpen(false);
+          }
           break;
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [selectedTopic]);
 
   return (
     <AuthGate>
@@ -276,21 +294,76 @@ export default function AppPage() {
                     unreadCount={unreadCount}
                     onRemoveForum={handleRemoveForum}
                     activeKeywordFilter={activeKeywordFilter}
+                    onSelectTopic={handleSelectTopic}
+                    selectedTopicRefId={selectedTopic?.refId || null}
                     isDark={isDark}
                   />
-                  <RightSidebar
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    alerts={alerts}
-                    onAddAlert={addAlert}
-                    onRemoveAlert={removeAlert}
-                    onToggleAlert={toggleAlert}
-                    activeKeywordFilter={activeKeywordFilter}
-                    onKeywordFilterChange={setActiveKeywordFilter}
-                    isMobileOpen={isMobileAlertsOpen}
-                    onMobileToggle={() => setIsMobileAlertsOpen(!isMobileAlertsOpen)}
+
+                  {/* Desktop: Inline reader replaces RightSidebar */}
+                  {selectedTopic ? (
+                    <div className="hidden md:flex w-[480px] flex-shrink-0">
+                      <DiscussionReader
+                        topic={selectedTopic}
+                        onClose={handleCloseReader}
+                        isDark={isDark}
+                      />
+                    </div>
+                  ) : (
+                    <RightSidebar
+                      searchQuery={searchQuery}
+                      onSearchChange={setSearchQuery}
+                      alerts={alerts}
+                      onAddAlert={addAlert}
+                      onRemoveAlert={removeAlert}
+                      onToggleAlert={toggleAlert}
+                      activeKeywordFilter={activeKeywordFilter}
+                      onKeywordFilterChange={setActiveKeywordFilter}
+                      isMobileOpen={isMobileAlertsOpen}
+                      onMobileToggle={() => setIsMobileAlertsOpen(!isMobileAlertsOpen)}
+                      isDark={isDark}
+                    />
+                  )}
+
+                  {/* Mobile: Reader as full-screen overlay */}
+                  {selectedTopic && (
+                    <div className="md:hidden">
+                      <DiscussionReader
+                        topic={selectedTopic}
+                        onClose={handleCloseReader}
+                        isDark={isDark}
+                        isMobile
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {activeView === 'briefs' && (
+                <>
+                  <DigestView
+                    onSelectTopic={handleSelectTopic}
                     isDark={isDark}
                   />
+                  {/* Reader panel for briefs */}
+                  {selectedTopic && (
+                    <>
+                      <div className="hidden md:flex w-[480px] flex-shrink-0">
+                        <DiscussionReader
+                          topic={selectedTopic}
+                          onClose={handleCloseReader}
+                          isDark={isDark}
+                        />
+                      </div>
+                      <div className="md:hidden">
+                        <DiscussionReader
+                          topic={selectedTopic}
+                          onClose={handleCloseReader}
+                          isDark={isDark}
+                          isMobile
+                        />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 

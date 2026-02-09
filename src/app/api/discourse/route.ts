@@ -224,6 +224,9 @@ export async function GET(request: NextRequest) {
       bumpedAt: topic.bumped_at,
       imageUrl: logoUrl || topic.image_url,
       forumUrl: baseUrl,
+      excerpt: topic.excerpt
+        ? topic.excerpt.replace(/<[^>]*>/g, '').slice(0, 200)
+        : undefined,
     }));
 
     return NextResponse.json({ topics, cached: false });

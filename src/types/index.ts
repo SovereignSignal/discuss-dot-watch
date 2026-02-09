@@ -49,6 +49,7 @@ export interface DiscussionTopic {
   bumpedAt: string;
   imageUrl?: string;
   forumUrl: string;
+  excerpt?: string;
 }
 
 export interface KeywordAlert {
@@ -102,6 +103,26 @@ export interface DiscourseTopicResponse {
   archived: boolean;
   tags: (string | { id: number; name: string; slug: string })[];
   image_url?: string;
+  excerpt?: string;
+}
+
+export interface DiscussionPost {
+  id: number;
+  username: string;
+  avatarUrl: string;
+  content: string;
+  createdAt: string;
+  likeCount: number;
+  postNumber: number;
+  replyToPostNumber?: number;
+}
+
+export interface TopicDetail {
+  id: number;
+  title: string;
+  posts: DiscussionPost[];
+  postsCount: number;
+  participantCount: number;
 }
 
 export interface DiscourseLatestResponse {

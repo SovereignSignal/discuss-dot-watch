@@ -218,6 +218,9 @@ async function fetchForumTopics(forum: ForumPreset): Promise<{ topics: Discussio
       bumpedAt: topic.bumped_at,
       imageUrl: forum.logoUrl || topic.image_url,
       forumUrl: baseUrl,
+      excerpt: topic.excerpt
+        ? topic.excerpt.replace(/<[^>]*>/g, '').slice(0, 200)
+        : undefined,
     }));
     
     return { topics };
