@@ -8,13 +8,20 @@
 
 ## Current State (Feb 2026)
 
-- ✅ 100+ Discourse forums monitored (crypto governance)
+- ✅ 100+ Discourse forums monitored (crypto, AI, OSS)
 - ✅ Keyword alerts and filtering
 - ✅ Email digests with AI summaries (Claude Sonnet)
 - ✅ Activity badges (Hot, Active, NEW)
 - ✅ Delegate thread filtering
 - ✅ Privy authentication
 - ✅ Light/dark theme support
+- ✅ Inline discussion reader (split-panel, reads posts without leaving app)
+- ✅ On-site AI Briefs view (browsable digest within app)
+- ✅ Discussion excerpts in feed cards
+- ✅ Server-side forum cache (Redis + Postgres + memory)
+- ✅ Command menu (Cmd+K) for quick navigation
+- ✅ Public API v1 for external consumers
+- ✅ Personalized email digests per user
 
 ---
 
@@ -192,4 +199,4 @@
 
 ---
 
-*Last updated: 2026-02-04*
+*Last updated: 2026-02-09*

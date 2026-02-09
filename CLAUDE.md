@@ -15,6 +15,9 @@ This document provides essential context for AI assistants working with this cod
 - Multi-platform aggregation (Discourse now, GitHub/Commonwealth planned)
 - 100+ forums monitored across crypto governance
 - AI-powered email digests (Claude Sonnet + Resend)
+- Inline discussion reader (split-panel view to read Discourse posts without leaving the app)
+- On-site AI Briefs view (browsable AI digest within the app)
+- Discussion excerpts in feed cards
 - Keyword alerts with highlighting
 - Activity badges (Hot, Active, NEW)
 - Delegate thread filtering (separates delegate content)
@@ -23,12 +26,14 @@ This document provides essential context for AI assistants working with this cod
 - Discussion bookmarking with dedicated "Saved" view
 - Read/unread tracking with visual indicators
 - Sorting options (recent, replies, views, likes)
+- Command menu (Cmd+K / Ctrl+K) for quick navigation
 - Mobile responsive layout with collapsible sidebars
 - Onboarding wizard for new users
 - Export/import configuration backup
 - Keyboard shortcuts for power users
 - Offline detection with banner notification
 - Privy authentication (optional)
+- Server-side forum cache with Redis + Postgres persistence
 
 ### Roadmap
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for implementation phases.
@@ -46,6 +51,11 @@ See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for complete platform/forum
 | Date Handling | date-fns |
 | ID Generation | uuid |
 | Linting | ESLint 9 |
+| Auth | Privy |
+| Email | Resend |
+| AI | Anthropic Claude (Haiku 4.5 + Sonnet 4.5) |
+| Cache | Redis (ioredis) |
+| Database | PostgreSQL (pg) |
 
 ## Project Structure
 
@@ -54,21 +64,56 @@ src/
 ├── app/                          # Next.js App Router
 │   ├── api/
 │   │   ├── discourse/
-│   │   │   └── route.ts          # Proxy endpoint for fetching Discourse topics
-│   │   └── validate-discourse/
-│   │       └── route.ts          # Validates if a URL is a Discourse forum
+│   │   │   ├── route.ts          # Proxy endpoint for fetching Discourse topics (with cache)
+│   │   │   └── topic/
+│   │   │       └── route.ts      # Fetch individual topic posts for inline reader
+│   │   ├── validate-discourse/
+│   │   │   └── route.ts          # Validates if a URL is a Discourse forum
+│   │   ├── digest/
+│   │   │   └── route.ts          # AI digest generation and retrieval
+│   │   ├── user/
+│   │   │   ├── route.ts          # User profile endpoint
+│   │   │   ├── alerts/route.ts   # Synced keyword alerts
+│   │   │   ├── bookmarks/route.ts # Synced bookmarks
+│   │   │   ├── digest-preferences/route.ts # Email digest settings
+│   │   │   ├── forums/route.ts   # Synced forum configurations
+│   │   │   ├── preferences/route.ts # User preferences
+│   │   │   └── read-state/route.ts  # Synced read/unread state
+│   │   ├── admin/route.ts        # Admin dashboard endpoint
+│   │   ├── backfill/route.ts     # Database backfill endpoint
+│   │   ├── cache/route.ts        # Cache management endpoint
+│   │   ├── db/route.ts           # Database status endpoint
+│   │   ├── mcp/route.ts          # MCP (Model Context Protocol) endpoint
+│   │   └── v1/                   # Public API v1
+│   │       ├── route.ts          # API root
+│   │       ├── categories/route.ts
+│   │       ├── discussions/route.ts
+│   │       ├── forums/route.ts
+│   │       └── search/route.ts
+│   ├── admin/
+│   │   └── page.tsx              # Admin dashboard page
+│   ├── app/
+│   │   └── page.tsx              # Main app page (client-side, authenticated)
 │   ├── layout.tsx                # Root layout with metadata
-│   ├── page.tsx                  # Main page component (client-side)
-│   ├── globals.css               # Global styles with Tailwind
+│   ├── page.tsx                  # Landing/redirect page
+│   ├── globals.css               # Global styles with Tailwind + Discourse content styles
 │   └── favicon.ico
 ├── components/                   # React components
+│   ├── AuthGate.tsx              # Authentication gate wrapper
+│   ├── AuthProvider.tsx          # Privy auth context provider
+│   ├── CommandMenu.tsx           # Cmd+K command palette
 │   ├── ConfigExportImport.tsx    # Export/import configuration UI
 │   ├── ConfirmDialog.tsx         # Reusable confirmation modal
+│   ├── DataSyncProvider.tsx      # Data sync context for server persistence
+│   ├── DigestView.tsx            # On-site AI briefs view
 │   ├── DiscussionFeed.tsx        # Main feed display with loading states
-│   ├── DiscussionItem.tsx        # Individual discussion card with bookmark toggle
+│   ├── DiscussionItem.tsx        # Individual discussion card with bookmark/select
+│   ├── DiscussionReader.tsx      # Inline split-panel discussion reader
 │   ├── DiscussionSkeleton.tsx    # Loading skeleton for discussions
-│   ├── FeedFilters.tsx           # Date range, forum source, and sort filters
-│   ├── FilterTabs.tsx            # Tab filter component (All/Your Forums)
+│   ├── EmailPreferences.tsx      # Email digest preferences UI
+│   ├── ErrorBoundary.tsx         # React error boundary wrapper
+│   ├── FeedFilters.tsx           # Date range, forum source, category, and sort filters
+│   ├── FilterTabs.tsx            # Tab filter component (All Forums/Your Forums)
 │   ├── ForumManager.tsx          # Forum management UI with preset directory
 │   ├── KeyboardShortcuts.tsx     # Keyboard shortcuts reference display
 │   ├── OfflineBanner.tsx         # Offline status notification banner
@@ -78,6 +123,7 @@ src/
 │   ├── SkipLinks.tsx             # Accessibility skip links
 │   ├── Toast.tsx                 # Toast notification system
 │   ├── Tooltip.tsx               # Reusable tooltip component
+│   ├── UserButton.tsx            # Auth user button (login/logout)
 │   └── VirtualizedDiscussionList.tsx # Virtual scrolling for large lists
 ├── hooks/                        # Custom React hooks
 │   ├── useAlerts.ts              # Keyword alerts state with localStorage
@@ -89,17 +135,31 @@ src/
 │   ├── useOnboarding.ts          # Onboarding completion state
 │   ├── useOnlineStatus.ts        # Network connectivity detection
 │   ├── useReadState.ts           # Read/unread tracking with localStorage
+│   ├── useStorageMonitor.ts      # LocalStorage quota and error monitoring
 │   ├── useTheme.ts               # Dark/light theme with localStorage persistence
 │   ├── useToast.ts               # Toast notification state management
+│   ├── useTopicDetail.ts         # Fetch individual topic posts for inline reader
 │   ├── useUrlState.ts            # URL-based filter state (shareable URLs)
+│   ├── useUserSync.ts            # Sync local state with server on auth
 │   └── useVirtualList.ts         # Virtual scrolling hook
 ├── lib/                          # Utility libraries
+│   ├── admin.ts                  # Admin email validation
+│   ├── backfill.ts               # Database backfill utilities
+│   ├── db.ts                     # PostgreSQL database client and queries
+│   ├── emailDigest.ts            # AI digest generation logic
+│   ├── emailService.ts           # Resend email sending service
 │   ├── fetchWithRetry.ts         # Fetch with exponential backoff retry
-│   ├── forumPresets.ts           # 70+ pre-configured forum presets by category
-│   ├── rateLimiter.ts            # Token bucket rate limiter for API calls
+│   ├── forumCache.ts             # Server-side forum cache (Redis + memory + Postgres)
+│   ├── forumPresets.ts           # 100+ pre-configured forum presets by category
+│   ├── logoUtils.ts              # Protocol logo URL utilities
+│   ├── rateLimit.ts              # Server-side rate limiting (per-IP, per-forum)
+│   ├── rateLimiter.ts            # Client-side token bucket rate limiter
+│   ├── redis.ts                  # Redis client and caching utilities
 │   ├── sanitize.ts               # Input sanitization utilities
 │   ├── storage.ts                # LocalStorage utilities for forums/alerts
-│   └── url.ts                    # URL validation and normalization utilities
+│   ├── storageMigration.ts       # LocalStorage migration utilities
+│   ├── theme.ts                  # c() theme utility for consistent color tokens
+│   └── url.ts                    # URL validation, normalization, and SSRF protection
 └── types/
     └── index.ts                  # TypeScript interfaces and types
 ```
@@ -116,10 +176,12 @@ npm run lint     # Run ESLint
 ## Key Architectural Patterns
 
 ### Data Flow
-1. **Storage Layer** (`lib/storage.ts`) - LocalStorage persistence for forums and alerts
-2. **Custom Hooks** - State management and data fetching
-3. **API Route** (`/api/discourse`) - Proxies requests to Discourse forums
-4. **Components** - Presentational layer
+1. **Forum Cache** (`lib/forumCache.ts`) - Background refresh fetches all preset forums every 15 min, stores in Redis + memory + Postgres
+2. **API Routes** (`/api/discourse`, `/api/discourse/topic`, `/api/digest`) - Serve cached data, proxy individual topic requests
+3. **Custom Hooks** - Client-side state management, data fetching, localStorage persistence
+4. **Storage Layer** (`lib/storage.ts`) - LocalStorage persistence for forums, alerts, bookmarks, read state
+5. **Server Sync** (`/api/user/*`) - Optional authenticated sync of user data to Postgres via Privy
+6. **Components** - Presentational layer with theme-aware styling via `c()` utility
 
 ### State Management
 - No external state library (Redux, Zustand, etc.)
@@ -136,11 +198,23 @@ npm run lint     # Run ESLint
 | `forumUrl` | Yes | Base Discourse forum URL |
 | `categoryId` | No | Filter by Discourse category ID |
 | `protocol` | No | Protocol name for reference (defaults to "unknown") |
-| `logoUrl` | No | Logo URL to use for topics |
+| `logoUrl` | No | Logo URL to use for topics (must be HTTPS) |
+| `bypass` | No | Set to `"true"` to bypass cache |
 
-Returns: `{ topics: DiscussionTopic[] }` or `{ error: string }`
+Returns: `{ topics: DiscussionTopic[], cached: boolean, cachedAt?: number }` or `{ error: string }`
 
-Response caching: 2 minutes via Next.js `revalidate: 120`
+Serves from forum cache first (15 min TTL), falls back to direct Discourse fetch on cache miss. Direct fetches cached 10 min via Next.js `revalidate: 600`. Includes SSRF protection via `isAllowedUrl()`, per-IP rate limiting (60/min global, 3/min per-forum for cache misses), and redirect validation.
+
+**`GET /api/discourse/topic`** - Fetches individual topic posts for the inline reader
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `forumUrl` | Yes | Base Discourse forum URL |
+| `topicId` | Yes | Discourse topic ID (positive integer) |
+
+Returns: `{ topic: TopicDetail }` or `{ error: string }`
+
+Response caching: 5 minutes via Next.js `revalidate: 300`. Rate limited to 30 requests/min per IP. Includes SSRF protection. Transforms raw Discourse post data (avatar URLs, cooked HTML content) into `DiscussionPost[]`.
 
 **`GET /api/validate-discourse`** - Validates if a URL is a Discourse forum
 
@@ -156,26 +230,60 @@ Validation strategy (in order):
 3. Falls back to `/latest.json`
 4. Checks HTML for Discourse indicators
 
+**`GET /api/digest`** - Retrieves AI-generated digest content
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `format` | No | Response format (`"json"` for API, otherwise HTML email) |
+| `period` | No | `"daily"` or `"weekly"` (defaults to weekly) |
+| `privyDid` | No | Privy user ID for personalized digest |
+
+Returns: `{ digest: DigestContent }` (when `format=json`)
+
+**`POST /api/digest`** - Triggers digest generation (admin-only)
+
+Requires admin auth (`x-admin-email` header) or `CRON_SECRET` bearer token.
+
+**Additional API Routes:**
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/user` | GET | Get user profile |
+| `/api/user/forums` | GET/POST | Sync forum configurations |
+| `/api/user/alerts` | GET/POST | Sync keyword alerts |
+| `/api/user/bookmarks` | GET/POST | Sync bookmarks |
+| `/api/user/read-state` | GET/POST | Sync read/unread state |
+| `/api/user/preferences` | GET/POST | Sync user preferences |
+| `/api/user/digest-preferences` | GET/POST | Email digest settings |
+| `/api/admin` | GET | Admin dashboard data |
+| `/api/cache` | GET | Cache status and stats |
+| `/api/db` | GET | Database connection status |
+| `/api/v1` | GET | Public API root |
+| `/api/v1/forums` | GET | List all cached forums |
+| `/api/v1/discussions` | GET | Search/list discussions |
+| `/api/v1/categories` | GET | List forum categories |
+| `/api/v1/search` | GET | Full-text search |
+
 ## Core Types
 
 ```typescript
 // Forum category identifiers for organizing presets
 type ForumCategoryId =
-  | 'l2-protocols'      // Arbitrum, Optimism, zkSync, etc.
-  | 'l1-protocols'      // Ethereum, Cosmos, Solana, etc.
-  | 'defi-lending'      // Aave, Compound, MakerDAO, etc.
-  | 'defi-dex'          // Uniswap, Curve, Balancer, etc.
-  | 'defi-staking'      // Lido, EigenLayer, Rocket Pool
-  | 'defi-other'        // Yearn, Frax, Centrifuge, etc.
-  | 'major-daos'        // ENS, Gitcoin, GnosisDAO, etc.
-  | 'infrastructure'    // The Graph, Safe, Aragon, etc.
-  | 'privacy'           // Zcash, Secret, Aztec
-  | 'ai-crypto'         // Numerai, Phala, Fetch.ai
-  | 'ai-developer'      // OpenAI, Hugging Face, PyTorch
-  | 'governance-meta'   // DAOtalk, governance tooling
-  | 'custom';           // User-added custom forums
+  | 'crypto'             // All crypto governance forums
+  | 'ai'                 // AI/ML community forums
+  | 'oss'                // Open source project forums
+  // Legacy IDs for backwards compatibility
+  | 'crypto-governance'
+  | 'crypto-defi'
+  | 'crypto-niche'
+  | 'ai-research'
+  | 'ai-tools'
+  | 'oss-languages'
+  | 'oss-frameworks'
+  | 'oss-infrastructure'
+  | 'custom';            // User-added custom forums
 
-// Forum configuration (stored in localStorage)
+// Forum configuration (stored in localStorage, synced to server when authenticated)
 interface Forum {
   id: string;              // UUID
   cname: string;           // Canonical name (used as protocol identifier)
@@ -213,6 +321,28 @@ interface DiscussionTopic {
   bumpedAt: string;        // ISO timestamp (used for sorting)
   imageUrl?: string;
   forumUrl: string;        // Base forum URL for constructing links
+  excerpt?: string;        // Plain-text excerpt (HTML stripped, max 200 chars)
+}
+
+// Individual post within a discussion topic (used by inline reader)
+interface DiscussionPost {
+  id: number;              // Discourse post ID
+  username: string;        // Post author username
+  avatarUrl: string;       // Full avatar URL (resolved from Discourse template)
+  content: string;         // HTML content (Discourse "cooked" field)
+  createdAt: string;       // ISO timestamp
+  likeCount: number;
+  postNumber: number;      // Sequential post number within topic
+  replyToPostNumber?: number; // Post number this is replying to
+}
+
+// Full topic detail with posts (returned by /api/discourse/topic)
+interface TopicDetail {
+  id: number;              // Discourse topic ID
+  title: string;
+  posts: DiscussionPost[];
+  postsCount: number;      // Total posts (may exceed posts array if paginated)
+  participantCount: number; // Number of unique participants
 }
 
 // Keyword alert for highlighting discussions
@@ -221,6 +351,22 @@ interface KeywordAlert {
   keyword: string;
   createdAt: string;       // ISO timestamp
   isEnabled: boolean;
+}
+
+// Filter and sort types
+type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
+type DateFilterMode = 'created' | 'activity';
+type SortOption = 'recent' | 'replies' | 'views' | 'likes';
+
+// Email digest preferences (synced to server)
+type DigestFrequency = 'daily' | 'weekly' | 'never';
+interface DigestPreferences {
+  frequency: DigestFrequency;
+  includeHotTopics: boolean;
+  includeNewProposals: boolean;
+  includeKeywordMatches: boolean;
+  includeDelegateCorner: boolean;
+  email?: string;          // Override email if different from account
 }
 
 // Per-forum loading state (used in useDiscussions)
@@ -245,6 +391,7 @@ interface Bookmark {
 type Theme = 'dark' | 'light';
 
 // Raw Discourse API response types
+// Note: tags can be strings OR objects depending on forum configuration
 interface DiscourseTopicResponse {
   id: number;
   title: string;
@@ -260,8 +407,9 @@ interface DiscourseTopicResponse {
   visible: boolean;
   closed: boolean;
   archived: boolean;
-  tags: string[];
+  tags: (string | { id: number; name: string; slug: string })[];
   image_url?: string;
+  excerpt?: string;        // Raw HTML excerpt from Discourse
 }
 
 interface DiscourseLatestResponse {
@@ -302,24 +450,20 @@ validateDiscourseUrl(url: string): Promise<{ valid: boolean; name?: string; erro
 
 ## Forum Presets System
 
-The application includes 70+ pre-configured Discourse forums organized by category and tier in `lib/forumPresets.ts`:
+The application includes 100+ pre-configured Discourse forums organized by category and tier in `lib/forumPresets.ts`:
 
 ### Categories
 
 | Category ID | Name | Examples |
 |-------------|------|----------|
-| `l2-protocols` | Layer 2 Protocols | Arbitrum, Optimism, zkSync, Polygon, Starknet |
-| `l1-protocols` | Layer 1 Protocols | Ethereum Magicians, Cosmos, Solana, Polkadot |
-| `defi-lending` | DeFi - Lending | Aave, Compound, MakerDAO, Morpho, Euler |
-| `defi-dex` | DeFi - DEX & AMMs | Uniswap, Curve, Balancer, dYdX, SushiSwap |
-| `defi-staking` | DeFi - Staking | Lido, EigenLayer, Rocket Pool |
-| `defi-other` | DeFi - Other | Yearn, Frax, Instadapp, Centrifuge |
-| `major-daos` | Major DAOs | ENS, Gitcoin, GnosisDAO, ApeCoin, Nouns |
-| `infrastructure` | Infrastructure | The Graph, Safe, Aragon, Wormhole, Hop |
-| `privacy` | Privacy Protocols | Zcash, Secret Network, Aztec |
-| `ai-crypto` | AI & Crypto | Numerai, Phala, Fetch.ai |
-| `ai-developer` | AI Developer | OpenAI, Hugging Face, PyTorch, LangChain |
-| `governance-meta` | Governance Meta | DAOtalk |
+| `crypto-governance` | Crypto Governance | Arbitrum, Optimism, ENS, Gitcoin |
+| `crypto-defi` | Crypto DeFi | Aave, Uniswap, Compound, MakerDAO, Lido |
+| `crypto-niche` | Crypto Niche | Privacy protocols, AI+crypto |
+| `ai-research` | AI Research | OpenAI, EA Forum adjacent |
+| `ai-tools` | AI Tools | Hugging Face, PyTorch, LangChain |
+| `oss-languages` | OSS Languages | Rust, Swift, Julia, Haskell, Elixir |
+| `oss-frameworks` | OSS Frameworks | Django, Ember.js, Godot, Blender |
+| `oss-infrastructure` | OSS Infrastructure | Mozilla, NixOS, Let's Encrypt, Fedora |
 
 ### Tiers
 
@@ -344,25 +488,34 @@ import {
 
 | Component | Purpose | Key Props |
 |-----------|---------|-----------|
+| `CommandMenu` | Cmd+K command palette for quick navigation | `isOpen`, `onClose`, `forums`, `onSelectForum`, `onSearch`, `isDark` |
 | `ConfirmDialog` | Modal confirmation dialog | `isOpen`, `title`, `message`, `onConfirm`, `onCancel`, `variant` |
-| `DiscussionFeed` | Main feed displaying discussion topics | `discussions`, `isLoading`, `alerts`, `searchQuery`, `forumStates` |
-| `DiscussionItem` | Individual discussion card | `topic`, `alerts`, `isBookmarked`, `onToggleBookmark` |
-| `FeedFilters` | Date range and forum source filters | `dateRange`, `forumFilter`, `onDateRangeChange`, `onForumFilterChange`, `forums` |
-| `FilterTabs` | Toggle between "All" and "Your Forums" | `filterMode`, `onFilterChange`, `totalCount`, `enabledCount` |
+| `DigestView` | On-site AI briefs view with daily/weekly toggle | `onSelectTopic`, `isDark` |
+| `DiscussionFeed` | Main feed displaying discussion topics | `discussions`, `isLoading`, `alerts`, `searchQuery`, `forumStates`, `onSelectTopic`, `selectedTopicRefId`, `isDark` |
+| `DiscussionItem` | Individual discussion card with excerpt display | `topic`, `alerts`, `isBookmarked`, `isSelected`, `onToggleBookmark`, `onSelect`, `isDark` |
+| `DiscussionReader` | Inline split-panel discussion reader | `topic`, `onClose`, `isDark`, `isMobile` |
+| `EmailPreferences` | Email digest preferences configuration | (uses auth context internally) |
+| `ErrorBoundary` | React error boundary wrapper | `children` |
+| `FeedFilters` | Date range, forum source, category, and sort filters | `dateRange`, `selectedForumId`, `selectedCategory`, `sortBy`, `forums`, `isDark` |
+| `FilterTabs` | Toggle between "All Forums" and "Your Forums" | `filterMode`, `onFilterChange`, `totalCount`, `enabledCount`, `isDark` |
 | `ForumManager` | Full forum management UI with presets | `forums`, `onAddForum`, `onRemoveForum`, `onToggleForum` |
-| `RightSidebar` | Search input and keyword alerts panel | `searchQuery`, `onSearchChange`, `alerts`, `onAddAlert`, `isMobileOpen`, `onMobileToggle` |
-| `Sidebar` | Left navigation (Feed/Projects/Settings) | `activeView`, `onViewChange`, `isMobileOpen`, `onMobileToggle` |
+| `RightSidebar` | Search input and keyword alerts panel | `searchQuery`, `onSearchChange`, `alerts`, `onAddAlert`, `activeKeywordFilter`, `isMobileOpen`, `onMobileToggle`, `isDark` |
+| `Sidebar` | Left navigation (Feed/Briefs/Communities/Saved/Settings) | `activeView`, `onViewChange`, `theme`, `onToggleTheme`, `isMobileOpen`, `onMobileToggle` |
 | `Tooltip` | Hover tooltip wrapper | `content`, `children`, `position` |
+| `UserButton` | Auth login/logout button | (uses auth context internally) |
 
 ## Hook Reference
 
 | Hook | Purpose | Returns |
 |------|---------|---------|
 | `useTheme` | Theme toggle with localStorage | `theme`, `toggleTheme`, `isDark` |
-| `useBookmarks` | Bookmark CRUD with localStorage | `bookmarks`, `addBookmark`, `removeBookmark`, `isBookmarked` |
-| `useForums` | Forum CRUD with localStorage | `forums`, `enabledForums`, `addForum`, `removeForum`, `toggleForum`, `updateForum` |
+| `useBookmarks` | Bookmark CRUD with localStorage | `bookmarks`, `addBookmark`, `removeBookmark`, `isBookmarked`, `importBookmarks` |
+| `useForums` | Forum CRUD with localStorage | `forums`, `enabledForums`, `addForum`, `removeForum`, `toggleForum`, `updateForum`, `importForums` |
 | `useDiscussions` | Fetch discussions from enabled forums | `discussions`, `isLoading`, `error`, `lastUpdated`, `forumStates`, `refresh` |
-| `useAlerts` | Keyword alert CRUD with localStorage | `alerts`, `enabledAlerts`, `addAlert`, `removeAlert`, `toggleAlert` |
+| `useAlerts` | Keyword alert CRUD with localStorage | `alerts`, `enabledAlerts`, `addAlert`, `removeAlert`, `toggleAlert`, `importAlerts` |
+| `useTopicDetail` | Fetch individual topic posts for inline reader | `topicDetail`, `posts`, `isLoading`, `error` |
+| `useStorageMonitor` | LocalStorage quota and error monitoring | `quota`, `lastError` |
+| `useUserSync` | Sync local state with server on auth | (internal sync logic) |
 
 ### useBookmarks Details
 
@@ -372,39 +525,71 @@ The `useBookmarks` hook includes a one-time migration that fixes old bookmarks c
 3. Saves the migrated bookmarks back to localStorage
 4. Sets a migration flag to prevent re-running
 
+### useTopicDetail Details
+
+The `useTopicDetail(forumUrl, topicId)` hook fetches individual topic posts for the inline discussion reader. It:
+1. Accepts nullable `forumUrl` and `topicId` params (null clears the state)
+2. Calls `/api/discourse/topic?forumUrl=...&topicId=...`
+3. Returns `{ topicDetail, posts, isLoading, error }`
+4. Uses a cleanup function to cancel stale requests when params change
+5. Does not use localStorage -- purely server-fetched data
+
 ## Styling Conventions
 
 - **Framework**: Tailwind CSS 4
-- **Default Theme**: Dark mode with gray-900/950 backgrounds
+- **Default Theme**: Dark mode with zinc/black palette
 - **Light Theme**: Light gray backgrounds with dark text
-- **Accent Color**: Indigo-600
-- **Alert Highlighting**: Yellow-500 background
+- **Dark Accent**: White/zinc (monochrome)
+- **Light Accent**: Indigo-600
+- **Alert Highlighting**: Subtle background opacity-based marks
 
 ### Theme System
 
-The app supports dark/light mode toggle via CSS variables defined in `globals.css`:
+The app uses a dual approach to theming:
+
+**1. CSS Variables** (`globals.css`) -- define color tokens for both modes:
 
 ```css
 /* Dark theme (default) */
 html, html.dark {
-  --background: #0a0a0a;
-  --card-bg: #111827;
-  --text-primary: #ffffff;
+  --background: #09090b;
+  --card-bg: rgba(255, 255, 255, 0.03);
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --accent: #fafafa;
   /* ... */
 }
 
 /* Light theme */
 html.light {
-  --background: #f3f4f6;
+  --background: #f8f9fa;
   --card-bg: #ffffff;
   --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --accent: #4f46e5;
   /* ... */
 }
 ```
 
+**2. `c()` Theme Utility** (`lib/theme.ts`) -- provides a consolidated color token object for components using inline styles:
+
+```typescript
+import { c } from '@/lib/theme';
+
+// In a component:
+const t = c(isDark);
+// Returns: { bg, bgCard, fg, fgMuted, fgDim, fgSecondary, border, borderActive, ... }
+```
+
+Most newer components use `c(isDark)` for inline styles rather than Tailwind classes, which avoids the CSS override complexity. This is the preferred pattern for new components.
+
 The `useTheme` hook manages theme state and applies the `.light` or `.dark` class to `<html>`.
 
-**Important**: Because components use hardcoded Tailwind classes (e.g., `bg-gray-900`, `text-white`), `globals.css` includes `html.light` selectors that override these classes in light mode.
+**Important**: Legacy components use hardcoded Tailwind classes (e.g., `bg-gray-900`, `text-white`), so `globals.css` includes `html.light` selectors that override these classes in light mode. New components should prefer the `c()` utility pattern instead.
+
+### Discourse Content Styling
+
+The `.discourse-content` CSS class in `globals.css` provides styling for inline-rendered Discourse post HTML (used by `DiscussionReader`). It handles typography, code blocks, blockquotes, tables, images, and links within forum post content rendered via `dangerouslySetInnerHTML`.
 
 ## Code Conventions
 
@@ -442,10 +627,10 @@ The `useTheme` hook manages theme state and applies the `.light` or `.dark` clas
 
 ### Don't
 - Add external state management libraries without discussion
-- Create `.env` files - the app uses no environment variables
+- Commit `.env` files -- env vars are configured on Railway only (see Deployment section)
 - Modify the core Discourse API proxy logic without understanding CORS implications
-- Use inline styles - prefer Tailwind classes
 - Forget hydration handling when using localStorage/browser APIs
+- Use hardcoded Tailwind color classes in new components -- prefer the `c()` theme utility for inline styles
 
 ### Testing
 No testing framework is currently configured. If adding tests:
@@ -502,10 +687,22 @@ No testing framework is currently configured. If adding tests:
 
 - **Platform**: Railway
 - **Production URL**: https://discuss.watch/
+- **Railway URL**: discuss-dot-watch-production.up.railway.app
 - **Build Command**: `npm run build`
 - **Start Command**: `npm start`
 
-No environment variables required - the app is entirely client-side with API routes for Discourse proxying.
+### Environment Variables (Railway only -- no `.env.local` file)
+
+| Variable | Purpose |
+|----------|---------|
+| `RESEND_API_KEY` | Resend email service for digest delivery |
+| `ANTHROPIC_API_KEY` | Claude API for AI digest summaries |
+| `CRON_SECRET` | Bearer token for cron-triggered digest generation |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy authentication app ID |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection string |
+
+The app functions without these variables in development (gracefully degrades: no auth, no email, no server cache, localStorage-only persistence).
 
 ## Phase 1 Features (Completed)
 
@@ -534,6 +731,18 @@ The following features have been implemented:
 12. **Loading Skeletons** - Animated placeholders during content loading
 13. **Memoized Components** - Performance optimization for discussion list rendering
 
+## Phase 3 Features (Completed)
+
+1. **Inline Discussion Reader** - Split-panel view to read Discourse topic posts without leaving the app. Desktop: 480px panel replaces right sidebar. Mobile: full-screen overlay with back arrow. Escape key closes. Uses `DiscussionReader` component + `useTopicDetail` hook + `/api/discourse/topic` endpoint.
+2. **On-Site Briefs View** - AI-powered digest surfaced as a browsable "Briefs" view in the sidebar. Daily/weekly toggle, sections for keyword matches, trending, new conversations, delegate corner. Uses `DigestView` component + `/api/digest?format=json` endpoint.
+3. **Discussion Excerpts** - `excerpt` field added to `DiscussionTopic` type. Plain-text excerpt (HTML stripped, max 200 chars) displayed below discussion titles in feed cards.
+4. **Privy Authentication** - Optional login via Privy, server-side user data sync, admin dashboard.
+5. **Personalized Email Digests** - Per-user digest preferences, keyword matching, configurable frequency.
+6. **Server-Side Forum Cache** - Background refresh of all preset forums every 15 minutes. Redis for fast reads, memory fallback, Postgres for persistence.
+7. **Command Menu** - Cmd+K / Ctrl+K palette for quick forum/category/sort navigation.
+8. **Design System Consolidation** - `c()` theme utility for consistent color tokens across components.
+9. **Public API v1** - REST API for external consumers at `/api/v1/`.
+
 ## Known Patterns and Gotchas
 
 ### Hydration Safety
@@ -547,7 +756,7 @@ if (typeof window !== 'undefined' && !isHydrated) {
 ```
 
 ### Theme CSS Override Strategy
-Because components use hardcoded Tailwind classes like `bg-gray-900`, the light theme uses CSS selectors like `html.light .bg-gray-900` with `!important` to override them. This is intentional - modifying all components to use CSS variables would be a larger refactor.
+Legacy components use hardcoded Tailwind classes like `bg-gray-900`, so the light theme uses CSS selectors like `html.light .bg-gray-900` with `!important` to override them. Newer components use the `c(isDark)` theme utility from `lib/theme.ts` with inline styles, which avoids this pattern entirely. New components should always use the `c()` utility.
 
 ### Bookmark URL Format
 Bookmark URLs must be full topic URLs: `{forumUrl}/t/{slug}/{topicId}`
@@ -555,10 +764,28 @@ The migration system ensures old bookmarks with incomplete URLs are fixed on app
 
 ### Mobile Responsive Layout
 The app uses Tailwind's `md:` breakpoint (768px) for responsive behavior:
-- **Desktop (≥768px)**: Both sidebars always visible, three-column layout
-- **Mobile (<768px)**: Fixed header bar with hamburger menu (left) and theme toggle (right), collapsible left sidebar slides in from left, floating purple search button (bottom-right) opens right sidebar panel
+- **Desktop (>=768px)**: Left sidebar always visible, main content area, right sidebar or inline reader panel
+- **Mobile (<768px)**: Fixed header bar with hamburger menu (left) and theme toggle (right), collapsible left sidebar slides in from left, floating search button opens right sidebar panel
 
-Mobile state is managed in `page.tsx` with `isMobileMenuOpen` and `isMobileAlertsOpen` state variables passed to `Sidebar` and `RightSidebar` components.
+Mobile state is managed in `app/page.tsx` with `isMobileMenuOpen` and `isMobileAlertsOpen` state variables passed to `Sidebar` and `RightSidebar` components.
+
+### Inline Reader Layout
+When a discussion is selected, the layout changes:
+- **Desktop**: `DiscussionReader` renders as a 480px panel on the right, replacing the `RightSidebar`. The feed list stays visible on the left, with the selected item highlighted.
+- **Mobile**: `DiscussionReader` renders as a full-screen overlay (`fixed inset-0 z-50`) with a back arrow to return to the feed.
+- **Escape key**: Closes the reader on both desktop and mobile.
+- The reader works in both the Feed view and the Briefs view.
+
+### Sidebar Navigation Views
+The sidebar supports five views: `'feed' | 'briefs' | 'projects' | 'saved' | 'settings'`
+
+| View | Label | Icon | Description |
+|------|-------|------|-------------|
+| `feed` | Feed | LayoutGrid | Main discussion feed with filters |
+| `briefs` | Briefs | Newspaper | AI-generated digest view |
+| `projects` | Communities | FolderOpen | Forum management |
+| `saved` | Saved | Bookmark | Bookmarked discussions |
+| `settings` | Settings | Settings | App settings, import/export, email prefs |
 
 Key CSS classes used:
 - `md:hidden` - Show only on mobile

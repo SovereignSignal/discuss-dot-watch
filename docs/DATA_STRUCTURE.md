@@ -50,15 +50,18 @@ Tags indicate governance cycles and seasons:
 }
 ```
 
+Additionally, the app now captures:
+- `excerpt` - Plain-text excerpt (HTML stripped, max 200 chars, shown in feed cards)
+
 ### Additional Fields Available (Not Currently Captured)
 
 From Discourse API:
 - `word_count` - Length of content
-- `participant_count` - Unique contributors
 - `has_accepted_answer` - Q&A resolution
 - `highest_post_number` - Thread depth
 - `featured_link` - External references
-- `image_url` - Topic image
+
+Note: `participant_count` and `image_url` are now captured via the `/api/discourse/topic` endpoint (used by the inline reader). `participant_count` is available in the `TopicDetail` type.
 
 ### Insights for Agentic Grants
 
@@ -104,4 +107,4 @@ Different forums have different structures:
 
 ---
 
-*Last updated: 2026-02-05*
+*Last updated: 2026-02-09*
