@@ -32,7 +32,7 @@ export function useForums() {
           
           if (res.ok) {
             const data = await res.json();
-            if (data.forums && data.forums.length > 0) {
+            if (Array.isArray(data.forums) && data.forums.length > 0) {
               setForums(data.forums);
               // Also save to localStorage as backup
               saveForums(data.forums);
@@ -186,7 +186,7 @@ export function useForums() {
   }, []);
 
   // Memoize derived state
-  const enabledForums = useMemo(() => forums.filter(f => f.isEnabled), [forums]);
+  const enabledForums = useMemo(() => (Array.isArray(forums) ? forums : []).filter(f => f.isEnabled), [forums]);
 
   return {
     forums,
