@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ forums: [] });
     }
     
-    return NextResponse.json({ forums: userForums[0].forum_data || [] });
+    const data = userForums[0].forum_data;
+    return NextResponse.json({ forums: Array.isArray(data) ? data : [] });
   } catch (error) {
     console.error('Error fetching user forums:', error);
     return NextResponse.json({ 

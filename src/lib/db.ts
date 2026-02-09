@@ -623,7 +623,8 @@ export async function getUserForumUrls(userId: number): Promise<string[]> {
   `;
   if (!rows[0]?.forum_data) return [];
 
-  const forums = rows[0].forum_data as Array<{ discourseForum?: { url?: string }; isEnabled?: boolean }>;
+  const raw = rows[0].forum_data;
+  const forums = Array.isArray(raw) ? raw as Array<{ discourseForum?: { url?: string }; isEnabled?: boolean }> : [];
   return forums
     .filter(f => f.isEnabled !== false && f.discourseForum?.url)
     .map(f => f.discourseForum!.url!.replace(/\/$/, ''));
