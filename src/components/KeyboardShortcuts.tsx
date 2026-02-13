@@ -1,6 +1,7 @@
 'use client';
 
 import { Keyboard } from 'lucide-react';
+import { c } from '@/lib/theme';
 
 const SHORTCUTS = [
   { keys: ['j', '↓'], description: 'Next discussion' },
@@ -12,10 +13,11 @@ const SHORTCUTS = [
   { keys: ['Esc'], description: 'Clear focus' },
 ];
 
-export function KeyboardShortcuts() {
+export function KeyboardShortcuts({ isDark = true }: { isDark?: boolean }) {
+  const t = c(isDark);
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 theme-text-secondary text-sm mb-2">
+      <div className="flex items-center gap-2 text-sm mb-2" style={{ color: t.fgMuted }}>
         <Keyboard className="w-4 h-4" />
         <span>Keyboard Shortcuts</span>
       </div>
@@ -25,14 +27,15 @@ export function KeyboardShortcuts() {
             <div className="flex items-center gap-1">
               {keys.map((key, i) => (
                 <span key={i}>
-                  <kbd className="px-1.5 py-0.5 bg-neutral-700 theme-text-secondary rounded text-xs font-mono">
+                  <kbd className="px-1.5 py-0.5 rounded text-xs font-mono"
+                    style={{ backgroundColor: t.bgCard, color: t.fgSecondary, border: `1px solid ${t.border}` }}>
                     {key}
                   </kbd>
-                  {i < keys.length - 1 && <span className="theme-text-muted mx-0.5">/</span>}
+                  {i < keys.length - 1 && <span className="mx-0.5" style={{ color: t.fgDim }}>/</span>}
                 </span>
               ))}
             </div>
-            <span className="theme-text-muted">{description}</span>
+            <span style={{ color: t.fgDim }}>{description}</span>
           </div>
         ))}
       </div>

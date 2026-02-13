@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { c } from '@/lib/theme';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface ConfirmDialogProps {
   variant?: 'danger' | 'warning';
   onConfirm: () => void;
   onCancel: () => void;
+  isDark?: boolean;
 }
 
 export function ConfirmDialog({
@@ -23,7 +25,9 @@ export function ConfirmDialog({
   variant = 'danger',
   onConfirm,
   onCancel,
+  isDark = true,
 }: ConfirmDialogProps) {
+  const t = c(isDark);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
 
@@ -90,7 +94,8 @@ export function ConfirmDialog({
       />
       <div
         ref={dialogRef}
-        className="relative rounded-lg shadow-xl max-w-md w-full mx-4 p-6 theme-card"
+        className="relative rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+        style={{ backgroundColor: isDark ? t.bgCard : '#ffffff', border: `1px solid ${t.border}` }}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
@@ -98,28 +103,30 @@ export function ConfirmDialog({
       >
         <button
           onClick={onCancel}
-          className="absolute top-4 right-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center theme-text-muted hover:theme-text transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+          className="absolute top-4 right-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+          style={{ color: t.fgDim }}
           aria-label="Close dialog"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="flex items-start gap-4">
-          <div className={`p-2 rounded-lg flex-shrink-0 ${
-            variant === 'danger' ? 'bg-rose-500/10' : 'bg-amber-500/10'
-          }`} aria-hidden="true">
-            <AlertTriangle className={`w-6 h-6 ${
-              variant === 'danger' ? 'text-rose-400' : 'text-amber-400'
-            }`} />
+          <div className="p-2 rounded-lg flex-shrink-0" style={{
+            backgroundColor: variant === 'danger' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+          }} aria-hidden="true">
+            <AlertTriangle className="w-6 h-6" style={{
+              color: variant === 'danger' ? (isDark ? '#f87171' : '#dc2626') : (isDark ? '#fbbf24' : '#d97706'),
+            }} />
           </div>
           <div className="flex-1">
             <h2
               id="confirm-dialog-title"
-              className="text-lg font-semibold theme-text mb-2"
+              className="text-lg font-semibold mb-2"
+              style={{ color: t.fg }}
             >
               {title}
             </h2>
-            <p id="confirm-dialog-description" className="theme-text-secondary text-sm mb-6">
+            <p id="confirm-dialog-description" className="text-sm mb-6" style={{ color: t.fgMuted }}>
               {message}
             </p>
 
@@ -127,7 +134,8 @@ export function ConfirmDialog({
               <button
                 data-cancel-button
                 onClick={onCancel}
-                className="px-4 py-2 min-h-[44px] bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                className="px-4 py-2 min-h-[44px] text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                style={{ backgroundColor: t.bgActiveStrong, border: `1px solid ${t.border}`, color: t.fg }}
               >
                 {cancelLabel}
               </button>

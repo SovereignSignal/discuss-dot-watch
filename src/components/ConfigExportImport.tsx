@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Download, Upload, Check, AlertTriangle, X } from 'lucide-react';
 import { Forum, KeywordAlert, Bookmark } from '@/types';
+import { c } from '@/lib/theme';
 
 interface ExportData {
   version: 1;
@@ -17,6 +18,7 @@ interface ConfigExportImportProps {
   alerts: KeywordAlert[];
   bookmarks: Bookmark[];
   onImport: (data: { forums?: Forum[]; alerts?: KeywordAlert[]; bookmarks?: Bookmark[] }) => void;
+  isDark?: boolean;
 }
 
 type ImportStatus = 'idle' | 'success' | 'error';
@@ -26,7 +28,9 @@ export function ConfigExportImport({
   alerts,
   bookmarks,
   onImport,
+  isDark = true,
 }: ConfigExportImportProps) {
+  const t = c(isDark);
   const [importStatus, setImportStatus] = useState<ImportStatus>('idle');
   const [importMessage, setImportMessage] = useState<string>('');
   const [showImportPreview, setShowImportPreview] = useState(false);
@@ -159,13 +163,15 @@ export function ConfigExportImport({
       <div className="flex flex-wrap gap-3">
         <button
           onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+          style={{ backgroundColor: t.bgCard, border: `1px solid ${t.border}`, color: t.fg }}
         >
           <Download className="w-4 h-4" />
           Export Configuration
         </button>
 
-        <label className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-zinc-400">
+        <label className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-zinc-400"
+          style={{ backgroundColor: t.bgCard, border: `1px solid ${t.border}`, color: t.fg }}>
           <Upload className="w-4 h-4" />
           Import Configuration
           <input
@@ -181,11 +187,11 @@ export function ConfigExportImport({
       {/* Status message */}
       {importStatus !== 'idle' && !showImportPreview && (
         <div
-          className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
-            importStatus === 'success'
-              ? 'bg-emerald-500/10 text-emerald-400'
-              : 'bg-rose-500/10 text-rose-400'
-          }`}
+          className="flex items-center gap-2 p-3 rounded-lg text-sm"
+          style={{
+            backgroundColor: importStatus === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+            color: importStatus === 'success' ? (isDark ? '#34d399' : '#059669') : (isDark ? '#f87171' : '#dc2626'),
+          }}
         >
           {importStatus === 'success' ? (
             <Check className="w-4 h-4" />
@@ -201,18 +207,19 @@ export function ConfigExportImport({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div
             className="w-full max-w-md rounded-xl shadow-xl p-6"
-            style={{ backgroundColor: 'var(--card-bg)' }}
+            style={{ backgroundColor: isDark ? t.bgCard : '#ffffff', border: `1px solid ${t.border}` }}
             role="dialog"
             aria-modal="true"
             aria-labelledby="import-dialog-title"
           >
             <div className="flex items-start justify-between mb-4">
-              <h3 id="import-dialog-title" className="text-lg font-semibold theme-text">
+              <h3 id="import-dialog-title" className="text-lg font-semibold" style={{ color: t.fg }}>
                 Import Configuration
               </h3>
               <button
                 onClick={handleCancelImport}
-                className="p-1 theme-text-muted hover:theme-text rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                className="p-1 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                style={{ color: t.fgDim }}
                 aria-label="Cancel import"
               >
                 <X className="w-5 h-5" />
@@ -220,27 +227,27 @@ export function ConfigExportImport({
             </div>
 
             <div className="space-y-3 mb-6">
-              <p className="theme-text-secondary text-sm">
+              <p className="text-sm" style={{ color: t.fgMuted }}>
                 This file contains:
               </p>
               <ul className="space-y-1 text-sm">
                 {pendingImport.forums && pendingImport.forums.length > 0 && (
-                  <li className="theme-text">
+                  <li style={{ color: t.fg }}>
                     {pendingImport.forums.length} forum{pendingImport.forums.length !== 1 ? 's' : ''}
                   </li>
                 )}
                 {pendingImport.alerts && pendingImport.alerts.length > 0 && (
-                  <li className="theme-text">
+                  <li style={{ color: t.fg }}>
                     {pendingImport.alerts.length} keyword alert{pendingImport.alerts.length !== 1 ? 's' : ''}
                   </li>
                 )}
                 {pendingImport.bookmarks && pendingImport.bookmarks.length > 0 && (
-                  <li className="theme-text">
+                  <li style={{ color: t.fg }}>
                     {pendingImport.bookmarks.length} bookmark{pendingImport.bookmarks.length !== 1 ? 's' : ''}
                   </li>
                 )}
               </ul>
-              <p className="theme-text-muted text-xs">
+              <p className="text-xs" style={{ color: t.fgDim }}>
                 Exported on {new Date(pendingImport.exportedAt).toLocaleDateString()}
               </p>
             </div>
@@ -248,19 +255,22 @@ export function ConfigExportImport({
             <div className="space-y-2">
               <button
                 onClick={() => handleImportConfirm(true)}
-                className="w-full px-4 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:bg-zinc-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                className="w-full px-4 py-2 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                style={{ backgroundColor: t.bgActiveStrong, border: `1px solid ${t.borderActive}`, color: t.fg }}
               >
                 Merge with existing data
               </button>
               <button
                 onClick={() => handleImportConfirm(false)}
-                className="w-full px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                className="w-full px-4 py-2 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+                style={{ backgroundColor: t.bgCard, border: `1px solid ${t.border}`, color: t.fgMuted }}
               >
                 Replace all data
               </button>
               <button
                 onClick={handleCancelImport}
-                className="w-full px-4 py-2 theme-text-muted hover:theme-text text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 rounded-lg"
+                className="w-full px-4 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 rounded-lg"
+                style={{ color: t.fgDim }}
               >
                 Cancel
               </button>
@@ -269,7 +279,7 @@ export function ConfigExportImport({
         </div>
       )}
 
-      <p className="theme-text-muted text-xs">
+      <p className="text-xs" style={{ color: t.fgDim }}>
         Export your forums, keyword alerts, and bookmarks to a JSON file. You can import this file on another device or browser to restore your configuration.
       </p>
     </div>

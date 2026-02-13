@@ -8,11 +8,12 @@ import { c } from '@/lib/theme';
 
 interface EmailPreferencesProps {
   onSave?: (prefs: DigestPreferences) => void;
+  isDark?: boolean;
 }
 
 const STORAGE_KEY = 'gov-watch-digest-prefs';
 
-export function EmailPreferences({ onSave }: EmailPreferencesProps) {
+export function EmailPreferences({ onSave, isDark: isDarkProp }: EmailPreferencesProps) {
   const { user } = useAuth();
   const [prefs, setPrefs] = useState<DigestPreferences>({
     frequency: 'weekly',
@@ -27,7 +28,7 @@ export function EmailPreferences({ onSave }: EmailPreferencesProps) {
   const [testMessage, setTestMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const isDark = typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') || !document.documentElement.classList.contains('light') : true;
+  const isDark = isDarkProp ?? true;
   const t = c(isDark);
 
   const privyDid = user?.id; // Privy DID from auth

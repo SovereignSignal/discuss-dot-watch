@@ -588,6 +588,7 @@ export function ForumManager({
         variant="danger"
         onConfirm={() => { if (deleteConfirm) { onRemoveForum(deleteConfirm.id); setDeleteConfirm(null); } }}
         onCancel={() => setDeleteConfirm(null)}
+        isDark={isDark}
       />
     </div>
   );
