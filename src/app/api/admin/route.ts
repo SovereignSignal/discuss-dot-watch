@@ -3,6 +3,7 @@ import { isAdmin } from '@/lib/admin';
 import { getDb, isDatabaseConfigured, getDbStats, initializeSchema } from '@/lib/db';
 import { getCacheStats, clearCache } from '@/lib/redis';
 import { getCacheStats as getMemoryCacheStats, refreshCache } from '@/lib/forumCache';
+import { fetchPrivyUsers, getEmailFromPrivyUser, getWalletFromPrivyUser, isPrivyServerConfigured } from '@/lib/privy';
 
 /**
  * GET /api/admin - Get admin dashboard data
@@ -316,6 +317,61 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         return NextResponse.json({ 
           error: error instanceof Error ? error.message : 'Failed to clear cache' 
+        }, { status: 500 });
+      }
+    }
+    
+    case 'sync-privy-users': {
+      if (!isPrivyServerConfigured()) {
+        return NextResponse.json({ 
+          error: 'Privy server not configured. Set PRIVY_APP_SECRET in environment variables.' 
+        }, { status: 503 });
+      }
+      
+      if (!isDatabaseConfigured()) {
+        return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+      }
+      
+      try {
+        const db = getDb();
+        const privyUsers = await fetchPrivyUsers();
+        
+        let synced = 0;
+        let created = 0;
+        let updated = 0;
+        
+        for (const privyUser of privyUsers) {
+          const email = getEmailFromPrivyUser(privyUser);
+          const wallet = getWalletFromPrivyUser(privyUser);
+          
+          // Upsert user
+          const result = await db`
+            INSERT INTO users (privy_did, email, wallet_address)
+            VALUES (${privyUser.id}, ${email}, ${wallet})
+            ON CONFLICT (privy_did)
+            DO UPDATE SET
+              email = COALESCE(EXCLUDED.email, users.email),
+              wallet_address = COALESCE(EXCLUDED.wallet_address, users.wallet_address),
+              updated_at = NOW()
+            RETURNING id, (xmax = 0) as is_insert
+          `;
+          
+          synced++;
+          if (result[0]?.is_insert) {
+            created++;
+          } else {
+            updated++;
+          }
+        }
+        
+        return NextResponse.json({ 
+          status: 'ok', 
+          message: `Synced ${synced} users from Privy (${created} created, ${updated} updated)`,
+          stats: { synced, created, updated, total: privyUsers.length }
+        });
+      } catch (error) {
+        return NextResponse.json({ 
+          error: error instanceof Error ? error.message : 'Failed to sync users from Privy' 
         }, { status: 500 });
       }
     }

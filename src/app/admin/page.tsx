@@ -376,10 +376,16 @@ export default function AdminPage() {
 
         {/* Users */}
         <Card className="p-5">
-          <div className="flex items-center gap-2.5 mb-4">
-            <Users className="w-4 h-4" style={{ color: textMuted }} />
-            <span className="text-sm font-medium" style={{ color: textPrimary }}>Users</span>
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: btnBg, color: textMuted }}>{users.length}</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <Users className="w-4 h-4" style={{ color: textMuted }} />
+              <span className="text-sm font-medium" style={{ color: textPrimary }}>Users</span>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: btnBg, color: textMuted }}>{users.length}</span>
+            </div>
+            <Btn onClick={() => handleAction('sync-privy-users')} disabled={actionLoading !== null}>
+              {actionLoading === 'sync-privy-users' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              Sync from Privy
+            </Btn>
           </div>
           
           {users.length > 0 ? (
