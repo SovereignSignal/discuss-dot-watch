@@ -3,7 +3,8 @@
  * Fetch topics from non-Discourse sources (EA Forum, LessWrong, etc.)
  * 
  * Query params:
- * - source: 'ea-forum' | 'lesswrong' | 'all' (default: all)
+ * - sources: comma-separated list of source IDs (e.g. 'ea-forum,lesswrong')
+ *            omit or pass 'all' to get all enabled sources
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,15 +12,18 @@ import { getExternalSourceTopics } from '@/lib/forumCache';
 import { getEnabledExternalSources } from '@/lib/externalSources';
 
 export async function GET(request: NextRequest) {
-  const sourceParam = request.nextUrl.searchParams.get('source') || 'all';
+  const sourcesParam = request.nextUrl.searchParams.get('sources') || 'all';
   
-  // Get enabled sources
+  // Get enabled sources from config
   const enabledSources = getEnabledExternalSources();
   
-  // Filter by requested source
-  const sources = sourceParam === 'all' 
+  // Filter by requested sources
+  const sources = sourcesParam === 'all' 
     ? enabledSources 
-    : enabledSources.filter(s => s.id === sourceParam || s.sourceType === sourceParam);
+    : (() => {
+        const requested = new Set(sourcesParam.split(',').map(s => s.trim()));
+        return enabledSources.filter(s => requested.has(s.id) || requested.has(s.sourceType));
+      })();
 
   if (sources.length === 0) {
     return NextResponse.json({

@@ -10,6 +10,7 @@ export interface ForumPreset {
   token?: string;
   logoUrl?: string;
   tier: 1 | 2 | 3;
+  sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'hackernews';
 }
 
 export interface ForumCategory {
@@ -598,6 +599,22 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
     name: 'AI',
     description: 'AI research, ML tools, and developer communities',
     forums: [
+      {
+        name: 'EA Forum',
+        url: 'https://forum.effectivealtruism.org',
+        description: 'AI safety, funding, grants, Open Philanthropy discussions',
+        logoUrl: 'https://forum.effectivealtruism.org/favicon.ico',
+        tier: 1,
+        sourceType: 'ea-forum',
+      },
+      {
+        name: 'LessWrong',
+        url: 'https://www.lesswrong.com',
+        description: 'AI alignment research, MATS, SERI, rationality',
+        logoUrl: 'https://www.lesswrong.com/favicon.ico',
+        tier: 1,
+        sourceType: 'lesswrong',
+      },
       {
         name: 'Hugging Face',
         url: 'https://discuss.huggingface.co/',

@@ -99,6 +99,7 @@ export default function AppPage() {
         description: preset.description,
         logoUrl: preset.logoUrl,
         token: preset.token,
+        sourceType: preset.sourceType,
         discourseForum: {
           url: preset.url,
           categoryId: preset.categoryId,

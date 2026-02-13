@@ -141,6 +141,7 @@ export function ForumManager({
       token: preset.token,
       logoUrl: preset.logoUrl || getProtocolLogo(preset.name),
       category: categoryId as ForumCategoryId,
+      sourceType: preset.sourceType,
       discourseForum: { url: preset.url, categoryId: preset.categoryId },
       isEnabled: true,
     });

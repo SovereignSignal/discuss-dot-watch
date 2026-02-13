@@ -45,6 +45,11 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
       return;
     }
 
+    // Separate Discourse forums from external sources
+    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'hackernews']);
+    const discourseForums = enabledForums.filter(f => !f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType));
+    const externalForums = enabledForums.filter(f => f.sourceType && EXTERNAL_SOURCE_TYPES.has(f.sourceType));
+
     // Cancel any in-flight request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -63,8 +68,9 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
     setForumStates(initialStates);
 
     try {
-      const results = await Promise.allSettled(
-        enabledForums.map(async (forum) => {
+      // Fetch Discourse forums
+      const discourseResults = await Promise.allSettled(
+        discourseForums.map(async (forum) => {
           const params = new URLSearchParams({
             forumUrl: forum.discourseForum.url,
             protocol: forum.cname,
@@ -80,8 +86,6 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
               { signal, maxRetries: 2, baseDelay: 1000 }
             );
 
-            // Only update state if request wasn't aborted
-            // Use forum ID instead of index to prevent stale closure issues
             if (!signal.aborted) {
               setForumStates(prev => prev.map(s =>
                 s.forumId === forum.id ? { ...s, status: 'success', retryCount } : s
@@ -90,16 +94,13 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
 
             return data.topics;
           } catch (err) {
-            // Ignore abort errors
             if (err instanceof Error && err.name === 'AbortError') {
               throw err;
             }
             const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-            // Detect defunct forums (redirects, not JSON, shut down)
             const isDefunct = errorMsg.includes('shut down') ||
                               errorMsg.includes('redirects') ||
                               errorMsg.includes('not JSON');
-            // Use forum ID instead of index to prevent stale closure issues
             if (!signal.aborted) {
               setForumStates(prev => prev.map(s =>
                 s.forumId === forum.id ? { ...s, status: 'error', error: errorMsg, isDefunct } : s
@@ -113,27 +114,43 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
       const allTopics: DiscussionTopic[] = [];
       const errors: string[] = [];
 
-      results.forEach((result, index) => {
+      discourseResults.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           allTopics.push(...result.value);
         } else {
-          errors.push(`${enabledForums[index].name}: ${result.reason.message}`);
+          errors.push(`${discourseForums[index].name}: ${result.reason.message}`);
         }
       });
 
-      // Fetch external sources (EA Forum, LessWrong) in parallel
-      try {
-        const externalRes = await fetch('/api/external-sources', { signal });
-        if (externalRes.ok) {
-          const externalData = await externalRes.json();
-          if (externalData.topics && Array.isArray(externalData.topics)) {
-            allTopics.push(...externalData.topics);
+      // Fetch external sources only if user has enabled any
+      if (externalForums.length > 0) {
+        try {
+          const sourceIds = externalForums.map(f => f.sourceType!).join(',');
+          const externalRes = await fetch(`/api/external-sources?sources=${sourceIds}`, { signal });
+          if (externalRes.ok) {
+            const externalData = await externalRes.json();
+            if (externalData.topics && Array.isArray(externalData.topics)) {
+              allTopics.push(...externalData.topics);
+            }
+            // Mark external forum states as success
+            if (!signal.aborted) {
+              setForumStates(prev => prev.map(s => {
+                const ext = externalForums.find(f => f.id === s.forumId);
+                return ext ? { ...s, status: 'success' } : s;
+              }));
+            }
           }
-        }
-      } catch (extErr) {
-        // Silently fail external sources - they're supplementary
-        if (!(extErr instanceof Error && extErr.name === 'AbortError')) {
-          console.warn('Failed to fetch external sources:', extErr);
+        } catch (extErr) {
+          if (!(extErr instanceof Error && extErr.name === 'AbortError')) {
+            console.warn('Failed to fetch external sources:', extErr);
+            // Mark external forum states as error
+            if (!signal.aborted) {
+              setForumStates(prev => prev.map(s => {
+                const ext = externalForums.find(f => f.id === s.forumId);
+                return ext ? { ...s, status: 'error', error: 'Failed to fetch' } : s;
+              }));
+            }
+          }
         }
       }
 
@@ -144,9 +161,10 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
         setDiscussions(allTopics);
         setLastUpdated(new Date());
 
-        if (errors.length > 0 && errors.length < enabledForums.length) {
+        const totalForums = discourseForums.length + externalForums.length;
+        if (errors.length > 0 && errors.length < totalForums) {
           setError(`Some forums failed: ${errors.join(', ')}`);
-        } else if (errors.length === enabledForums.length) {
+        } else if (errors.length === totalForums) {
           setError('All forums failed to load. Please check your connections.');
         }
       }

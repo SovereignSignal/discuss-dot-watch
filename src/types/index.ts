@@ -24,6 +24,7 @@ export interface Forum {
   logoUrl?: string;
   token?: string;
   category?: ForumCategoryId;
+  sourceType?: SourceType;
   discourseForum: {
     url: string;
     categoryId?: number;
