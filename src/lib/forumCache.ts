@@ -147,11 +147,21 @@ export async function getCachedDiscussions(forumUrls: string[]): Promise<Array<{
   return results;
 }
 
+// Consider refresh stale after 10 minutes (stuck flag)
+const REFRESH_STALE_MS = 10 * 60 * 1000;
+
 export function getCacheStats() {
   const forums = Array.from(memoryCache.values());
   const successful = forums.filter(f => !f.error).length;
   const failed = forums.filter(f => f.error).length;
   const totalTopics = forums.reduce((sum, f) => sum + (f.topics?.length || 0), 0);
+  
+  // Check if refresh is stale (stuck flag from crashed refresh)
+  const isStale = isRefreshing && lastRefreshStart > 0 && (Date.now() - lastRefreshStart > REFRESH_STALE_MS);
+  if (isStale) {
+    console.log('[ForumCache] Detected stale refresh flag, resetting');
+    isRefreshing = false;
+  }
   
   return {
     totalForums: forums.length,
@@ -310,67 +320,70 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   
   console.log('[ForumCache] Starting cache refresh...');
   
-  // Get all forums from specified tiers with their category
-  const forumsWithCategory = FORUM_CATEGORIES.flatMap(cat => 
-    cat.forums.filter(f => tiers.includes(f.tier)).map(f => ({ forum: f, category: cat.id }))
-  );
-  
-  console.log(`[ForumCache] Refreshing ${forumsWithCategory.length} forums (tiers: ${tiers.join(', ')})`);
-  
-  let successCount = 0;
-  let errorCount = 0;
-  const forumUrls: string[] = [];
-  
-  // Process in batches with delays to avoid rate limiting
-  for (let i = 0; i < forumsWithCategory.length; i += MAX_CONCURRENT) {
-    const batch = forumsWithCategory.slice(i, i + MAX_CONCURRENT);
-    
-    await Promise.all(
-      batch.map(async ({ forum, category }) => {
-        const result = await fetchForumTopics(forum);
-        const key = normalizeUrl(forum.url);
-        
-        // Store in memory cache
-        memoryCache.set(key, {
-          url: forum.url,
-          topics: result.topics,
-          fetchedAt: Date.now(),
-          error: result.error,
-        });
-        
-        // Store in Redis cache
-        if (!result.error && result.topics.length > 0) {
-          await setCachedTopics(forum.url, result.topics);
-          forumUrls.push(forum.url);
-          
-          // Persist to database
-          await persistToDatabase(forum, category, result.topics);
-        }
-        
-        if (result.error) {
-          errorCount++;
-          console.log(`[ForumCache] ❌ ${forum.name}: ${result.error}`);
-        } else {
-          successCount++;
-          console.log(`[ForumCache] ✓ ${forum.name}: ${result.topics.length} topics`);
-        }
-      })
+  try {
+    // Get all forums from specified tiers with their category
+    const forumsWithCategory = FORUM_CATEGORIES.flatMap(cat => 
+      cat.forums.filter(f => tiers.includes(f.tier)).map(f => ({ forum: f, category: cat.id }))
     );
     
-    // Delay between batches
-    if (i + MAX_CONCURRENT < forumsWithCategory.length) {
-      await sleep(FETCH_DELAY_MS);
+    console.log(`[ForumCache] Refreshing ${forumsWithCategory.length} forums (tiers: ${tiers.join(', ')})`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const forumUrls: string[] = [];
+    
+    // Process in batches with delays to avoid rate limiting
+    for (let i = 0; i < forumsWithCategory.length; i += MAX_CONCURRENT) {
+      const batch = forumsWithCategory.slice(i, i + MAX_CONCURRENT);
+      
+      await Promise.all(
+        batch.map(async ({ forum, category }) => {
+          const result = await fetchForumTopics(forum);
+          const key = normalizeUrl(forum.url);
+          
+          // Store in memory cache
+          memoryCache.set(key, {
+            url: forum.url,
+            topics: result.topics,
+            fetchedAt: Date.now(),
+            error: result.error,
+          });
+          
+          // Store in Redis cache
+          if (!result.error && result.topics.length > 0) {
+            await setCachedTopics(forum.url, result.topics);
+            forumUrls.push(forum.url);
+            
+            // Persist to database
+            await persistToDatabase(forum, category, result.topics);
+          }
+          
+          if (result.error) {
+            errorCount++;
+            console.log(`[ForumCache] ❌ ${forum.name}: ${result.error}`);
+          } else {
+            successCount++;
+            console.log(`[ForumCache] ✓ ${forum.name}: ${result.topics.length} topics`);
+          }
+        })
+      );
+      
+      // Delay between batches
+      if (i + MAX_CONCURRENT < forumsWithCategory.length) {
+        await sleep(FETCH_DELAY_MS);
+      }
     }
+    
+    // Update Redis with forum list
+    await setCachedForumUrls(forumUrls);
+    await setLastRefresh();
+    
+    console.log(`[ForumCache] Refresh complete: ${successCount} success, ${errorCount} errors`);
+  } finally {
+    // Always reset the flag, even on error
+    isRefreshing = false;
+    await releaseRefreshLock();
   }
-  
-  // Update Redis with forum list
-  await setCachedForumUrls(forumUrls);
-  await setLastRefresh();
-  
-  isRefreshing = false;
-  await releaseRefreshLock();
-  
-  console.log(`[ForumCache] Refresh complete: ${successCount} success, ${errorCount} errors`);
 }
 
 /**
