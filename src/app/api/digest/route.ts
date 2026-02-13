@@ -324,11 +324,24 @@ export async function GET(request: NextRequest) {
   const period = (searchParams.get('period') as 'daily' | 'weekly') || 'weekly';
   const format = searchParams.get('format') || 'json';
   const privyDid = searchParams.get('privyDid');
+  // Client-side forum URLs override (comma-separated, from user's local forum selection)
+  const clientForumUrls = searchParams.get('forumUrls')
+    ? searchParams.get('forumUrls')!.split(',').map(u => u.trim()).filter(Boolean)
+    : null;
 
   try {
     let digest: DigestContent;
 
-    if (privyDid && isDatabaseConfigured()) {
+    if (clientForumUrls && clientForumUrls.length > 0) {
+      // Client provided explicit forum URLs — use them directly
+      const insightCache = new Map<string, string>();
+      digest = await generatePersonalizedDigest(period, clientForumUrls, [], {
+        includeHotTopics: true,
+        includeNewProposals: true,
+        includeKeywordMatches: false,
+        includeDelegateCorner: true,
+      }, insightCache);
+    } else if (privyDid && isDatabaseConfigured()) {
       // Personalized preview for a specific user
       const { getDb } = await import('@/lib/db');
       const sql = getDb();

@@ -37,6 +37,7 @@ interface DigestContent {
 interface DigestViewProps {
   onSelectTopic?: (topic: DiscussionTopic) => void;
   isDark?: boolean;
+  forumUrls?: string[];
 }
 
 function TopicCard({
@@ -131,7 +132,7 @@ function DigestSkeleton({ isDark }: { isDark: boolean }) {
   );
 }
 
-export function DigestView({ onSelectTopic, isDark = true }: DigestViewProps) {
+export function DigestView({ onSelectTopic, isDark = true, forumUrls }: DigestViewProps) {
   const t = c(isDark);
   const { user } = useAuth();
   const [digest, setDigest] = useState<DigestContent | null>(null);
@@ -145,7 +146,11 @@ export function DigestView({ onSelectTopic, isDark = true }: DigestViewProps) {
     setError(null);
 
     const params = new URLSearchParams({ format: 'json', period });
-    if (user?.id) params.set('privyDid', user.id);
+    if (forumUrls && forumUrls.length > 0) {
+      params.set('forumUrls', forumUrls.join(','));
+    } else if (user?.id) {
+      params.set('privyDid', user.id);
+    }
 
     fetch(`/api/digest?${params}`)
       .then((res) => {
@@ -166,7 +171,7 @@ export function DigestView({ onSelectTopic, isDark = true }: DigestViewProps) {
       });
 
     return () => { cancelled = true; };
-  }, [period, user?.id]);
+  }, [period, user?.id, forumUrls]);
 
   const handleTopicSelect = (topic: TopicSummary) => {
     if (!onSelectTopic) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { DiscussionFeed } from '@/components/DiscussionFeed';
 import { ForumManager } from '@/components/ForumManager';
@@ -45,6 +45,10 @@ export default function AppPage() {
 
   const { forums, enabledForums, addForum, removeForum, toggleForum, importForums } = useForums();
   const { discussions, isLoading, error, lastUpdated, forumStates, refresh } = useDiscussions(enabledForums);
+  const enabledForumUrls = useMemo(
+    () => enabledForums.map(f => f.discourseForum.url.replace(/\/$/, '')),
+    [enabledForums]
+  );
   const { alerts, addAlert, removeAlert, toggleAlert, importAlerts } = useAlerts();
   const { bookmarks, addBookmark, removeBookmark, isBookmarked, importBookmarks } = useBookmarks();
   const { isRead, markAsRead, markMultipleAsRead, getUnreadCount } = useReadState();
@@ -354,6 +358,7 @@ export default function AppPage() {
                   <DigestView
                     onSelectTopic={handleSelectTopic}
                     isDark={isDark}
+                    forumUrls={enabledForumUrls}
                   />
                   {/* Reader panel for briefs */}
                   {selectedTopic && (
