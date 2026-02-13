@@ -134,7 +134,7 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
           posts.map((post) => (
             <article
               key={post.id}
-              className="px-5 py-4 border-b"
+              className="px-5 py-4 border-b overflow-hidden"
               style={{ borderColor: t.border }}
             >
               {/* Post header */}
