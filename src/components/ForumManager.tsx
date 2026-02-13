@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Plus,
   Trash2,
@@ -33,6 +33,7 @@ interface ForumManagerProps {
   onAddForum: (forum: Omit<Forum, 'id' | 'createdAt'>) => void;
   onRemoveForum: (id: string) => void;
   onToggleForum: (id: string) => void;
+  isDark?: boolean;
 }
 
 export function ForumManager({
@@ -40,6 +41,7 @@ export function ForumManager({
   onAddForum,
   onRemoveForum,
   onToggleForum,
+  isDark: isDarkProp,
 }: ForumManagerProps) {
   const [newUrl, setNewUrl] = useState('');
   const [newName, setNewName] = useState('');
@@ -60,22 +62,7 @@ export function ForumManager({
   const [selectedForumIds, setSelectedForumIds] = useState<Set<string>>(new Set());
   const [selectedBrowseUrls, setSelectedBrowseUrls] = useState<Set<string>>(new Set());
 
-  // Theme detection
-  const [isDark, setIsDark] = useState(true);
-  
-  useEffect(() => {
-    const checkTheme = () => {
-      const saved = localStorage.getItem('gov-watch-theme') || localStorage.getItem('discuss-watch-theme');
-      setIsDark(saved !== 'light');
-    };
-    checkTheme();
-    window.addEventListener('themechange', checkTheme);
-    window.addEventListener('storage', checkTheme);
-    return () => {
-      window.removeEventListener('themechange', checkTheme);
-      window.removeEventListener('storage', checkTheme);
-    };
-  }, []);
+  const isDark = isDarkProp ?? true;
 
   const t = c(isDark);
 

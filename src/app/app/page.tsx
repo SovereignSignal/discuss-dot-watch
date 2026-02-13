@@ -374,6 +374,7 @@ export default function AppPage() {
                     onAddForum={addForum}
                     onRemoveForum={handleRemoveForum}
                     onToggleForum={toggleForum}
+                    isDark={isDark}
                   />
                 </div>
               )}
