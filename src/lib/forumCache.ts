@@ -17,6 +17,7 @@ import { FORUM_CATEGORIES, ForumPreset } from './forumPresets';
 import { getEnabledExternalSources } from './externalSources';
 import { fetchEAForumPosts } from './eaForumClient';
 import { fetchGitHubDiscussions, isGitHubConfigured } from './githubDiscussionsClient';
+import { fetchSnapshotProposals } from './snapshotClient';
 import { 
   getCachedTopics, 
   setCachedTopics, 
@@ -443,6 +444,8 @@ async function refreshExternalSources(): Promise<void> {
           continue;
         }
         result = await fetchGitHubDiscussions(source.repoRef, 30);
+      } else if (source.sourceType === 'snapshot' && source.snapshotSpace) {
+        result = await fetchSnapshotProposals(source.snapshotSpace, 20);
       } else {
         continue;
       }
@@ -470,8 +473,8 @@ async function refreshExternalSources(): Promise<void> {
         await setCachedTopics(`external:${source.id}`, result.posts);
       }
 
-      // Small delay between GitHub API calls to be polite
-      if (source.sourceType === 'github') {
+      // Small delay between API calls to be polite
+      if (source.sourceType === 'github' || source.sourceType === 'snapshot') {
         await sleep(1000);
       }
     } catch (error) {

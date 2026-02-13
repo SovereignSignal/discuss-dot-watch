@@ -10,7 +10,7 @@ export interface ForumPreset {
   token?: string;
   logoUrl?: string;
   tier: 1 | 2 | 3;
-  sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'hackernews';
+  sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews';
 }
 
 export interface ForumCategory {

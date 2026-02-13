@@ -97,7 +97,7 @@ export default function LandingPage() {
             }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Tracking 108 forums across 3 verticals
+            Tracking 120 forums across 3 verticals
           </div>
           
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-[1.1] tracking-tight">
@@ -159,8 +159,8 @@ export default function LandingPage() {
             <VerticalCard
               icon={<Coins className="w-5 h-5" />}
               title="Crypto"
-              count={71}
-              examples={['Arbitrum', 'Uniswap', 'Aave', 'ENS', 'Optimism', 'Ethereum EIPs']}
+              count={83}
+              examples={['Arbitrum', 'Uniswap', 'Aave', 'ENS', 'Optimism', 'Lido']}
               isDark={isDark}
             />
             <VerticalCard
