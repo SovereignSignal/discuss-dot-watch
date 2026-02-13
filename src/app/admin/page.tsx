@@ -623,15 +623,15 @@ function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum
 interface ForumHealth {
   name: string;
   url: string;
-  status: 'ok' | 'redirect' | 'error' | 'pending' | 'testing';
-  statusCode?: number;
-  redirectUrl?: string;
+  status: 'ok' | 'error' | 'not_cached';
+  topicCount: number;
+  lastFetched: number | null;
   error?: string;
 }
 
 function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string; isDark?: boolean }) {
   const [results, setResults] = useState<ForumHealth[]>([]);
-  const [testing, setTesting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'issues'>('issues');
 
   const fhCardBg = isDark ? '#18181b' : '#ffffff';
@@ -642,87 +642,51 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
   const fhBtnBg = isDark ? '#1f1f23' : 'rgba(0,0,0,0.05)';
   const fhBtnBorder = isDark ? '#2a2a2a' : 'rgba(0,0,0,0.1)';
 
-  const allForums = useMemo(() => {
-    const forums: { name: string; url: string }[] = [];
-    FORUM_CATEGORIES.forEach(cat => {
-      cat.forums.forEach(f => forums.push({ name: f.name, url: f.url }));
-    });
-    return forums;
-  }, []);
-
-  const testForums = async () => {
-    setTesting(true);
-    setResults(allForums.map(f => ({ ...f, status: 'pending' as const })));
-
-    // Test sequentially with delays to avoid rate limiting from forums
-    const delayMs = 1500; // 1.5 second delay between each test
-    
-    for (let i = 0; i < allForums.length; i++) {
-      const forum = allForums[i];
-      setResults(prev => prev.map(r => r.url === forum.url ? { ...r, status: 'testing' } : r));
-      
-      // Try up to 2 times with backoff
-      let success = false;
-      for (let attempt = 0; attempt < 2 && !success; attempt++) {
-        if (attempt > 0) {
-          // Wait longer before retry
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-        
-        try {
-          const res = await fetch(`/api/validate-discourse?url=${encodeURIComponent(forum.url)}`);
-          const data = await res.json();
-          
-          if (data.valid) {
-            setResults(prev => prev.map(r => r.url === forum.url ? { ...r, status: 'ok' } : r));
-            success = true;
-          } else if (data.error?.includes('Rate limit') && attempt === 0) {
-            // Rate limited, will retry
-            continue;
-          } else if (data.error?.includes('redirect')) {
-            setResults(prev => prev.map(r => r.url === forum.url ? { ...r, status: 'redirect', error: data.error, redirectUrl: data.redirectUrl } : r));
-            success = true;
-          } else {
-            setResults(prev => prev.map(r => r.url === forum.url ? { ...r, status: 'error', error: data.error || 'Failed' } : r));
-            success = true;
-          }
-        } catch (err) {
-          if (attempt === 1) {
-            setResults(prev => prev.map(r => r.url === forum.url ? { ...r, status: 'error', error: 'Network error' } : r));
-          }
-        }
-      }
-      
-      // Delay between tests
-      if (i < allForums.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
+  const fetchHealth = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin?action=forum-health', {
+        headers: { 'x-admin-email': adminEmail },
+      });
+      const data = await res.json();
+      setResults(data.forums || []);
+    } catch {
+      console.error('Failed to fetch forum health');
+    } finally {
+      setLoading(false);
     }
-    setTesting(false);
-  };
+  }, [adminEmail]);
 
-  const issues = results.filter(r => r.status === 'error' || r.status === 'redirect');
-  const displayResults = filter === 'issues' ? issues : results.filter(r => r.status !== 'pending');
+  // Fetch on mount
+  useEffect(() => {
+    fetchHealth();
+  }, [fetchHealth]);
+
+  const issues = results.filter(r => r.status === 'error');
+  const notCached = results.filter(r => r.status === 'not_cached');
+  const ok = results.filter(r => r.status === 'ok');
+  const displayResults = filter === 'issues' ? issues : results;
 
   return (
     <div className="rounded-xl p-5" style={{ backgroundColor: fhCardBg, border: `1px solid ${fhCardBorder}` }}>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium" style={{ color: fhTextPrimary }}>Forum Health</h2>
+        <div>
+          <h2 className="text-sm font-medium" style={{ color: fhTextPrimary }}>Forum Health</h2>
+          <p className="text-xs mt-0.5" style={{ color: fhTextDim }}>Based on last cache refresh</p>
+        </div>
         <div className="flex items-center gap-3">
           {results.length > 0 && (
             <div className="flex items-center gap-3 text-sm" style={{ color: fhTextMuted }}>
-              <span>{results.filter(r => r.status === 'ok').length} ok</span>
-              {issues.length > 0 && <span style={{ color: '#f59e0b' }}>{issues.length} issues</span>}
-              {results.filter(r => r.status === 'pending' || r.status === 'testing').length > 0 && (
-                <span style={{ color: fhTextDim }}>{results.filter(r => r.status === 'pending' || r.status === 'testing').length} remaining</span>
-              )}
+              <span style={{ color: '#22c55e' }}>{ok.length} ok</span>
+              {issues.length > 0 && <span style={{ color: '#ef4444' }}>{issues.length} failed</span>}
+              {notCached.length > 0 && <span style={{ color: fhTextDim }}>{notCached.length} not cached</span>}
             </div>
           )}
-          <button onClick={testForums} disabled={testing}
+          <button onClick={fetchHealth} disabled={loading}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity disabled:opacity-40"
             style={{ backgroundColor: fhBtnBg, border: `1px solid ${fhBtnBorder}`, color: fhTextPrimary }}>
-            {testing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-            {testing ? 'Testing...' : 'Test All Forums'}
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            Refresh
           </button>
         </div>
       </div>
@@ -736,7 +700,7 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
                 backgroundColor: filter === 'issues' ? fhBtnBg : 'transparent', 
                 color: filter === 'issues' ? fhTextPrimary : fhTextDim 
               }}>
-              Issues Only ({issues.length})
+              Failed Only ({issues.length})
             </button>
             <button onClick={() => setFilter('all')}
               className="px-2.5 py-1 text-xs rounded-md transition-opacity"
@@ -744,28 +708,33 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
                 backgroundColor: filter === 'all' ? fhBtnBg : 'transparent', 
                 color: filter === 'all' ? fhTextPrimary : fhTextDim 
               }}>
-              All Tested
+              All ({results.length})
             </button>
           </div>
 
           {displayResults.length === 0 ? (
-            <p className="text-sm" style={{ color: fhTextMuted }}>{filter === 'issues' ? 'No issues found' : 'No results yet'}</p>
+            <p className="text-sm" style={{ color: fhTextMuted }}>
+              {filter === 'issues' ? 'No failed forums — all cached forums loaded successfully.' : 'No results yet'}
+            </p>
           ) : (
             <div className="space-y-1 max-h-64 overflow-y-auto">
               {displayResults.map(r => (
                 <div key={r.url} className="flex items-center justify-between px-3 py-2 rounded-lg">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm" style={{ color: fhTextPrimary }}>{r.name}</span>
-                    <span className="text-xs ml-2" style={{ color: fhTextDim }}>{r.url}</span>
+                    <span className="text-xs ml-2" style={{ color: fhTextDim }}>{new URL(r.url).hostname}</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ 
-                    color: r.status === 'ok' ? fhTextMuted : 
-                           r.status === 'error' ? '#ef4444' : 
-                           r.status === 'redirect' ? '#f59e0b' : fhTextMuted
-                  }}>
-                    {r.status === 'testing' ? 'testing...' : r.status}
-                    {r.error && r.status !== 'ok' ? `: ${r.error.slice(0, 40)}` : ''}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    {r.status === 'ok' && (
+                      <span className="text-xs" style={{ color: fhTextMuted }}>{r.topicCount} topics</span>
+                    )}
+                    <span className="text-[11px] font-medium" style={{ 
+                      color: r.status === 'ok' ? '#22c55e' : 
+                             r.status === 'error' ? '#ef4444' : fhTextDim
+                    }}>
+                      {r.status === 'not_cached' ? 'not cached' : r.status}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -773,8 +742,10 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
         </>
       )}
 
-      {results.length === 0 && (
-        <p className="text-sm" style={{ color: fhTextMuted }}>Click &quot;Test All Forums&quot; to check which forum URLs are still reachable.</p>
+      {results.length === 0 && !loading && (
+        <p className="text-sm" style={{ color: fhTextMuted }}>
+          No cache data yet. Click &quot;Refresh Cache&quot; above to fetch forum data.
+        </p>
       )}
     </div>
   );

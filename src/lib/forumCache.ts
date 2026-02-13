@@ -176,6 +176,55 @@ export function getCacheStats() {
 }
 
 /**
+ * Get health status of all forums from the last cache refresh
+ */
+export function getForumHealthFromCache(): Array<{
+  name: string;
+  url: string;
+  status: 'ok' | 'error' | 'not_cached';
+  topicCount: number;
+  lastFetched: number | null;
+  error?: string;
+}> {
+  // Get all forums from presets
+  const allForums = FORUM_CATEGORIES.flatMap(cat => cat.forums);
+  
+  return allForums.map(forum => {
+    const key = normalizeUrl(forum.url);
+    const cached = memoryCache.get(key);
+    
+    if (!cached) {
+      return {
+        name: forum.name,
+        url: forum.url,
+        status: 'not_cached' as const,
+        topicCount: 0,
+        lastFetched: null,
+      };
+    }
+    
+    if (cached.error) {
+      return {
+        name: forum.name,
+        url: forum.url,
+        status: 'error' as const,
+        topicCount: 0,
+        lastFetched: cached.fetchedAt,
+        error: cached.error,
+      };
+    }
+    
+    return {
+      name: forum.name,
+      url: forum.url,
+      status: 'ok' as const,
+      topicCount: cached.topics?.length || 0,
+      lastFetched: cached.fetchedAt,
+    };
+  });
+}
+
+/**
  * Fetch a single forum's topics
  */
 async function fetchForumTopics(forum: ForumPreset): Promise<{ topics: DiscussionTopic[]; error?: string }> {

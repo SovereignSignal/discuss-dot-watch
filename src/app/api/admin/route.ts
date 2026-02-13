@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAdmin } from '@/lib/admin';
 import { getDb, isDatabaseConfigured, getDbStats, initializeSchema } from '@/lib/db';
 import { getCacheStats, clearCache } from '@/lib/redis';
-import { getCacheStats as getMemoryCacheStats, refreshCache } from '@/lib/forumCache';
+import { getCacheStats as getMemoryCacheStats, refreshCache, getForumHealthFromCache } from '@/lib/forumCache';
 import { fetchPrivyUsers, getEmailFromPrivyUser, getWalletFromPrivyUser, isPrivyServerConfigured } from '@/lib/privy';
 
 /**
@@ -48,6 +48,19 @@ export async function GET(request: NextRequest) {
         error: error instanceof Error ? error.message : 'Failed to get users' 
       }, { status: 500 });
     }
+  }
+  
+  // Get forum health from cache (no external requests)
+  if (action === 'forum-health') {
+    const health = getForumHealthFromCache();
+    const ok = health.filter(f => f.status === 'ok').length;
+    const errors = health.filter(f => f.status === 'error').length;
+    const notCached = health.filter(f => f.status === 'not_cached').length;
+    
+    return NextResponse.json({ 
+      forums: health,
+      summary: { ok, errors, notCached, total: health.length }
+    });
   }
   
   // Get forums from database
