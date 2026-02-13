@@ -121,6 +121,22 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
         }
       });
 
+      // Fetch external sources (EA Forum, LessWrong) in parallel
+      try {
+        const externalRes = await fetch('/api/external-sources', { signal });
+        if (externalRes.ok) {
+          const externalData = await externalRes.json();
+          if (externalData.topics && Array.isArray(externalData.topics)) {
+            allTopics.push(...externalData.topics);
+          }
+        }
+      } catch (extErr) {
+        // Silently fail external sources - they're supplementary
+        if (!(extErr instanceof Error && extErr.name === 'AbortError')) {
+          console.warn('Failed to fetch external sources:', extErr);
+        }
+      }
+
       allTopics.sort((a, b) => new Date(b.bumpedAt).getTime() - new Date(a.bumpedAt).getTime());
 
       // Only update state if request wasn't aborted

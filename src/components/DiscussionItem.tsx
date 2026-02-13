@@ -1,9 +1,13 @@
 'use client';
 
 import { format, isToday, isYesterday } from 'date-fns';
-import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink } from 'lucide-react';
+import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink, TrendingUp, User } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert } from '@/types';
 import { c } from '@/lib/theme';
+
+function isExternalSource(topic: DiscussionTopic): boolean {
+  return topic.sourceType === 'ea-forum' || topic.sourceType === 'lesswrong';
+}
 
 function isValidImageUrl(url: string | undefined): boolean {
   if (!url) return false;
@@ -73,7 +77,10 @@ export function DiscussionItem({
   topic, alerts, isBookmarked, isRead = false, isSelected = false,
   onToggleBookmark, onMarkAsRead, onSelect, forumLogoUrl, isDark = true,
 }: DiscussionItemProps) {
-  const topicUrl = `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
+  // External sources use different URL formats
+  const topicUrl = isExternalSource(topic)
+    ? `${topic.forumUrl}/posts/${topic.slug}`
+    : `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
   const activity = getActivityLevel(topic);
   const t = c(isDark);
 
@@ -177,9 +184,23 @@ export function DiscussionItem({
 
             {/* Meta inline */}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" style={{ color: t.fgDim }}>
-              <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{topic.replyCount}</span>
-              <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{topic.views.toLocaleString()}</span>
-              {topic.likeCount > 0 && <span className="flex items-center gap-1"><ThumbsUp className="h-3 w-3" />{topic.likeCount}</span>}
+              {isExternalSource(topic) ? (
+                <>
+                  {topic.authorName && (
+                    <span className="flex items-center gap-1"><User className="h-3 w-3" />{topic.authorName}</span>
+                  )}
+                  {topic.score !== undefined && (
+                    <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />{topic.score}</span>
+                  )}
+                  <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{topic.replyCount}</span>
+                </>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{topic.replyCount}</span>
+                  <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{topic.views.toLocaleString()}</span>
+                  {topic.likeCount > 0 && <span className="flex items-center gap-1"><ThumbsUp className="h-3 w-3" />{topic.likeCount}</span>}
+                </>
+              )}
               <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTimestamp(topic.bumpedAt)}</span>
               {topic.pinned && <Pin className="h-3 w-3" />}
               {topic.closed && <Lock className="h-3 w-3" />}
