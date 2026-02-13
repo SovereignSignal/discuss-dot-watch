@@ -34,7 +34,7 @@ function PostSkeleton({ isDark }: { isDark: boolean }) {
 export function DiscussionReader({ topic, onClose, isDark = true, isMobile = false }: DiscussionReaderProps) {
   const t = c(isDark);
   const { posts, isLoading, error, topicDetail } = useTopicDetail(topic.forumUrl, topic.id);
-  const topicUrl = `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
+  const topicUrl = topic.externalUrl || `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
 
   return (
     <div

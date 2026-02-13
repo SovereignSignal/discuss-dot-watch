@@ -58,6 +58,7 @@ export interface DiscussionTopic {
   sourceType?: SourceType;
   authorName?: string;
   score?: number;  // For voting-based platforms (HN, EA Forum)
+  externalUrl?: string;  // Full canonical URL for non-Discourse sources
 }
 
 export interface KeywordAlert {

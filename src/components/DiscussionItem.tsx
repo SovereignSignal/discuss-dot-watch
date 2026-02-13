@@ -79,8 +79,8 @@ export function DiscussionItem({
   onToggleBookmark, onMarkAsRead, onSelect, forumLogoUrl, forumDisplayName, isDark = true,
 }: DiscussionItemProps) {
   // External sources use different URL formats
-  const topicUrl = isExternalSource(topic)
-    ? `${topic.forumUrl}/posts/${topic.slug}`
+  const topicUrl = topic.externalUrl
+    ? topic.externalUrl
     : `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
   const activity = getActivityLevel(topic);
   const t = c(isDark);

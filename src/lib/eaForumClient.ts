@@ -130,6 +130,7 @@ export async function fetchEAForumPosts(
       sourceType: source as SourceType,
       authorName: post.user?.displayName || 'Anonymous',
       score: post.baseScore,
+      externalUrl: post.url?.startsWith('http') ? post.url : `${baseUrl}/posts/${post._id}/${post.slug}`,
     }));
 
     return { posts };
