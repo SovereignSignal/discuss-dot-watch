@@ -11,10 +11,11 @@ import { DiscussionTopic, SourceType } from '@/types';
 const EA_FORUM_ENDPOINT = 'https://forum.effectivealtruism.org/graphql';
 const LESSWRONG_ENDPOINT = 'https://www.lesswrong.com/graphql';
 
-// GraphQL query for recent posts
-const POSTS_QUERY = `
-query RecentPosts($limit: Int) {
-  posts(input: {terms: {view: "new", limit: $limit}}) {
+// GraphQL query builder for recent posts (limit must be inlined due to API quirk)
+function buildPostsQuery(limit: number): string {
+  return `
+query RecentPosts {
+  posts(input: {terms: {view: "new", limit: ${limit}}}) {
     results {
       _id
       title
@@ -39,6 +40,7 @@ query RecentPosts($limit: Int) {
   }
 }
 `;
+}
 
 interface EAForumPost {
   _id: string;
@@ -90,8 +92,7 @@ export async function fetchEAForumPosts(
         'User-Agent': 'discuss.watch/1.0',
       },
       body: JSON.stringify({
-        query: POSTS_QUERY,
-        variables: { limit },
+        query: buildPostsQuery(limit),
       }),
     });
 
