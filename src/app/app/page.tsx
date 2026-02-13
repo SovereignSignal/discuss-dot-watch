@@ -302,7 +302,17 @@ export default function AppPage() {
 
                   {/* Desktop: Inline reader replaces RightSidebar */}
                   {selectedTopic ? (
-                    <div className="hidden md:flex w-[480px] flex-shrink-0">
+                    <div className="hidden md:flex w-[480px] flex-shrink-0 relative">
+                      {/* Clickable gutter to close reader */}
+                      <button
+                        onClick={handleCloseReader}
+                        className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize z-10 group"
+                        title="Close reading pane"
+                        aria-label="Close reading pane"
+                        style={{ backgroundColor: 'transparent' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      />
                       <DiscussionReader
                         topic={selectedTopic}
                         onClose={handleCloseReader}
@@ -348,7 +358,16 @@ export default function AppPage() {
                   {/* Reader panel for briefs */}
                   {selectedTopic && (
                     <>
-                      <div className="hidden md:flex w-[480px] flex-shrink-0">
+                      <div className="hidden md:flex w-[480px] flex-shrink-0 relative">
+                        <button
+                          onClick={handleCloseReader}
+                          className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize z-10"
+                          title="Close reading pane"
+                          aria-label="Close reading pane"
+                          style={{ backgroundColor: 'transparent' }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        />
                         <DiscussionReader
                           topic={selectedTopic}
                           onClose={handleCloseReader}

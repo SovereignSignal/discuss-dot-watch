@@ -99,10 +99,12 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
         {!isMobile && (
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md transition-colors flex-shrink-0"
-            style={{ color: t.fgMuted }}
+            className="p-2 rounded-lg transition-colors flex-shrink-0"
+            style={{ color: t.fg, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}
+            title="Close reading pane (Esc)"
+            aria-label="Close reading pane"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         )}
       </header>
