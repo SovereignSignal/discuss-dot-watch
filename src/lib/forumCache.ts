@@ -47,6 +47,7 @@ const memoryCache = new Map<string, CachedForum>();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const FETCH_DELAY_MS = 2000; // 2 second delay between forum fetches
 const MAX_CONCURRENT = 3; // Max concurrent fetches
+const MAX_RETRIES = 2; // Retry failed fetches (429s) up to 2 times
 
 let isRefreshing = false;
 let lastRefreshStart = 0;
@@ -295,7 +296,7 @@ export function getExternalSourceTopics(sourceIds: string[]): DiscussionTopic[] 
 /**
  * Fetch a single forum's topics
  */
-async function fetchForumTopics(forum: ForumPreset): Promise<{ topics: DiscussionTopic[]; error?: string }> {
+async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ topics: DiscussionTopic[]; error?: string }> {
   try {
     const baseUrl = forum.url.replace(/\/$/, '');
     const apiUrl = `${baseUrl}/latest.json`;
@@ -309,6 +310,13 @@ async function fetchForumTopics(forum: ForumPreset): Promise<{ topics: Discussio
     });
     
     if (response.status === 429) {
+      if (retryCount < MAX_RETRIES) {
+        const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10);
+        const backoffMs = Math.max(retryAfter * 1000, (retryCount + 1) * 5000);
+        console.log(`[ForumCache] ⏳ ${forum.name}: rate limited, retrying in ${backoffMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+        await sleep(backoffMs);
+        return fetchForumTopics(forum, retryCount + 1);
+      }
       return { topics: [], error: 'Rate limited' };
     }
     
@@ -494,13 +502,20 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
           const result = await fetchForumTopics(forum);
           const key = normalizeUrl(forum.url);
           
-          // Store in memory cache
-          memoryCache.set(key, {
-            url: forum.url,
-            topics: result.topics,
-            fetchedAt: Date.now(),
-            error: result.error,
-          });
+          // If fetch failed but we have existing good data, keep it
+          const existing = memoryCache.get(key);
+          if (result.error && existing && existing.topics && existing.topics.length > 0 && !existing.error) {
+            // Keep the old topics but note the refresh error
+            console.log(`[ForumCache] ⚠️ ${forum.name}: keeping ${existing.topics.length} cached topics despite refresh error: ${result.error}`);
+          } else {
+            // Store in memory cache (new data or first-time error)
+            memoryCache.set(key, {
+              url: forum.url,
+              topics: result.topics,
+              fetchedAt: Date.now(),
+              error: result.error,
+            });
+          }
           
           // Store in Redis cache
           if (!result.error && result.topics.length > 0) {
