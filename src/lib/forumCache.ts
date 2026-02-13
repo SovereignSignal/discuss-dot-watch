@@ -14,6 +14,8 @@
 
 import { DiscourseLatestResponse, DiscussionTopic } from '@/types';
 import { FORUM_CATEGORIES, ForumPreset } from './forumPresets';
+import { getEnabledExternalSources } from './externalSources';
+import { fetchEAForumPosts } from './eaForumClient';
 import { 
   getCachedTopics, 
   setCachedTopics, 
@@ -186,42 +188,108 @@ export function getForumHealthFromCache(): Array<{
   lastFetched: number | null;
   error?: string;
 }> {
-  // Get all forums from presets
+  const results: Array<{
+    name: string;
+    url: string;
+    status: 'ok' | 'error' | 'not_cached';
+    topicCount: number;
+    lastFetched: number | null;
+    error?: string;
+  }> = [];
+
+  // Get all Discourse forums from presets
   const allForums = FORUM_CATEGORIES.flatMap(cat => cat.forums);
   
-  return allForums.map(forum => {
+  for (const forum of allForums) {
     const key = normalizeUrl(forum.url);
     const cached = memoryCache.get(key);
     
     if (!cached) {
-      return {
+      results.push({
         name: forum.name,
         url: forum.url,
-        status: 'not_cached' as const,
+        status: 'not_cached',
         topicCount: 0,
         lastFetched: null,
-      };
-    }
-    
-    if (cached.error) {
-      return {
+      });
+    } else if (cached.error) {
+      results.push({
         name: forum.name,
         url: forum.url,
-        status: 'error' as const,
+        status: 'error',
         topicCount: 0,
         lastFetched: cached.fetchedAt,
         error: cached.error,
-      };
+      });
+    } else {
+      results.push({
+        name: forum.name,
+        url: forum.url,
+        status: 'ok',
+        topicCount: cached.topics?.length || 0,
+        lastFetched: cached.fetchedAt,
+      });
     }
+  }
+
+  // Add external sources
+  const externalSources = getEnabledExternalSources();
+  for (const source of externalSources) {
+    const key = `external:${source.id}`;
+    const cached = memoryCache.get(key);
     
-    return {
-      name: forum.name,
-      url: forum.url,
-      status: 'ok' as const,
-      topicCount: cached.topics?.length || 0,
-      lastFetched: cached.fetchedAt,
-    };
-  });
+    if (!cached) {
+      results.push({
+        name: source.name,
+        url: source.id,
+        status: 'not_cached',
+        topicCount: 0,
+        lastFetched: null,
+      });
+    } else if (cached.error) {
+      results.push({
+        name: source.name,
+        url: source.id,
+        status: 'error',
+        topicCount: 0,
+        lastFetched: cached.fetchedAt,
+        error: cached.error,
+      });
+    } else {
+      results.push({
+        name: source.name,
+        url: source.id,
+        status: 'ok',
+        topicCount: cached.topics?.length || 0,
+        lastFetched: cached.fetchedAt,
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Get topics from external sources (EA Forum, LessWrong, etc.)
+ */
+export function getExternalSourceTopics(sourceIds: string[]): DiscussionTopic[] {
+  const allTopics: DiscussionTopic[] = [];
+  
+  for (const sourceId of sourceIds) {
+    const key = `external:${sourceId}`;
+    const cached = memoryCache.get(key);
+    
+    if (cached && cached.topics && !cached.error) {
+      allTopics.push(...cached.topics);
+    }
+  }
+  
+  // Sort by created date (newest first)
+  allTopics.sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  
+  return allTopics;
 }
 
 /**
@@ -306,7 +374,7 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
   
   try {
     // Get or create forum record
-    let forumRecord = await getForumByUrl(forum.url);
+    const forumRecord = await getForumByUrl(forum.url);
     let forumId: number;
     
     if (!forumRecord) {
@@ -345,6 +413,39 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
     await updateForumLastFetched(forumId);
   } catch (error) {
     console.error(`[ForumCache] DB error for ${forum.name}:`, error);
+  }
+}
+
+/**
+ * Refresh external sources (EA Forum, LessWrong, etc.)
+ */
+async function refreshExternalSources(): Promise<void> {
+  const sources = getEnabledExternalSources();
+  
+  for (const source of sources) {
+    try {
+      if (source.sourceType === 'ea-forum' || source.sourceType === 'lesswrong') {
+        const result = await fetchEAForumPosts(source.sourceType, 30);
+        const key = `external:${source.id}`;
+        
+        memoryCache.set(key, {
+          url: source.id,
+          topics: result.posts,
+          fetchedAt: Date.now(),
+          error: result.error,
+        });
+        
+        if (result.error) {
+          console.log(`[ForumCache] ❌ ${source.name}: ${result.error}`);
+        } else {
+          console.log(`[ForumCache] ✓ ${source.name}: ${result.posts.length} posts`);
+          // Cache in Redis
+          await setCachedTopics(`external:${source.id}`, result.posts);
+        }
+      }
+    } catch (error) {
+      console.error(`[ForumCache] Error fetching ${source.name}:`, error);
+    }
   }
 }
 
@@ -427,7 +528,12 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
     await setCachedForumUrls(forumUrls);
     await setLastRefresh();
     
-    console.log(`[ForumCache] Refresh complete: ${successCount} success, ${errorCount} errors`);
+    console.log(`[ForumCache] Discourse refresh: ${successCount} success, ${errorCount} errors`);
+    
+    // Refresh external sources (EA Forum, LessWrong, etc.)
+    await refreshExternalSources();
+    
+    console.log(`[ForumCache] Refresh complete`);
   } finally {
     // Always reset the flag, even on error
     isRefreshing = false;

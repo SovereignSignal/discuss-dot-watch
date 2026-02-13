@@ -13,6 +13,9 @@ export type ForumCategoryId =
   | 'oss-infrastructure'
   | 'custom';
 
+// Source platform types
+export type SourceType = 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'hackernews';
+
 export interface Forum {
   id: string;
   cname: string;
@@ -50,6 +53,10 @@ export interface DiscussionTopic {
   imageUrl?: string;
   forumUrl: string;
   excerpt?: string;
+  // Multi-source fields (optional for backwards compatibility)
+  sourceType?: SourceType;
+  authorName?: string;
+  score?: number;  // For voting-based platforms (HN, EA Forum)
 }
 
 export interface KeywordAlert {
