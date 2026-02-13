@@ -330,21 +330,9 @@ export default function AdminPage() {
         <Card className="p-5">
           <h2 className="text-sm font-medium mb-3" style={{ color: textPrimary }}>Actions</h2>
           <div className="flex flex-wrap gap-2">
-            <Btn onClick={() => handleAction('init-schema')} disabled={actionLoading !== null}>
-              {actionLoading === 'init-schema' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
-              Init Schema
-            </Btn>
             <Btn onClick={() => handleAction('refresh-cache')} disabled={actionLoading !== null} variant="primary">
               {actionLoading === 'refresh-cache' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               Refresh Cache
-            </Btn>
-            <Btn onClick={() => handleAction('clear-redis-cache')} disabled={actionLoading !== null} variant="danger">
-              {actionLoading === 'clear-redis-cache' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-              Clear Redis
-            </Btn>
-            <Btn onClick={() => handleAction('reset-user-tables')} disabled={actionLoading !== null} variant="danger">
-              {actionLoading === 'reset-user-tables' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Users className="w-3.5 h-3.5" />}
-              Reset User Tables
             </Btn>
           </div>
         </Card>
@@ -412,7 +400,7 @@ export default function AdminPage() {
               </table>
             </div>
           ) : (
-            <p className="text-sm" style={{ color: textMuted }}>No users yet — click Init Schema if tables haven&apos;t been created.</p>
+            <p className="text-sm" style={{ color: textMuted }}>No users yet — click &quot;Sync from Privy&quot; to import users.</p>
           )}
         </Card>
       </div>
