@@ -91,6 +91,13 @@ export function DiscussionFeed({
     return map;
   }, [forums]);
 
+  // Map cname → display name for rendering
+  const forumNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    forums.forEach(f => map.set(f.cname.toLowerCase(), f.name));
+    return map;
+  }, [forums]);
+
   const filteredAndSortedDiscussions = useMemo(() => {
     const filtered = discussions.filter((topic) => {
       // Keyword filter
@@ -230,6 +237,7 @@ export function DiscussionFeed({
                 onMarkAsRead={onMarkAsRead}
                 onSelect={onSelectTopic}
                 forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
+                forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
                 isDark={isDark}
               />
             ))}

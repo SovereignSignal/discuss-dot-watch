@@ -82,7 +82,7 @@ export async function fetchEAForumPosts(
   const baseUrl = source === 'ea-forum' 
     ? 'https://forum.effectivealtruism.org' 
     : 'https://www.lesswrong.com';
-  const sourceName = source === 'ea-forum' ? 'EA Forum' : 'LessWrong';
+  const protocolCname = source === 'ea-forum' ? 'ea-forum' : 'lesswrong';
 
   try {
     const response = await fetch(endpoint, {
@@ -109,7 +109,7 @@ export async function fetchEAForumPosts(
     const posts = json.data.posts.results.map((post): DiscussionTopic => ({
       id: hashStringToNumber(post._id),
       refId: `${source}:${post._id}`,
-      protocol: sourceName,
+      protocol: protocolCname,
       title: post.title,
       slug: post.slug,
       tags: post.tags?.map(t => t.name) || [],

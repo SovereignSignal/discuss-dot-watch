@@ -471,9 +471,12 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   console.log('[ForumCache] Starting cache refresh...');
   
   try {
-    // Get all forums from specified tiers with their category
+    // Get all Discourse forums from specified tiers (skip external sources like EA Forum, LessWrong)
+    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'hackernews']);
     const forumsWithCategory = FORUM_CATEGORIES.flatMap(cat => 
-      cat.forums.filter(f => tiers.includes(f.tier)).map(f => ({ forum: f, category: cat.id }))
+      cat.forums
+        .filter(f => tiers.includes(f.tier) && (!f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType)))
+        .map(f => ({ forum: f, category: cat.id }))
     );
     
     console.log(`[ForumCache] Refreshing ${forumsWithCategory.length} forums (tiers: ${tiers.join(', ')})`);

@@ -38,7 +38,7 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     description: 'AI alignment research, MATS, SERI, rationality',
     logoUrl: 'https://www.lesswrong.com/favicon.ico',
     tier: 1,
-    enabled: true,
+    enabled: false, // Blocked by Vercel bot protection on LessWrong's GraphQL endpoint
   },
   // Future sources (disabled for now)
   // {

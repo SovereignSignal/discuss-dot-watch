@@ -24,6 +24,7 @@ interface DiscussionItemProps {
   onMarkAsRead?: (refId: string) => void;
   onSelect?: (topic: DiscussionTopic) => void;
   forumLogoUrl?: string;
+  forumDisplayName?: string;
   isDark?: boolean;
 }
 
@@ -75,7 +76,7 @@ function highlightKeywords(text: string, alerts: KeywordAlert[], isDark: boolean
 
 export function DiscussionItem({
   topic, alerts, isBookmarked, isRead = false, isSelected = false,
-  onToggleBookmark, onMarkAsRead, onSelect, forumLogoUrl, isDark = true,
+  onToggleBookmark, onMarkAsRead, onSelect, forumLogoUrl, forumDisplayName, isDark = true,
 }: DiscussionItemProps) {
   // External sources use different URL formats
   const topicUrl = isExternalSource(topic)
@@ -122,7 +123,7 @@ export function DiscussionItem({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="px-1.5 py-0.5 text-[11px] font-medium rounded border capitalize flex-shrink-0"
                 style={{ borderColor: t.border, backgroundColor: t.bgBadge, color: t.fgSecondary }}>
-                {topic.protocol}
+                {forumDisplayName || topic.protocol}
               </span>
               {topic.tags.slice(0, 2).map((tag) => {
                 const tagName = typeof tag === 'string' ? tag : (tag as { name: string }).name;

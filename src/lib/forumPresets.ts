@@ -607,14 +607,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
         sourceType: 'ea-forum',
       },
-      {
-        name: 'LessWrong',
-        url: 'https://www.lesswrong.com',
-        description: 'AI alignment research, MATS, SERI, rationality',
-        logoUrl: 'https://www.lesswrong.com/favicon.ico',
-        tier: 1,
-        sourceType: 'lesswrong',
-      },
+      // LessWrong disabled: Vercel bot protection blocks GraphQL API from server-side
       {
         name: 'Hugging Face',
         url: 'https://discuss.huggingface.co/',
