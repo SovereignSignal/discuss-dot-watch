@@ -699,10 +699,36 @@ No testing framework is currently configured. If adding tests:
 | `ANTHROPIC_API_KEY` | Claude API for AI digest summaries |
 | `CRON_SECRET` | Bearer token for cron-triggered digest generation |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Privy authentication app ID |
+| `PRIVY_APP_SECRET` | Privy app secret (for server-side user sync) |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
 
 The app functions without these variables in development (gracefully degrades: no auth, no email, no server cache, localStorage-only persistence).
+
+## Admin Features
+
+### Sync Users from Privy
+
+The admin dashboard (`/admin`) includes a "Sync from Privy" button that fetches all users from Privy's REST API and upserts them into the local database.
+
+**Requirements:**
+- `PRIVY_APP_SECRET` environment variable must be set
+- User must be an admin (email in `ADMIN_EMAILS` list in `src/lib/admin.ts`)
+
+**Implementation:**
+- `src/lib/privy.ts` — Privy REST API client (`fetchPrivyUsers()`)
+- `src/app/api/admin/route.ts` — `sync-privy-users` action
+- `src/app/admin/page.tsx` — "Sync from Privy" button in Users section
+
+### Google OAuth Configuration
+
+Google login requires configuration in both code and Privy Dashboard:
+
+1. **Code** (`src/components/AuthProvider.tsx`): `loginMethods: ['email', 'google', 'wallet']`
+2. **Privy Dashboard**: Enable Google under Login Methods → Socials
+3. **Google Cloud Console** (optional): Custom OAuth credentials for branded consent screen
+   - Authorized JavaScript origins: `https://auth.privy.io`
+   - Authorized redirect URI: `https://auth.privy.io/api/v1/oauth/callback`
 
 ## Phase 1 Features (Completed)
 

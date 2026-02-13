@@ -1,6 +1,6 @@
 # Gov Watch - Task Tracking
 
-> Last Updated: February 2, 2026
+> Last Updated: February 13, 2026
 
 ## Current Sprint: V1 Launch
 
@@ -16,13 +16,18 @@
 - [x] **Require login before accessing app** - Added AuthGate component that requires authentication
 - [x] **Fix Aave forum redirect error** - Discourse redirects `/c/{id}.json` to `/c/{slug}/{id}.json`; now follows same-domain redirects
 - [x] **Fix keyword highlighting UI** - Changed jarring yellow highlighting to subtle indigo theme (badges, borders, alert tags)
-- [ ] **Verify Google login** - Google button now visible in Privy modal. Test login flow to confirm it works.
+- [x] **Verify Google login** - Configured Google OAuth in Privy Dashboard with custom credentials. Working.
 
 ### Post-Deployment
-- [ ] Test authentication flow end-to-end
-- [ ] Test data sync between localStorage and database
-- [ ] Verify mobile responsiveness on production
-- [ ] Monitor for errors in Railway logs
+- [x] Test authentication flow end-to-end
+- [x] Test data sync between localStorage and database
+- [x] Verify mobile responsiveness on production
+- [x] Monitor for errors in Railway logs
+
+### Admin Features (Feb 13, 2026)
+- [x] **Sync users from Privy** - Admin action to pull all users from Privy API into local database
+- [x] **Privy server-side API** - Created `src/lib/privy.ts` for fetching users
+- [x] **PRIVY_APP_SECRET** - Added new env var for server-side Privy API calls
 
 ---
 

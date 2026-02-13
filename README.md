@@ -21,27 +21,32 @@ Aggregates discussions from Discourse forums, GitHub Discussions, Commonwealth, 
 
 ## Features
 
-- **Multi-Platform Aggregation** — Discourse forums, GitHub Discussions, Commonwealth (expanding)
-- **100+ Forums Monitored** — Crypto governance, expanding to AI and OSS
-- **AI-Powered Digests** — Weekly/daily email summaries with Claude Sonnet
-- **Keyword Alerts** — Track specific terms across all sources
+- **Multi-Platform Aggregation** — 100+ Discourse forums across crypto, AI, and OSS
+- **AI-Powered Digests** — Daily/weekly email summaries with Claude Sonnet
+- **On-Site Briefs** — Browsable AI digest within the app
+- **Inline Discussion Reader** — Read posts without leaving the app
+- **Keyword Alerts** — Track specific terms with highlighting
 - **Activity Badges** — Hot, Active, NEW indicators
 - **Delegate Filtering** — Separates delegate threads from main governance
-- **Search & Filter** — By date, platform, vertical, or keyword
-- **Privacy-First** — Local storage, no tracking
+- **Search & Filter** — By date, forum, category, or keyword
+- **Privy Authentication** — Email, Google, or wallet login
+- **Server-Side Cache** — Redis + Postgres for fast loading
+- **Public API** — REST API at `/api/v1/` for integrations
+- **Privacy-First** — Optional sync, works offline
 
 ---
 
 ## Supported Platforms
 
 ### Live Now
-- **Discourse** — 100+ forums across crypto governance
+- **Discourse (Crypto)** — 70+ forums: Arbitrum, Optimism, ENS, Uniswap, Aave, etc.
+- **Discourse (AI)** — OpenAI, Hugging Face, Google AI, PyTorch
+- **Discourse (OSS)** — Rust, Swift, Mozilla, NixOS, Django, Elixir, etc.
 
 ### Coming Soon
-- **Discourse (AI)** — EA Forum, OpenAI, Hugging Face
-- **Discourse (OSS)** — Rust, Swift, Mozilla, NixOS, Django, etc.
 - **GitHub Discussions** — Node.js, React, LangChain, llama.cpp, etc.
 - **Commonwealth** — Cosmos ecosystem (Osmosis, Celestia, etc.)
+- **LessWrong/EA Forum** — Custom integration (not Discourse)
 
 See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for the complete target list.
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for implementation timeline.
@@ -59,12 +64,17 @@ npm run dev
 ### Environment Variables
 
 ```bash
-# Required for email digests
-ANTHROPIC_API_KEY=sk-ant-...
-RESEND_API_KEY=re_...
+# Required for full functionality
+DATABASE_URL=...              # PostgreSQL connection string
+REDIS_URL=...                 # Redis connection string
+ANTHROPIC_API_KEY=sk-ant-...  # Claude API for digests
+RESEND_API_KEY=re_...         # Email delivery
+
+# Authentication
+NEXT_PUBLIC_PRIVY_APP_ID=...  # Privy app ID
+PRIVY_APP_SECRET=...          # Privy app secret (for user sync)
 
 # Optional
-NEXT_PUBLIC_PRIVY_APP_ID=...  # Authentication
 RESEND_FROM_EMAIL=...         # Sender address
 CRON_SECRET=...               # Scheduled jobs
 ```

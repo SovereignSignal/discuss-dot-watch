@@ -1,4 +1,6 @@
-# Gov Forum Watcher - Improvement Plan
+# discuss.watch - Improvement Plan
+
+> Last updated: Feb 13, 2026
 
 ## Phase 1: Quick Wins ✅ COMPLETED
 
@@ -103,67 +105,100 @@
 
 ---
 
-## Phase 2: Core Upgrades (Next Sprint)
+## Phase 2: Core Upgrades ✅ COMPLETED
 
-### 2.1 AI-Powered Daily Briefs
-**Dependencies:** OpenAI/Anthropic API key
-**Tasks:**
-- [ ] Create API route for AI summarization
-- [ ] Generate daily digest of top discussions
-- [ ] Store briefs in localStorage or backend
-- [ ] Add "Daily Brief" view in sidebar
+### 2.1 AI-Powered Daily Briefs ✅
 
-### 2.2 Email Digest Notifications
-**Dependencies:** Backend service, email provider (Resend/SendGrid)
-**Tasks:**
-- [ ] Add email subscription form
-- [ ] Create backend for storing subscriptions
-- [ ] Implement cron job for daily/weekly digests
-- [ ] Email template with discussion summaries
+**Status:** Completed  
+**Files:** `src/components/DigestView.tsx`, `src/app/api/digest/route.ts`, `src/lib/emailDigest.ts`
+
+**Implemented:**
+- [x] AI summarization via Claude Sonnet API
+- [x] Daily and weekly digest generation
+- [x] On-site "Briefs" view in sidebar (browsable digest)
+- [x] Sections: keyword matches, trending, new conversations, delegate corner
+
+### 2.2 Email Digest Notifications ✅
+
+**Status:** Completed  
+**Files:** `src/lib/emailService.ts`, `src/app/api/user/digest-preferences/route.ts`
+
+**Implemented:**
+- [x] Email subscription via preferences UI
+- [x] Per-user digest preferences stored in Postgres
+- [x] Configurable frequency (daily/weekly/never)
+- [x] HTML email templates with AI summaries
+- [x] Resend integration for delivery
 
 ### 2.3 Proposal Status Tracking
-**Tasks:**
-- [ ] Parse proposal status from Discourse tags/categories
-- [ ] Add status badges: Draft, Active, Passed, Executed
-- [ ] Show voting deadline countdown
-- [ ] Visual progress bars for vote distribution
+
+**Status:** Deferred (Future)  
+**Notes:** Activity badges (Hot, Active, NEW) implemented; full proposal lifecycle tracking deferred.
 
 ### 2.4 Treasury Dashboard
-**Dependencies:** DeFiLlama API, token price APIs
-**Tasks:**
-- [ ] Integrate treasury data APIs
-- [ ] Create Treasury view component
-- [ ] Show USD value, top holdings, changes
+
+**Status:** Deferred (Future)  
+**Notes:** Out of scope for current roadmap.
 
 ---
 
-## Phase 3: Platform Expansion (Future)
+## Phase 3: Platform Expansion ✅ MOSTLY COMPLETED
 
-### 3.1 Wallet Connection
-- [ ] Add RainbowKit/wagmi for wallet connection
-- [ ] Show user's voting power per DAO
-- [ ] Track voting history
+### 3.1 Authentication ✅
 
-### 3.2 Delegate Leaderboard
-- [ ] Aggregate voter data across DAOs
-- [ ] Calculate participation scores
-- [ ] Display top contributors
+**Status:** Completed  
+**Files:** `src/components/AuthProvider.tsx`, `src/components/AuthGate.tsx`, `src/lib/privy.ts`
 
-### 3.3 Calendar View
-- [ ] Visual calendar for proposal deadlines
-- [ ] iCal export integration
-- [ ] Reminder notifications
+**Implemented:**
+- [x] Privy authentication (email, Google, wallet)
+- [x] Google OAuth integration
+- [x] Server-side user data sync
+- [x] Admin dashboard with user management
+- [x] Sync users from Privy API
 
-### 3.4 API Access
-- [ ] Create public API endpoints
-- [ ] Webhook system for notifications
-- [ ] Developer documentation
+### 3.2 Inline Discussion Reader ✅
+
+**Status:** Completed  
+**Files:** `src/components/DiscussionReader.tsx`, `src/hooks/useTopicDetail.ts`
+
+**Implemented:**
+- [x] Split-panel view for reading posts without leaving app
+- [x] Full-screen overlay on mobile
+- [x] Keyboard navigation (Escape to close)
+
+### 3.3 Server-Side Caching ✅
+
+**Status:** Completed  
+**Files:** `src/lib/forumCache.ts`, `src/lib/redis.ts`, `src/lib/db.ts`
+
+**Implemented:**
+- [x] Background refresh of all forums every 15 minutes
+- [x] Redis for fast reads
+- [x] Memory fallback
+- [x] Postgres persistence
+
+### 3.4 Public API ✅
+
+**Status:** Completed  
+**Files:** `src/app/api/v1/`
+
+**Implemented:**
+- [x] REST API at `/api/v1/`
+- [x] Endpoints: forums, discussions, categories, search
+- [x] MCP endpoint for AI agent integration
+
+### 3.5 Future Features (Backlog)
+
+- [ ] Wallet voting power display
+- [ ] Delegate leaderboard
+- [ ] Calendar view for deadlines
+- [ ] Webhook notifications
 
 ---
 
 ## Technical Debt
 - [ ] Add unit tests for hooks
 - [ ] Add E2E tests with Playwright
-- [ ] Improve error handling and retry logic
-- [ ] Add loading skeletons for better UX
+- [x] Improve error handling and retry logic (implemented)
+- [x] Add loading skeletons for better UX (implemented)
 - [ ] Optimize bundle size

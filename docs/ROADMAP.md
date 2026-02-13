@@ -26,44 +26,45 @@
 ---
 
 ## Phase 1: Rebrand & Discourse Expansion
-**Status:** In Progress
+**Status:** ✅ Completed
 **Target:** Feb 2026
 
 ### Rebrand
-- [ ] Update branding from "Gov Watch" to "discuss.watch"
-- [ ] New landing page copy (not crypto-specific)
-- [ ] Update email digest branding
-- [ ] Domain setup (discuss.watch)
+- [x] Update branding from "Gov Watch" to "discuss.watch"
+- [x] New landing page copy (not crypto-specific)
+- [x] Update email digest branding
+- [x] Domain setup (discuss.watch)
 
 ### AI Forum Presets
-- [ ] EA Forum (forum.effectivealtruism.org) — HIGHEST PRIORITY
-- [ ] OpenAI Developer Forum (community.openai.com)
-- [ ] Hugging Face Forums (discuss.huggingface.co)
+- [x] OpenAI Developer Forum (community.openai.com)
+- [x] Hugging Face Forums (discuss.huggingface.co)
+- [x] Google AI Forum (discuss.ai.google.dev)
+- [ ] EA Forum — Not Discourse (custom LessWrong platform, requires separate integration)
 
-### OSS Forum Presets
-- [ ] Rust Users (users.rust-lang.org)
-- [ ] Rust Internals (internals.rust-lang.org)
-- [ ] Swift Forums (forums.swift.org)
-- [ ] Julia Discourse (discourse.julialang.org)
-- [ ] NixOS Discourse (discourse.nixos.org)
-- [ ] Mozilla Discourse (discourse.mozilla.org)
-- [ ] Django Forum (forum.djangoproject.com)
-- [ ] Godot Forum (forum.godotengine.org)
-- [ ] Blender Forum (devtalk.blender.org)
-- [ ] Haskell Discourse (discourse.haskell.org)
-- [ ] Elixir Forum (elixirforum.com)
-- [ ] Fedora Discussion (discussion.fedoraproject.org)
-- [ ] Ubuntu Discourse (discourse.ubuntu.com)
-- [ ] GNOME Discourse (discourse.gnome.org)
-- [ ] KDE Discuss (discuss.kde.org)
-- [ ] Let's Encrypt (community.letsencrypt.org)
-- [ ] OpenStreetMap (community.openstreetmap.org)
+### OSS Forum Presets ✅
+- [x] Rust Users (users.rust-lang.org)
+- [x] Rust Internals (internals.rust-lang.org)
+- [x] Swift Forums (forums.swift.org)
+- [x] Julia Discourse (discourse.julialang.org)
+- [x] NixOS Discourse (discourse.nixos.org)
+- [x] Mozilla Discourse (discourse.mozilla.org)
+- [x] Django Forum (forum.djangoproject.com)
+- [x] Godot Forum (forum.godotengine.org)
+- [x] Blender Forum (devtalk.blender.org)
+- [x] Haskell Discourse (discourse.haskell.org)
+- [x] Elixir Forum (elixirforum.com)
+- [x] Fedora Discussion (discussion.fedoraproject.org)
+- [x] Ubuntu Discourse (discourse.ubuntu.com)
+- [x] GNOME Discourse (discourse.gnome.org)
+- [x] KDE Discuss (discuss.kde.org)
+- [x] Let's Encrypt (community.letsencrypt.org)
+- [x] OpenStreetMap (community.openstreetmap.org)
 
-### Category System Update
-- [ ] Add "AI/ML" category
-- [ ] Add "Open Source" category
-- [ ] Keep existing crypto categories
-- [ ] Update category icons/colors
+### Category System Update ✅
+- [x] Add "AI/ML" category
+- [x] Add "Open Source" category
+- [x] Keep existing crypto categories
+- [x] Update category icons/colors
 
 ---
 
@@ -199,4 +200,4 @@
 
 ---
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-02-13*
