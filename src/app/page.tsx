@@ -97,7 +97,7 @@ export default function LandingPage() {
             }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Tracking 99 forums across 3 verticals
+            Tracking 108 forums across 3 verticals
           </div>
           
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-[1.1] tracking-tight">
@@ -159,22 +159,22 @@ export default function LandingPage() {
             <VerticalCard
               icon={<Coins className="w-5 h-5" />}
               title="Crypto"
-              count={69}
-              examples={['Arbitrum', 'Uniswap', 'Aave', 'ENS', 'Optimism', 'Lido']}
+              count={71}
+              examples={['Arbitrum', 'Uniswap', 'Aave', 'ENS', 'Optimism', 'Ethereum EIPs']}
               isDark={isDark}
             />
             <VerticalCard
               icon={<Bot className="w-5 h-5" />}
               title="AI"
-              count={7}
-              examples={['OpenAI', 'Hugging Face', 'PyTorch', 'LangChain']}
+              count={10}
+              examples={['OpenAI', 'EA Forum', 'PyTorch', 'HuggingFace', 'LangChain']}
               isDark={isDark}
             />
             <VerticalCard
               icon={<Code2 className="w-5 h-5" />}
               title="Open Source"
-              count={23}
-              examples={['Rust', 'Swift', 'NixOS', 'Godot', 'Blender']}
+              count={27}
+              examples={['Rust', 'Swift', 'NixOS', 'Godot', 'Next.js', 'Node.js']}
               isDark={isDark}
             />
           </div>

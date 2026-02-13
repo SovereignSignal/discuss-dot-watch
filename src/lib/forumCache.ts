@@ -16,6 +16,7 @@ import { DiscourseLatestResponse, DiscussionTopic } from '@/types';
 import { FORUM_CATEGORIES, ForumPreset } from './forumPresets';
 import { getEnabledExternalSources } from './externalSources';
 import { fetchEAForumPosts } from './eaForumClient';
+import { fetchGitHubDiscussions, isGitHubConfigured } from './githubDiscussionsClient';
 import { 
   getCachedTopics, 
   setCachedTopics, 
@@ -425,31 +426,53 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
 }
 
 /**
- * Refresh external sources (EA Forum, LessWrong, etc.)
+ * Refresh external sources (EA Forum, LessWrong, GitHub Discussions, etc.)
  */
 async function refreshExternalSources(): Promise<void> {
   const sources = getEnabledExternalSources();
   
   for (const source of sources) {
     try {
+      let result: { posts: DiscussionTopic[]; error?: string };
+
       if (source.sourceType === 'ea-forum' || source.sourceType === 'lesswrong') {
-        const result = await fetchEAForumPosts(source.sourceType, 30);
-        const key = `external:${source.id}`;
-        
+        result = await fetchEAForumPosts(source.sourceType, 30);
+      } else if (source.sourceType === 'github' && source.repoRef) {
+        if (!isGitHubConfigured()) {
+          console.log(`[ForumCache] ⚠️ ${source.name}: GITHUB_TOKEN not configured, skipping`);
+          continue;
+        }
+        result = await fetchGitHubDiscussions(source.repoRef, 30);
+      } else {
+        continue;
+      }
+
+      const key = `external:${source.id}`;
+      
+      // If fetch failed but we have existing good data, keep it
+      const existing = memoryCache.get(key);
+      if (result.error && existing && existing.topics && existing.topics.length > 0 && !existing.error) {
+        console.log(`[ForumCache] ⚠️ ${source.name}: keeping ${existing.topics.length} cached posts despite refresh error: ${result.error}`);
+      } else {
         memoryCache.set(key, {
           url: source.id,
           topics: result.posts,
           fetchedAt: Date.now(),
           error: result.error,
         });
-        
-        if (result.error) {
-          console.log(`[ForumCache] ❌ ${source.name}: ${result.error}`);
-        } else {
-          console.log(`[ForumCache] ✓ ${source.name}: ${result.posts.length} posts`);
-          // Cache in Redis
-          await setCachedTopics(`external:${source.id}`, result.posts);
-        }
+      }
+      
+      if (result.error) {
+        console.log(`[ForumCache] ❌ ${source.name}: ${result.error}`);
+      } else {
+        console.log(`[ForumCache] ✓ ${source.name}: ${result.posts.length} posts`);
+        // Cache in Redis
+        await setCachedTopics(`external:${source.id}`, result.posts);
+      }
+
+      // Small delay between GitHub API calls to be polite
+      if (source.sourceType === 'github') {
+        await sleep(1000);
       }
     } catch (error) {
       console.error(`[ForumCache] Error fetching ${source.name}:`, error);
