@@ -19,10 +19,12 @@ import {
   getTenantBySlug,
   getAllTenants,
   upsertDelegate,
+  getDelegatesByTenant,
   updateTenantCapabilities,
   encrypt,
   isEncryptionConfigured,
   detectCapabilities,
+  lookupUsername,
 } from '@/lib/delegates';
 import { decrypt } from '@/lib/delegates/encryption';
 
@@ -48,6 +50,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // If ?tenant=slug is provided, return delegates for that tenant
+    const tenantSlug = request.nextUrl.searchParams.get('tenant');
+    if (tenantSlug) {
+      const tenant = await getTenantBySlug(tenantSlug);
+      if (!tenant) {
+        return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+      }
+      const delegates = await getDelegatesByTenant(tenant.id);
+      return NextResponse.json({ delegates });
+    }
+
     const tenants = await getAllTenants();
     // Strip encrypted API keys from response
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -152,14 +165,37 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
         }
 
+        // Auto-resolve display names from Discourse when not provided
+        let discourseConfig: { baseUrl: string; apiKey: string; apiUsername: string } | null = null;
+        try {
+          const apiKey = decrypt(tenant.encryptedApiKey);
+          discourseConfig = { baseUrl: tenant.forumUrl, apiKey, apiUsername: tenant.apiUsername };
+        } catch {
+          // If decryption fails, we just won't auto-resolve
+        }
+
         const results = [];
         const errors = [];
         for (const d of delegates) {
           try {
-            if (!d.username || !d.displayName) {
-              errors.push({ username: d.username || 'unknown', error: 'Missing username or displayName' });
+            if (!d.username) {
+              errors.push({ username: 'unknown', error: 'Missing username' });
               continue;
             }
+
+            // Auto-resolve displayName from Discourse if not provided
+            if (!d.displayName && discourseConfig) {
+              const info = await lookupUsername(discourseConfig, d.username);
+              if (info) {
+                d.displayName = info.name || d.username;
+              } else {
+                d.displayName = d.username;
+                errors.push({ username: d.username, error: 'Username not found on forum — added with username as display name' });
+              }
+            } else if (!d.displayName) {
+              d.displayName = d.username;
+            }
+
             const result = await upsertDelegate(tenant.id, d);
             results.push(result);
           } catch (err) {

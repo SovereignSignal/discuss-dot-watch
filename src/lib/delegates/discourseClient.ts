@@ -111,6 +111,28 @@ export async function detectCapabilities(
   return capabilities;
 }
 
+// --- User lookup (lightweight, single API call) ---
+
+export async function lookupUsername(
+  config: DiscourseClientConfig,
+  username: string
+): Promise<{ username: string; name: string | null; avatarTemplate: string } | null> {
+  try {
+    const res = await discourseGet(config, `/users/${encodeURIComponent(username)}.json`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const user = data.user;
+    if (!user) return null;
+    return {
+      username: user.username,
+      name: user.name || null,
+      avatarTemplate: user.avatar_template || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
 // --- User stats ---
 
 export async function getUserStats(

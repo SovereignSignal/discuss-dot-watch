@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
+import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Upload, X, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { FORUM_CATEGORIES, ForumPreset } from '@/lib/forumPresets';
 
@@ -349,6 +349,16 @@ interface TenantInfo {
   createdAt: string;
 }
 
+interface DelegateInfo {
+  id: number;
+  username: string;
+  displayName: string;
+  walletAddress: string | null;
+  programs: string[];
+  isActive: boolean;
+  createdAt: string;
+}
+
 interface SyncJob {
   id: number;
   forum_id: number;
@@ -374,6 +384,13 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
   const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  // Delegate management state
+  const [delegatesByTenant, setDelegatesByTenant] = useState<Record<string, DelegateInfo[]>>({});
+  const [showDelegateUpload, setShowDelegateUpload] = useState<string | null>(null);
+  const [csvText, setCsvText] = useState('');
+  const [uploadResult, setUploadResult] = useState<{ created: number; errors: { username: string; error: string }[] } | null>(null);
+  const [addUsername, setAddUsername] = useState('');
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -627,6 +644,110 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
       await fetchData();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to run sync cycle');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // --- Delegate management ---
+
+  const fetchDelegates = useCallback(async (slug: string) => {
+    try {
+      const res = await fetch(`/api/delegates/admin?tenant=${slug}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setDelegatesByTenant(prev => ({ ...prev, [slug]: data.delegates || [] }));
+      }
+    } catch { /* ignore */ }
+  }, [headers]);
+
+  // Fetch delegates when a tenant is expanded
+  useEffect(() => {
+    if (expandedTenant) {
+      fetchDelegates(expandedTenant);
+    }
+  }, [expandedTenant, fetchDelegates]);
+
+  const parseCsv = (text: string): { username: string; displayName?: string; walletAddress?: string; programs?: string[] }[] => {
+    const lines = text.trim().split('\n').filter(l => l.trim());
+    if (lines.length === 0) return [];
+
+    // Detect if first line is a header
+    const firstLine = lines[0].toLowerCase();
+    const hasHeader = firstLine.includes('username') || firstLine.includes('display') || firstLine.includes('wallet');
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+
+    return dataLines.map(line => {
+      const parts = line.split(',').map(p => p.trim().replace(/^["']|["']$/g, ''));
+      const entry: { username: string; displayName?: string; walletAddress?: string; programs?: string[] } = {
+        username: parts[0],
+      };
+      if (parts[1]) entry.displayName = parts[1];
+      if (parts[2]) entry.walletAddress = parts[2];
+      if (parts[3]) entry.programs = parts[3].split(/[;|]/).map(p => p.trim()).filter(Boolean);
+      return entry;
+    }).filter(e => e.username);
+  };
+
+  const handleCsvUpload = async (slug: string) => {
+    const delegates = parseCsv(csvText);
+    if (delegates.length === 0) {
+      setFormError('No valid delegates found in CSV. Each line needs at least a username.');
+      return;
+    }
+
+    setActionLoading(`upload-delegates-${slug}`);
+    setUploadResult(null);
+    try {
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: postHeaders,
+        body: JSON.stringify({
+          action: 'bulk-upsert-delegates',
+          tenantSlug: slug,
+          delegates,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.error || 'Failed to upload delegates');
+        return;
+      }
+      setUploadResult({ created: data.created, errors: data.errors || [] });
+      setCsvText('');
+      await fetchDelegates(slug);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleAddSingleDelegate = async (slug: string) => {
+    if (!addUsername.trim()) return;
+    setActionLoading(`add-delegate-${slug}`);
+    try {
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: postHeaders,
+        body: JSON.stringify({
+          action: 'bulk-upsert-delegates',
+          tenantSlug: slug,
+          delegates: [{ username: addUsername.trim() }],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.error || 'Failed to add delegate');
+        return;
+      }
+      if (data.errors?.length > 0) {
+        setFormError(data.errors[0].error);
+      }
+      setAddUsername('');
+      await fetchDelegates(slug);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to add delegate');
     } finally {
       setActionLoading(null);
     }
@@ -1046,6 +1167,123 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
                             Start Sync
                           </button>
                         </div>
+                      )}
+                    </div>
+
+                    {/* Tracked Members */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium flex items-center gap-1.5" style={{ color: textMuted }}>
+                          <Users className="w-3 h-3" />
+                          Tracked Members
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: btnBg, color: textDim }}>
+                            {(delegatesByTenant[tenant.slug] || []).length}
+                          </span>
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => { setShowDelegateUpload(showDelegateUpload === tenant.slug ? null : tenant.slug); setUploadResult(null); setCsvText(''); setAddUsername(''); setFormError(null); }}
+                            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-opacity"
+                            style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+                            {showDelegateUpload === tenant.slug ? <X className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}
+                            {showDelegateUpload === tenant.slug ? 'Close' : 'Add Members'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Add members panel */}
+                      {showDelegateUpload === tenant.slug && (
+                        <div className="rounded-lg p-3 mb-2 space-y-3" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
+                          {/* Single add */}
+                          <div>
+                            <label className="block text-[11px] mb-1" style={{ color: textDim }}>Add by Discourse username</label>
+                            <div className="flex gap-2">
+                              <input type="text" value={addUsername} onChange={e => setAddUsername(e.target.value)}
+                                placeholder="e.g. alice"
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSingleDelegate(tenant.slug); } }}
+                                className="flex-1 px-3 py-1.5 rounded-lg text-sm outline-none font-mono"
+                                style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+                              <button onClick={() => handleAddSingleDelegate(tenant.slug)}
+                                disabled={actionLoading !== null || !addUsername.trim()}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                                style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                                {actionLoading === `add-delegate-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                                Add
+                              </button>
+                            </div>
+                            <p className="text-[10px] mt-1" style={{ color: textDim }}>Display name will be auto-fetched from the forum</p>
+                          </div>
+
+                          {/* CSV upload */}
+                          <div>
+                            <label className="block text-[11px] mb-1" style={{ color: textDim }}>
+                              Or paste CSV (username, display_name, wallet_address, programs)
+                            </label>
+                            <textarea value={csvText} onChange={e => setCsvText(e.target.value)}
+                              placeholder={"username, display_name, wallet_address, programs\nalice, Alice Smith, 0x123..., Council;Grants\nbob\ncharlie, Charlie D"}
+                              rows={4}
+                              className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono resize-y"
+                              style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+                            <div className="flex items-center justify-between mt-2">
+                              <p className="text-[10px]" style={{ color: textDim }}>
+                                Only <span className="font-medium">username</span> is required. Other columns are optional.
+                              </p>
+                              <button onClick={() => handleCsvUpload(tenant.slug)}
+                                disabled={actionLoading !== null || !csvText.trim()}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                                style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                                {actionLoading === `upload-delegates-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                                Upload CSV
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Upload result */}
+                          {uploadResult && (
+                            <div className="rounded-lg p-2 text-xs" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', border: `1px solid ${cardBorder}` }}>
+                              <p style={{ color: textSecondary }}>
+                                <Check className="w-3 h-3 inline mr-1" />
+                                {uploadResult.created} member{uploadResult.created !== 1 ? 's' : ''} added/updated
+                                {uploadResult.errors.length > 0 && <span style={{ color: '#f59e0b' }}> · {uploadResult.errors.length} warning{uploadResult.errors.length !== 1 ? 's' : ''}</span>}
+                              </p>
+                              {uploadResult.errors.length > 0 && (
+                                <div className="mt-1 space-y-0.5">
+                                  {uploadResult.errors.map((e, i) => (
+                                    <p key={i} style={{ color: textDim }}>{e.username}: {e.error}</p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Delegate list */}
+                      {(delegatesByTenant[tenant.slug] || []).length > 0 ? (
+                        <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
+                          <div className="max-h-48 overflow-y-auto">
+                            {(delegatesByTenant[tenant.slug] || []).map(d => (
+                              <div key={d.id} className="flex items-center justify-between px-3 py-1.5" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'}` }}>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-xs font-medium truncate" style={{ color: textPrimary }}>{d.displayName}</span>
+                                  <span className="text-[10px] font-mono" style={{ color: textDim }}>@{d.username}</span>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  {d.programs && d.programs.length > 0 && (
+                                    <span className="text-[10px]" style={{ color: textDim }}>{d.programs.join(', ')}</span>
+                                  )}
+                                  <a href={`${tenant.forumUrl}/u/${d.username}`} target="_blank" rel="noopener noreferrer"
+                                    className="text-[10px] hover:underline" style={{ color: textMuted }}>
+                                    profile
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs" style={{ color: textDim }}>
+                          No members tracked yet. Add Discourse usernames to start monitoring their activity.
+                        </p>
                       )}
                     </div>
 
