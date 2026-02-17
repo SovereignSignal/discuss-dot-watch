@@ -102,6 +102,19 @@ export function checkRateLimit(
 }
 
 /**
+ * Outgoing per-domain rate limiter
+ * Throttles outbound requests to Discourse forums to avoid 429s.
+ * Keyed by target domain (not client IP) — shared across all server requests.
+ * Conservative limit: 20 req/min (Discourse default is 60/min, some forums lower it).
+ */
+const OUTGOING_RATE_LIMIT: RateLimitConfig = { windowMs: 60000, maxRequests: 20 };
+
+export function checkOutgoingRateLimit(domain: string): RateLimitResult {
+  const key = `outgoing:${domain}`;
+  return checkRateLimit(key, OUTGOING_RATE_LIMIT);
+}
+
+/**
  * Get rate limit key from request (uses IP address or forwarded header)
  */
 export function getRateLimitKey(request: Request): string {

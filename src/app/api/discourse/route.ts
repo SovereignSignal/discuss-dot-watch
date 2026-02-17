@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DiscourseLatestResponse, DiscourseTopicResponse, DiscussionTopic } from '@/types';
 import { isAllowedUrl, isAllowedRedirectUrl } from '@/lib/url';
-import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
+import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
 import { getCachedForum, startBackgroundRefresh } from '@/lib/forumCache';
 
 // Start background refresh on first import (server startup)
@@ -125,6 +125,20 @@ export async function GET(request: NextRequest) {
         status: 429,
         headers: {
           'Retry-After': Math.ceil((forumRateLimit.resetAt - Date.now()) / 1000).toString(),
+        },
+      }
+    );
+  }
+
+  // Outgoing rate limit: prevent hammering any single Discourse domain
+  const outgoingLimit = checkOutgoingRateLimit(forumDomain);
+  if (!outgoingLimit.allowed) {
+    return NextResponse.json(
+      { error: `Outgoing rate limit reached for ${forumDomain}. Try again shortly.` },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': Math.ceil((outgoingLimit.resetAt - Date.now()) / 1000).toString(),
         },
       }
     );

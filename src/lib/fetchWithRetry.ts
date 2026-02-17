@@ -72,7 +72,9 @@ export async function fetchWithRetry<T>(
         errorMsg.includes('redirects') ||
         errorMsg.includes('not json') ||
         errorMsg.includes('404') ||
-        errorMsg.includes('403')
+        errorMsg.includes('403') ||
+        errorMsg.includes('rate limit') ||
+        errorMsg.includes('429')
       ) {
         break;
       }

@@ -5,7 +5,7 @@
  */
 
 import Redis from 'ioredis';
-import { DiscussionTopic } from '@/types';
+import { DiscussionTopic, TopicDetail } from '@/types';
 
 let redis: Redis | null = null;
 
@@ -14,6 +14,7 @@ const CACHE_TTL = {
   FORUM_TOPICS: 60 * 15, // 15 minutes
   FORUM_LIST: 60 * 60, // 1 hour
   STATS: 60 * 5, // 5 minutes
+  TOPIC_DETAIL: 60 * 5, // 5 minutes (matches revalidate: 300)
 };
 
 /**
@@ -58,6 +59,7 @@ export function isRedisConfigured(): boolean {
 const keys = {
   forumTopics: (forumUrl: string) => `forum:${encodeURIComponent(forumUrl)}:topics`,
   forumMeta: (forumUrl: string) => `forum:${encodeURIComponent(forumUrl)}:meta`,
+  topicDetail: (forumUrl: string, topicId: number) => `topic:${encodeURIComponent(forumUrl)}:${topicId}`,
   allForums: () => 'forums:all',
   stats: () => 'stats:cache',
   refreshLock: () => 'refresh:lock',
@@ -96,6 +98,41 @@ export async function setCachedTopics(forumUrl: string, topics: DiscussionTopic[
     );
   } catch (err) {
     console.error('[Redis] Error caching topics:', err);
+  }
+}
+
+/**
+ * Get cached topic detail (individual topic with posts)
+ */
+export async function getCachedTopicDetail(forumUrl: string, topicId: number): Promise<TopicDetail | null> {
+  const client = getRedis();
+  if (!client) return null;
+
+  try {
+    const data = await client.get(keys.topicDetail(forumUrl, topicId));
+    if (!data) return null;
+    return JSON.parse(data);
+  } catch (err) {
+    console.error('[Redis] Error getting cached topic detail:', err);
+    return null;
+  }
+}
+
+/**
+ * Cache topic detail
+ */
+export async function setCachedTopicDetail(forumUrl: string, topicId: number, topic: TopicDetail): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+
+  try {
+    await client.setex(
+      keys.topicDetail(forumUrl, topicId),
+      CACHE_TTL.TOPIC_DETAIL,
+      JSON.stringify(topic)
+    );
+  } catch (err) {
+    console.error('[Redis] Error caching topic detail:', err);
   }
 }
 

@@ -34,6 +34,7 @@ import {
   getForumByUrl,
   updateForumLastFetched,
 } from './db';
+import { checkOutgoingRateLimit } from './rateLimit';
 
 interface CachedForum {
   url: string;
@@ -49,7 +50,7 @@ const memoryCache = new Map<string, CachedForum>();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const FETCH_DELAY_MS = 2000; // 2 second delay between forum fetches
 const MAX_CONCURRENT = 3; // Max concurrent fetches
-const MAX_RETRIES = 2; // Retry failed fetches (429s) up to 2 times
+const MAX_RETRIES = 1; // Retry failed fetches (429s) once — stale cache fallback handles the rest
 
 let isRefreshing = false;
 let lastRefreshStart = 0;
@@ -301,8 +302,18 @@ export function getExternalSourceTopics(sourceIds: string[]): DiscussionTopic[] 
 async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ topics: DiscussionTopic[]; error?: string }> {
   try {
     const baseUrl = forum.url.replace(/\/$/, '');
+
+    // Check outgoing rate limit before hitting this domain
+    const domain = new URL(baseUrl).hostname;
+    const outgoingLimit = checkOutgoingRateLimit(domain);
+    if (!outgoingLimit.allowed) {
+      const waitSec = Math.ceil((outgoingLimit.resetAt - Date.now()) / 1000);
+      console.log(`[ForumCache] ⏳ ${forum.name}: outgoing rate limit for ${domain}, skipping (resets in ${waitSec}s)`);
+      return { topics: [], error: `Outgoing rate limit for ${domain}` };
+    }
+
     const apiUrl = `${baseUrl}/latest.json`;
-    
+
     const response = await fetch(apiUrl, {
       headers: {
         'Accept': 'application/json',
@@ -314,7 +325,7 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
     if (response.status === 429) {
       if (retryCount < MAX_RETRIES) {
         const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10);
-        const backoffMs = Math.max(retryAfter * 1000, (retryCount + 1) * 5000);
+        const backoffMs = Math.max(retryAfter * 1000, (retryCount + 1) * 10000);
         console.log(`[ForumCache] ⏳ ${forum.name}: rate limited, retrying in ${backoffMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
         await sleep(backoffMs);
         return fetchForumTopics(forum, retryCount + 1);

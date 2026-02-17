@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAllowedUrl } from '@/lib/url';
-import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
+import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
+import { getCachedTopicDetail, setCachedTopicDetail } from '@/lib/redis';
 import { TopicDetail, DiscussionPost } from '@/types';
 
 interface DiscoursePostRaw {
@@ -59,6 +60,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid or disallowed URL' }, { status: 400 });
   }
 
+  // Try Redis cache first
+  const cached = await getCachedTopicDetail(forumUrl, parsedTopicId);
+  if (cached) {
+    return NextResponse.json({ topic: cached, cached: true });
+  }
+
+  // Outgoing rate limit per domain
+  const parsedUrl = new URL(forumUrl);
+  const outgoingLimit = checkOutgoingRateLimit(parsedUrl.hostname);
+  if (!outgoingLimit.allowed) {
+    return NextResponse.json(
+      { error: `Outgoing rate limit reached for ${parsedUrl.hostname}. Try again shortly.` },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': Math.ceil((outgoingLimit.resetAt - Date.now()) / 1000).toString(),
+        },
+      }
+    );
+  }
+
   try {
     const baseUrl = forumUrl.endsWith('/') ? forumUrl.slice(0, -1) : forumUrl;
     const apiUrl = `${baseUrl}/t/${parsedTopicId}.json`;
@@ -109,6 +131,9 @@ export async function GET(request: NextRequest) {
       postsCount: data.posts_count || posts.length,
       participantCount: data.participant_count || data.details?.participants?.length || 0,
     };
+
+    // Cache in Redis (5 min TTL)
+    await setCachedTopicDetail(forumUrl, parsedTopicId, topic);
 
     return NextResponse.json({ topic });
   } catch (error) {
