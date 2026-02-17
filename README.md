@@ -147,6 +147,36 @@ SOVEREIGN SIGNAL
 
 ---
 
+## Forum Analytics
+
+discuss.watch includes multi-tenant forum analytics dashboards. Any Discourse forum admin provides an API key and base URL, and a public dashboard is generated at `discuss.watch/<slug>` (e.g. `discuss.watch/my-forum`).
+
+The base layer shows **forum-wide contributor analytics** — top contributors, engagement patterns, category activity, and community health. Optionally, communities can add a **tracked member roster** (delegates, stewards, council members, maintainers — any label) for additional accountability metrics like rationale detection, proposal response time, and coverage tracking.
+
+**Features:**
+- Forum-wide contributor leaderboard from Discourse API
+- Sortable/filterable table (by post count, likes, days visited, trust level, and more)
+- Detail view per contributor with activity breakdown and recent posts
+- Optional tracked member overlay with configurable role labels
+- Historical snapshots for trending over time
+- Configurable focus category and rationale detection per tenant
+- API keys encrypted at rest (AES-256-GCM)
+
+**Data sources:** Forum activity from Discourse REST API. Identity and role data from admin-provided records.
+
+See `src/lib/delegates/` for implementation, `src/types/delegates.ts` for types, and `improvements.md` for the full roadmap.
+
+---
+
+## Disclaimer
+
+discuss.watch is an independent project and is not affiliated with, endorsed by,
+or a product of Discourse (CDCK, Inc.). Discourse is a trademark of Civilized
+Discourse Construction Kit, Inc. This project consumes the publicly documented
+Discourse REST API and does not fork, modify, or redistribute Discourse software.
+
+---
+
 ## License
 
 MIT
