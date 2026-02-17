@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { FORUM_CATEGORIES, ForumPreset, getTotalForumCount } from '@/lib/forumPresets';
+import { FORUM_CATEGORIES, ForumPreset } from '@/lib/forumPresets';
 
 interface SystemStats {
   database: {
@@ -27,28 +27,6 @@ interface SystemStats {
   };
 }
 
-interface BackfillJob {
-  id: number;
-  forum_id: number;
-  forum_name: string;
-  forum_url: string;
-  status: string;
-  current_page: number;
-  topics_fetched: number;
-  total_pages: number | null;
-  last_run_at: string | null;
-  error: string | null;
-}
-
-interface BackfillStatus {
-  pending: number;
-  running: number;
-  complete: number;
-  failed: number;
-  paused: number;
-  jobs: BackfillJob[];
-}
-
 interface User {
   id: number;
   privy_did: string;
@@ -61,7 +39,6 @@ interface User {
 export default function AdminPage() {
   const { user, authenticated, ready } = usePrivy();
   const [stats, setStats] = useState<SystemStats | null>(null);
-  const [backfillStatus, setBackfillStatus] = useState<BackfillStatus | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -96,13 +73,6 @@ export default function AdminPage() {
       } else if (statsRes.status === 401) {
         setError('Unauthorized - not an admin');
         return;
-      }
-
-      const backfillRes = await fetch('/api/backfill', {
-        headers: { 'x-admin-email': adminEmail }
-      });
-      if (backfillRes.ok) {
-        setBackfillStatus(await backfillRes.json());
       }
 
       const usersRes = await fetch('/api/admin?action=users', {
@@ -158,31 +128,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleBackfillAction = async (action: string, jobId?: number) => {
-    setActionLoading(`backfill-${action}-${jobId || 'all'}`);
-    try {
-      const res = await fetch('/api/backfill', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-email': adminEmail,
-        },
-        body: JSON.stringify({ action, jobId }),
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Action failed');
-      }
-      
-      await fetchData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   // Theme tokens
   const bg = isDark ? '#000000' : '#f5f5f5';
   const cardBg = isDark ? '#18181b' : '#ffffff';
@@ -193,10 +138,6 @@ export default function AdminPage() {
   const textDim = isDark ? '#52525b' : '#a1a1aa';
   const btnBg = isDark ? '#1f1f23' : 'rgba(0,0,0,0.05)';
   const btnBorder = isDark ? '#2a2a2a' : 'rgba(0,0,0,0.1)';
-  const btnHover = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-  const inputBg = isDark ? '#18181b' : 'rgba(0,0,0,0.03)';
-  const statusOk = isDark ? '#e5e5e5' : '#52525b';
-  const statusWarn = isDark ? '#e5e5e5' : '#71717a';
 
   if (!ready || loading) {
     return (
@@ -343,28 +284,6 @@ export default function AdminPage() {
         {/* Forum Health */}
         <ForumHealthSection adminEmail={adminEmail} isDark={isDark} />
 
-        {/* Backfill Status */}
-        <BackfillSection
-          backfillStatus={backfillStatus}
-          actionLoading={actionLoading}
-          onAction={handleBackfillAction}
-          onQueueForum={async (url: string) => {
-            setActionLoading(`backfill-start-${url}`);
-            try {
-              await fetch('/api/backfill', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-admin-email': adminEmail },
-                body: JSON.stringify({ action: 'start', forumUrl: url }),
-              });
-              await fetchData();
-            } finally {
-              setActionLoading(null);
-            }
-          }}
-          adminEmail={adminEmail}
-          isDark={isDark}
-        />
-
         {/* Users */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
@@ -449,6 +368,8 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
   const [loading, setLoading] = useState(true);
   const [schemaReady, setSchemaReady] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showPresetPicker, setShowPresetPicker] = useState(false);
+  const [presetSearch, setPresetSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -474,10 +395,52 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
   const headers = useMemo(() => ({ 'x-admin-email': adminEmail }), [adminEmail]);
   const postHeaders = useMemo(() => ({ 'Content-Type': 'application/json', 'x-admin-email': adminEmail }), [adminEmail]);
 
+  // All forum presets flattened
+  const allPresets = useMemo(() => {
+    const forums: (ForumPreset & { categoryName: string })[] = [];
+    FORUM_CATEGORIES.forEach(cat => {
+      cat.forums.forEach(f => forums.push({ ...f, categoryName: cat.name }));
+    });
+    return forums;
+  }, []);
+
+  const filteredPresets = useMemo(() => {
+    if (!presetSearch.trim()) return allPresets;
+    const q = presetSearch.toLowerCase();
+    return allPresets.filter(f =>
+      f.name.toLowerCase().includes(q) ||
+      f.url.toLowerCase().includes(q) ||
+      f.categoryName.toLowerCase().includes(q) ||
+      (f.token && f.token.toLowerCase().includes(q))
+    );
+  }, [allPresets, presetSearch]);
+
   // Match a sync job to a tenant by normalizing URLs
   const getSyncJob = useCallback((forumUrl: string): SyncJob | undefined => {
     const normalized = forumUrl.replace(/\/$/, '').toLowerCase();
     return syncJobs.find(j => j.forum_url.replace(/\/$/, '').toLowerCase() === normalized);
+  }, [syncJobs]);
+
+  // Find orphan sync jobs — forums synced but not added as analytics tenants
+  const orphanSyncJobs = useMemo(() => {
+    const tenantUrls = new Set(tenants.map(t => t.forumUrl.replace(/\/$/, '').toLowerCase()));
+    return syncJobs.filter(j => !tenantUrls.has(j.forum_url.replace(/\/$/, '').toLowerCase()));
+  }, [syncJobs, tenants]);
+
+  // Which URLs already have backfill jobs
+  const syncedUrls = useMemo(() => {
+    const set = new Set<string>();
+    syncJobs.forEach(j => set.add(j.forum_url.replace(/\/$/, '').toLowerCase()));
+    return set;
+  }, [syncJobs]);
+
+  // Summary counts
+  const syncSummary = useMemo(() => {
+    const complete = syncJobs.filter(j => j.status === 'complete').length;
+    const running = syncJobs.filter(j => j.status === 'running').length;
+    const pending = syncJobs.filter(j => j.status === 'pending').length;
+    const failed = syncJobs.filter(j => j.status === 'failed').length;
+    return { complete, running, pending, failed, total: syncJobs.length };
   }, [syncJobs]);
 
   const fetchData = useCallback(async () => {
@@ -510,7 +473,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     if (adminEmail) fetchData();
   }, [adminEmail, fetchData]);
 
-  // Poll for sync progress when any tenant has a running/pending sync
+  // Poll for sync progress when any job is running/pending
   useEffect(() => {
     const hasActive = syncJobs.some(j => j.status === 'running' || j.status === 'pending');
     if (!hasActive || !adminEmail) return;
@@ -551,7 +514,6 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     try {
       const normalizedUrl = formUrl.replace(/\/$/, '');
 
-      // 1. Create the analytics tenant
       const res = await fetch('/api/delegates/admin', {
         method: 'POST',
         headers: postHeaders,
@@ -571,33 +533,28 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
         return;
       }
 
-      // 2. Auto-start forum sync (backfill)
-      setFormSuccess(`Forum "${formName}" created. Starting historical sync...`);
+      setFormSuccess(`Forum "${formName}" created. Starting sync...`);
       setActionLoading('initial-sync');
 
+      // Auto-start backfill
       try {
         await fetch('/api/backfill', {
           method: 'POST',
           headers: postHeaders,
           body: JSON.stringify({ action: 'start', forumUrl: normalizedUrl }),
         });
-      } catch {
-        // Backfill start is best-effort — forum may not be in presets
-      }
+      } catch { /* best-effort */ }
 
-      // 3. Also trigger contributor data pull
+      // Also trigger contributor data pull
       try {
         await fetch(`/api/delegates/${formSlug}/refresh`, {
           method: 'POST',
           headers: postHeaders,
         });
-      } catch {
-        // Best-effort
-      }
+      } catch { /* best-effort */ }
 
-      setFormSuccess(`Forum "${formName}" created. Sync started — topics are being pulled in the background.`);
+      setFormSuccess(`Forum "${formName}" created and sync started.`);
 
-      // Reset form
       setFormName('');
       setFormSlug('');
       setFormUrl('');
@@ -675,6 +632,20 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     }
   };
 
+  // Pre-fill the add form from a preset
+  const prefillFromPreset = (preset: ForumPreset) => {
+    setFormName(preset.name);
+    const slug = preset.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    setFormSlug(slug);
+    setFormUrl(preset.url.replace(/\/$/, ''));
+    setFormApiUsername('system');
+    setFormApiKey('');
+    setShowAddForm(true);
+    setShowPresetPicker(false);
+    setFormError(null);
+    setFormSuccess(null);
+  };
+
   // Auto-generate slug from name
   const updateName = (name: string) => {
     setFormName(name);
@@ -693,7 +664,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
       case 'running': return { label: `Syncing · ${job.topics_fetched.toLocaleString()} topics · page ${job.current_page}${job.total_pages ? `/${job.total_pages}` : ''}`, color: isDark ? '#e5e5e5' : '#52525b', pulse: true };
       case 'pending': return { label: 'Sync queued', color: textMuted, pulse: true };
       case 'paused': return { label: `Paused · ${job.topics_fetched.toLocaleString()} topics`, color: '#f59e0b', pulse: false };
-      case 'failed': return { label: `Sync failed`, color: '#ef4444', pulse: false };
+      case 'failed': return { label: 'Sync failed', color: '#ef4444', pulse: false };
       default: return { label: job.status, color: textMuted, pulse: false };
     }
   };
@@ -712,6 +683,8 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     );
   }
 
+  const totalForums = tenants.length + orphanSyncJobs.length;
+
   return (
     <div className="rounded-xl p-5" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
       {/* Header */}
@@ -719,10 +692,17 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
         <div className="flex items-center gap-2.5">
           <Globe className="w-4 h-4" style={{ color: textMuted }} />
           <span className="text-sm font-medium" style={{ color: textPrimary }}>Forum Analytics</span>
-          {tenants.length > 0 && (
+          {totalForums > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: btnBg, color: textMuted }}>
-              {tenants.length}
+              {totalForums}
             </span>
+          )}
+          {syncSummary.total > 0 && (
+            <div className="flex items-center gap-3 ml-2 text-[11px]" style={{ color: textDim }}>
+              {syncSummary.complete > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: isDark ? '#e5e5e5' : '#52525b' }} />{syncSummary.complete} synced</span>}
+              {(syncSummary.running + syncSummary.pending) > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: isDark ? '#e5e5e5' : '#52525b' }} />{syncSummary.running + syncSummary.pending} active</span>}
+              {syncSummary.failed > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#ef4444' }} />{syncSummary.failed} failed</span>}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -734,7 +714,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
               Initialize Schema
             </button>
           )}
-          {schemaReady && syncJobs.some(j => j.status === 'pending' || j.status === 'running') && (
+          {syncJobs.some(j => j.status === 'pending' || j.status === 'running') && (
             <button onClick={handleRunCycle} disabled={actionLoading !== null}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity disabled:opacity-40"
               style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
@@ -743,7 +723,15 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
             </button>
           )}
           {schemaReady && (
-            <button onClick={() => { setShowAddForm(!showAddForm); setFormError(null); setFormSuccess(null); }}
+            <button onClick={() => { setShowPresetPicker(!showPresetPicker); if (showAddForm) setShowAddForm(false); setFormError(null); setFormSuccess(null); }}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity"
+              style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+              <Search className="w-3.5 h-3.5" />
+              {showPresetPicker ? 'Hide' : 'Browse Forums'}
+            </button>
+          )}
+          {schemaReady && (
+            <button onClick={() => { setShowAddForm(!showAddForm); if (showPresetPicker) setShowPresetPicker(false); setFormError(null); setFormSuccess(null); }}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity"
               style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
               <Plus className="w-3.5 h-3.5" />
@@ -774,9 +762,68 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
         </p>
       )}
 
+      {/* Forum Preset Picker */}
+      {showPresetPicker && schemaReady && (
+        <div className="mb-4 rounded-xl overflow-hidden" style={{ border: `1px solid ${cardBorder}` }}>
+          <div className="p-3" style={{ borderBottom: `1px solid ${cardBorder}` }}>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: textMuted }} />
+              <input type="text" value={presetSearch} onChange={e => setPresetSearch(e.target.value)}
+                placeholder="Search known forums..."
+                className="w-full pl-10 pr-4 py-2 rounded-lg text-sm outline-none"
+                style={{ backgroundColor: inputBg, color: textPrimary }}
+              />
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {filteredPresets.map(forum => {
+              const normalizedUrl = forum.url.replace(/\/$/, '').toLowerCase();
+              const hasTenant = tenants.some(t => t.forumUrl.replace(/\/$/, '').toLowerCase() === normalizedUrl);
+              const isSynced = syncedUrls.has(normalizedUrl);
+              const job = syncJobs.find(j => j.forum_url.replace(/\/$/, '').toLowerCase() === normalizedUrl);
+              return (
+                <div key={forum.url} className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate" style={{ color: textPrimary }}>{forum.name}</span>
+                      {forum.token && <span className="text-xs font-mono" style={{ color: textMuted }}>${forum.token}</span>}
+                      <span className="text-[11px]" style={{ color: textDim }}>{forum.categoryName}</span>
+                    </div>
+                    <p className="text-xs truncate" style={{ color: textDim }}>{forum.url}</p>
+                  </div>
+                  <div className="flex-shrink-0 ml-3 flex items-center gap-2">
+                    {hasTenant ? (
+                      <span className="text-[11px] font-medium" style={{ color: textMuted }}>Added</span>
+                    ) : isSynced && job ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px]" style={{ color: textMuted }}>{job.status} ({job.topics_fetched.toLocaleString()})</span>
+                        <button onClick={() => prefillFromPreset(forum)}
+                          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-opacity"
+                          style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                          <ArrowRight className="w-3 h-3" /> Activate
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => prefillFromPreset(forum)}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition-opacity"
+                        style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+                        <Plus className="w-3 h-3" /> Add
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="px-4 py-2 text-xs" style={{ borderTop: `1px solid ${cardBorder}`, color: textDim }}>
+            {filteredPresets.length} forums available · {tenants.length} active
+          </div>
+        </div>
+      )}
+
       {/* Add Forum Form */}
       {showAddForm && schemaReady && (
-        <form onSubmit={handleCreateTenant} className="mb-6 rounded-xl p-4 space-y-3" style={{ border: `1px solid ${cardBorder}`, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+        <form onSubmit={handleCreateTenant} className="mb-4 rounded-xl p-4 space-y-3" style={{ border: `1px solid ${cardBorder}`, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
           <h3 className="text-sm font-medium mb-1" style={{ color: textPrimary }}>Add New Forum</h3>
           <p className="text-xs mb-3" style={{ color: textDim }}>Adding a forum will automatically start syncing all historical topics and contributor data.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -843,15 +890,16 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
         </form>
       )}
 
-      {/* Tenants List */}
-      {schemaReady && tenants.length === 0 && !showAddForm && (
+      {/* Active Forums List */}
+      {schemaReady && tenants.length === 0 && orphanSyncJobs.length === 0 && !showAddForm && !showPresetPicker && (
         <p className="text-sm" style={{ color: textMuted }}>
-          No forums configured yet. Click &quot;Add Forum&quot; to start tracking a Discourse forum.
+          No forums configured yet. Click &quot;Add Forum&quot; or &quot;Browse Forums&quot; to get started.
         </p>
       )}
 
-      {schemaReady && tenants.length > 0 && (
+      {(tenants.length > 0 || orphanSyncJobs.length > 0) && (
         <div className="space-y-2">
+          {/* Fully configured tenants */}
           {tenants.map(tenant => {
             const isExpanded = expandedTenant === tenant.slug;
             const isRefreshing = actionLoading === `refresh-${tenant.slug}`;
@@ -913,7 +961,6 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div className="px-4 py-3 space-y-3" style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
-
                     {/* Sync Status */}
                     <div>
                       <p className="text-xs font-medium mb-2" style={{ color: textMuted }}>Forum Sync</p>
@@ -974,7 +1021,6 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
                               <AlertTriangle className="w-3 h-3" /> {syncJob.error}
                             </p>
                           )}
-                          {/* Progress bar */}
                           {syncJob.total_pages && syncJob.total_pages > 0 && syncJob.status !== 'complete' && (
                             <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
                               <div className="h-full rounded-full transition-all duration-500" style={{
@@ -1068,223 +1114,69 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
               </div>
             );
           })}
-        </div>
-      )}
-    </div>
-  );
-}
 
-function BackfillSection({ backfillStatus, actionLoading, onAction, onQueueForum, adminEmail, isDark = true }: {
-  backfillStatus: BackfillStatus | null;
-  actionLoading: string | null;
-  onAction: (action: string, jobId?: number) => void;
-  onQueueForum: (url: string) => Promise<void>;
-  adminEmail: string;
-  isDark?: boolean;
-}) {
-  const [search, setSearch] = useState('');
-  const [showForumPicker, setShowForumPicker] = useState(false);
-
-  // All presets flattened
-  const allForums = useMemo(() => {
-    const forums: (ForumPreset & { categoryName: string })[] = [];
-    FORUM_CATEGORIES.forEach(cat => {
-      cat.forums.forEach(f => forums.push({ ...f, categoryName: cat.name }));
-    });
-    return forums;
-  }, []);
-
-  // Which URLs already have backfill jobs
-  const queuedUrls = useMemo(() => {
-    const set = new Set<string>();
-    backfillStatus?.jobs?.forEach(j => set.add(j.forum_url.replace(/\/$/, '')));
-    return set;
-  }, [backfillStatus]);
-
-  const filteredForums = useMemo(() => {
-    if (!search.trim()) return allForums;
-    const q = search.toLowerCase();
-    return allForums.filter(f =>
-      f.name.toLowerCase().includes(q) ||
-      f.url.toLowerCase().includes(q) ||
-      f.categoryName.toLowerCase().includes(q) ||
-      (f.token && f.token.toLowerCase().includes(q))
-    );
-  }, [allForums, search]);
-
-  const cardBg = isDark ? '#18181b' : '#ffffff';
-  const cardBorder = isDark ? '#27272a' : 'rgba(0,0,0,0.08)';
-  const textPrimary = isDark ? '#ffffff' : '#09090b';
-  const textSecondary = isDark ? '#e5e5e5' : '#3f3f46';
-  const textMuted = isDark ? '#a3a3a3' : '#52525b';
-  const textDim = isDark ? '#52525b' : '#a1a1aa';
-  const btnBg = isDark ? '#1f1f23' : 'rgba(0,0,0,0.05)';
-  const btnBorder = isDark ? '#2a2a2a' : 'rgba(0,0,0,0.1)';
-  const inputBg = isDark ? '#18181b' : 'rgba(0,0,0,0.03)';
-
-  return (
-    <div className="rounded-xl p-5" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium" style={{ color: textPrimary }}>Historical Backfill</h2>
-        <div className="flex items-center gap-4 text-sm" style={{ color: textMuted }}>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: textSecondary }} />
-            {backfillStatus?.complete || 0} complete
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: textSecondary }} />
-            {backfillStatus?.running || 0} running
-          </span>
-          <span className="flex items-center gap-1.5" style={{ color: textDim }}>
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: textDim }} />
-            {backfillStatus?.pending || 0} pending
-          </span>
-          {(backfillStatus?.failed || 0) > 0 && (
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#ef4444' }} />
-              {backfillStatus?.failed} failed
-            </span>
+          {/* Orphan sync jobs — synced but not yet activated for analytics */}
+          {orphanSyncJobs.length > 0 && (
+            <>
+              {tenants.length > 0 && (
+                <div className="flex items-center gap-2 pt-2 pb-1">
+                  <span className="text-[11px] font-medium" style={{ color: textDim }}>Synced — needs API key to activate analytics</span>
+                  <div className="flex-1 h-px" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }} />
+                </div>
+              )}
+              {orphanSyncJobs.map(job => {
+                const syncStatus = getSyncStatusLabel(job);
+                const matchingPreset = allPresets.find(p => p.url.replace(/\/$/, '').toLowerCase() === job.forum_url.replace(/\/$/, '').toLowerCase());
+                return (
+                  <div key={job.id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
+                    <div className="flex items-center gap-3 px-4 py-3"
+                      style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium" style={{ color: textPrimary }}>{job.forum_name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>Sync only</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs truncate" style={{ color: textDim }}>{job.forum_url}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ color: syncStatus.color, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${syncStatus.pulse ? 'animate-pulse' : ''}`} style={{ backgroundColor: syncStatus.color }} />
+                            {syncStatus.label}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button onClick={() => {
+                          if (matchingPreset) {
+                            prefillFromPreset(matchingPreset);
+                          } else {
+                            setFormName(job.forum_name);
+                            const slug = job.forum_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                            setFormSlug(slug);
+                            setFormUrl(job.forum_url.replace(/\/$/, ''));
+                            setFormApiUsername('system');
+                            setFormApiKey('');
+                            setShowAddForm(true);
+                            setFormError(null);
+                            setFormSuccess(null);
+                          }
+                        }}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-opacity"
+                          style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                          <ArrowRight className="w-3 h-3" /> Activate Analytics
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-2 mb-6">
-        <button onClick={() => setShowForumPicker(!showForumPicker)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity"
-          style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
-          <Plus className="w-3 h-3" />
-          {showForumPicker ? 'Hide' : 'Queue Forums'}
-        </button>
-        <button onClick={() => onAction('init-all')} disabled={actionLoading !== null}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity disabled:opacity-40"
-          style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
-          Queue All
-        </button>
-        <button onClick={() => onAction('run-cycle')} disabled={actionLoading !== null}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity disabled:opacity-40"
-          style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
-          <Play className="w-3 h-3" />
-          Run Cycle
-        </button>
-      </div>
-
-      {/* Forum Picker */}
-      {showForumPicker && (
-        <div className="mb-6 rounded-xl overflow-hidden" style={{ border: `1px solid ${cardBorder}` }}>
-          <div className="p-3" style={{ borderBottom: `1px solid ${cardBorder}` }}>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: textMuted }} />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search forums..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg text-sm outline-none"
-                style={{ backgroundColor: inputBg, color: textPrimary }}
-              />
-            </div>
-          </div>
-          <div className="max-h-72 overflow-y-auto">
-            {filteredForums.map(forum => {
-              const normalizedUrl = forum.url.replace(/\/$/, '');
-              const isQueued = queuedUrls.has(normalizedUrl);
-              const job = backfillStatus?.jobs?.find(j => j.forum_url.replace(/\/$/, '') === normalizedUrl);
-              const isLoading = actionLoading === `backfill-start-${forum.url}`;
-              return (
-                <div key={forum.url} className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate" style={{ color: textPrimary }}>{forum.name}</span>
-                      {forum.token && <span className="text-xs font-mono" style={{ color: textMuted }}>${forum.token}</span>}
-                      <span className="text-[11px]" style={{ color: textDim }}>{forum.categoryName}</span>
-                    </div>
-                    <p className="text-xs truncate" style={{ color: textDim }}>{forum.url}</p>
-                  </div>
-                  <div className="flex-shrink-0 ml-3">
-                    {isQueued && job ? (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: textSecondary }}>
-                        {job.status} {job.topics_fetched > 0 ? `(${job.topics_fetched.toLocaleString()})` : ''}
-                      </span>
-                    ) : (
-                      <button onClick={() => onQueueForum(forum.url)} disabled={isLoading || actionLoading !== null}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-opacity disabled:opacity-40"
-                        style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                        Queue
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="px-4 py-2 text-xs" style={{ borderTop: `1px solid ${cardBorder}`, color: textDim }}>
-            {filteredForums.length} forums · {queuedUrls.size} queued
-          </div>
-        </div>
-      )}
-
-      {/* Jobs Table */}
-      {backfillStatus?.jobs && backfillStatus.jobs.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
-                <th className="pb-3 pr-4 text-left text-xs font-medium" style={{ color: textDim }}>Forum</th>
-                <th className="pb-3 pr-4 text-left text-xs font-medium" style={{ color: textDim }}>Status</th>
-                <th className="pb-3 pr-4 text-left text-xs font-medium" style={{ color: textDim }}>Progress</th>
-                <th className="pb-3 pr-4 text-left text-xs font-medium" style={{ color: textDim }}>Topics</th>
-                <th className="pb-3 text-left text-xs font-medium" style={{ color: textDim }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {backfillStatus.jobs.map((job) => (
-                <tr key={job.id} style={{ borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}` }}>
-                  <td className="py-3 pr-4">
-                    <a href={job.forum_url} target="_blank" rel="noopener noreferrer"
-                      className="hover:underline" style={{ color: textPrimary }}>
-                      {job.forum_name}
-                    </a>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <span className="text-xs font-medium" style={{ color: textMuted }}>{job.status}</span>
-                  </td>
-                  <td className="py-3 pr-4 font-mono text-sm" style={{ color: textMuted }}>
-                    Page {job.current_page}{job.total_pages ? ` / ${job.total_pages}` : ''}
-                  </td>
-                  <td className="py-3 pr-4 font-mono text-sm" style={{ color: textPrimary }}>{job.topics_fetched.toLocaleString()}</td>
-                  <td className="py-3">
-                    <div className="flex gap-1">
-                      {job.status === 'running' && (
-                        <button onClick={() => onAction('pause', job.id)}
-                          className="p-1.5 rounded-lg transition-opacity hover:opacity-70" 
-                          style={{ backgroundColor: btnBg, color: textMuted }} title="Pause">
-                          <Pause className="w-4 h-4" />
-                        </button>
-                      )}
-                      {job.status === 'paused' && (
-                        <button onClick={() => onAction('resume', job.id)}
-                          className="p-1.5 rounded-lg transition-opacity hover:opacity-70"
-                          style={{ backgroundColor: btnBg, color: textMuted }} title="Resume">
-                          <Play className="w-4 h-4" />
-                        </button>
-                      )}
-                      {job.status === 'failed' && (
-                        <button onClick={() => onAction('retry', job.id)}
-                          className="p-1.5 rounded-lg transition-opacity hover:opacity-70"
-                          style={{ backgroundColor: btnBg, color: textMuted }} title="Retry">
-                          <RotateCcw className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
     </div>
   );
 }
+
 
 interface ForumHealth {
   name: string;
