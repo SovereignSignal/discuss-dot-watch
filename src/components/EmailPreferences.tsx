@@ -14,7 +14,7 @@ interface EmailPreferencesProps {
 const STORAGE_KEY = 'gov-watch-digest-prefs';
 
 export function EmailPreferences({ onSave, isDark: isDarkProp }: EmailPreferencesProps) {
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const [prefs, setPrefs] = useState<DigestPreferences>({
     frequency: 'weekly',
     includeHotTopics: true,
@@ -31,14 +31,17 @@ export function EmailPreferences({ onSave, isDark: isDarkProp }: EmailPreference
   const isDark = isDarkProp ?? true;
   const t = c(isDark);
 
-  const privyDid = user?.id; // Privy DID from auth
+  const isLoggedIn = !!user?.id;
 
   // Load preferences: from API if authenticated, localStorage otherwise
   const loadPreferences = useCallback(async () => {
-    if (privyDid) {
+    if (isLoggedIn) {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/user/digest-preferences?privyDid=${encodeURIComponent(privyDid)}`);
+        const token = await getAccessToken();
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch('/api/user/digest-preferences', { headers });
         if (res.ok) {
           const data = await res.json();
           const dp = data.digestPreferences;
@@ -68,7 +71,7 @@ export function EmailPreferences({ onSave, isDark: isDarkProp }: EmailPreference
         try { setPrefs(prev => ({ ...prev, ...JSON.parse(saved) })); } catch {}
       }
     }
-  }, [privyDid]);
+  }, [isLoggedIn, getAccessToken]);
 
   useEffect(() => {
     loadPreferences();
@@ -88,12 +91,14 @@ export function EmailPreferences({ onSave, isDark: isDarkProp }: EmailPreference
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
 
       // If authenticated, save to DB
-      if (privyDid) {
+      if (isLoggedIn) {
+        const token = await getAccessToken();
+        const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) authHeaders['Authorization'] = `Bearer ${token}`;
         const res = await fetch('/api/user/digest-preferences', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders,
           body: JSON.stringify({
-            privyDid,
             frequency: prefs.frequency,
             digestEmail: prefs.email || null,
             includeHotTopics: prefs.includeHotTopics,
@@ -121,9 +126,12 @@ export function EmailPreferences({ onSave, isDark: isDarkProp }: EmailPreference
     setIsSendingTest(true);
     setTestMessage(null);
     try {
+      const token = await getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch('/api/digest', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-email': email },
+        headers,
         body: JSON.stringify({ period: 'weekly', testEmail: email }),
       });
       const data = await response.json();
@@ -139,8 +147,8 @@ export function EmailPreferences({ onSave, isDark: isDarkProp }: EmailPreference
   const userEmail = user?.email || prefs.email;
 
   // Build personalized preview URL
-  const previewUrl = privyDid
-    ? `/api/digest?format=html&period=weekly&privyDid=${encodeURIComponent(privyDid)}`
+  const previewUrl = user?.id
+    ? `/api/digest?format=html&period=weekly&privyDid=${encodeURIComponent(user.id)}`
     : '/api/digest?format=html&period=weekly';
 
   if (isLoading) {

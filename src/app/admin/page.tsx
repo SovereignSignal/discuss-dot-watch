@@ -59,24 +59,35 @@ export default function AdminPage() {
     return () => { window.removeEventListener('themechange', handler); window.removeEventListener('storage', handler); };
   }, []);
 
-  const adminEmail = user?.email?.address || '';
+  const { getAccessToken } = usePrivy();
+
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    try {
+      const token = await getAccessToken();
+      if (!token) return {};
+      return { 'Authorization': `Bearer ${token}` };
+    } catch {
+      return {};
+    }
+  }, [getAccessToken]);
 
   const fetchData = useCallback(async () => {
-    if (!adminEmail) return;
-    
+    if (!authenticated) return;
+
     try {
+      const authHeaders = await getAuthHeaders();
       const statsRes = await fetch('/api/admin', {
-        headers: { 'x-admin-email': adminEmail }
+        headers: authHeaders,
       });
       if (statsRes.ok) {
         setStats(await statsRes.json());
-      } else if (statsRes.status === 401) {
+      } else if (statsRes.status === 401 || statsRes.status === 403) {
         setError('Unauthorized - not an admin');
         return;
       }
 
       const usersRes = await fetch('/api/admin?action=users', {
-        headers: { 'x-admin-email': adminEmail }
+        headers: authHeaders,
       });
       if (usersRes.ok) {
         const data = await usersRes.json();
@@ -90,10 +101,10 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [adminEmail]);
+  }, [authenticated, getAuthHeaders]);
 
   useEffect(() => {
-    if (ready && authenticated && adminEmail) {
+    if (ready && authenticated) {
       fetchData();
       const interval = setInterval(fetchData, 30000);
       return () => clearInterval(interval);
@@ -101,16 +112,17 @@ export default function AdminPage() {
       setLoading(false);
       setError('Please log in to access admin panel');
     }
-  }, [ready, authenticated, adminEmail, fetchData]);
+  }, [ready, authenticated, fetchData]);
 
   const handleAction = async (action: string) => {
     setActionLoading(action);
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch('/api/admin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-email': adminEmail,
+          ...authHeaders,
         },
         body: JSON.stringify({ action }),
       });
@@ -279,10 +291,10 @@ export default function AdminPage() {
         </Card>
 
         {/* Forum Analytics */}
-        <ForumAnalyticsSection adminEmail={adminEmail} isDark={isDark} />
+        <ForumAnalyticsSection getAuthHeaders={getAuthHeaders} isDark={isDark} />
 
         {/* Forum Health */}
-        <ForumHealthSection adminEmail={adminEmail} isDark={isDark} />
+        <ForumHealthSection getAuthHeaders={getAuthHeaders} isDark={isDark} />
 
         {/* Users */}
         <Card className="p-5">
@@ -372,7 +384,7 @@ interface SyncJob {
   error: string | null;
 }
 
-function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: string; isDark?: boolean }) {
+function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeaders: () => Promise<Record<string, string>>; isDark?: boolean }) {
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
   const [syncJobs, setSyncJobs] = useState<SyncJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -409,8 +421,12 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
   const btnBorder = isDark ? '#2a2a2a' : 'rgba(0,0,0,0.1)';
   const inputBg = isDark ? '#0a0a0a' : 'rgba(0,0,0,0.03)';
 
-  const headers = useMemo(() => ({ 'x-admin-email': adminEmail }), [adminEmail]);
-  const postHeaders = useMemo(() => ({ 'Content-Type': 'application/json', 'x-admin-email': adminEmail }), [adminEmail]);
+  // Auth headers are fetched async before each request via getAuthHeaders
+  // Helper for POST requests
+  const getPostHeaders = useCallback(async () => {
+    const auth = await getAuthHeaders();
+    return { 'Content-Type': 'application/json', ...auth };
+  }, [getAuthHeaders]);
 
   // All forum presets flattened
   const allPresets = useMemo(() => {
@@ -462,9 +478,10 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
 
   const fetchData = useCallback(async () => {
     try {
+      const authHeaders = await getAuthHeaders();
       const [tenantsRes, backfillRes] = await Promise.all([
-        fetch('/api/delegates/admin', { headers }),
-        fetch('/api/backfill', { headers }),
+        fetch('/api/delegates/admin', { headers: authHeaders }),
+        fetch('/api/backfill', { headers: authHeaders }),
       ]);
 
       if (tenantsRes.ok) {
@@ -484,26 +501,27 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     } finally {
       setLoading(false);
     }
-  }, [headers]);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
-    if (adminEmail) fetchData();
-  }, [adminEmail, fetchData]);
+    fetchData();
+  }, [fetchData]);
 
   // Poll for sync progress when any job is running/pending
   useEffect(() => {
     const hasActive = syncJobs.some(j => j.status === 'running' || j.status === 'pending');
-    if (!hasActive || !adminEmail) return;
+    if (!hasActive) return;
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, [syncJobs, adminEmail, fetchData]);
+  }, [syncJobs, fetchData]);
 
   const handleInitSchema = async () => {
     setActionLoading('init-schema');
     try {
+      const ph = await getPostHeaders();
       const res = await fetch('/api/delegates/admin', {
         method: 'POST',
-        headers: postHeaders,
+        headers: ph,
         body: JSON.stringify({ action: 'init-schema' }),
       });
       if (res.ok) {
@@ -533,7 +551,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
 
       const res = await fetch('/api/delegates/admin', {
         method: 'POST',
-        headers: postHeaders,
+        headers: await getPostHeaders(),
         body: JSON.stringify({
           action: 'create-tenant',
           name: formName,
@@ -557,7 +575,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
       try {
         await fetch('/api/backfill', {
           method: 'POST',
-          headers: postHeaders,
+          headers: await getPostHeaders(),
           body: JSON.stringify({ action: 'start', forumUrl: normalizedUrl }),
         });
       } catch { /* best-effort */ }
@@ -566,7 +584,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
       try {
         await fetch(`/api/delegates/${formSlug}/refresh`, {
           method: 'POST',
-          headers: postHeaders,
+          headers: await getPostHeaders(),
         });
       } catch { /* best-effort */ }
 
@@ -591,7 +609,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     try {
       await fetch(`/api/delegates/${slug}/refresh`, {
         method: 'POST',
-        headers: postHeaders,
+        headers: await getPostHeaders(),
       });
       await fetchData();
     } catch (err) {
@@ -606,7 +624,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     try {
       await fetch('/api/backfill', {
         method: 'POST',
-        headers: postHeaders,
+        headers: await getPostHeaders(),
         body: JSON.stringify({ action: 'start', forumUrl }),
       });
       await fetchData();
@@ -622,7 +640,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     try {
       await fetch('/api/backfill', {
         method: 'POST',
-        headers: postHeaders,
+        headers: await getPostHeaders(),
         body: JSON.stringify({ action, jobId }),
       });
       await fetchData();
@@ -638,7 +656,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     try {
       await fetch('/api/backfill', {
         method: 'POST',
-        headers: postHeaders,
+        headers: await getPostHeaders(),
         body: JSON.stringify({ action: 'run-cycle' }),
       });
       await fetchData();
@@ -653,13 +671,14 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
 
   const fetchDelegates = useCallback(async (slug: string) => {
     try {
-      const res = await fetch(`/api/delegates/admin?tenant=${slug}`, { headers });
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/delegates/admin?tenant=${slug}`, { headers: authHeaders });
       if (res.ok) {
         const data = await res.json();
         setDelegatesByTenant(prev => ({ ...prev, [slug]: data.delegates || [] }));
       }
     } catch { /* ignore */ }
-  }, [headers]);
+  }, [getAuthHeaders]);
 
   // Fetch delegates when a tenant is expanded
   useEffect(() => {
@@ -701,7 +720,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     try {
       const res = await fetch('/api/delegates/admin', {
         method: 'POST',
-        headers: postHeaders,
+        headers: await getPostHeaders(),
         body: JSON.stringify({
           action: 'bulk-upsert-delegates',
           tenantSlug: slug,
@@ -729,7 +748,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
     try {
       const res = await fetch('/api/delegates/admin', {
         method: 'POST',
-        headers: postHeaders,
+        headers: await getPostHeaders(),
         body: JSON.stringify({
           action: 'bulk-upsert-delegates',
           tenantSlug: slug,
@@ -1425,7 +1444,7 @@ interface ForumHealth {
   error?: string;
 }
 
-function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string; isDark?: boolean }) {
+function ForumHealthSection({ getAuthHeaders, isDark = true }: { getAuthHeaders: () => Promise<Record<string, string>>; isDark?: boolean }) {
   const [results, setResults] = useState<ForumHealth[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'issues'>('issues');
@@ -1441,8 +1460,9 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
   const fetchHealth = useCallback(async () => {
     setLoading(true);
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch('/api/admin?action=forum-health', {
-        headers: { 'x-admin-email': adminEmail },
+        headers: authHeaders,
       });
       const data = await res.json();
       setResults(data.forums || []);
@@ -1451,7 +1471,7 @@ function ForumHealthSection({ adminEmail, isDark = true }: { adminEmail: string;
     } finally {
       setLoading(false);
     }
-  }, [adminEmail]);
+  }, [getAuthHeaders]);
 
   // Fetch on mount
   useEffect(() => {

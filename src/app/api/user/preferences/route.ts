@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
+import { verifyAuth, isAuthError } from '@/lib/auth';
 
 // PATCH /api/user/preferences - Update user preferences
 export async function PATCH(request: NextRequest) {
@@ -7,13 +8,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, theme, onboardingCompleted } = body;
-
-    if (!privyDid) {
-      return NextResponse.json({ error: 'privyDid is required' }, { status: 400 });
-    }
+    const { theme, onboardingCompleted } = body;
+    const privyDid = auth.userId;
 
     const sql = getDb();
 

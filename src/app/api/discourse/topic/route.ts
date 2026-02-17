@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAllowedUrl } from '@/lib/url';
 import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
 import { getCachedTopicDetail, setCachedTopicDetail } from '@/lib/redis';
+import { sanitizeHtml } from '@/lib/sanitize';
 import { TopicDetail, DiscussionPost } from '@/types';
 
 interface DiscoursePostRaw {
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
         id: post.id,
         username: post.username,
         avatarUrl: buildAvatarUrl(baseUrl, post.avatar_template),
-        content: post.cooked || '',
+        content: sanitizeHtml(post.cooked || ''),
         createdAt: post.created_at,
         likeCount: post.like_count || 0,
         postNumber: post.post_number,

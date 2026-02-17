@@ -3,18 +3,27 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { Forum } from '@/types';
-import { getForums, saveForums, addForum as addForumToStorage, removeForum as removeForumFromStorage, toggleForum as toggleForumInStorage } from '@/lib/storage';
+import { getForums, saveForums } from '@/lib/storage';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useForums() {
-  const { user, authenticated, ready } = usePrivy();
+  const { user, authenticated, ready, getAccessToken } = usePrivy();
   const [forums, setForums] = useState<Forum[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = useRef(false);
 
-  const privyDid = user?.id;
+  // Helper to get auth headers
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    try {
+      const token = await getAccessToken();
+      if (!token) return {};
+      return { 'Authorization': `Bearer ${token}` };
+    } catch {
+      return {};
+    }
+  }, [getAccessToken]);
 
   // Load forums on mount or auth change
   useEffect(() => {
@@ -22,14 +31,15 @@ export function useForums() {
 
     async function loadForums() {
       setIsLoading(true);
-      
-      if (authenticated && privyDid) {
+
+      if (authenticated) {
         // Try to load from database
         try {
+          const authHeaders = await getAuthHeaders();
           const res = await fetch('/api/user/forums', {
-            headers: { 'x-privy-did': privyDid },
+            headers: authHeaders,
           });
-          
+
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data.forums) && data.forums.length > 0) {
@@ -44,18 +54,19 @@ export function useForums() {
         } catch (error) {
           console.error('Failed to load forums from database:', error);
         }
-        
+
         // If database is empty or failed, check localStorage and migrate
         const localForums = getForums();
         if (localForums.length > 0) {
           setForums(localForums);
           // Migrate localStorage forums to database
           try {
+            const authHeaders = await getAuthHeaders();
             await fetch('/api/user/forums', {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
-                'x-privy-did': privyDid,
+                ...authHeaders,
               },
               body: JSON.stringify({ forums: localForums }),
             });
@@ -67,32 +78,33 @@ export function useForums() {
         // Not authenticated, use localStorage
         setForums(getForums());
       }
-      
+
       setIsLoading(false);
       initialLoadDone.current = true;
     }
 
     loadForums();
-  }, [ready, authenticated, privyDid]);
+  }, [ready, authenticated, getAuthHeaders]);
 
   // Debounced sync to database
   const syncToDatabase = useCallback((newForums: Forum[]) => {
-    if (!authenticated || !privyDid) return;
-    
+    if (!authenticated) return;
+
     // Clear existing timeout
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
     }
-    
+
     // Debounce sync by 1 second
     syncTimeoutRef.current = setTimeout(async () => {
       setIsSyncing(true);
       try {
+        const authHeaders = await getAuthHeaders();
         await fetch('/api/user/forums', {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
-            'x-privy-did': privyDid,
+            ...authHeaders,
           },
           body: JSON.stringify({ forums: newForums }),
         });
@@ -102,7 +114,7 @@ export function useForums() {
         setIsSyncing(false);
       }
     }, 1000);
-  }, [authenticated, privyDid]);
+  }, [authenticated, getAuthHeaders]);
 
   const addForum = useCallback((forum: Omit<Forum, 'id' | 'createdAt'>) => {
     const newForum: Forum = {
@@ -110,14 +122,14 @@ export function useForums() {
       id: uuidv4(),
       createdAt: new Date().toISOString(),
     };
-    
+
     setForums(prev => {
       const updated = [...prev, newForum];
       saveForums(updated); // Always save to localStorage as backup
       syncToDatabase(updated);
       return updated;
     });
-    
+
     return newForum;
   }, [syncToDatabase]);
 
@@ -133,7 +145,7 @@ export function useForums() {
 
   const toggleForum = useCallback((id: string) => {
     let updatedForum: Forum | null = null;
-    
+
     setForums(prev => {
       const updated = prev.map(f => {
         if (f.id === id) {
@@ -146,7 +158,7 @@ export function useForums() {
       syncToDatabase(updated);
       return updated;
     });
-    
+
     return updatedForum;
   }, [syncToDatabase]);
 

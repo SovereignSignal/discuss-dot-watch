@@ -2,6 +2,53 @@
  * Input sanitization utilities
  */
 
+import DOMPurify from 'isomorphic-dompurify';
+
+/**
+ * Sanitize HTML content from Discourse posts.
+ * Strips dangerous tags/attributes while preserving safe formatting.
+ */
+export function sanitizeHtml(html: string): string {
+  if (!html || typeof html !== 'string') return '';
+
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      // Block elements
+      'p', 'div', 'br', 'hr',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'blockquote', 'pre', 'code',
+      // Lists
+      'ul', 'ol', 'li',
+      // Tables
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+      // Inline elements
+      'a', 'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins',
+      'span', 'sub', 'sup', 'small', 'mark', 'abbr',
+      // Media
+      'img',
+      // Details/summary (used in Discourse)
+      'details', 'summary',
+      // Definition lists
+      'dl', 'dt', 'dd',
+    ],
+    ALLOWED_ATTR: [
+      'href', 'src', 'alt', 'title', 'width', 'height',
+      'class', 'id', 'target', 'rel',
+      'colspan', 'rowspan', 'scope',
+      'open', // for <details>
+      'loading', // for lazy-loading images
+      'data-username', 'data-post', 'data-topic', // Discourse data attributes
+    ],
+    ALLOW_DATA_ATTR: false,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    // Force all links to open in new tab with safety attributes
+    ADD_ATTR: ['target'],
+    WHOLE_DOCUMENT: false,
+    RETURN_DOM: false,
+    RETURN_DOM_FRAGMENT: false,
+  });
+}
+
 /**
  * Sanitize user input by removing potentially dangerous characters
  * Used for search queries and other text inputs

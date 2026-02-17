@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
+import { verifyAuth, isAuthError } from '@/lib/auth';
 
 interface User {
   id: number;
@@ -18,12 +19,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, keyword, isEnabled } = body;
+    const { keyword, isEnabled } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !keyword) {
-      return NextResponse.json({ error: 'privyDid and keyword are required' }, { status: 400 });
+    if (!keyword) {
+      return NextResponse.json({ error: 'keyword is required' }, { status: 400 });
     }
 
     // Sanitize keyword
@@ -77,12 +84,18 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, alertId, isEnabled } = body;
+    const { alertId, isEnabled } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !alertId || isEnabled === undefined) {
-      return NextResponse.json({ error: 'privyDid, alertId, and isEnabled are required' }, { status: 400 });
+    if (!alertId || isEnabled === undefined) {
+      return NextResponse.json({ error: 'alertId and isEnabled are required' }, { status: 400 });
     }
 
     const sql = getDb();
@@ -133,12 +146,18 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, alertId } = body;
+    const { alertId } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !alertId) {
-      return NextResponse.json({ error: 'privyDid and alertId are required' }, { status: 400 });
+    if (!alertId) {
+      return NextResponse.json({ error: 'alertId is required' }, { status: 400 });
     }
 
     const sql = getDb();
@@ -176,12 +195,18 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, alerts } = body;
+    const { alerts } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !Array.isArray(alerts)) {
-      return NextResponse.json({ error: 'privyDid and alerts array are required' }, { status: 400 });
+    if (!Array.isArray(alerts)) {
+      return NextResponse.json({ error: 'alerts array is required' }, { status: 400 });
     }
 
     const sql = getDb();

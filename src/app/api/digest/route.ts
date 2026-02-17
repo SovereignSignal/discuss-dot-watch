@@ -28,18 +28,7 @@ import {
   updateLastDigestSent,
 } from '@/lib/db';
 
-// Helper to validate cron secret
-function validateCronSecret(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  // If no secret configured, allow in development
-  if (!cronSecret && process.env.NODE_ENV === 'development') {
-    return true;
-  }
-
-  return authHeader === `Bearer ${cronSecret}`;
-}
+import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 
 // Get all tier 1 forums for digest (most important forums across all categories)
 function getDigestForums(): Array<{ name: string; url: string }> {
@@ -416,12 +405,10 @@ export async function POST(request: NextRequest) {
   }
   const { period = 'weekly', testEmail } = body;
 
-  // All digest operations require admin auth (header) or cron secret
-  const adminEmail = request.headers.get('x-admin-email');
-  const { isAdminEmail } = await import('@/lib/admin');
-
-  if (!isAdminEmail(adminEmail) && !validateCronSecret(request)) {
-    return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 401 });
+  // All digest operations require admin auth or cron secret
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
   }
 
   try {

@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
+import { verifyAuth, isAuthError } from '@/lib/auth';
 
 /**
  * GET /api/user/forums - Get user's forum selections
  */
 export async function GET(request: NextRequest) {
-  const privyDid = request.headers.get('x-privy-did');
-  
-  if (!privyDid) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-  
+  const privyDid = auth.userId;
+
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
@@ -50,12 +51,12 @@ export async function GET(request: NextRequest) {
  * POST /api/user/forums - Save user's forum selections
  */
 export async function POST(request: NextRequest) {
-  const privyDid = request.headers.get('x-privy-did');
-  
-  if (!privyDid) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-  
+  const privyDid = auth.userId;
+
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }

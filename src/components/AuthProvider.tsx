@@ -17,6 +17,7 @@ interface AuthContextType {
   isConfigured: boolean;
   login: () => void;
   logout: () => Promise<void>;
+  getAccessToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -39,7 +40,7 @@ export function useAuth(): AuthContextType {
 
 // Inner provider that uses Privy hooks (only rendered when Privy is configured)
 function PrivyAuthInner({ children }: { children: ReactNode }) {
-  const { ready, authenticated, user: privyUser } = usePrivy();
+  const { ready, authenticated, user: privyUser, getAccessToken: privyGetAccessToken } = usePrivy();
   const { login: privyLogin } = useLogin();
   const { logout: privyLogout } = useLogout();
 
@@ -54,17 +55,25 @@ function PrivyAuthInner({ children }: { children: ReactNode }) {
   // Sync user to database on login
   useEffect(() => {
     if (authenticated && privyUser) {
-      fetch('/api/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          privyDid: privyUser.id,
-          email: privyUser.email?.address,
-          walletAddress: privyUser.wallet?.address,
-        }),
-      }).catch(() => {}); // Silent fail — DB might not be configured
+      (async () => {
+        try {
+          const token = await privyGetAccessToken();
+          if (!token) return;
+          await fetch('/api/user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              email: privyUser.email?.address,
+              walletAddress: privyUser.wallet?.address,
+            }),
+          });
+        } catch {} // Silent fail — DB might not be configured
+      })();
     }
-  }, [authenticated, privyUser]);
+  }, [authenticated, privyUser, privyGetAccessToken]);
 
   const login = useCallback(() => {
     privyLogin();
@@ -78,6 +87,14 @@ function PrivyAuthInner({ children }: { children: ReactNode }) {
     window.location.href = '/';
   }, [privyLogout]);
 
+  const getAccessToken = useCallback(async (): Promise<string | null> => {
+    try {
+      return await privyGetAccessToken();
+    } catch {
+      return null;
+    }
+  }, [privyGetAccessToken]);
+
   const value: AuthContextType = {
     user,
     isAuthenticated: authenticated,
@@ -85,6 +102,7 @@ function PrivyAuthInner({ children }: { children: ReactNode }) {
     isConfigured: true,
     login,
     logout,
+    getAccessToken,
   };
 
   return (
@@ -111,6 +129,7 @@ function NoAuthProvider({ children }: { children: ReactNode }) {
       console.warn('Authentication is not configured. Set NEXT_PUBLIC_PRIVY_APP_ID to enable.');
     },
     logout: async () => {},
+    getAccessToken: async () => null,
   };
 
   return (

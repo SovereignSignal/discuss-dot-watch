@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
+import { verifyAuth, isAuthError } from '@/lib/auth';
 
 // POST /api/user/read-state - Mark topic as read
 export async function POST(request: NextRequest) {
@@ -7,12 +8,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, topicRefId } = body;
+    const { topicRefId } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !topicRefId) {
-      return NextResponse.json({ error: 'privyDid and topicRefId are required' }, { status: 400 });
+    if (!topicRefId) {
+      return NextResponse.json({ error: 'topicRefId is required' }, { status: 400 });
     }
 
     const sql = getDb();
@@ -46,18 +53,24 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// POST /api/user/read-state/bulk - Mark multiple topics as read
+// PUT /api/user/read-state - Mark multiple topics as read
 export async function PUT(request: NextRequest) {
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, topicRefIds } = body;
+    const { topicRefIds } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !Array.isArray(topicRefIds)) {
-      return NextResponse.json({ error: 'privyDid and topicRefIds array are required' }, { status: 400 });
+    if (!Array.isArray(topicRefIds)) {
+      return NextResponse.json({ error: 'topicRefIds array is required' }, { status: 400 });
     }
 
     const sql = getDb();
@@ -103,13 +116,15 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, topicRefId } = body;
-
-    if (!privyDid) {
-      return NextResponse.json({ error: 'privyDid is required' }, { status: 400 });
-    }
+    const { topicRefId } = body;
+    const privyDid = auth.userId;
 
     const sql = getDb();
 

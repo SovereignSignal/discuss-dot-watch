@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/admin';
+import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import {
   getBackfillStatus,
@@ -13,12 +13,9 @@ import {
  * GET /api/backfill - Get backfill status
  */
 export async function GET(request: NextRequest) {
-  // Check admin auth
-  const email = request.headers.get('x-admin-email');
-  const did = request.headers.get('x-admin-did');
-  
-  if (!isAdmin({ email, did })) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   
   if (!isDatabaseConfigured()) {
@@ -47,12 +44,9 @@ export async function GET(request: NextRequest) {
  * - retry: Retry a failed job
  */
 export async function POST(request: NextRequest) {
-  // Check admin auth
-  const email = request.headers.get('x-admin-email');
-  const did = request.headers.get('x-admin-did');
-  
-  if (!isAdmin({ email, did })) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   
   if (!isDatabaseConfigured()) {

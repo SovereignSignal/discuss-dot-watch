@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
+import { verifyAuth, isAuthError } from '@/lib/auth';
 
 // POST /api/user/bookmarks - Add bookmark
 export async function POST(request: NextRequest) {
@@ -7,13 +8,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, topicRefId, topicTitle, topicUrl, protocol } = body;
+    const { topicRefId, topicTitle, topicUrl, protocol } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !topicRefId || !topicTitle || !topicUrl || !protocol) {
+    if (!topicRefId || !topicTitle || !topicUrl || !protocol) {
       return NextResponse.json({
-        error: 'privyDid, topicRefId, topicTitle, topicUrl, and protocol are required'
+        error: 'topicRefId, topicTitle, topicUrl, and protocol are required'
       }, { status: 400 });
     }
 
@@ -82,12 +89,18 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, topicRefId } = body;
+    const { topicRefId } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !topicRefId) {
-      return NextResponse.json({ error: 'privyDid and topicRefId are required' }, { status: 400 });
+    if (!topicRefId) {
+      return NextResponse.json({ error: 'topicRefId is required' }, { status: 400 });
     }
 
     const sql = getDb();
@@ -125,12 +138,18 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, bookmarks } = body;
+    const { bookmarks } = body;
+    const privyDid = auth.userId;
 
-    if (!privyDid || !Array.isArray(bookmarks)) {
-      return NextResponse.json({ error: 'privyDid and bookmarks array are required' }, { status: 400 });
+    if (!Array.isArray(bookmarks)) {
+      return NextResponse.json({ error: 'bookmarks array is required' }, { status: 400 });
     }
 
     const sql = getDb();

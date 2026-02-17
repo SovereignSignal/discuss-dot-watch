@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured, updateDigestPreferences } from '@/lib/db';
+import { verifyAuth, isAuthError } from '@/lib/auth';
 
-// GET /api/user/digest-preferences?privyDid=xxx
+// GET /api/user/digest-preferences
 export async function GET(request: NextRequest) {
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
-  const privyDid = request.nextUrl.searchParams.get('privyDid');
-  if (!privyDid) {
-    return NextResponse.json({ error: 'privyDid is required' }, { status: 400 });
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  const privyDid = auth.userId;
 
   try {
     const sql = getDb();
@@ -63,13 +65,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, frequency, digestEmail, includeHotTopics, includeNewProposals, includeKeywordMatches, includeDelegateCorner } = body;
-
-    if (!privyDid) {
-      return NextResponse.json({ error: 'privyDid is required' }, { status: 400 });
-    }
+    const { frequency, digestEmail, includeHotTopics, includeNewProposals, includeKeywordMatches, includeDelegateCorner } = body;
+    const privyDid = auth.userId;
 
     if (frequency && !['daily', 'weekly', 'never'].includes(frequency)) {
       return NextResponse.json({ error: 'Invalid frequency value' }, { status: 400 });

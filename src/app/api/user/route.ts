@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
+import { verifyAuth, isAuthError } from '@/lib/auth';
 
 // POST /api/user - Create or get user by Privy DID
 export async function POST(request: NextRequest) {
@@ -7,13 +8,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json();
-    const { privyDid, email, walletAddress } = body;
-
-    if (!privyDid) {
-      return NextResponse.json({ error: 'privyDid is required' }, { status: 400 });
-    }
+    const { email, walletAddress } = body;
+    const privyDid = auth.userId;
 
     const sql = getDb();
 
@@ -48,18 +51,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET /api/user?privyDid=xxx - Get user by Privy DID with all data
+// GET /api/user - Get authenticated user's data
 export async function GET(request: NextRequest) {
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
-  const searchParams = request.nextUrl.searchParams;
-  const privyDid = searchParams.get('privyDid');
-
-  if (!privyDid) {
-    return NextResponse.json({ error: 'privyDid is required' }, { status: 400 });
+  const auth = await verifyAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  const privyDid = auth.userId;
 
   try {
     const sql = getDb();

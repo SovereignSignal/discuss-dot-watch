@@ -58,13 +58,20 @@ function useDebouncedSync() {
 }
 
 export function DataSyncProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, getAccessToken } = useAuth();
   const [serverData, setServerData] = useState<ServerData | null>(null);
   const [isLoadingServerData, setIsLoadingServerData] = useState(false);
   const initializedRef = useRef(false);
   const debouncedSync = useDebouncedSync();
 
   const userId = user?.id || null;
+
+  // Helper to get auth headers
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const token = await getAccessToken();
+    if (!token) return {};
+    return { 'Authorization': `Bearer ${token}` };
+  }, [getAccessToken]);
 
   // Load user data from server when authenticated
   useEffect(() => {
@@ -82,19 +89,23 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
 
     setIsLoadingServerData(true);
     try {
+      const authHeaders = await getAuthHeaders();
+      if (!authHeaders['Authorization']) return;
+
       // Ensure user exists in database
       await fetch('/api/user', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
-          privyDid: userId,
           email: user?.email,
           walletAddress: user?.walletAddress,
         }),
       });
 
       // Fetch user data
-      const response = await fetch(`/api/user?privyDid=${encodeURIComponent(userId)}`);
+      const response = await fetch('/api/user', {
+        headers: authHeaders,
+      });
       if (response.ok) {
         const data = await response.json();
         setServerData({
@@ -110,84 +121,99 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoadingServerData(false);
     }
-  }, [userId, user?.email, user?.walletAddress]);
+  }, [userId, user?.email, user?.walletAddress, getAuthHeaders]);
 
   // Sync functions
   const syncForums = useCallback((forums: { cname: string; isEnabled: boolean }[]) => {
     if (!userId) return;
     debouncedSync('forums', async () => {
+      const authHeaders = await getAuthHeaders();
       await fetch('/api/user/forums', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyDid: userId, forums }),
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ forums }),
       });
     });
-  }, [userId, debouncedSync]);
+  }, [userId, debouncedSync, getAuthHeaders]);
 
   const syncAlerts = useCallback((alerts: { keyword: string; isEnabled: boolean }[]) => {
     if (!userId) return;
     debouncedSync('alerts', async () => {
+      const authHeaders = await getAuthHeaders();
       await fetch('/api/user/alerts', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyDid: userId, alerts }),
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ alerts }),
       });
     });
-  }, [userId, debouncedSync]);
+  }, [userId, debouncedSync, getAuthHeaders]);
 
   const syncBookmarks = useCallback((bookmarks: { topicRefId: string; topicTitle: string; topicUrl: string; protocol: string }[]) => {
     if (!userId) return;
     debouncedSync('bookmarks', async () => {
+      const authHeaders = await getAuthHeaders();
       await fetch('/api/user/bookmarks', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyDid: userId, bookmarks }),
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ bookmarks }),
       });
     });
-  }, [userId, debouncedSync]);
+  }, [userId, debouncedSync, getAuthHeaders]);
 
   const markAsRead = useCallback((topicRefId: string) => {
     if (!userId) return;
-    // Don't debounce individual reads - they're already batched by user action
-    fetch('/api/user/read-state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ privyDid: userId, topicRefId }),
-    }).catch(console.error);
-  }, [userId]);
+    (async () => {
+      const authHeaders = await getAuthHeaders();
+      fetch('/api/user/read-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ topicRefId }),
+      }).catch(console.error);
+    })();
+  }, [userId, getAuthHeaders]);
 
   const markAllAsRead = useCallback((topicRefIds: string[]) => {
     if (!userId) return;
-    fetch('/api/user/read-state', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ privyDid: userId, topicRefIds }),
-    }).catch(console.error);
-  }, [userId]);
+    (async () => {
+      const authHeaders = await getAuthHeaders();
+      fetch('/api/user/read-state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ topicRefIds }),
+      }).catch(console.error);
+    })();
+  }, [userId, getAuthHeaders]);
 
   const syncTheme = useCallback((theme: 'dark' | 'light') => {
     if (!userId) return;
     debouncedSync('theme', async () => {
+      const authHeaders = await getAuthHeaders();
       await fetch('/api/user/preferences', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyDid: userId, theme }),
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ theme }),
       });
     });
-  }, [userId, debouncedSync]);
+  }, [userId, debouncedSync, getAuthHeaders]);
 
   const syncOnboarding = useCallback((completed: boolean) => {
     if (!userId) return;
-    fetch('/api/user/preferences', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ privyDid: userId, onboardingCompleted: completed }),
-    }).catch(console.error);
-  }, [userId]);
+    (async () => {
+      const authHeaders = await getAuthHeaders();
+      fetch('/api/user/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ onboardingCompleted: completed }),
+      }).catch(console.error);
+    })();
+  }, [userId, getAuthHeaders]);
 
   // Migrate localStorage data to database (call after first login)
   const migrateLocalData = useCallback(async () => {
     if (!userId) return;
+
+    const authHeaders = await getAuthHeaders();
+    if (!authHeaders['Authorization']) return;
 
     // Get localStorage data
     const localForums = localStorage.getItem('discuss-watch-forums');
@@ -206,9 +232,8 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
         if (forums.length > 0) {
           promises.push(fetch('/api/user/forums', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({
-              privyDid: userId,
               forums: forums.map((f: { cname: string; isEnabled: boolean }) => ({
                 cname: f.cname,
                 isEnabled: f.isEnabled,
@@ -228,9 +253,8 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
         if (alerts.length > 0) {
           promises.push(fetch('/api/user/alerts', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({
-              privyDid: userId,
               alerts: alerts.map((a: { keyword: string; isEnabled: boolean }) => ({
                 keyword: a.keyword,
                 isEnabled: a.isEnabled,
@@ -250,9 +274,8 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
         if (bookmarks.length > 0) {
           promises.push(fetch('/api/user/bookmarks', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({
-              privyDid: userId,
               bookmarks: bookmarks.map((b: { topicRefId: string; topicTitle: string; topicUrl: string; protocol: string }) => ({
                 topicRefId: b.topicRefId,
                 topicTitle: b.topicTitle,
@@ -275,8 +298,8 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
         if (topicRefIds.length > 0) {
           promises.push(fetch('/api/user/read-state', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ privyDid: userId, topicRefIds }),
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({ topicRefIds }),
           }));
         }
       } catch (e) {
@@ -295,8 +318,8 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     if (Object.keys(prefUpdates).length > 0) {
       promises.push(fetch('/api/user/preferences', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyDid: userId, ...prefUpdates }),
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify(prefUpdates),
       }));
     }
 
@@ -304,7 +327,7 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
 
     // Refresh server data after migration
     await loadUserData();
-  }, [userId, loadUserData]);
+  }, [userId, loadUserData, getAuthHeaders]);
 
   const value: DataSyncContextType = {
     isAuthenticated,

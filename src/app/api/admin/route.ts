@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/admin';
+import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 import { getDb, isDatabaseConfigured, getDbStats, initializeSchema } from '@/lib/db';
 import { getCacheStats, clearCache } from '@/lib/redis';
 import { getCacheStats as getMemoryCacheStats, refreshCache, getForumHealthFromCache } from '@/lib/forumCache';
@@ -11,12 +11,9 @@ import { fetchPrivyUsers, getEmailFromPrivyUser, getWalletFromPrivyUser, isPrivy
  * Requires admin authentication via email header
  */
 export async function GET(request: NextRequest) {
-  // Check admin auth
-  const email = request.headers.get('x-admin-email');
-  const did = request.headers.get('x-admin-did');
-  
-  if (!isAdmin({ email, did })) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   
   const action = request.nextUrl.searchParams.get('action');
@@ -130,12 +127,9 @@ export async function GET(request: NextRequest) {
  * POST /api/admin - Admin actions
  */
 export async function POST(request: NextRequest) {
-  // Check admin auth
-  const email = request.headers.get('x-admin-email');
-  const did = request.headers.get('x-admin-did');
-  
-  if (!isAdmin({ email, did })) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   
   const body = await request.json();
