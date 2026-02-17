@@ -430,8 +430,22 @@ interface TenantInfo {
   createdAt: string;
 }
 
+interface SyncJob {
+  id: number;
+  forum_id: number;
+  forum_name: string;
+  forum_url: string;
+  status: string;
+  current_page: number;
+  topics_fetched: number;
+  total_pages: number | null;
+  last_run_at: string | null;
+  error: string | null;
+}
+
 function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: string; isDark?: boolean }) {
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [syncJobs, setSyncJobs] = useState<SyncJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [schemaReady, setSchemaReady] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -460,19 +474,32 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
   const headers = useMemo(() => ({ 'x-admin-email': adminEmail }), [adminEmail]);
   const postHeaders = useMemo(() => ({ 'Content-Type': 'application/json', 'x-admin-email': adminEmail }), [adminEmail]);
 
-  const fetchTenants = useCallback(async () => {
+  // Match a sync job to a tenant by normalizing URLs
+  const getSyncJob = useCallback((forumUrl: string): SyncJob | undefined => {
+    const normalized = forumUrl.replace(/\/$/, '').toLowerCase();
+    return syncJobs.find(j => j.forum_url.replace(/\/$/, '').toLowerCase() === normalized);
+  }, [syncJobs]);
+
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/delegates/admin', { headers });
-      if (res.ok) {
-        const data = await res.json();
+      const [tenantsRes, backfillRes] = await Promise.all([
+        fetch('/api/delegates/admin', { headers }),
+        fetch('/api/backfill', { headers }),
+      ]);
+
+      if (tenantsRes.ok) {
+        const data = await tenantsRes.json();
         setTenants(data.tenants || []);
         setSchemaReady(true);
-      } else if (res.status === 500) {
-        // Schema might not be initialized
+      } else if (tenantsRes.status === 500) {
         setSchemaReady(false);
       }
+
+      if (backfillRes.ok) {
+        const data = await backfillRes.json();
+        setSyncJobs(data.jobs || []);
+      }
     } catch {
-      // Schema likely not initialized
       setSchemaReady(false);
     } finally {
       setLoading(false);
@@ -480,8 +507,16 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
   }, [headers]);
 
   useEffect(() => {
-    if (adminEmail) fetchTenants();
-  }, [adminEmail, fetchTenants]);
+    if (adminEmail) fetchData();
+  }, [adminEmail, fetchData]);
+
+  // Poll for sync progress when any tenant has a running/pending sync
+  useEffect(() => {
+    const hasActive = syncJobs.some(j => j.status === 'running' || j.status === 'pending');
+    if (!hasActive || !adminEmail) return;
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [syncJobs, adminEmail, fetchData]);
 
   const handleInitSchema = async () => {
     setActionLoading('init-schema');
@@ -493,7 +528,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
       });
       if (res.ok) {
         setSchemaReady(true);
-        await fetchTenants();
+        await fetchData();
       }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to initialize schema');
@@ -514,6 +549,9 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
 
     setActionLoading('create-tenant');
     try {
+      const normalizedUrl = formUrl.replace(/\/$/, '');
+
+      // 1. Create the analytics tenant
       const res = await fetch('/api/delegates/admin', {
         method: 'POST',
         headers: postHeaders,
@@ -521,7 +559,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
           action: 'create-tenant',
           name: formName,
           slug: formSlug,
-          forumUrl: formUrl.replace(/\/$/, ''),
+          forumUrl: normalizedUrl,
           apiKey: formApiKey,
           apiUsername: formApiUsername,
         }),
@@ -533,19 +571,31 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
         return;
       }
 
-      // Auto-trigger initial data pull
-      setFormSuccess(`Forum "${formName}" created. Starting initial data pull...`);
-      setActionLoading('initial-refresh');
+      // 2. Auto-start forum sync (backfill)
+      setFormSuccess(`Forum "${formName}" created. Starting historical sync...`);
+      setActionLoading('initial-sync');
 
+      try {
+        await fetch('/api/backfill', {
+          method: 'POST',
+          headers: postHeaders,
+          body: JSON.stringify({ action: 'start', forumUrl: normalizedUrl }),
+        });
+      } catch {
+        // Backfill start is best-effort — forum may not be in presets
+      }
+
+      // 3. Also trigger contributor data pull
       try {
         await fetch(`/api/delegates/${formSlug}/refresh`, {
           method: 'POST',
           headers: postHeaders,
         });
-        setFormSuccess(`Forum "${formName}" created and initial data pull complete. Dashboard live at /${formSlug}`);
       } catch {
-        setFormSuccess(`Forum "${formName}" created. Initial data pull may still be running — check back shortly.`);
+        // Best-effort
       }
+
+      setFormSuccess(`Forum "${formName}" created. Sync started — topics are being pulled in the background.`);
 
       // Reset form
       setFormName('');
@@ -554,7 +604,7 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
       setFormApiUsername('system');
       setFormApiKey('');
       setShowAddForm(false);
-      await fetchTenants();
+      await fetchData();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create forum');
     } finally {
@@ -569,9 +619,57 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
         method: 'POST',
         headers: postHeaders,
       });
-      await fetchTenants();
+      await fetchData();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Refresh failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleStartSync = async (forumUrl: string) => {
+    setActionLoading(`sync-start-${forumUrl}`);
+    try {
+      await fetch('/api/backfill', {
+        method: 'POST',
+        headers: postHeaders,
+        body: JSON.stringify({ action: 'start', forumUrl }),
+      });
+      await fetchData();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to start sync');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSyncAction = async (action: string, jobId: number) => {
+    setActionLoading(`sync-${action}-${jobId}`);
+    try {
+      await fetch('/api/backfill', {
+        method: 'POST',
+        headers: postHeaders,
+        body: JSON.stringify({ action, jobId }),
+      });
+      await fetchData();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Sync action failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRunCycle = async () => {
+    setActionLoading('run-cycle');
+    try {
+      await fetch('/api/backfill', {
+        method: 'POST',
+        headers: postHeaders,
+        body: JSON.stringify({ action: 'run-cycle' }),
+      });
+      await fetchData();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to run sync cycle');
     } finally {
       setActionLoading(null);
     }
@@ -586,6 +684,19 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
 
   const capCount = (caps: TenantInfo['capabilities']) =>
     [caps.canListUsers, caps.canViewUserStats, caps.canViewUserPosts, caps.canSearchPosts].filter(Boolean).length;
+
+  // Sync status helpers
+  const getSyncStatusLabel = (job: SyncJob | undefined) => {
+    if (!job) return { label: 'Sync Required', color: '#f59e0b', pulse: false };
+    switch (job.status) {
+      case 'complete': return { label: `Synced · ${job.topics_fetched.toLocaleString()} topics`, color: isDark ? '#e5e5e5' : '#52525b', pulse: false };
+      case 'running': return { label: `Syncing · ${job.topics_fetched.toLocaleString()} topics · page ${job.current_page}${job.total_pages ? `/${job.total_pages}` : ''}`, color: isDark ? '#e5e5e5' : '#52525b', pulse: true };
+      case 'pending': return { label: 'Sync queued', color: textMuted, pulse: true };
+      case 'paused': return { label: `Paused · ${job.topics_fetched.toLocaleString()} topics`, color: '#f59e0b', pulse: false };
+      case 'failed': return { label: `Sync failed`, color: '#ef4444', pulse: false };
+      default: return { label: job.status, color: textMuted, pulse: false };
+    }
+  };
 
   if (loading) {
     return (
@@ -623,6 +734,14 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
               Initialize Schema
             </button>
           )}
+          {schemaReady && syncJobs.some(j => j.status === 'pending' || j.status === 'running') && (
+            <button onClick={handleRunCycle} disabled={actionLoading !== null}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity disabled:opacity-40"
+              style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+              {actionLoading === 'run-cycle' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+              Run Sync Cycle
+            </button>
+          )}
           {schemaReady && (
             <button onClick={() => { setShowAddForm(!showAddForm); setFormError(null); setFormSuccess(null); }}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity"
@@ -658,7 +777,8 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
       {/* Add Forum Form */}
       {showAddForm && schemaReady && (
         <form onSubmit={handleCreateTenant} className="mb-6 rounded-xl p-4 space-y-3" style={{ border: `1px solid ${cardBorder}`, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
-          <h3 className="text-sm font-medium mb-3" style={{ color: textPrimary }}>Add New Forum</h3>
+          <h3 className="text-sm font-medium mb-1" style={{ color: textPrimary }}>Add New Forum</h3>
+          <p className="text-xs mb-3" style={{ color: textDim }}>Adding a forum will automatically start syncing all historical topics and contributor data.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs mb-1" style={{ color: textMuted }}>Forum Name</label>
@@ -707,12 +827,12 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
             <button type="submit" disabled={actionLoading !== null}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-opacity disabled:opacity-40"
               style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
-              {actionLoading === 'create-tenant' || actionLoading === 'initial-refresh' ? (
+              {actionLoading === 'create-tenant' || actionLoading === 'initial-sync' ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <Plus className="w-3.5 h-3.5" />
               )}
-              {actionLoading === 'initial-refresh' ? 'Pulling data...' : actionLoading === 'create-tenant' ? 'Creating...' : 'Create & Pull Data'}
+              {actionLoading === 'initial-sync' ? 'Starting sync...' : actionLoading === 'create-tenant' ? 'Creating...' : 'Create & Start Sync'}
             </button>
             <button type="button" onClick={() => setShowAddForm(false)}
               className="px-4 py-2 rounded-lg text-sm font-medium transition-opacity"
@@ -736,6 +856,9 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
             const isExpanded = expandedTenant === tenant.slug;
             const isRefreshing = actionLoading === `refresh-${tenant.slug}`;
             const caps = capCount(tenant.capabilities);
+            const syncJob = getSyncJob(tenant.forumUrl);
+            const syncStatus = getSyncStatusLabel(syncJob);
+            const isSyncing = syncJob && (syncJob.status === 'running' || syncJob.status === 'pending');
             return (
               <div key={tenant.id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
                 {/* Tenant Row */}
@@ -746,23 +869,31 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium" style={{ color: textPrimary }}>{tenant.name}</span>
                       <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: btnBg, color: textMuted }}>/{tenant.slug}</span>
-                      {tenant.isActive ? (
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: isDark ? '#e5e5e5' : '#52525b' }} title="Active" />
-                      ) : (
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#ef4444' }} title="Inactive" />
-                      )}
                     </div>
-                    <p className="text-xs mt-0.5 truncate" style={{ color: textDim }}>{tenant.forumUrl}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs truncate" style={{ color: textDim }}>{tenant.forumUrl}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ color: syncStatus.color, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${syncStatus.pulse ? 'animate-pulse' : ''}`} style={{ backgroundColor: syncStatus.color }} />
+                        {syncStatus.label}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs" style={{ color: textMuted }}>
-                      {tenant.lastRefreshAt ? `Refreshed ${new Date(tenant.lastRefreshAt).toLocaleDateString()}` : 'Never refreshed'}
-                    </span>
+                    {!syncJob && (
+                      <button onClick={(e) => { e.stopPropagation(); handleStartSync(tenant.forumUrl); }}
+                        disabled={actionLoading !== null}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                        style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}
+                        title="Start syncing forum data">
+                        {actionLoading === `sync-start-${tenant.forumUrl}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                        Start Sync
+                      </button>
+                    )}
                     <button onClick={(e) => { e.stopPropagation(); handleRefresh(tenant.slug); }}
                       disabled={actionLoading !== null}
                       className="p-1.5 rounded-lg transition-opacity disabled:opacity-40"
                       style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}` }}
-                      title="Refresh data">
+                      title="Refresh contributor data">
                       {isRefreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: textMuted }} /> : <RefreshCw className="w-3.5 h-3.5" style={{ color: textMuted }} />}
                     </button>
                     <Link href={`/${tenant.slug}`} onClick={(e) => e.stopPropagation()}
@@ -782,6 +913,96 @@ function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: stri
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div className="px-4 py-3 space-y-3" style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
+
+                    {/* Sync Status */}
+                    <div>
+                      <p className="text-xs font-medium mb-2" style={{ color: textMuted }}>Forum Sync</p>
+                      {syncJob ? (
+                        <div className="rounded-lg p-3" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${isSyncing ? 'animate-pulse' : ''}`} style={{ backgroundColor: syncStatus.color }} />
+                              <span className="text-xs font-medium" style={{ color: textSecondary }}>{syncJob.status === 'complete' ? 'Complete' : syncJob.status === 'running' ? 'Running' : syncJob.status === 'pending' ? 'Queued' : syncJob.status === 'paused' ? 'Paused' : syncJob.status === 'failed' ? 'Failed' : syncJob.status}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {syncJob.status === 'paused' && (
+                                <button onClick={() => handleSyncAction('resume', syncJob.id)}
+                                  disabled={actionLoading !== null}
+                                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-opacity disabled:opacity-40"
+                                  style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+                                  <Play className="w-3 h-3" /> Resume
+                                </button>
+                              )}
+                              {(syncJob.status === 'running' || syncJob.status === 'pending') && (
+                                <button onClick={() => handleSyncAction('pause', syncJob.id)}
+                                  disabled={actionLoading !== null}
+                                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-opacity disabled:opacity-40"
+                                  style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+                                  <Pause className="w-3 h-3" /> Pause
+                                </button>
+                              )}
+                              {syncJob.status === 'failed' && (
+                                <button onClick={() => handleSyncAction('retry', syncJob.id)}
+                                  disabled={actionLoading !== null}
+                                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-opacity disabled:opacity-40"
+                                  style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+                                  <RotateCcw className="w-3 h-3" /> Retry
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3 text-xs">
+                            <div>
+                              <span style={{ color: textDim }}>Topics</span>
+                              <p className="font-mono mt-0.5" style={{ color: textPrimary }}>{syncJob.topics_fetched.toLocaleString()}</p>
+                            </div>
+                            <div>
+                              <span style={{ color: textDim }}>Progress</span>
+                              <p className="font-mono mt-0.5" style={{ color: textSecondary }}>
+                                Page {syncJob.current_page}{syncJob.total_pages ? ` / ${syncJob.total_pages}` : ''}
+                              </p>
+                            </div>
+                            <div>
+                              <span style={{ color: textDim }}>Last Run</span>
+                              <p className="mt-0.5" style={{ color: textSecondary }}>
+                                {syncJob.last_run_at ? new Date(syncJob.last_run_at).toLocaleString() : '—'}
+                              </p>
+                            </div>
+                          </div>
+                          {syncJob.error && (
+                            <p className="text-xs mt-2 flex items-center gap-1" style={{ color: '#ef4444' }}>
+                              <AlertTriangle className="w-3 h-3" /> {syncJob.error}
+                            </p>
+                          )}
+                          {/* Progress bar */}
+                          {syncJob.total_pages && syncJob.total_pages > 0 && syncJob.status !== 'complete' && (
+                            <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                              <div className="h-full rounded-full transition-all duration-500" style={{
+                                width: `${Math.min(100, (syncJob.current_page / syncJob.total_pages) * 100)}%`,
+                                backgroundColor: isDark ? '#e5e5e5' : '#52525b',
+                              }} />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg p-3 flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#f59e0b' }} />
+                            <span className="text-xs" style={{ color: isDark ? '#fbbf24' : '#d97706' }}>
+                              Forum data has not been synced yet. Start a sync to pull in historical topics.
+                            </span>
+                          </div>
+                          <button onClick={() => handleStartSync(tenant.forumUrl)}
+                            disabled={actionLoading !== null}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                            style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                            {actionLoading === `sync-start-${tenant.forumUrl}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                            Start Sync
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Capabilities */}
                     <div>
                       <p className="text-xs font-medium mb-2" style={{ color: textMuted }}>API Capabilities ({caps}/4)</p>
