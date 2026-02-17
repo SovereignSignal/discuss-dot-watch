@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus } from 'lucide-react';
+import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import { FORUM_CATEGORIES, ForumPreset, getTotalForumCount } from '@/lib/forumPresets';
 
@@ -337,6 +337,9 @@ export default function AdminPage() {
           </div>
         </Card>
 
+        {/* Forum Analytics */}
+        <ForumAnalyticsSection adminEmail={adminEmail} isDark={isDark} />
+
         {/* Forum Health */}
         <ForumHealthSection adminEmail={adminEmail} isDark={isDark} />
 
@@ -404,6 +407,448 @@ export default function AdminPage() {
           )}
         </Card>
       </div>
+    </div>
+  );
+}
+
+// --- Forum Analytics Management Section ---
+
+interface TenantInfo {
+  id: number;
+  slug: string;
+  name: string;
+  forumUrl: string;
+  apiUsername: string;
+  capabilities: {
+    canListUsers?: boolean;
+    canViewUserStats?: boolean;
+    canViewUserPosts?: boolean;
+    canSearchPosts?: boolean;
+  };
+  isActive: boolean;
+  lastRefreshAt: string | null;
+  createdAt: string;
+}
+
+function ForumAnalyticsSection({ adminEmail, isDark = true }: { adminEmail: string; isDark?: boolean }) {
+  const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [schemaReady, setSchemaReady] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  // Form state
+  const [formName, setFormName] = useState('');
+  const [formSlug, setFormSlug] = useState('');
+  const [formUrl, setFormUrl] = useState('');
+  const [formApiUsername, setFormApiUsername] = useState('system');
+  const [formApiKey, setFormApiKey] = useState('');
+
+  const cardBg = isDark ? '#18181b' : '#ffffff';
+  const cardBorder = isDark ? '#27272a' : 'rgba(0,0,0,0.08)';
+  const textPrimary = isDark ? '#ffffff' : '#09090b';
+  const textSecondary = isDark ? '#e5e5e5' : '#3f3f46';
+  const textMuted = isDark ? '#a3a3a3' : '#52525b';
+  const textDim = isDark ? '#52525b' : '#a1a1aa';
+  const btnBg = isDark ? '#1f1f23' : 'rgba(0,0,0,0.05)';
+  const btnBorder = isDark ? '#2a2a2a' : 'rgba(0,0,0,0.1)';
+  const inputBg = isDark ? '#0a0a0a' : 'rgba(0,0,0,0.03)';
+
+  const headers = useMemo(() => ({ 'x-admin-email': adminEmail }), [adminEmail]);
+  const postHeaders = useMemo(() => ({ 'Content-Type': 'application/json', 'x-admin-email': adminEmail }), [adminEmail]);
+
+  const fetchTenants = useCallback(async () => {
+    try {
+      const res = await fetch('/api/delegates/admin', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setTenants(data.tenants || []);
+        setSchemaReady(true);
+      } else if (res.status === 500) {
+        // Schema might not be initialized
+        setSchemaReady(false);
+      }
+    } catch {
+      // Schema likely not initialized
+      setSchemaReady(false);
+    } finally {
+      setLoading(false);
+    }
+  }, [headers]);
+
+  useEffect(() => {
+    if (adminEmail) fetchTenants();
+  }, [adminEmail, fetchTenants]);
+
+  const handleInitSchema = async () => {
+    setActionLoading('init-schema');
+    try {
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: postHeaders,
+        body: JSON.stringify({ action: 'init-schema' }),
+      });
+      if (res.ok) {
+        setSchemaReady(true);
+        await fetchTenants();
+      }
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to initialize schema');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCreateTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setFormSuccess(null);
+
+    if (!formName || !formSlug || !formUrl || !formApiKey || !formApiUsername) {
+      setFormError('All fields are required');
+      return;
+    }
+
+    setActionLoading('create-tenant');
+    try {
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: postHeaders,
+        body: JSON.stringify({
+          action: 'create-tenant',
+          name: formName,
+          slug: formSlug,
+          forumUrl: formUrl.replace(/\/$/, ''),
+          apiKey: formApiKey,
+          apiUsername: formApiUsername,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.error || 'Failed to create forum');
+        return;
+      }
+
+      // Auto-trigger initial data pull
+      setFormSuccess(`Forum "${formName}" created. Starting initial data pull...`);
+      setActionLoading('initial-refresh');
+
+      try {
+        await fetch(`/api/delegates/${formSlug}/refresh`, {
+          method: 'POST',
+          headers: postHeaders,
+        });
+        setFormSuccess(`Forum "${formName}" created and initial data pull complete. Dashboard live at /${formSlug}`);
+      } catch {
+        setFormSuccess(`Forum "${formName}" created. Initial data pull may still be running — check back shortly.`);
+      }
+
+      // Reset form
+      setFormName('');
+      setFormSlug('');
+      setFormUrl('');
+      setFormApiUsername('system');
+      setFormApiKey('');
+      setShowAddForm(false);
+      await fetchTenants();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to create forum');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRefresh = async (slug: string) => {
+    setActionLoading(`refresh-${slug}`);
+    try {
+      await fetch(`/api/delegates/${slug}/refresh`, {
+        method: 'POST',
+        headers: postHeaders,
+      });
+      await fetchTenants();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Refresh failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Auto-generate slug from name
+  const updateName = (name: string) => {
+    setFormName(name);
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    setFormSlug(slug);
+  };
+
+  const capCount = (caps: TenantInfo['capabilities']) =>
+    [caps.canListUsers, caps.canViewUserStats, caps.canViewUserPosts, caps.canSearchPosts].filter(Boolean).length;
+
+  if (loading) {
+    return (
+      <div className="rounded-xl p-5" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
+        <div className="flex items-center gap-2.5">
+          <Globe className="w-4 h-4" style={{ color: textMuted }} />
+          <span className="text-sm font-medium" style={{ color: textPrimary }}>Forum Analytics</span>
+        </div>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: textMuted }} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl p-5" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <Globe className="w-4 h-4" style={{ color: textMuted }} />
+          <span className="text-sm font-medium" style={{ color: textPrimary }}>Forum Analytics</span>
+          {tenants.length > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: btnBg, color: textMuted }}>
+              {tenants.length}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {!schemaReady && (
+            <button onClick={handleInitSchema} disabled={actionLoading !== null}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity disabled:opacity-40"
+              style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+              {actionLoading === 'init-schema' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+              Initialize Schema
+            </button>
+          )}
+          {schemaReady && (
+            <button onClick={() => { setShowAddForm(!showAddForm); setFormError(null); setFormSuccess(null); }}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-opacity"
+              style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+              <Plus className="w-3.5 h-3.5" />
+              {showAddForm ? 'Cancel' : 'Add Forum'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Status messages */}
+      {formError && (
+        <div className="flex items-center gap-2 rounded-lg p-3 mb-4 text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+          {formError}
+        </div>
+      )}
+      {formSuccess && (
+        <div className="flex items-center gap-2 rounded-lg p-3 mb-4 text-sm" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', border: `1px solid ${cardBorder}`, color: textSecondary }}>
+          <Check className="w-3.5 h-3.5 flex-shrink-0" />
+          {formSuccess}
+        </div>
+      )}
+
+      {/* Not initialized state */}
+      {!schemaReady && (
+        <p className="text-sm" style={{ color: textMuted }}>
+          Database tables not initialized. Click &quot;Initialize Schema&quot; to set up forum analytics.
+        </p>
+      )}
+
+      {/* Add Forum Form */}
+      {showAddForm && schemaReady && (
+        <form onSubmit={handleCreateTenant} className="mb-6 rounded-xl p-4 space-y-3" style={{ border: `1px solid ${cardBorder}`, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+          <h3 className="text-sm font-medium mb-3" style={{ color: textPrimary }}>Add New Forum</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: textMuted }}>Forum Name</label>
+              <input type="text" value={formName} onChange={e => updateName(e.target.value)}
+                placeholder="e.g. My Community Forum"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: textMuted }}>URL Slug</label>
+              <input type="text" value={formSlug} onChange={e => setFormSlug(e.target.value)}
+                placeholder="e.g. my-community"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+              {formSlug && (
+                <p className="text-xs mt-1" style={{ color: textDim }}>Dashboard URL: /{formSlug}</p>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: textMuted }}>Discourse Forum URL</label>
+            <input type="url" value={formUrl} onChange={e => setFormUrl(e.target.value)}
+              placeholder="e.g. https://forum.example.org"
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+              style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: textMuted }}>API Username</label>
+              <input type="text" value={formApiUsername} onChange={e => setFormApiUsername(e.target.value)}
+                placeholder="system"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+              <p className="text-xs mt-1" style={{ color: textDim }}>Usually &quot;system&quot; for admin-level API keys</p>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: textMuted }}>API Key</label>
+              <input type="password" value={formApiKey} onChange={e => setFormApiKey(e.target.value)}
+                placeholder="Discourse API key"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+              <p className="text-xs mt-1" style={{ color: textDim }}>Encrypted at rest (AES-256-GCM)</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <button type="submit" disabled={actionLoading !== null}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-opacity disabled:opacity-40"
+              style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+              {actionLoading === 'create-tenant' || actionLoading === 'initial-refresh' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Plus className="w-3.5 h-3.5" />
+              )}
+              {actionLoading === 'initial-refresh' ? 'Pulling data...' : actionLoading === 'create-tenant' ? 'Creating...' : 'Create & Pull Data'}
+            </button>
+            <button type="button" onClick={() => setShowAddForm(false)}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-opacity"
+              style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Tenants List */}
+      {schemaReady && tenants.length === 0 && !showAddForm && (
+        <p className="text-sm" style={{ color: textMuted }}>
+          No forums configured yet. Click &quot;Add Forum&quot; to start tracking a Discourse forum.
+        </p>
+      )}
+
+      {schemaReady && tenants.length > 0 && (
+        <div className="space-y-2">
+          {tenants.map(tenant => {
+            const isExpanded = expandedTenant === tenant.slug;
+            const isRefreshing = actionLoading === `refresh-${tenant.slug}`;
+            const caps = capCount(tenant.capabilities);
+            return (
+              <div key={tenant.id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
+                {/* Tenant Row */}
+                <div className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                  onClick={() => setExpandedTenant(isExpanded ? null : tenant.slug)}
+                  style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium" style={{ color: textPrimary }}>{tenant.name}</span>
+                      <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: btnBg, color: textMuted }}>/{tenant.slug}</span>
+                      {tenant.isActive ? (
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: isDark ? '#e5e5e5' : '#52525b' }} title="Active" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#ef4444' }} title="Inactive" />
+                      )}
+                    </div>
+                    <p className="text-xs mt-0.5 truncate" style={{ color: textDim }}>{tenant.forumUrl}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs" style={{ color: textMuted }}>
+                      {tenant.lastRefreshAt ? `Refreshed ${new Date(tenant.lastRefreshAt).toLocaleDateString()}` : 'Never refreshed'}
+                    </span>
+                    <button onClick={(e) => { e.stopPropagation(); handleRefresh(tenant.slug); }}
+                      disabled={actionLoading !== null}
+                      className="p-1.5 rounded-lg transition-opacity disabled:opacity-40"
+                      style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}` }}
+                      title="Refresh data">
+                      {isRefreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: textMuted }} /> : <RefreshCw className="w-3.5 h-3.5" style={{ color: textMuted }} />}
+                    </button>
+                    <Link href={`/${tenant.slug}`} onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 rounded-lg transition-opacity"
+                      style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}` }}
+                      title="View dashboard">
+                      <Eye className="w-3.5 h-3.5" style={{ color: textMuted }} />
+                    </Link>
+                    {isExpanded ? (
+                      <ChevronUp className="w-3.5 h-3.5" style={{ color: textDim }} />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" style={{ color: textDim }} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Expanded Details */}
+                {isExpanded && (
+                  <div className="px-4 py-3 space-y-3" style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
+                    {/* Capabilities */}
+                    <div>
+                      <p className="text-xs font-medium mb-2" style={{ color: textMuted }}>API Capabilities ({caps}/4)</p>
+                      <div className="flex flex-wrap gap-2">
+                        {([
+                          ['canListUsers', 'List Users'],
+                          ['canViewUserStats', 'User Stats'],
+                          ['canViewUserPosts', 'User Posts'],
+                          ['canSearchPosts', 'Search Posts'],
+                        ] as const).map(([key, label]) => (
+                          <span key={key} className="flex items-center gap-1 text-xs px-2 py-1 rounded"
+                            style={{
+                              backgroundColor: tenant.capabilities[key] ? (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)') : 'transparent',
+                              border: `1px solid ${tenant.capabilities[key] ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)') : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)')}`,
+                              color: tenant.capabilities[key] ? textSecondary : textDim,
+                            }}>
+                            {tenant.capabilities[key] ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 inline-block text-center">—</span>}
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Metadata */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span style={{ color: textDim }}>API User</span>
+                        <p className="font-mono mt-0.5" style={{ color: textSecondary }}>{tenant.apiUsername}</p>
+                      </div>
+                      <div>
+                        <span style={{ color: textDim }}>Created</span>
+                        <p className="mt-0.5" style={{ color: textSecondary }}>{new Date(tenant.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        <span style={{ color: textDim }}>Last Refresh</span>
+                        <p className="mt-0.5" style={{ color: textSecondary }}>
+                          {tenant.lastRefreshAt ? new Date(tenant.lastRefreshAt).toLocaleString() : 'Never'}
+                        </p>
+                      </div>
+                      <div>
+                        <span style={{ color: textDim }}>Status</span>
+                        <p className="mt-0.5" style={{ color: tenant.isActive ? textSecondary : '#ef4444' }}>
+                          {tenant.isActive ? 'Active' : 'Inactive'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <a href={tenant.forumUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity"
+                        style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+                        <ExternalLink className="w-3 h-3" /> Visit Forum
+                      </a>
+                      <Link href={`/${tenant.slug}`}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity"
+                        style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+                        <Eye className="w-3 h-3" /> View Dashboard
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
