@@ -40,7 +40,27 @@ interface DiscourseResponse {
   latest_posts?: DiscoursePost[];
 }
 
-async function fetchForumDiscussions(forum: ForumPreset, limit: number): Promise<any[]> {
+interface PublicDiscussion {
+  id: number;
+  title: string;
+  url: string;
+  forum: {
+    name: string;
+    url: string;
+    token?: string;
+    logoUrl?: string;
+  };
+  createdAt: string;
+  lastActivityAt: string;
+  replies: number;
+  views: number;
+  likes: number;
+  isPinned: boolean;
+  isClosed: boolean;
+  isHot?: boolean;
+}
+
+async function fetchForumDiscussions(forum: ForumPreset, limit: number): Promise<PublicDiscussion[]> {
   try {
     const baseUrl = forum.url.replace(/\/$/, '');
     const response = await fetch(`${baseUrl}/latest.json?per_page=${limit}`, {
@@ -85,7 +105,7 @@ async function fetchForumDiscussions(forum: ForumPreset, limit: number): Promise
   }
 }
 
-function isHot(discussion: any): boolean {
+function isHot(discussion: PublicDiscussion): boolean {
   const hoursSinceActivity = (Date.now() - new Date(discussion.lastActivityAt).getTime()) / (1000 * 60 * 60);
   const replyRate = discussion.replies / Math.max(hoursSinceActivity, 1);
   return replyRate > 0.5 || (discussion.replies > 10 && hoursSinceActivity < 48);
@@ -145,7 +165,7 @@ export async function GET(request: Request) {
     selectedForums.map(forum => fetchForumDiscussions(forum, limit))
   );
 
-  let discussions = results.flat();
+  let discussions: PublicDiscussion[] = results.flat();
 
   // Filter by date if specified
   if (since) {

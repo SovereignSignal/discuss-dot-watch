@@ -4,17 +4,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-
-// Types
-export interface DigestPreferences {
-  frequency: 'daily' | 'weekly' | 'never';
-  includeHotTopics: boolean;
-  includeNewProposals: boolean;
-  includeKeywordMatches: boolean;
-  includeDelegateCorner: boolean;
-  forums: string[]; // forum IDs to include, empty = all
-  keywords: string[]; // keywords to track
-}
+export type { DigestPreferences } from '@/types';
 
 export interface TopicSummary {
   title: string;

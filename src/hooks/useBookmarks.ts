@@ -65,9 +65,8 @@ export function useBookmarks() {
   // Use lazy initialization - this runs only on client after hydration
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => getStoredBookmarks());
 
-  const saveBookmarks = useCallback((newBookmarks: Bookmark[]) => {
-    setBookmarks(newBookmarks);
-    saveBookmarksToStorage(newBookmarks);
+  const persistBookmarks = useCallback((updated: Bookmark[]) => {
+    saveBookmarksToStorage(updated);
   }, []);
 
   const addBookmark = useCallback((topic: {
@@ -79,41 +78,49 @@ export function useBookmarks() {
     protocol: string;
     externalUrl?: string;
   }) => {
-    const exists = bookmarks.some(b => b.topicRefId === topic.refId);
-    if (exists) return;
+    setBookmarks(prev => {
+      if (prev.some(b => b.topicRefId === topic.refId)) return prev;
 
-    // Construct the full topic URL: use externalUrl for non-Discourse sources
-    const fullTopicUrl = topic.externalUrl || `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
-
-    const newBookmark: Bookmark = {
-      id: crypto.randomUUID(),
-      topicRefId: topic.refId,
-      topicTitle: topic.title,
-      topicUrl: fullTopicUrl,
-      protocol: topic.protocol,
-      createdAt: new Date().toISOString(),
-    };
-    saveBookmarks([newBookmark, ...bookmarks]);
-  }, [bookmarks, saveBookmarks]);
+      const fullTopicUrl = topic.externalUrl || `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
+      const newBookmark: Bookmark = {
+        id: crypto.randomUUID(),
+        topicRefId: topic.refId,
+        topicTitle: topic.title,
+        topicUrl: fullTopicUrl,
+        protocol: topic.protocol,
+        createdAt: new Date().toISOString(),
+      };
+      const updated = [newBookmark, ...prev];
+      persistBookmarks(updated);
+      return updated;
+    });
+  }, [persistBookmarks]);
 
   const removeBookmark = useCallback((topicRefId: string) => {
-    saveBookmarks(bookmarks.filter(b => b.topicRefId !== topicRefId));
-  }, [bookmarks, saveBookmarks]);
+    setBookmarks(prev => {
+      const updated = prev.filter(b => b.topicRefId !== topicRefId);
+      persistBookmarks(updated);
+      return updated;
+    });
+  }, [persistBookmarks]);
 
   const isBookmarked = useCallback((topicRefId: string) => {
     return bookmarks.some(b => b.topicRefId === topicRefId);
   }, [bookmarks]);
 
   const importBookmarks = useCallback((newBookmarks: Bookmark[], replace = false) => {
-    if (replace) {
-      saveBookmarks(newBookmarks);
-    } else {
-      // Merge: add bookmarks that don't already exist (by topicRefId)
-      const existingRefs = new Set(bookmarks.map(b => b.topicRefId));
+    setBookmarks(prev => {
+      if (replace) {
+        persistBookmarks(newBookmarks);
+        return newBookmarks;
+      }
+      const existingRefs = new Set(prev.map(b => b.topicRefId));
       const toAdd = newBookmarks.filter(b => !existingRefs.has(b.topicRefId));
-      saveBookmarks([...bookmarks, ...toAdd]);
-    }
-  }, [bookmarks, saveBookmarks]);
+      const updated = [...prev, ...toAdd];
+      persistBookmarks(updated);
+      return updated;
+    });
+  }, [persistBookmarks]);
 
   return {
     bookmarks,

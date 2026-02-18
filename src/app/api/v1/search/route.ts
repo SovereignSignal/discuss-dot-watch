@@ -33,7 +33,24 @@ interface DiscourseSearchResponse {
   }>;
 }
 
-async function searchForum(forum: ForumPreset, query: string, limit: number): Promise<any[]> {
+interface PublicSearchResult {
+  id: number;
+  title: string;
+  url: string;
+  blurb: string | null;
+  forum: {
+    name: string;
+    url: string;
+    token?: string;
+    logoUrl?: string;
+  };
+  createdAt: string;
+  replies: number;
+  views: number;
+  likes: number;
+}
+
+async function searchForum(forum: ForumPreset, query: string, limit: number): Promise<PublicSearchResult[]> {
   try {
     const baseUrl = forum.url.replace(/\/$/, '');
     const response = await fetch(

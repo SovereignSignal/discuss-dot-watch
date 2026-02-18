@@ -128,7 +128,7 @@ const ForumSchema = z.object({
   logoUrl: z.string().optional().nullable().transform(val => val || undefined),
   token: z.string().max(50).optional(),
   category: ForumCategoryIdSchema.optional(),
-  sourceType: z.enum(['discourse', 'ea-forum', 'lesswrong', 'github', 'hackernews']).optional(),
+  sourceType: z.enum(['discourse', 'ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews']).optional(),
   discourseForum: z.object({
     url: z.string().url(),
     categoryId: z.number().int().positive().optional(),

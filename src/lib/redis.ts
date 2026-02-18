@@ -247,10 +247,16 @@ export async function clearCache(): Promise<void> {
   if (!client) return;
   
   try {
-    const allKeys = await client.keys('forum:*');
-    if (allKeys.length > 0) {
-      await client.del(...allKeys);
-    }
+    // Use SCAN instead of KEYS to avoid blocking Redis on large keyspaces
+    let cursor = '0';
+    do {
+      const [nextCursor, batch] = await client.scan(cursor, 'MATCH', 'forum:*', 'COUNT', 100);
+      cursor = nextCursor;
+      if (batch.length > 0) {
+        await client.del(...batch);
+      }
+    } while (cursor !== '0');
+
     await client.del(keys.allForums());
     await client.del(keys.stats());
     console.log('[Redis] Cache cleared');

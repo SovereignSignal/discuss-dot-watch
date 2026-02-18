@@ -81,6 +81,8 @@ export interface DigestPreferences {
   includeKeywordMatches: boolean;
   includeDelegateCorner: boolean;
   email?: string; // Override email if different from account
+  forums?: string[]; // Forum IDs to include, empty = all
+  keywords?: string[]; // Keywords to track
 }
 
 export type SortOption = 'recent' | 'replies' | 'views' | 'likes';

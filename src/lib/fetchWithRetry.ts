@@ -92,7 +92,7 @@ export async function fetchWithRetry<T>(
           signal.addEventListener('abort', () => {
             clearTimeout(timeoutId);
             resolve(undefined);
-          });
+          }, { once: true });
         }
       });
 
