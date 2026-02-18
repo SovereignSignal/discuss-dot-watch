@@ -52,10 +52,10 @@ export default function AdminPage() {
 
   // Sync theme with rest of app
   useEffect(() => {
-    const saved = localStorage.getItem('gov-watch-theme');
+    const saved = localStorage.getItem('discuss-watch-theme');
     setIsDark(saved !== 'light');
     const handler = () => {
-      const t = localStorage.getItem('gov-watch-theme');
+      const t = localStorage.getItem('discuss-watch-theme');
       setIsDark(t !== 'light');
     };
     window.addEventListener('themechange', handler);
@@ -1219,10 +1219,10 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                       title="Refresh contributor data">
                       {isRefreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: textMuted }} /> : <RefreshCw className="w-3.5 h-3.5" style={{ color: textMuted }} />}
                     </button>
-                    <Link href={`/${tenant.slug}`} onClick={(e) => e.stopPropagation()}
+                    <Link href={`/${tenant.slug}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                       className="p-1.5 rounded-lg transition-opacity"
                       style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}` }}
-                      title="View dashboard">
+                      title="View dashboard (opens in new tab)">
                       <Eye className="w-3.5 h-3.5" style={{ color: textMuted }} />
                     </Link>
                     {isExpanded ? (
@@ -1685,7 +1685,7 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                         style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
                         <ExternalLink className="w-3 h-3" /> Visit Forum
                       </a>
-                      <Link href={`/${tenant.slug}`}
+                      <Link href={`/${tenant.slug}`} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity"
                         style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
                         <Eye className="w-3 h-3" /> View Dashboard
@@ -1701,9 +1701,10 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
           {orphanSyncJobs.length > 0 && (
             <>
               {tenants.length > 0 && (
-                <div className="flex items-center gap-2 pt-2 pb-1">
-                  <span className="text-[11px] font-medium" style={{ color: textDim }}>Synced — needs API key to activate analytics</span>
-                  <div className="flex-1 h-px" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }} />
+                <div className="flex items-center gap-2 pt-4 pb-1">
+                  <div className="flex-1 h-px" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }} />
+                  <span className="text-[11px] font-medium px-2 whitespace-nowrap" style={{ color: textDim }}>Pending setup — add API key to activate</span>
+                  <div className="flex-1 h-px" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }} />
                 </div>
               )}
               {orphanSyncJobs.map(job => {

@@ -68,14 +68,14 @@ export default function TenantDashboardPage() {
 
   // Theme — apply saved preference to DOM on mount
   useEffect(() => {
-    const saved = localStorage.getItem('gov-watch-theme') as 'dark' | 'light' | null;
+    const saved = localStorage.getItem('discuss-watch-theme') as 'dark' | 'light' | null;
     if (saved) {
       document.documentElement.classList.toggle('light', saved === 'light');
       document.documentElement.classList.toggle('dark', saved === 'dark');
     }
     // Defer state update to after initial render
     requestAnimationFrame(() => {
-      const s = localStorage.getItem('gov-watch-theme') as 'dark' | 'light' | null;
+      const s = localStorage.getItem('discuss-watch-theme') as 'dark' | 'light' | null;
       if (s === 'light') setIsDark(false);
     });
   }, []);
@@ -83,7 +83,7 @@ export default function TenantDashboardPage() {
   const toggleTheme = () => {
     const next = isDark ? 'light' : 'dark';
     setIsDark(!isDark);
-    localStorage.setItem('gov-watch-theme', next);
+    localStorage.setItem('discuss-watch-theme', next);
     document.documentElement.classList.toggle('light', next === 'light');
     document.documentElement.classList.toggle('dark', next === 'dark');
   };

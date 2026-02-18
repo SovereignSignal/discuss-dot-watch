@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // Get initial theme from localStorage (runs on client only)
 function getInitialTheme(): 'dark' | 'light' {
   if (typeof window === 'undefined') return 'dark';
-  const saved = localStorage.getItem('gov-watch-theme');
+  const saved = localStorage.getItem('discuss-watch-theme');
   return saved === 'light' ? 'light' : 'dark';
 }
 
@@ -156,7 +156,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Listen for theme changes via storage event (cross-tab) and custom event (same tab)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'gov-watch-theme') {
+      if (e.key === 'discuss-watch-theme') {
         setTheme(e.newValue === 'light' ? 'light' : 'dark');
       }
     };

@@ -23,7 +23,7 @@ export default function LandingPage() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('gov-watch-theme') as 'dark' | 'light' | null;
+    const savedTheme = localStorage.getItem('discuss-watch-theme') as 'dark' | 'light' | null;
     if (savedTheme) {
       setTheme(savedTheme);
       document.documentElement.classList.toggle('light', savedTheme === 'light');
@@ -34,7 +34,7 @@ export default function LandingPage() {
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    localStorage.setItem('gov-watch-theme', newTheme);
+    localStorage.setItem('discuss-watch-theme', newTheme);
     document.documentElement.classList.toggle('light', newTheme === 'light');
     document.documentElement.classList.toggle('dark', newTheme === 'dark');
     window.dispatchEvent(new Event('themechange'));
