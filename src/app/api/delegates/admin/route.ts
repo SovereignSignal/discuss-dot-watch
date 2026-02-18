@@ -19,6 +19,7 @@ import {
   getTenantBySlug,
   getAllTenants,
   upsertDelegate,
+  deleteDelegate,
   getDelegatesByTenant,
   updateTenantCapabilities,
   encrypt,
@@ -197,6 +198,28 @@ export async function POST(request: NextRequest) {
           created: results.length,
           errors,
         });
+      }
+
+      case 'delete-delegate': {
+        const { tenantSlug, username } = body;
+        if (!tenantSlug || !username) {
+          return NextResponse.json(
+            { error: 'Missing required fields: tenantSlug, username' },
+            { status: 400 }
+          );
+        }
+
+        const tenant = await getTenantBySlug(tenantSlug);
+        if (!tenant) {
+          return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        const deleted = await deleteDelegate(tenant.id, username);
+        if (!deleted) {
+          return NextResponse.json({ error: 'Delegate not found' }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true });
       }
 
       case 'detect-capabilities': {

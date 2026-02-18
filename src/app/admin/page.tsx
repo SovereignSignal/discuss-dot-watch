@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Upload, X, UserPlus } from 'lucide-react';
+import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Upload, X, UserPlus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FORUM_CATEGORIES, ForumPreset } from '@/lib/forumPresets';
 import { DELEGATE_ROLES } from '@/types/delegates';
 import type { UserSearchResult } from '@/types/delegates';
@@ -417,6 +418,7 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedSearchUser, setSelectedSearchUser] = useState<UserSearchResult | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ slug: string; username: string; displayName: string } | null>(null);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -700,6 +702,23 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
       fetchDelegates(expandedTenant);
     }
   }, [expandedTenant, fetchDelegates]);
+
+  const handleDeleteDelegate = async (slug: string, username: string) => {
+    setActionLoading(`delete-delegate-${slug}-${username}`);
+    try {
+      const ph = await getPostHeaders();
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: ph,
+        body: JSON.stringify({ action: 'delete-delegate', tenantSlug: slug, username }),
+      });
+      if (res.ok) {
+        await fetchDelegates(slug);
+      }
+    } catch { /* ignore */ }
+    setActionLoading(null);
+    setDeleteConfirm(null);
+  };
 
   // Debounced user search for autocomplete
   useEffect(() => {
@@ -1443,7 +1462,7 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                       {/* Delegate list */}
                       {(delegatesByTenant[tenant.slug] || []).length > 0 ? (
                         <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
-                          <div className="max-h-48 overflow-y-auto">
+                          <div className="max-h-64 overflow-y-auto">
                             {(delegatesByTenant[tenant.slug] || []).map(d => (
                               <div key={d.id} className="flex items-center justify-between px-3 py-1.5" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'}` }}>
                                 <div className="flex items-center gap-2 min-w-0">
@@ -1467,6 +1486,14 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                                     className="text-[10px] hover:underline" style={{ color: textMuted }}>
                                     profile
                                   </a>
+                                  <button
+                                    onClick={() => setDeleteConfirm({ slug: tenant.slug, username: d.username, displayName: d.displayName })}
+                                    className="p-1 rounded hover:bg-red-500/10 transition-colors"
+                                    style={{ color: textDim }}
+                                    title={`Remove ${d.displayName}`}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
                                 </div>
                               </div>
                             ))}
@@ -1603,6 +1630,17 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirm}
+        title="Remove delegate"
+        message={deleteConfirm ? `Remove "${deleteConfirm.displayName}" (@${deleteConfirm.username})? All snapshot history for this delegate will be permanently deleted.` : ''}
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={() => { if (deleteConfirm) handleDeleteDelegate(deleteConfirm.slug, deleteConfirm.username); }}
+        onCancel={() => setDeleteConfirm(null)}
+        isDark={isDark}
+      />
     </div>
   );
 }

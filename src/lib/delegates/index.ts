@@ -11,6 +11,7 @@ export {
   upsertDelegate,
   getDelegatesByTenant,
   getDelegateByUsername,
+  deleteDelegate,
   createSnapshot,
   getLatestSnapshots,
   getSnapshotHistory,

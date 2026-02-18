@@ -221,6 +221,14 @@ export async function getDelegateByUsername(
   return row ? mapDelegateRow(row) : null;
 }
 
+export async function deleteDelegate(tenantId: number, username: string): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db`
+    DELETE FROM delegates WHERE tenant_id = ${tenantId} AND username = ${username} RETURNING id
+  `;
+  return !!row;
+}
+
 // --- Snapshots ---
 
 export async function createSnapshot(snapshot: {

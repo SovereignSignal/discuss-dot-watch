@@ -26,6 +26,8 @@ import Link from 'next/link';
 import type { DelegateDashboard, DelegateRow, DashboardSummary } from '@/types/delegates';
 import { DELEGATE_ROLES } from '@/types/delegates';
 import { c } from '@/lib/theme';
+import { useAuth } from '@/components/AuthProvider';
+import { isAdminEmail } from '@/lib/admin';
 import { formatDistanceToNow } from 'date-fns';
 
 type SortField =
@@ -61,6 +63,8 @@ export default function TenantDashboardPage() {
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
 
   const t = c(isDark);
+  const { user } = useAuth();
+  const userIsAdmin = isAdminEmail(user?.email);
 
   // Theme — apply saved preference to DOM on mount
   useEffect(() => {
@@ -247,6 +251,17 @@ export default function TenantDashboardPage() {
             discuss.watch
           </Link>
           <ChevronRight size={14} color={t.fgDim} />
+          {userIsAdmin && (
+            <>
+              <Link
+                href="/admin"
+                style={{ color: t.fgDim, textDecoration: 'none', fontSize: 13 }}
+              >
+                Admin
+              </Link>
+              <ChevronRight size={14} color={t.fgDim} />
+            </>
+          )}
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
             {dashboard.tenant.name}
           </h1>
