@@ -13,6 +13,7 @@
 
 import { NextResponse } from 'next/server';
 import { FORUM_CATEGORIES, ALL_FORUM_PRESETS, ForumPreset } from '@/lib/forumPresets';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 interface DiscoursePost {
   id: number;
@@ -91,8 +92,18 @@ function isHot(discussion: any): boolean {
 }
 
 export async function GET(request: Request) {
+  // Rate limit: 20 requests per minute per IP
+  const ip = getRateLimitKey(request);
+  const rateLimit = checkRateLimit(`v1:discussions:${ip}`, { windowMs: 60000, maxRequests: 20 });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000).toString() } },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
-  
+
   const forumsParam = searchParams.get('forums');
   const category = searchParams.get('category');
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '20'), 50);

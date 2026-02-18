@@ -11,6 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { FORUM_CATEGORIES, ALL_FORUM_PRESETS, ForumPreset } from '@/lib/forumPresets';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 interface SearchResult {
   id: number;
@@ -86,8 +87,18 @@ async function searchForum(forum: ForumPreset, query: string, limit: number): Pr
 }
 
 export async function GET(request: Request) {
+  // Rate limit: 15 requests per minute per IP
+  const ip = getRateLimitKey(request);
+  const rateLimit = checkRateLimit(`v1:search:${ip}`, { windowMs: 60000, maxRequests: 15 });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000).toString() } },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
-  
+
   const query = searchParams.get('q');
   const forumsParam = searchParams.get('forums');
   const category = searchParams.get('category');

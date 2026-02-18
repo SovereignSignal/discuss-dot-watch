@@ -9,6 +9,7 @@
  * Protected by CRON_SECRET to prevent unauthorized access.
  */
 
+import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   formatDigestEmail,
@@ -28,7 +29,7 @@ import {
   updateLastDigestSent,
 } from '@/lib/db';
 
-// Validate cron secret
+// Validate cron secret (uses constant-time comparison to prevent timing attacks)
 function validateCronSecret(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
@@ -37,7 +38,12 @@ function validateCronSecret(request: NextRequest): boolean {
     return true;
   }
 
-  return authHeader === `Bearer ${cronSecret}`;
+  if (!authHeader || !cronSecret) return false;
+
+  const expected = `Bearer ${cronSecret}`;
+  if (authHeader.length !== expected.length) return false;
+
+  return timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
 }
 
 // Get tier 1 forums as fallback for users with no forums configured

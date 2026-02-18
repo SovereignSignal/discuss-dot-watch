@@ -5,10 +5,17 @@
  * verifyAdminAuth — checks CRON_SECRET first (machine-to-machine), then Privy + admin allowlist.
  */
 
+import { timingSafeEqual } from 'crypto';
 import { NextRequest } from 'next/server';
 import { PrivyClient } from '@privy-io/node';
 import { isAdminEmail, isAdminDid } from './admin';
 import { getDb, isDatabaseConfigured } from './db';
+
+/** Constant-time string comparison to prevent timing attacks */
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 // Lazy singleton — avoids constructing when env vars are missing (dev mode)
 let _privy: PrivyClient | null = null;
@@ -77,7 +84,7 @@ export async function verifyAdminAuth(
 
   // 1. CRON_SECRET check (machine-to-machine)
   const cronSecret = process.env.CRON_SECRET;
-  if (token && cronSecret && token === cronSecret) {
+  if (token && cronSecret && safeCompare(token, cronSecret)) {
     return { userId: 'cron' };
   }
 

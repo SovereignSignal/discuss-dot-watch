@@ -7,6 +7,7 @@
  */
 
 import { DiscussionTopic, SourceType } from '@/types';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 const SNAPSHOT_ENDPOINT = 'https://hub.snapshot.org/graphql';
 
@@ -366,10 +367,11 @@ function shortenAddress(address: string): string {
 
 /**
  * Basic markdown → HTML conversion (for proposal bodies)
+ * Output is sanitized to prevent XSS from user-controlled proposal content.
  */
 function markdownToBasicHtml(md: string): string {
   if (!md) return '';
-  return md
+  const raw = md
     // Headers
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
@@ -377,14 +379,26 @@ function markdownToBasicHtml(md: string): string {
     // Bold and italic
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Links
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    // Links — only allow safe protocols
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text: string, url: string) => {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          return text;
+        }
+      } catch {
+        return text;
+      }
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+    })
     // Line breaks
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br/>')
     // Wrap in paragraphs
     .replace(/^/, '<p>')
     .replace(/$/, '</p>');
+  // Sanitize output to strip any injected scripts or dangerous attributes
+  return sanitizeHtml(raw);
 }
 
 /**

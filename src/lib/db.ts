@@ -105,248 +105,103 @@ export async function initializeSchema() {
     )
   `;
   
-  // Check if users table exists and has data
-  let hasUsers = false;
-  try {
-    const result = await db`SELECT COUNT(*) as cnt FROM users`;
-    hasUsers = Number(result[0]?.cnt) > 0;
-  } catch {
-    // Table doesn't exist, that's fine
-  }
-  
-  if (hasUsers) {
-    // Users exist - just ensure tables exist, don't drop anything
-    console.log('[DB] Users exist, using CREATE TABLE IF NOT EXISTS...');
-    await db`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        privy_did TEXT UNIQUE NOT NULL,
-        email TEXT,
-        wallet_address TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-  } else {
-    // No users - safe to nuke and rebuild user tables from scratch
-    console.log('[DB] No users, dropping and recreating user tables with CASCADE...');
-    
-    // Use CASCADE to force drop even with FK dependencies
-    await db`DROP TABLE IF EXISTS read_state CASCADE`;
-    await db`DROP TABLE IF EXISTS custom_forums CASCADE`;
-    await db`DROP TABLE IF EXISTS user_forums_data CASCADE`;
-    await db`DROP TABLE IF EXISTS user_forums CASCADE`; 
-    await db`DROP TABLE IF EXISTS bookmarks CASCADE`;
-    await db`DROP TABLE IF EXISTS user_bookmarks CASCADE`;
-    await db`DROP TABLE IF EXISTS keyword_alerts CASCADE`;
-    await db`DROP TABLE IF EXISTS user_preferences CASCADE`;
-    await db`DROP TABLE IF EXISTS users CASCADE`;
-    
-    console.log('[DB] All user tables dropped, creating users table...');
-    await db`
-      CREATE TABLE users (
-        id SERIAL PRIMARY KEY,
-        privy_did TEXT UNIQUE NOT NULL,
-        email TEXT,
-        wallet_address TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    console.log('[DB] Users table created successfully');
-  }
+  // Always use CREATE TABLE IF NOT EXISTS — never drop tables in production.
+  // Previous code dropped all user tables when users count was 0, which risked
+  // catastrophic data loss from transient DB errors or race conditions.
+  console.log('[DB] Ensuring user tables exist (CREATE IF NOT EXISTS)...');
+
+  await db`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      privy_did TEXT UNIQUE NOT NULL,
+      email TEXT,
+      wallet_address TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
 
   // Create user-dependent tables
-  // If we dropped them above (no users), CREATE fresh. Otherwise IF NOT EXISTS.
-  console.log('[DB] Creating user-dependent tables...');
-  
-  if (hasUsers) {
-    await db`
-      CREATE TABLE IF NOT EXISTS user_preferences (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-        theme TEXT DEFAULT 'dark',
-        onboarding_completed BOOLEAN DEFAULT false,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    // Add digest columns if they don't exist yet
-    await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS digest_frequency TEXT DEFAULT 'never'`;
-    await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS digest_email TEXT`;
-    await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_hot_topics BOOLEAN DEFAULT true`;
-    await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_new_proposals BOOLEAN DEFAULT true`;
-    await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_keyword_matches BOOLEAN DEFAULT true`;
-    await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_delegate_corner BOOLEAN DEFAULT true`;
-    await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMPTZ`;
-    await db`
-      CREATE TABLE IF NOT EXISTS keyword_alerts (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        keyword TEXT NOT NULL,
-        is_enabled BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await db`
-      CREATE TABLE IF NOT EXISTS user_bookmarks (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        topic_ref_id TEXT NOT NULL,
-        topic_title TEXT,
-        topic_url TEXT,
-        protocol TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(user_id, topic_ref_id)
-      )
-    `;
-    await db`
-      CREATE TABLE IF NOT EXISTS bookmarks (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        topic_ref_id TEXT NOT NULL,
-        topic_title TEXT,
-        topic_url TEXT,
-        protocol TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(user_id, topic_ref_id)
-      )
-    `;
-    await db`
-      CREATE TABLE IF NOT EXISTS user_forums (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        forum_cname TEXT NOT NULL,
-        is_enabled BOOLEAN DEFAULT true,
-        UNIQUE(user_id, forum_cname)
-      )
-    `;
-    await db`
-      CREATE TABLE IF NOT EXISTS user_forums_data (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-        forum_data JSONB DEFAULT '[]'::jsonb,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await db`
-      CREATE TABLE IF NOT EXISTS custom_forums (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        cname TEXT NOT NULL,
-        description TEXT,
-        logo_url TEXT,
-        token TEXT,
-        discourse_url TEXT NOT NULL,
-        discourse_category_id INTEGER,
-        is_enabled BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await db`
-      CREATE TABLE IF NOT EXISTS read_state (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        topic_ref_id TEXT NOT NULL,
-        read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(user_id, topic_ref_id)
-      )
-    `;
-  } else {
-    // Fresh creates after drop
-    await db`
-      CREATE TABLE user_preferences (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-        theme TEXT DEFAULT 'dark',
-        onboarding_completed BOOLEAN DEFAULT false,
-        digest_frequency TEXT DEFAULT 'never',
-        digest_email TEXT,
-        include_hot_topics BOOLEAN DEFAULT true,
-        include_new_proposals BOOLEAN DEFAULT true,
-        include_keyword_matches BOOLEAN DEFAULT true,
-        include_delegate_corner BOOLEAN DEFAULT true,
-        last_digest_sent_at TIMESTAMPTZ,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await db`
-      CREATE TABLE keyword_alerts (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        keyword TEXT NOT NULL,
-        is_enabled BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await db`
-      CREATE TABLE user_bookmarks (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        topic_ref_id TEXT NOT NULL,
-        topic_title TEXT,
-        topic_url TEXT,
-        protocol TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(user_id, topic_ref_id)
-      )
-    `;
-    await db`
-      CREATE TABLE bookmarks (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        topic_ref_id TEXT NOT NULL,
-        topic_title TEXT,
-        topic_url TEXT,
-        protocol TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(user_id, topic_ref_id)
-      )
-    `;
-    await db`
-      CREATE TABLE user_forums (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        forum_cname TEXT NOT NULL,
-        is_enabled BOOLEAN DEFAULT true,
-        UNIQUE(user_id, forum_cname)
-      )
-    `;
-    await db`
-      CREATE TABLE user_forums_data (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-        forum_data JSONB DEFAULT '[]'::jsonb,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await db`
-      CREATE TABLE custom_forums (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        cname TEXT NOT NULL,
-        description TEXT,
-        logo_url TEXT,
-        token TEXT,
-        discourse_url TEXT NOT NULL,
-        discourse_category_id INTEGER,
-        is_enabled BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await db`
-      CREATE TABLE read_state (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        topic_ref_id TEXT NOT NULL,
-        read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(user_id, topic_ref_id)
-      )
-    `;
-  }
+  await db`
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+      theme TEXT DEFAULT 'dark',
+      onboarding_completed BOOLEAN DEFAULT false,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+  // Add columns via migrations (safe to run repeatedly)
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS digest_frequency TEXT DEFAULT 'never'`;
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS digest_email TEXT`;
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_hot_topics BOOLEAN DEFAULT true`;
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_new_proposals BOOLEAN DEFAULT true`;
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_keyword_matches BOOLEAN DEFAULT true`;
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_delegate_corner BOOLEAN DEFAULT true`;
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMPTZ`;
+  await db`
+    CREATE TABLE IF NOT EXISTS keyword_alerts (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      keyword TEXT NOT NULL,
+      is_enabled BOOLEAN DEFAULT true,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+  await db`
+    CREATE TABLE IF NOT EXISTS bookmarks (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      topic_ref_id TEXT NOT NULL,
+      topic_title TEXT,
+      topic_url TEXT,
+      protocol TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE(user_id, topic_ref_id)
+    )
+  `;
+  await db`
+    CREATE TABLE IF NOT EXISTS user_forums (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      forum_cname TEXT NOT NULL,
+      is_enabled BOOLEAN DEFAULT true,
+      UNIQUE(user_id, forum_cname)
+    )
+  `;
+  await db`
+    CREATE TABLE IF NOT EXISTS user_forums_data (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+      forum_data JSONB DEFAULT '[]'::jsonb,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+  await db`
+    CREATE TABLE IF NOT EXISTS custom_forums (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      cname TEXT NOT NULL,
+      description TEXT,
+      logo_url TEXT,
+      token TEXT,
+      discourse_url TEXT NOT NULL,
+      discourse_category_id INTEGER,
+      is_enabled BOOLEAN DEFAULT true,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+  await db`
+    CREATE TABLE IF NOT EXISTS read_state (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      topic_ref_id TEXT NOT NULL,
+      read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE(user_id, topic_ref_id)
+    )
+  `;
 
   // Create indexes for common queries
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;

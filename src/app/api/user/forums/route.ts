@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
 import { verifyAuth, isAuthError } from '@/lib/auth';
+
+const ForumDataSchema = z.array(z.object({
+  id: z.string().max(100),
+  cname: z.string().max(200),
+  name: z.string().max(200),
+  description: z.string().max(1000).optional().nullable(),
+  logoUrl: z.string().max(500).optional().nullable(),
+  token: z.string().max(50).optional().nullable(),
+  category: z.string().max(50).optional().nullable(),
+  sourceType: z.enum(['discourse', 'ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews']).optional().nullable(),
+  discourseForum: z.object({
+    url: z.string().max(500),
+    categoryId: z.number().int().optional().nullable(),
+  }),
+  isEnabled: z.boolean(),
+  createdAt: z.string(),
+}).passthrough()).max(500);
 
 /**
  * GET /api/user/forums - Get user's forum selections
@@ -63,10 +81,15 @@ export async function POST(request: NextRequest) {
   
   try {
     const { forums } = await request.json();
-    
-    if (!Array.isArray(forums)) {
-      return NextResponse.json({ error: 'Forums must be an array' }, { status: 400 });
+
+    const validated = ForumDataSchema.safeParse(forums);
+    if (!validated.success) {
+      return NextResponse.json({
+        error: 'Invalid forum data',
+        details: validated.error.issues.slice(0, 3),
+      }, { status: 400 });
     }
+    const validForums = validated.data;
     
     const db = getDb();
     
@@ -87,12 +110,12 @@ export async function POST(request: NextRequest) {
     // Upsert user's forum data
     await db`
       INSERT INTO user_forums_data (user_id, forum_data, updated_at)
-      VALUES (${userId}, ${JSON.stringify(forums)}::jsonb, NOW())
-      ON CONFLICT (user_id) 
-      DO UPDATE SET forum_data = ${JSON.stringify(forums)}::jsonb, updated_at = NOW()
+      VALUES (${userId}, ${JSON.stringify(validForums)}::jsonb, NOW())
+      ON CONFLICT (user_id)
+      DO UPDATE SET forum_data = ${JSON.stringify(validForums)}::jsonb, updated_at = NOW()
     `;
-    
-    return NextResponse.json({ status: 'ok', count: forums.length });
+
+    return NextResponse.json({ status: 'ok', count: validForums.length });
   } catch (error) {
     console.error('Error saving user forums:', error);
     return NextResponse.json({ 
