@@ -19,6 +19,20 @@ import type {
 
 // --- Schema initialization ---
 
+let _schemaReady = false;
+let _schemaPromise: Promise<void> | null = null;
+
+/** Ensure schema migrations have been applied (runs once per process). */
+export async function ensureSchema() {
+  if (_schemaReady) return;
+  if (_schemaPromise) return _schemaPromise;
+  _schemaPromise = initializeDelegateSchema().then(() => { _schemaReady = true; }).catch((err) => {
+    _schemaPromise = null; // Allow retry on failure
+    throw err;
+  });
+  return _schemaPromise;
+}
+
 export async function initializeDelegateSchema() {
   if (!isDatabaseConfigured()) return;
   const db = getDb();
@@ -163,6 +177,7 @@ export async function upsertDelegate(tenantId: number, delegate: {
   votingPower?: string;
   notes?: string;
 }): Promise<Delegate> {
+  await ensureSchema();
   const db = getDb();
   const [row] = await db`
     INSERT INTO delegates (
