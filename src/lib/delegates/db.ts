@@ -471,6 +471,13 @@ function computeSummary(delegates: DelegateRow[]): DashboardSummary {
 
 // --- Row mappers ---
 
+function parseJsonb<T>(val: unknown, fallback: T): T {
+  if (typeof val === 'string') {
+    try { return JSON.parse(val) as T; } catch { return fallback; }
+  }
+  return (val || fallback) as T;
+}
+
 function mapTenantRow(row: Record<string, unknown>): DelegateTenant {
   return {
     id: row.id as number,
@@ -479,8 +486,8 @@ function mapTenantRow(row: Record<string, unknown>): DelegateTenant {
     forumUrl: row.forum_url as string,
     apiUsername: row.api_username as string,
     encryptedApiKey: row.encrypted_api_key as string,
-    config: (row.config || {}) as TenantConfig,
-    capabilities: (row.capabilities || {}) as TenantCapabilities,
+    config: parseJsonb<TenantConfig>(row.config, {}),
+    capabilities: parseJsonb<TenantCapabilities>(row.capabilities, {}),
     isActive: row.is_active as boolean,
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString(),
@@ -514,9 +521,9 @@ function mapSnapshotRow(row: Record<string, unknown>): DelegateSnapshot {
     id: row.id as number,
     delegateId: row.delegate_id as number,
     tenantId: row.tenant_id as number,
-    stats: row.stats as DiscourseUserStats,
+    stats: parseJsonb<DiscourseUserStats>(row.stats, {} as DiscourseUserStats),
     rationaleCount: row.rationale_count as number,
-    recentPosts: (row.recent_posts || []) as DiscourseUserPost[],
+    recentPosts: parseJsonb<DiscourseUserPost[]>(row.recent_posts, []),
     capturedAt: (row.captured_at as Date).toISOString(),
   };
 }
