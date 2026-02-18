@@ -416,6 +416,7 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   const [customRole, setCustomRole] = useState('');
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [selectedSearchUser, setSelectedSearchUser] = useState<UserSearchResult | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ slug: string; username: string; displayName: string } | null>(null);
@@ -724,12 +725,14 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   useEffect(() => {
     if (addUsername.length < 2 || selectedSearchUser) {
       setSearchResults([]);
+      setSearchError(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       if (!showDelegateUpload) return;
       setSearchLoading(true);
+      setSearchError(null);
       try {
         const authHeaders = await getAuthHeaders();
         const res = await fetch(
@@ -739,8 +742,18 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
         if (res.ok) {
           const data = await res.json();
           setSearchResults(data.users || []);
+          if (data.users?.length === 0) {
+            setSearchError('No users found. You can still type a username and click Add.');
+          }
+        } else {
+          const data = await res.json().catch(() => ({ error: 'Search request failed' }));
+          setSearchError(data.error || 'Search failed');
+          setSearchResults([]);
         }
-      } catch { /* ignore */ }
+      } catch {
+        setSearchError('Network error — could not reach search API');
+        setSearchResults([]);
+      }
       finally { setSearchLoading(false); }
     }, 300);
 
@@ -1276,7 +1289,7 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                           </span>
                         </p>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setShowDelegateUpload(showDelegateUpload === tenant.slug ? null : tenant.slug); setUploadResult(null); setCsvText(''); setAddUsername(''); setAddRole(''); setCustomRole(''); setSelectedSearchUser(null); setSearchResults([]); setShowHelp(false); setFormError(null); }}
+                          <button onClick={() => { setShowDelegateUpload(showDelegateUpload === tenant.slug ? null : tenant.slug); setUploadResult(null); setCsvText(''); setAddUsername(''); setAddRole(''); setCustomRole(''); setSelectedSearchUser(null); setSearchResults([]); setSearchError(null); setShowHelp(false); setFormError(null); }}
                             className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-opacity"
                             style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
                             {showDelegateUpload === tenant.slug ? <X className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}
@@ -1343,6 +1356,7 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                                             setSelectedSearchUser(user);
                                             setAddUsername(user.username);
                                             setSearchResults([]);
+                                            setSearchError(null);
                                           }
                                         }}
                                         disabled={alreadyTracked}
@@ -1369,6 +1383,11 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                                       </button>
                                     );
                                   })}
+                                </div>
+                              )}
+                              {searchError && !selectedSearchUser && addUsername.length >= 2 && !searchLoading && (
+                                <div className="text-[10px] mt-1 px-1" style={{ color: textDim }}>
+                                  {searchError}
                                 </div>
                               )}
                             </div>
