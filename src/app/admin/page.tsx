@@ -52,12 +52,14 @@ export default function AdminPage() {
 
   // Sync theme with rest of app
   useEffect(() => {
-    const saved = localStorage.getItem('discuss-watch-theme');
-    setIsDark(saved !== 'light');
-    const handler = () => {
-      const t = localStorage.getItem('discuss-watch-theme');
-      setIsDark(t !== 'light');
+    const applyTheme = (theme: string | null) => {
+      const isLight = theme === 'light';
+      setIsDark(!isLight);
+      document.documentElement.classList.toggle('light', isLight);
+      document.documentElement.classList.toggle('dark', !isLight);
     };
+    applyTheme(localStorage.getItem('discuss-watch-theme'));
+    const handler = () => applyTheme(localStorage.getItem('discuss-watch-theme'));
     window.addEventListener('themechange', handler);
     window.addEventListener('storage', handler);
     return () => { window.removeEventListener('themechange', handler); window.removeEventListener('storage', handler); };
