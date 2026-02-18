@@ -54,6 +54,7 @@ See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for complete platform/forum
 | Auth | Privy |
 | Email | Resend |
 | AI | Anthropic Claude (Haiku 4.5 + Sonnet 4.5) |
+| Sanitization | sanitize-html |
 | Cache | Redis (ioredis) |
 | Database | PostgreSQL (pg) |
 
@@ -155,7 +156,7 @@ src/
 │   ├── rateLimit.ts              # Server-side rate limiting (per-IP, per-forum)
 │   ├── rateLimiter.ts            # Client-side token bucket rate limiter
 │   ├── redis.ts                  # Redis client and caching utilities
-│   ├── sanitize.ts               # Input sanitization utilities
+│   ├── sanitize.ts               # Input sanitization utilities (sanitize-html for HTML, escaping for text)
 │   ├── storage.ts                # LocalStorage utilities for forums/alerts
 │   ├── storageMigration.ts       # LocalStorage migration utilities
 │   ├── theme.ts                  # c() theme utility for consistent color tokens
@@ -752,7 +753,7 @@ The following features have been implemented:
 7. **Keyboard Shortcuts** - `/` for search, `j`/`k` or arrows for navigation, `Escape` to close
 8. **Skip Links** - Accessibility links to skip to main content, search, or navigation
 9. **Rate Limiting** - Token bucket algorithm (10 burst, 2/sec) to protect forum APIs
-10. **Input Sanitization** - XSS prevention for search and keyword inputs
+10. **Input Sanitization** - XSS prevention for search/keyword inputs and HTML content sanitization via `sanitize-html` (server-side, no jsdom dependency)
 11. **Toast Notifications** - Non-intrusive feedback for user actions
 12. **Loading Skeletons** - Animated placeholders during content loading
 13. **Memoized Components** - Performance optimization for discussion list rendering
