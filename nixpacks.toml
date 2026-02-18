@@ -5,7 +5,7 @@
 nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["npm ci"]
+cmds = ["npm i -g npm@11", "npm ci"]
 
 [phases.build]
 cmds = ["npm run build"]
