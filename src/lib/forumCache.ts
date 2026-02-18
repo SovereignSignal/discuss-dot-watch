@@ -132,7 +132,9 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
   // If memory cache has an error or no topics, try Postgres as last resort
   if (isDatabaseConfigured() && (!cached || cached.error || cached.topics.length === 0)) {
     try {
-      const forumRecord = await getForumByUrl(forumUrl);
+      // Try both with and without trailing slash (presets store with slash, clients may omit)
+      const forumRecord = await getForumByUrl(forumUrl)
+        || await getForumByUrl(forumUrl.endsWith('/') ? forumUrl.slice(0, -1) : forumUrl + '/');
       if (forumRecord) {
         const dbTopics = await getRecentTopics({ forumId: forumRecord.id, limit: 30 });
         if (dbTopics && dbTopics.length > 0) {
