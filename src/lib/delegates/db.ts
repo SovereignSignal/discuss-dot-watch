@@ -142,6 +142,49 @@ export async function getAllTenants(): Promise<DelegateTenant[]> {
   return rows.map(mapTenantRow);
 }
 
+export async function updateTenant(tenantId: number, updates: {
+  name?: string;
+  forumUrl?: string;
+  apiUsername?: string;
+  encryptedApiKey?: string;
+  config?: TenantConfig;
+}): Promise<void> {
+  const db = getDb();
+  // Build SET clauses dynamically for provided fields
+  const sets: string[] = ['updated_at = NOW()'];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  if (updates.name !== undefined) {
+    sets.push(`name = $${paramIndex++}`);
+    values.push(updates.name);
+  }
+  if (updates.forumUrl !== undefined) {
+    sets.push(`forum_url = $${paramIndex++}`);
+    values.push(updates.forumUrl);
+  }
+  if (updates.apiUsername !== undefined) {
+    sets.push(`api_username = $${paramIndex++}`);
+    values.push(updates.apiUsername);
+  }
+  if (updates.encryptedApiKey !== undefined) {
+    sets.push(`encrypted_api_key = $${paramIndex++}`);
+    values.push(updates.encryptedApiKey);
+  }
+  if (updates.config !== undefined) {
+    sets.push(`config = $${paramIndex++}`);
+    values.push(JSON.stringify(updates.config));
+  }
+
+  if (values.length === 0) return; // Nothing to update besides updated_at
+
+  // Use raw unsafe query since we're building dynamic SQL
+  await db.unsafe(
+    `UPDATE delegate_tenants SET ${sets.join(', ')} WHERE id = $${paramIndex}`,
+    [...values, tenantId] as (string | number | boolean | null)[]
+  );
+}
+
 export async function updateTenantCapabilities(
   tenantId: number,
   capabilities: TenantCapabilities

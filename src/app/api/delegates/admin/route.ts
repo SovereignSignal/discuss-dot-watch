@@ -21,6 +21,7 @@ import {
   upsertDelegate,
   deleteDelegate,
   getDelegatesByTenant,
+  updateTenant,
   updateTenantCapabilities,
   encrypt,
   isEncryptionConfigured,
@@ -117,6 +118,51 @@ export async function POST(request: NextRequest) {
             forumUrl: tenant.forumUrl,
             capabilities,
           },
+        });
+      }
+
+      case 'update-tenant': {
+        const { tenantSlug, apiKey, apiUsername, name, forumUrl, config } = body;
+        if (!tenantSlug) {
+          return NextResponse.json({ error: 'Missing tenantSlug' }, { status: 400 });
+        }
+
+        const tenant = await getTenantBySlug(tenantSlug);
+        if (!tenant) {
+          return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        const updates: Parameters<typeof updateTenant>[1] = {};
+        if (name !== undefined) updates.name = name;
+        if (forumUrl !== undefined) updates.forumUrl = forumUrl.replace(/\/$/, '');
+        if (apiUsername !== undefined) updates.apiUsername = apiUsername;
+        if (apiKey !== undefined) {
+          if (!isEncryptionConfigured()) {
+            return NextResponse.json(
+              { error: 'ENCRYPTION_KEY not configured. Cannot store API keys.' },
+              { status: 500 }
+            );
+          }
+          updates.encryptedApiKey = encrypt(apiKey);
+        }
+        if (config !== undefined) updates.config = config;
+
+        await updateTenant(tenant.id, updates);
+
+        // Auto-detect capabilities with current (or updated) credentials
+        const effectiveApiKey = apiKey || decrypt(tenant.encryptedApiKey);
+        const effectiveApiUsername = apiUsername !== undefined ? apiUsername : tenant.apiUsername;
+        const capabilities = await detectCapabilities({
+          baseUrl: updates.forumUrl || tenant.forumUrl,
+          apiKey: effectiveApiKey,
+          apiUsername: effectiveApiUsername,
+        });
+        await updateTenantCapabilities(tenant.id, capabilities);
+
+        return NextResponse.json({
+          success: true,
+          message: 'Tenant updated',
+          capabilities,
         });
       }
 

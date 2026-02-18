@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Upload, X, UserPlus, Trash2 } from 'lucide-react';
+import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, EyeOff, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Upload, X, UserPlus, Trash2, Pencil, Save } from 'lucide-react';
 import Link from 'next/link';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FORUM_CATEGORIES, ForumPreset } from '@/lib/forumPresets';
@@ -427,6 +427,12 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   const [formUrl, setFormUrl] = useState('');
   const [formApiUsername, setFormApiUsername] = useState('system');
   const [formApiKey, setFormApiKey] = useState('');
+
+  // Edit tenant settings state
+  const [editingTenant, setEditingTenant] = useState<string | null>(null);
+  const [editApiKey, setEditApiKey] = useState('');
+  const [editApiUsername, setEditApiUsername] = useState('');
+  const [editShowKey, setEditShowKey] = useState(false);
 
   const cardBg = isDark ? '#18181b' : '#ffffff';
   const cardBorder = isDark ? '#27272a' : 'rgba(0,0,0,0.08)';
@@ -856,6 +862,46 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
       await fetchDelegates(slug);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to add delegate');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUpdateTenant = async (slug: string) => {
+    setActionLoading(`update-tenant-${slug}`);
+    setFormError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        action: 'update-tenant',
+        tenantSlug: slug,
+        apiUsername: editApiUsername,
+      };
+      if (editApiKey.trim()) {
+        payload.apiKey = editApiKey.trim();
+      }
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: await getPostHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.error || 'Failed to update tenant');
+        return;
+      }
+      // Update local tenant state with new values
+      setTenants(prev => prev.map(t => t.slug === slug ? {
+        ...t,
+        apiUsername: editApiUsername,
+        capabilities: data.capabilities || t.capabilities,
+      } : t));
+      setEditingTenant(null);
+      setEditApiKey('');
+      setEditShowKey(false);
+      setFormSuccess('Tenant updated — capabilities re-detected');
+      setTimeout(() => setFormSuccess(null), 3000);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to update tenant');
     } finally {
       setActionLoading(null);
     }
@@ -1571,6 +1617,66 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                         </p>
                       </div>
                     </div>
+
+                    {/* Edit Settings */}
+                    {editingTenant === tenant.slug ? (
+                      <div className="rounded-lg p-3 space-y-3" style={{ border: `1px solid ${cardBorder}`, backgroundColor: inputBg }}>
+                        <p className="text-xs font-medium" style={{ color: textMuted }}>Edit API Settings</p>
+                        <div>
+                          <label className="block text-xs mb-1" style={{ color: textDim }}>API Key</label>
+                          <div className="flex gap-2">
+                            <input
+                              type={editShowKey ? 'text' : 'password'}
+                              value={editApiKey}
+                              onChange={e => setEditApiKey(e.target.value)}
+                              placeholder="Leave blank to keep current key"
+                              className="flex-1 px-2 py-1.5 text-xs font-mono rounded-lg"
+                              style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }}
+                            />
+                            <button onClick={() => setEditShowKey(!editShowKey)}
+                              className="px-2 py-1.5 rounded-lg text-xs"
+                              style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+                              {editShowKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1" style={{ color: textDim }}>API Username</label>
+                          <input
+                            type="text"
+                            value={editApiUsername}
+                            onChange={e => setEditApiUsername(e.target.value)}
+                            placeholder="Leave blank for All Users keys"
+                            className="w-full px-2 py-1.5 text-xs font-mono rounded-lg"
+                            style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }}
+                          />
+                          <p className="text-[10px] mt-1" style={{ color: textDim }}>
+                            Leave blank for &quot;All Users&quot; API keys. Set to &quot;system&quot; for per-user keys.
+                          </p>
+                        </div>
+                        {formError && <p className="text-xs text-red-400">{formError}</p>}
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleUpdateTenant(tenant.slug)}
+                            disabled={actionLoading === `update-tenant-${tenant.slug}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg"
+                            style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                            {actionLoading === `update-tenant-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                            Save & Retest
+                          </button>
+                          <button onClick={() => { setEditingTenant(null); setEditApiKey(''); setEditShowKey(false); setFormError(null); }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                            style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setEditingTenant(tenant.slug); setEditApiUsername(tenant.apiUsername || ''); setEditApiKey(''); setEditShowKey(false); setFormError(null); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity"
+                        style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+                        <Pencil className="w-3 h-3" /> Edit API Settings
+                      </button>
+                    )}
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 pt-1">

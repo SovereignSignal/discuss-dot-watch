@@ -48,12 +48,16 @@ async function discourseGet(
   await rateLimitWait(tenantKey);
 
   const url = `${config.baseUrl.replace(/\/$/, '')}${path}`;
+  const headers: Record<string, string> = {
+    'Api-Key': config.apiKey,
+    'Accept': 'application/json',
+  };
+  // Only include Api-Username for per-user keys; "All Users" keys return 403 with it
+  if (config.apiUsername) {
+    headers['Api-Username'] = config.apiUsername;
+  }
   const response = await fetch(url, {
-    headers: {
-      'Api-Key': config.apiKey,
-      'Api-Username': config.apiUsername,
-      'Accept': 'application/json',
-    },
+    headers,
     next: { revalidate: 0 }, // No Next.js caching for authenticated requests
   });
 
@@ -106,9 +110,10 @@ export async function detectCapabilities(
     capabilities.canListUsers = false;
   }
 
-  // Test user stats access (use the API username as test subject)
+  // Test user stats access (use the API username as test subject, fallback to "system" for All Users keys)
+  const testUser = config.apiUsername || 'system';
   try {
-    const res = await discourseGet(config, `/users/${config.apiUsername}.json`);
+    const res = await discourseGet(config, `/users/${testUser}.json`);
     capabilities.canViewUserStats = res.ok;
   } catch {
     capabilities.canViewUserStats = false;
@@ -116,10 +121,10 @@ export async function detectCapabilities(
 
   // Test user posts access
   try {
-    const res = await discourseGet(config, `/posts.json?username=${config.apiUsername}&limit=1`);
+    const res = await discourseGet(config, `/posts.json?username=${testUser}&limit=1`);
     // Some Discourse instances use different post listing endpoints
     if (!res.ok) {
-      const res2 = await discourseGet(config, `/user_actions.json?username=${config.apiUsername}&filter=4,5&limit=1`);
+      const res2 = await discourseGet(config, `/user_actions.json?username=${testUser}&filter=4,5&limit=1`);
       capabilities.canViewUserPosts = res2.ok;
     } else {
       capabilities.canViewUserPosts = true;

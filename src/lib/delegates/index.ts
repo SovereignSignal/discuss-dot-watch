@@ -6,6 +6,7 @@ export {
   createTenant,
   getTenantBySlug,
   getAllTenants,
+  updateTenant,
   updateTenantCapabilities,
   updateTenantLastRefresh,
   upsertDelegate,
