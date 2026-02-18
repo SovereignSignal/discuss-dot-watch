@@ -367,7 +367,13 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
       imageUrl: forum.logoUrl || topic.image_url,
       forumUrl: baseUrl,
       excerpt: topic.excerpt
-        ? topic.excerpt.replace(/<[^>]*>/g, '').slice(0, 200)
+        ? (() => {
+            const text = topic.excerpt.replace(/<[^>]*>/g, '');
+            if (text.length <= 200) return text;
+            const truncated = text.slice(0, 200);
+            const lastSpace = truncated.lastIndexOf(' ');
+            return (lastSpace > 100 ? truncated.slice(0, lastSpace) : truncated) + '...';
+          })()
         : undefined,
     }));
     

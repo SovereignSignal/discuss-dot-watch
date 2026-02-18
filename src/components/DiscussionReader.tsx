@@ -41,7 +41,7 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
       className={
         isMobile
           ? 'fixed inset-0 z-50 flex flex-col'
-          : 'flex flex-col h-full border-l'
+          : 'flex flex-col h-full border-l min-w-0 overflow-hidden'
       }
       style={{
         backgroundColor: t.bg,
@@ -133,7 +133,10 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
             </a>
           </div>
         ) : (
-          posts.map((post) => (
+          posts.filter((post) => {
+            const stripped = post.content.replace(/<[^>]*>/g, '').trim();
+            return !(post.username === 'system' && stripped.length === 0);
+          }).map((post) => (
             <article
               key={post.id}
               className="px-5 py-4 border-b overflow-hidden"

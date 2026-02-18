@@ -31,6 +31,7 @@ interface User {
   id: number;
   privy_did: string;
   email: string;
+  wallet_address: string | null;
   created_at: string;
   alert_count: number;
   bookmark_count: number;
@@ -324,7 +325,11 @@ export default function AdminPage() {
                 <tbody>
                   {users.map((u) => (
                     <tr key={u.id} style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
-                      <td className="py-2.5 pr-4" style={{ color: textPrimary }}>{u.email || u.privy_did.slice(0, 20) + '…'}</td>
+                      <td className="py-2.5 pr-4" style={{ color: textPrimary }}>
+                        {u.email || (u.wallet_address
+                          ? <span className="font-mono text-xs" title={u.wallet_address}>{u.wallet_address.slice(0, 6)}...{u.wallet_address.slice(-4)} <span style={{ color: textDim }}>(wallet)</span></span>
+                          : <span style={{ color: textDim }}>{u.privy_did.slice(0, 20)}…</span>)}
+                      </td>
                       <td className="py-2.5 pr-4 font-mono" style={{ color: textSecondary }}>{u.alert_count}</td>
                       <td className="py-2.5 pr-4 font-mono" style={{ color: textSecondary }}>{u.bookmark_count}</td>
                       <td className="py-2.5" style={{ color: textMuted }}>{new Date(u.created_at).toLocaleDateString()}</td>

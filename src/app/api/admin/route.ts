@@ -27,10 +27,11 @@ export async function GET(request: NextRequest) {
     try {
       const db = getDb();
       const users = await db`
-        SELECT 
-          id, 
-          privy_did, 
-          email, 
+        SELECT
+          id,
+          privy_did,
+          email,
+          wallet_address,
           created_at,
           (SELECT COUNT(*) FROM keyword_alerts WHERE user_id = users.id) as alert_count,
           (SELECT COUNT(*) FROM user_bookmarks WHERE user_id = users.id) as bookmark_count

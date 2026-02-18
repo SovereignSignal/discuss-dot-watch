@@ -43,6 +43,7 @@ interface DiscussionFeedProps {
   onSelectTopic?: (topic: DiscussionTopic) => void;
   selectedTopicRefId?: string | null;
   isDark?: boolean;
+  totalForumCount?: number;
 }
 
 export function DiscussionFeed({
@@ -50,7 +51,7 @@ export function DiscussionFeed({
   alerts, searchQuery, enabledForumIds, forumStates, forums,
   isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
   unreadCount, onRemoveForum, activeKeywordFilter,
-  onSelectTopic, selectedTopicRefId, isDark = true,
+  onSelectTopic, selectedTopicRefId, isDark = true, totalForumCount,
 }: DiscussionFeedProps) {
   const [displayCount, setDisplayCount] = useState(20);
   const [dateRange, setDateRange] = useState<DateRangeFilter>('today');
@@ -151,6 +152,12 @@ export function DiscussionFeed({
   const displayedDiscussions = filteredAndSortedDiscussions.slice(0, displayCount);
   const hasMore = displayCount < filteredAndSortedDiscussions.length;
 
+  // Compute filtered unread count when category/forum filters are active
+  const filteredUnreadCount = useMemo(() => {
+    if (!selectedCategory && !selectedForumId) return unreadCount;
+    return filteredAndSortedDiscussions.filter(d => !isRead(d.refId)).length;
+  }, [selectedCategory, selectedForumId, filteredAndSortedDiscussions, isRead, unreadCount]);
+
   return (
     <section className="flex-1 flex flex-col" aria-label="Discussion feed">
       {/* Header */}
@@ -159,12 +166,14 @@ export function DiscussionFeed({
           <div>
             <h1 className="text-xl sm:text-2xl font-bold" style={{ color: t.fg }}>
               {selectedCategory
-                ? `${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} Discussions`
+                ? `${selectedCategory === 'ai' ? 'AI' : selectedCategory === 'oss' ? 'OSS' : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} Discussions`
                 : 'All Discussions'}
             </h1>
             <p className="mt-0.5 text-sm" style={{ color: t.fgMuted }}>
-              {unreadCount > 0 ? `${unreadCount} unread across ` : ''}
-              {forums.filter(f => f.isEnabled).length} forums
+              {filteredUnreadCount > 0 ? `${filteredUnreadCount} unread across ` : ''}
+              {selectedCategory
+                ? new Set(filteredAndSortedDiscussions.map(d => d.protocol)).size
+                : (totalForumCount || forums.filter(f => f.isEnabled).length)} forums
               {lastUpdated && ` · Updated ${format(lastUpdated, 'h:mm a')}`}
             </p>
           </div>

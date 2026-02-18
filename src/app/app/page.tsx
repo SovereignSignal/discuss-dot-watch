@@ -302,6 +302,7 @@ export default function AppPage() {
                     onSelectTopic={handleSelectTopic}
                     selectedTopicRefId={selectedTopic?.refId || null}
                     isDark={isDark}
+                    totalForumCount={filterMode === 'all' ? forums.length : undefined}
                   />
 
                   {/* Desktop: Inline reader replaces RightSidebar */}
