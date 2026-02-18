@@ -2,7 +2,7 @@
  * Input sanitization utilities
  */
 
-import DOMPurify from 'isomorphic-dompurify';
+import sanitize from 'sanitize-html';
 
 /**
  * Sanitize HTML content from Discourse posts.
@@ -11,8 +11,8 @@ import DOMPurify from 'isomorphic-dompurify';
 export function sanitizeHtml(html: string): string {
   if (!html || typeof html !== 'string') return '';
 
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
+  return sanitize(html, {
+    allowedTags: [
       // Block elements
       'p', 'div', 'br', 'hr',
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -31,21 +31,21 @@ export function sanitizeHtml(html: string): string {
       // Definition lists
       'dl', 'dt', 'dd',
     ],
-    ALLOWED_ATTR: [
-      'href', 'src', 'alt', 'title', 'width', 'height',
-      'class', 'id', 'target', 'rel',
-      'colspan', 'rowspan', 'scope',
-      'open', // for <details>
-      'loading', // for lazy-loading images
-      'data-username', 'data-post', 'data-topic', // Discourse data attributes
-    ],
-    ALLOW_DATA_ATTR: false,
-    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
-    // Force all links to open in new tab with safety attributes
-    ADD_ATTR: ['target'],
-    WHOLE_DOCUMENT: false,
-    RETURN_DOM: false,
-    RETURN_DOM_FRAGMENT: false,
+    allowedAttributes: {
+      'a': ['href', 'target', 'rel', 'title', 'class', 'id'],
+      'img': ['src', 'alt', 'title', 'width', 'height', 'loading', 'class'],
+      'td': ['colspan', 'rowspan', 'scope'],
+      'th': ['colspan', 'rowspan', 'scope'],
+      'details': ['open'],
+      'span': ['class', 'id'],
+      'div': ['class', 'id'],
+      'p': ['class', 'id'],
+      'pre': ['class'],
+      'code': ['class'],
+      'blockquote': ['class'],
+      '*': ['data-username', 'data-post', 'data-topic'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
   });
 }
 
