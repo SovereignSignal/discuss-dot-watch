@@ -24,8 +24,8 @@ export function useStorageMonitor(onError?: (error: StorageError) => void) {
   }, [onError]);
 
   // Check quota periodically and on mount
-  const checkQuota = useCallback(async () => {
-    const currentQuota = await getStorageQuota();
+  const checkQuota = useCallback(() => {
+    const currentQuota = getStorageQuota();
     setQuota(currentQuota);
     return currentQuota;
   }, []);

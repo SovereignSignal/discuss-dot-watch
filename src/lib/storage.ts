@@ -41,16 +41,18 @@ function notifyStorageError(error: StorageError): void {
 }
 
 // Estimate localStorage usage
-export async function getStorageQuota(): Promise<StorageQuota> {
+export function getStorageQuota(): StorageQuota {
   if (typeof window === 'undefined') {
     return { used: 0, available: 5 * 1024 * 1024, percentUsed: 0, isNearLimit: false };
   }
 
-  // Calculate localStorage usage
+  // Calculate localStorage usage using the proper key(i) API
   let used = 0;
-  for (const key in localStorage) {
-    if (localStorage.hasOwnProperty(key)) {
-      used += localStorage[key].length * 2; // UTF-16 = 2 bytes per char
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key) {
+      const value = localStorage.getItem(key) || '';
+      used += (key.length + value.length) * 2; // UTF-16 = 2 bytes per char
     }
   }
 

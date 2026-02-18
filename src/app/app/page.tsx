@@ -26,6 +26,7 @@ import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { StorageError } from '@/lib/storage';
 import { ForumPreset } from '@/lib/forumPresets';
 import { DiscussionTopic } from '@/types';
+import { c } from '@/lib/theme';
 import { DiscussionReader } from '@/components/DiscussionReader';
 import { DigestView } from '@/components/DigestView';
 import { SavedView } from '@/components/SavedView';
@@ -54,7 +55,7 @@ export default function AppPage() {
   const { theme, toggleTheme } = useTheme();
   const { toasts, dismissToast, success, error: showError, warning } = useToast();
 
-  const { quota, lastError: storageError } = useStorageMonitor(
+  const { quota } = useStorageMonitor(
     useCallback((error: StorageError) => {
       if (error.type === 'quota_exceeded') {
         showError(error.message);
@@ -69,6 +70,7 @@ export default function AppPage() {
   const unreadCount = getUnreadCount(discussions.map((d) => d.refId));
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const isDark = theme === 'dark';
+  const t = c(isDark);
 
   const handleToggleBookmark = useCallback((topic: DiscussionTopic) => {
     if (isBookmarked(topic.refId)) {
@@ -251,10 +253,7 @@ export default function AppPage() {
         />
         <div 
           className="flex h-screen overflow-hidden pt-14 md:pt-0"
-          style={{ 
-            backgroundColor: isDark ? '#000000' : '#fafafa',
-            color: isDark ? '#ffffff' : '#18181b'
-          }}
+          style={{ backgroundColor: t.bg, color: t.fg }}
         >
           <Sidebar
             activeView={activeView}
@@ -270,7 +269,7 @@ export default function AppPage() {
             {/* Header */}
             <header 
               className="flex items-center justify-between px-5 h-14 border-b flex-shrink-0"
-              style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}
+              style={{ borderColor: t.borderSubtle }}
             >
               <FilterTabs
                 filterMode={filterMode}
@@ -287,7 +286,6 @@ export default function AppPage() {
                   <DiscussionFeed
                     discussions={discussions}
                     isLoading={isLoading}
-                    error={error}
                     lastUpdated={lastUpdated}
                     onRefresh={refresh}
                     alerts={alerts}
@@ -319,7 +317,7 @@ export default function AppPage() {
                         title="Close reading pane"
                         aria-label="Close reading pane"
                         style={{ backgroundColor: 'transparent' }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = t.bgActiveStrong}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       />
                       <DiscussionReader

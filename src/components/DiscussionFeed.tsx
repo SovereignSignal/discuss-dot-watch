@@ -24,7 +24,6 @@ function resolveCategory(cat?: string): string | null {
 interface DiscussionFeedProps {
   discussions: DiscussionTopic[];
   isLoading: boolean;
-  error: string | null;
   lastUpdated: Date | null;
   onRefresh: () => void;
   alerts: KeywordAlert[];
@@ -47,7 +46,7 @@ interface DiscussionFeedProps {
 }
 
 export function DiscussionFeed({
-  discussions, isLoading, error: _error, lastUpdated, onRefresh,
+  discussions, isLoading, lastUpdated, onRefresh,
   alerts, searchQuery, enabledForumIds, forumStates, forums,
   isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
   unreadCount, onRemoveForum, activeKeywordFilter,
