@@ -105,10 +105,14 @@ function normalizeUrl(url: string): string {
  */
 export async function getCachedForum(forumUrl: string): Promise<CachedForum | null> {
   const key = normalizeUrl(forumUrl);
-  
-  // Try Redis first
+  // Normalize URL for consistent lookups across Redis, Postgres, and memory cache.
+  // Presets store URLs with trailing slash; clients may omit it.
+  const normalizedForumUrl = forumUrl.replace(/\/$/, '');
+  const forumUrlWithSlash = normalizedForumUrl + '/';
+
+  // Try Redis first (try both URL forms since setCachedTopics uses preset URL)
   if (isRedisConfigured()) {
-    const topics = await getCachedTopics(forumUrl);
+    const topics = await getCachedTopics(normalizedForumUrl) || await getCachedTopics(forumUrlWithSlash);
     if (topics) {
       return {
         url: forumUrl,
@@ -117,7 +121,7 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
       };
     }
   }
-  
+
   // Fall back to memory cache
   const cached = memoryCache.get(key);
 
@@ -132,9 +136,9 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
   // If memory cache has an error or no topics, try Postgres as last resort
   if (isDatabaseConfigured() && (!cached || cached.error || cached.topics.length === 0)) {
     try {
-      // Try both with and without trailing slash (presets store with slash, clients may omit)
-      const forumRecord = await getForumByUrl(forumUrl)
-        || await getForumByUrl(forumUrl.endsWith('/') ? forumUrl.slice(0, -1) : forumUrl + '/');
+      // Try both URL forms since DB stores the preset URL (with trailing slash)
+      const forumRecord = await getForumByUrl(normalizedForumUrl)
+        || await getForumByUrl(forumUrlWithSlash);
       if (forumRecord) {
         const dbTopics = await getRecentTopics({ forumId: forumRecord.id, limit: 30 });
         if (dbTopics && dbTopics.length > 0) {
