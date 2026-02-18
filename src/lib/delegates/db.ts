@@ -73,6 +73,9 @@ export async function initializeDelegateSchema() {
     )
   `;
 
+  // Forward-compatible migrations
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS role TEXT DEFAULT NULL`;
+
   // Indexes
   await db`CREATE INDEX IF NOT EXISTS idx_delegate_tenants_slug ON delegate_tenants(slug)`;
   await db`CREATE INDEX IF NOT EXISTS idx_delegates_tenant_id ON delegates(tenant_id)`;
@@ -153,6 +156,7 @@ export async function upsertDelegate(tenantId: number, delegate: {
   kycStatus?: string | null;
   verifiedStatus?: boolean;
   programs?: string[];
+  role?: string;
   isActive?: boolean;
   votesCast?: number;
   votesTotal?: number;
@@ -163,7 +167,7 @@ export async function upsertDelegate(tenantId: number, delegate: {
   const [row] = await db`
     INSERT INTO delegates (
       tenant_id, username, display_name, wallet_address, kyc_status,
-      verified_status, programs, is_active, votes_cast, votes_total,
+      verified_status, programs, role, is_active, votes_cast, votes_total,
       voting_power, notes
     ) VALUES (
       ${tenantId},
@@ -173,6 +177,7 @@ export async function upsertDelegate(tenantId: number, delegate: {
       ${delegate.kycStatus || null},
       ${delegate.verifiedStatus ?? false},
       ${delegate.programs || []},
+      ${delegate.role || null},
       ${delegate.isActive ?? true},
       ${delegate.votesCast ?? null},
       ${delegate.votesTotal ?? null},
@@ -185,6 +190,7 @@ export async function upsertDelegate(tenantId: number, delegate: {
       kyc_status = COALESCE(EXCLUDED.kyc_status, delegates.kyc_status),
       verified_status = COALESCE(EXCLUDED.verified_status, delegates.verified_status),
       programs = COALESCE(EXCLUDED.programs, delegates.programs),
+      role = COALESCE(EXCLUDED.role, delegates.role),
       is_active = COALESCE(EXCLUDED.is_active, delegates.is_active),
       votes_cast = COALESCE(EXCLUDED.votes_cast, delegates.votes_cast),
       votes_total = COALESCE(EXCLUDED.votes_total, delegates.votes_total),
@@ -301,6 +307,7 @@ export async function getDashboardData(slug: string): Promise<DelegateDashboard 
       avatarUrl,
       isActive: d.isActive,
       programs: d.programs || [],
+      role: d.role ?? undefined,
       trustLevel: stats?.trustLevel ?? 0,
       topicCount: stats?.topicCount ?? 0,
       postCount: stats?.postCount ?? 0,
@@ -425,6 +432,7 @@ function mapDelegateRow(row: Record<string, unknown>): Delegate {
     kycStatus: row.kyc_status as Delegate['kycStatus'],
     verifiedStatus: row.verified_status as boolean | undefined,
     programs: row.programs as string[] | undefined,
+    role: row.role as string | undefined,
     isActive: row.is_active as boolean,
     votesCast: row.votes_cast as number | undefined,
     votesTotal: row.votes_total as number | undefined,

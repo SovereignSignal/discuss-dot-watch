@@ -1,5 +1,5 @@
 export { encrypt, decrypt, isEncryptionConfigured } from './encryption';
-export { detectCapabilities, lookupUsername, getUserStats, getUserPosts, searchRationales } from './discourseClient';
+export { detectCapabilities, lookupUsername, searchUsers, getUserStats, getUserPosts, searchRationales } from './discourseClient';
 export { refreshTenant } from './refreshEngine';
 export {
   initializeDelegateSchema,

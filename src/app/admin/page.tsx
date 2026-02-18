@@ -5,6 +5,8 @@ import { usePrivy } from '@privy-io/react-auth';
 import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Upload, X, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { FORUM_CATEGORIES, ForumPreset } from '@/lib/forumPresets';
+import { DELEGATE_ROLES } from '@/types/delegates';
+import type { UserSearchResult } from '@/types/delegates';
 
 interface SystemStats {
   database: {
@@ -372,6 +374,7 @@ interface DelegateInfo {
   displayName: string;
   walletAddress: string | null;
   programs: string[];
+  role?: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -408,6 +411,12 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   const [csvText, setCsvText] = useState('');
   const [uploadResult, setUploadResult] = useState<{ created: number; errors: { username: string; error: string }[] } | null>(null);
   const [addUsername, setAddUsername] = useState('');
+  const [addRole, setAddRole] = useState('');
+  const [customRole, setCustomRole] = useState('');
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedSearchUser, setSelectedSearchUser] = useState<UserSearchResult | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -692,23 +701,54 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
     }
   }, [expandedTenant, fetchDelegates]);
 
-  const parseCsv = (text: string): { username: string; displayName?: string; walletAddress?: string; programs?: string[] }[] => {
+  // Debounced user search for autocomplete
+  useEffect(() => {
+    if (addUsername.length < 2 || selectedSearchUser) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (!showDelegateUpload) return;
+      setSearchLoading(true);
+      try {
+        const authHeaders = await getAuthHeaders();
+        const res = await fetch(
+          `/api/delegates/admin/search?tenantSlug=${encodeURIComponent(showDelegateUpload)}&term=${encodeURIComponent(addUsername)}`,
+          { headers: authHeaders }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data.users || []);
+        }
+      } catch { /* ignore */ }
+      finally { setSearchLoading(false); }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [addUsername, showDelegateUpload, selectedSearchUser, getAuthHeaders]);
+
+  // Compute the effective role for single-add
+  const effectiveRole = addRole === '__custom__' ? customRole.trim() : addRole;
+
+  const parseCsv = (text: string): { username: string; displayName?: string; walletAddress?: string; programs?: string[]; role?: string }[] => {
     const lines = text.trim().split('\n').filter(l => l.trim());
     if (lines.length === 0) return [];
 
     // Detect if first line is a header
     const firstLine = lines[0].toLowerCase();
-    const hasHeader = firstLine.includes('username') || firstLine.includes('display') || firstLine.includes('wallet');
+    const hasHeader = firstLine.includes('username') || firstLine.includes('display') || firstLine.includes('wallet') || firstLine.includes('role');
     const dataLines = hasHeader ? lines.slice(1) : lines;
 
     return dataLines.map(line => {
       const parts = line.split(',').map(p => p.trim().replace(/^["']|["']$/g, ''));
-      const entry: { username: string; displayName?: string; walletAddress?: string; programs?: string[] } = {
+      const entry: { username: string; displayName?: string; walletAddress?: string; programs?: string[]; role?: string } = {
         username: parts[0],
       };
       if (parts[1]) entry.displayName = parts[1];
       if (parts[2]) entry.walletAddress = parts[2];
       if (parts[3]) entry.programs = parts[3].split(/[;|]/).map(p => p.trim()).filter(Boolean);
+      if (parts[4]) entry.role = parts[4];
       return entry;
     }).filter(e => e.username);
   };
@@ -748,16 +788,24 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   };
 
   const handleAddSingleDelegate = async (slug: string) => {
-    if (!addUsername.trim()) return;
+    const username = selectedSearchUser?.username || addUsername.trim();
+    if (!username) return;
     setActionLoading(`add-delegate-${slug}`);
     try {
+      const delegateData: Record<string, unknown> = { username };
+      if (selectedSearchUser?.name) {
+        delegateData.displayName = selectedSearchUser.name;
+      }
+      const role = effectiveRole;
+      if (role) delegateData.role = role;
+
       const res = await fetch('/api/delegates/admin', {
         method: 'POST',
         headers: await getPostHeaders(),
         body: JSON.stringify({
           action: 'bulk-upsert-delegates',
           tenantSlug: slug,
-          delegates: [{ username: addUsername.trim() }],
+          delegates: [delegateData],
         }),
       });
       const data = await res.json();
@@ -769,6 +817,10 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
         setFormError(data.errors[0].error);
       }
       setAddUsername('');
+      setSelectedSearchUser(null);
+      setSearchResults([]);
+      setAddRole('');
+      setCustomRole('');
       await fetchDelegates(slug);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to add delegate');
@@ -1205,7 +1257,7 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                           </span>
                         </p>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => { setShowDelegateUpload(showDelegateUpload === tenant.slug ? null : tenant.slug); setUploadResult(null); setCsvText(''); setAddUsername(''); setFormError(null); }}
+                          <button onClick={() => { setShowDelegateUpload(showDelegateUpload === tenant.slug ? null : tenant.slug); setUploadResult(null); setCsvText(''); setAddUsername(''); setAddRole(''); setCustomRole(''); setSelectedSearchUser(null); setSearchResults([]); setShowHelp(false); setFormError(null); }}
                             className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-opacity"
                             style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
                             {showDelegateUpload === tenant.slug ? <X className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}
@@ -1217,33 +1269,140 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                       {/* Add members panel */}
                       {showDelegateUpload === tenant.slug && (
                         <div className="rounded-lg p-3 mb-2 space-y-3" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
-                          {/* Single add */}
+                          {/* Search / single add */}
                           <div>
-                            <label className="block text-[11px] mb-1" style={{ color: textDim }}>Add by Discourse username</label>
-                            <div className="flex gap-2">
-                              <input type="text" value={addUsername} onChange={e => setAddUsername(e.target.value)}
-                                placeholder="e.g. alice"
-                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSingleDelegate(tenant.slug); } }}
-                                className="flex-1 px-3 py-1.5 rounded-lg text-sm outline-none font-mono"
-                                style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
-                              <button onClick={() => handleAddSingleDelegate(tenant.slug)}
-                                disabled={actionLoading !== null || !addUsername.trim()}
-                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
-                                style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
-                                {actionLoading === `add-delegate-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                                Add
-                              </button>
+                            <label className="block text-[11px] mb-1" style={{ color: textDim }}>Search forum users or enter a username</label>
+                            <div className="relative">
+                              <div className="flex gap-2">
+                                {selectedSearchUser ? (
+                                  <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm"
+                                    style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+                                    {selectedSearchUser.avatarUrl && (
+                                      /* eslint-disable-next-line @next/next/no-img-element */
+                                      <img src={selectedSearchUser.avatarUrl} alt="" width={20} height={20} style={{ borderRadius: '50%' }} />
+                                    )}
+                                    <span className="font-medium">{selectedSearchUser.username}</span>
+                                    {selectedSearchUser.name && (
+                                      <span style={{ color: textDim }}>{selectedSearchUser.name}</span>
+                                    )}
+                                    <button onClick={() => { setSelectedSearchUser(null); setAddUsername(''); setSearchResults([]); }}
+                                      className="ml-auto p-0.5 rounded hover:opacity-70" style={{ color: textMuted }}>
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex-1 relative">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: textDim }} />
+                                    <input type="text" value={addUsername} onChange={e => { setAddUsername(e.target.value); setSelectedSearchUser(null); }}
+                                      placeholder="Search by username or name..."
+                                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSingleDelegate(tenant.slug); } }}
+                                      className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm outline-none"
+                                      style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+                                    {searchLoading && (
+                                      <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin" style={{ color: textDim }} />
+                                    )}
+                                  </div>
+                                )}
+                                <button onClick={() => handleAddSingleDelegate(tenant.slug)}
+                                  disabled={actionLoading !== null || (!addUsername.trim() && !selectedSearchUser)}
+                                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                                  style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                                  {actionLoading === `add-delegate-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                                  Add
+                                </button>
+                              </div>
+                              {/* Search results dropdown */}
+                              {searchResults.length > 0 && !selectedSearchUser && (
+                                <div className="absolute z-20 left-0 right-12 mt-1 rounded-lg overflow-hidden shadow-lg"
+                                  style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
+                                  {searchResults.map(user => {
+                                    const alreadyTracked = (delegatesByTenant[tenant.slug] || []).some(d => d.username === user.username);
+                                    return (
+                                      <button key={user.username}
+                                        onClick={() => {
+                                          if (!alreadyTracked) {
+                                            setSelectedSearchUser(user);
+                                            setAddUsername(user.username);
+                                            setSearchResults([]);
+                                          }
+                                        }}
+                                        disabled={alreadyTracked}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors disabled:opacity-50"
+                                        style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}
+                                        onMouseEnter={e => { if (!alreadyTracked) e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                                        {user.avatarUrl ? (
+                                          /* eslint-disable-next-line @next/next/no-img-element */
+                                          <img src={user.avatarUrl} alt="" width={20} height={20} style={{ borderRadius: '50%', flexShrink: 0 }} />
+                                        ) : (
+                                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+                                            style={{ backgroundColor: btnBg, color: textMuted, flexShrink: 0 }}>
+                                            {user.username[0].toUpperCase()}
+                                          </div>
+                                        )}
+                                        <div className="min-w-0">
+                                          <span className="text-xs font-medium" style={{ color: textPrimary }}>{user.username}</span>
+                                          {user.name && <span className="text-[10px] ml-1.5" style={{ color: textDim }}>{user.name}</span>}
+                                        </div>
+                                        {alreadyTracked && (
+                                          <span className="ml-auto text-[10px]" style={{ color: textDim }}>(already tracked)</span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
+
+                            {/* Role picker */}
+                            <div className="flex items-center gap-2 mt-2">
+                              <label className="text-[10px] flex-shrink-0" style={{ color: textDim }}>Role:</label>
+                              <select value={addRole} onChange={e => { setAddRole(e.target.value); if (e.target.value !== '__custom__') setCustomRole(''); }}
+                                className="px-2 py-1 rounded text-xs outline-none"
+                                style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+                                <option value="">No role</option>
+                                {DELEGATE_ROLES.map(r => (
+                                  <option key={r.id} value={r.id}>{r.label}</option>
+                                ))}
+                                <option value="__custom__">Custom...</option>
+                              </select>
+                              {addRole === '__custom__' && (
+                                <input type="text" value={customRole} onChange={e => setCustomRole(e.target.value)}
+                                  placeholder="Custom role name"
+                                  className="px-2 py-1 rounded text-xs outline-none flex-1"
+                                  style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
+                              )}
+                            </div>
+
                             <p className="text-[10px] mt-1" style={{ color: textDim }}>Display name will be auto-fetched from the forum</p>
+                          </div>
+
+                          {/* Help section */}
+                          <div>
+                            <button onClick={() => setShowHelp(!showHelp)}
+                              className="flex items-center gap-1 text-[11px] transition-opacity"
+                              style={{ color: textMuted }}>
+                              {showHelp ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              How to add members
+                            </button>
+                            {showHelp && (
+                              <div className="mt-2 rounded-lg p-3 text-[11px] space-y-2" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, color: textMuted }}>
+                                <p><span className="font-medium" style={{ color: textSecondary }}>Search:</span> Start typing a Discourse username or display name to search the forum. Select a user from the dropdown.</p>
+                                <p><span className="font-medium" style={{ color: textSecondary }}>Manual:</span> If search isn&apos;t available, type the exact Discourse username and press Add.</p>
+                                <p><span className="font-medium" style={{ color: textSecondary }}>Bulk export from Discourse:</span> Go to Admin &rarr; Users, click Export. Extract the username column and paste below as CSV.</p>
+                                <p><span className="font-medium" style={{ color: textSecondary }}>CSV format:</span> <code className="font-mono text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>username, display_name, wallet_address, programs, role</code></p>
+                                <p>Only <span className="font-medium">username</span> is required. Programs use <code className="font-mono text-[10px]">;</code> as separator. Roles: {DELEGATE_ROLES.map(r => r.id).join(', ')}, or any custom string.</p>
+                              </div>
+                            )}
                           </div>
 
                           {/* CSV upload */}
                           <div>
                             <label className="block text-[11px] mb-1" style={{ color: textDim }}>
-                              Or paste CSV (username, display_name, wallet_address, programs)
+                              Or paste CSV (username, display_name, wallet_address, programs, role)
                             </label>
                             <textarea value={csvText} onChange={e => setCsvText(e.target.value)}
-                              placeholder={"username, display_name, wallet_address, programs\nalice, Alice Smith, 0x123..., Council;Grants\nbob\ncharlie, Charlie D"}
+                              placeholder={"username, display_name, wallet_address, programs, role\nalice, Alice Smith, 0x123..., Council;Grants, delegate\nbob, , , , council_member\ncharlie, Charlie D"}
                               rows={4}
                               className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono resize-y"
                               style={{ backgroundColor: inputBg, border: `1px solid ${btnBorder}`, color: textPrimary }} />
@@ -1290,6 +1449,15 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                                 <div className="flex items-center gap-2 min-w-0">
                                   <span className="text-xs font-medium truncate" style={{ color: textPrimary }}>{d.displayName}</span>
                                   <span className="text-[10px] font-mono" style={{ color: textDim }}>@{d.username}</span>
+                                  {d.role && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{
+                                      backgroundColor: `${getRoleColor(d.role)}15`,
+                                      border: `1px solid ${getRoleColor(d.role)}33`,
+                                      color: getRoleColor(d.role),
+                                    }}>
+                                      {getRoleLabel(d.role)}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                   {d.programs && d.programs.length > 0 && (
@@ -1439,6 +1607,26 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   );
 }
 
+
+// --- Role helpers ---
+
+function getRoleColor(role: string): string {
+  switch (role) {
+    case 'delegate': return '#6366f1';          // indigo
+    case 'council_member': return '#8b5cf6';    // violet
+    case 'major_stakeholder': return '#f59e0b';  // amber
+    case 'contributor': return '#10b981';        // emerald
+    case 'grantee': return '#06b6d4';           // cyan
+    case 'core_team': return '#ec4899';          // pink
+    case 'advisor': return '#f97316';            // orange
+    default: return '#71717a';                   // zinc (custom roles)
+  }
+}
+
+function getRoleLabel(role: string): string {
+  const found = DELEGATE_ROLES.find(r => r.id === role);
+  return found ? found.label : role;
+}
 
 interface ForumHealth {
   name: string;

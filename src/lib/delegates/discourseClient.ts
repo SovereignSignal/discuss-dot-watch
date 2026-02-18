@@ -60,6 +60,35 @@ async function discourseGet(
   return response;
 }
 
+// --- User search ---
+
+export async function searchUsers(
+  config: DiscourseClientConfig,
+  term: string,
+  limit = 10
+): Promise<{ username: string; name: string | null; avatarTemplate: string }[]> {
+  if (term.length < 2) return [];
+
+  try {
+    const res = await discourseGet(
+      config,
+      `/users/search/users.json?term=${encodeURIComponent(term)}&limit=${limit}`
+    );
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    const users = data.users || [];
+
+    return users.map((u: Record<string, unknown>) => ({
+      username: u.username as string,
+      name: (u.name as string) || null,
+      avatarTemplate: (u.avatar_template as string) || '',
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // --- Capability detection ---
 
 export async function detectCapabilities(

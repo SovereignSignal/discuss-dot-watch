@@ -53,6 +53,7 @@ export interface Delegate {
   kycStatus?: 'verified' | 'pending' | 'not_required' | null;
   verifiedStatus?: boolean;
   programs?: string[];               // e.g. ["GCR", "DCP"]
+  role?: string;                     // e.g. "delegate", "council_member", or custom
   isActive: boolean;
   // On-chain (manual for POC)
   votesCast?: number;
@@ -123,6 +124,7 @@ export interface DelegateRow {
   avatarUrl: string;
   isActive: boolean;
   programs: string[];
+  role?: string;
   // Forum stats (from latest snapshot)
   trustLevel: number;
   topicCount: number;
@@ -198,6 +200,7 @@ export interface DelegateUpsertRequest {
   kycStatus?: 'verified' | 'pending' | 'not_required' | null;
   verifiedStatus?: boolean;
   programs?: string[];
+  role?: string;
   isActive?: boolean;
   votesCast?: number;
   votesTotal?: number;
@@ -212,4 +215,24 @@ export interface RefreshResult {
   errors: Array<{ username: string; error: string }>;
   duration: number;
   timestamp: string;
+}
+
+// --- Predefined roles ---
+
+export const DELEGATE_ROLES = [
+  { id: 'delegate', label: 'Delegate' },
+  { id: 'council_member', label: 'Council Member' },
+  { id: 'major_stakeholder', label: 'Major Stakeholder' },
+  { id: 'contributor', label: 'Contributor' },
+  { id: 'grantee', label: 'Grantee' },
+  { id: 'core_team', label: 'Core Team' },
+  { id: 'advisor', label: 'Advisor' },
+] as const;
+
+// --- User search result (from Discourse search endpoint) ---
+
+export interface UserSearchResult {
+  username: string;
+  name: string | null;
+  avatarUrl: string;
 }

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type { DelegateDashboard, DelegateRow, DashboardSummary } from '@/types/delegates';
+import { DELEGATE_ROLES } from '@/types/delegates';
 import { c } from '@/lib/theme';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -38,6 +39,7 @@ type SortField =
   | 'lastSeenAt';
 type SortDir = 'asc' | 'desc';
 type FilterProgram = 'all' | string;
+type FilterRole = 'all' | string;
 type FilterStatus = 'all' | 'active' | 'inactive';
 
 export default function TenantDashboardPage() {
@@ -54,6 +56,7 @@ export default function TenantDashboardPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterProgram, setFilterProgram] = useState<FilterProgram>('all');
+  const [filterRole, setFilterRole] = useState<FilterRole>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
 
@@ -111,6 +114,14 @@ export default function TenantDashboardPage() {
     return Array.from(set).sort();
   }, [dashboard]);
 
+  // Available roles for filter
+  const roles = useMemo(() => {
+    if (!dashboard) return [];
+    const set = new Set<string>();
+    dashboard.delegates.forEach((d) => { if (d.role) set.add(d.role); });
+    return Array.from(set).sort();
+  }, [dashboard]);
+
   // Filter + sort delegates
   const filteredDelegates = useMemo(() => {
     if (!dashboard) return [];
@@ -129,6 +140,11 @@ export default function TenantDashboardPage() {
     // Program filter
     if (filterProgram !== 'all') {
       list = list.filter((d) => d.programs.includes(filterProgram));
+    }
+
+    // Role filter
+    if (filterRole !== 'all') {
+      list = list.filter((d) => d.role === filterRole);
     }
 
     // Status filter
@@ -174,7 +190,7 @@ export default function TenantDashboardPage() {
     });
 
     return list;
-  }, [dashboard, searchQuery, filterProgram, filterStatus, sortField, sortDir]);
+  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, sortField, sortDir]);
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -378,6 +394,29 @@ export default function TenantDashboardPage() {
             </select>
           )}
 
+          {roles.length > 0 && (
+            <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: `1px solid ${t.border}`,
+                background: t.bgInput,
+                color: t.fg,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              <option value="all">All Roles</option>
+              {roles.map((r) => (
+                <option key={r} value={r}>
+                  {dashboardGetRoleLabel(r)}
+                </option>
+              ))}
+            </select>
+          )}
+
           <span style={{ fontSize: 12, color: t.fgDim, marginLeft: 'auto' }}>
             {filteredDelegates.length} delegate{filteredDelegates.length !== 1 ? 's' : ''}
           </span>
@@ -410,6 +449,9 @@ export default function TenantDashboardPage() {
                     t={t}
                     sticky
                   />
+                  <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
+                    Role
+                  </th>
                   <SortHeader label="Posts" field="postCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
                   <SortHeader label="Topics" field="topicCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
                   <SortHeader label="Likes" field="likesReceived" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
@@ -426,7 +468,7 @@ export default function TenantDashboardPage() {
                 {filteredDelegates.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       style={{
                         padding: 40,
                         textAlign: 'center',
@@ -749,6 +791,25 @@ function DelegateTableRow({
           </div>
         </div>
       </td>
+      <td style={{ padding: '10px 16px' }}>
+        {d.role ? (
+          <span
+            style={{
+              fontSize: 10,
+              padding: '2px 8px',
+              borderRadius: 9999,
+              background: `${dashboardGetRoleColor(d.role)}15`,
+              border: `1px solid ${dashboardGetRoleColor(d.role)}33`,
+              color: dashboardGetRoleColor(d.role),
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {dashboardGetRoleLabel(d.role)}
+          </span>
+        ) : (
+          <span style={{ color: t.fgDim, fontSize: 12 }}>—</span>
+        )}
+      </td>
       <NumCell value={d.postCount} t={t} />
       <NumCell value={d.topicCount} t={t} />
       <NumCell value={d.likesReceived} t={t} />
@@ -964,13 +1025,16 @@ function DelegateDetailPanel({
         </div>
 
         <div style={{ padding: 20 }}>
-          {/* Status + Programs */}
+          {/* Status + Role + Programs */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
             <Badge
               label={d.isActive ? 'Active' : 'Inactive'}
               color={d.isActive ? '#10b981' : '#f59e0b'}
               t={t}
             />
+            {d.role && (
+              <Badge label={dashboardGetRoleLabel(d.role)} color={dashboardGetRoleColor(d.role)} t={t} />
+            )}
             {d.programs.map((p) => (
               <Badge key={p} label={p} color={t.fgDim} t={t} />
             ))}
@@ -1169,6 +1233,28 @@ function StatBox({
       <div style={{ fontSize: 9, color: t.fgDim, marginTop: 2 }}>{source}</div>
     </div>
   );
+}
+
+// ============================================================
+// Role helpers
+// ============================================================
+
+function dashboardGetRoleColor(role: string): string {
+  switch (role) {
+    case 'delegate': return '#6366f1';
+    case 'council_member': return '#8b5cf6';
+    case 'major_stakeholder': return '#f59e0b';
+    case 'contributor': return '#10b981';
+    case 'grantee': return '#06b6d4';
+    case 'core_team': return '#ec4899';
+    case 'advisor': return '#f97316';
+    default: return '#71717a';
+  }
+}
+
+function dashboardGetRoleLabel(role: string): string {
+  const found = DELEGATE_ROLES.find(r => r.id === role);
+  return found ? found.label : role;
 }
 
 // ============================================================
