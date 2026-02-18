@@ -12,8 +12,8 @@ This document provides essential context for AI assistants working with this cod
 - Open Source — Foundation governance, project funding, maintainer discussions
 
 ### Key Features
-- Multi-platform aggregation (Discourse now, GitHub/Commonwealth planned)
-- 100+ forums monitored across crypto governance
+- Multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Hacker News)
+- 100+ forums monitored across crypto, AI, and open source
 - AI-powered email digests (Claude Sonnet + Resend)
 - Inline discussion reader (split-panel view to read Discourse posts without leaving the app)
 - On-site AI Briefs view (browsable AI digest within the app)
@@ -32,8 +32,11 @@ This document provides essential context for AI assistants working with this cod
 - Export/import configuration backup
 - Keyboard shortcuts for power users
 - Offline detection with banner notification
+- RSS/Atom feeds for all verticals
 - Privy authentication (optional)
 - Server-side forum cache with Redis + Postgres persistence
+- Multi-tenant forum analytics dashboards (delegate monitoring)
+- MCP (Model Context Protocol) endpoint and standalone server
 
 ### Roadmap
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for implementation phases.
@@ -53,10 +56,11 @@ See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for complete platform/forum
 | Linting | ESLint 9 |
 | Auth | Privy |
 | Email | Resend |
-| AI | Anthropic Claude (Haiku 4.5 + Sonnet 4.5) |
+| AI | Anthropic Claude via @anthropic-ai/sdk (Haiku 4.5 + Sonnet 4.5) |
+| Validation | Zod 4 |
 | Sanitization | sanitize-html |
 | Cache | Redis (ioredis) |
-| Database | PostgreSQL (pg) |
+| Database | PostgreSQL (postgres — Porsager's library, not pg) |
 
 ## Project Structure
 
@@ -72,6 +76,16 @@ src/
 │   │   │   └── route.ts          # Validates if a URL is a Discourse forum
 │   │   ├── digest/
 │   │   │   └── route.ts          # AI digest generation and retrieval
+│   │   ├── cron/
+│   │   │   └── digest/route.ts   # Cron-triggered digest email sending
+│   │   ├── delegates/
+│   │   │   ├── [tenant]/
+│   │   │   │   ├── route.ts      # Delegate dashboard data for a tenant
+│   │   │   │   ├── [username]/route.ts # Individual delegate detail
+│   │   │   │   └── refresh/route.ts    # Trigger delegate data refresh
+│   │   │   └── admin/route.ts    # Admin operations for delegate tenants
+│   │   ├── external-sources/
+│   │   │   └── route.ts          # Fetch from non-Discourse sources (EA Forum, GitHub, etc.)
 │   │   ├── user/
 │   │   │   ├── route.ts          # User profile endpoint
 │   │   │   ├── alerts/route.ts   # Synced keyword alerts
@@ -91,14 +105,19 @@ src/
 │   │       ├── discussions/route.ts
 │   │       ├── forums/route.ts
 │   │       └── search/route.ts
+│   ├── [tenant]/                 # Multi-tenant delegate analytics dashboards
+│   │   ├── layout.tsx            # Tenant layout with metadata
+│   │   └── page.tsx              # Tenant dashboard page
 │   ├── admin/
 │   │   └── page.tsx              # Admin dashboard page
 │   ├── app/
 │   │   └── page.tsx              # Main app page (client-side, authenticated)
+│   ├── feed/
+│   │   └── [vertical]/route.ts   # RSS/Atom feed generator (all, crypto, ai, oss)
 │   ├── layout.tsx                # Root layout with metadata
 │   ├── page.tsx                  # Landing/redirect page
 │   ├── globals.css               # Global styles with Tailwind + Discourse content styles
-│   └── favicon.ico
+│   └── icon.svg                  # Favicon (eye-speech-bubble emoji on dark zinc)
 ├── components/                   # React components
 │   ├── AuthGate.tsx              # Authentication gate wrapper
 │   ├── AuthProvider.tsx          # Privy auth context provider
@@ -145,24 +164,39 @@ src/
 │   └── useVirtualList.ts         # Virtual scrolling hook
 ├── lib/                          # Utility libraries
 │   ├── admin.ts                  # Admin email validation
+│   ├── auth.ts                   # Server-side auth middleware (verifyAuth, verifyAdminAuth)
 │   ├── backfill.ts               # Database backfill utilities
-│   ├── db.ts                     # PostgreSQL database client and queries
+│   ├── db.ts                     # PostgreSQL database client and queries (dynamic schema)
+│   ├── delegates/                # Delegate monitoring subsystem
+│   │   ├── db.ts                 # Delegate-specific DB queries
+│   │   ├── discourseClient.ts    # Discourse API client for delegate data
+│   │   ├── encryption.ts         # AES-256-GCM encryption for API keys
+│   │   ├── index.ts              # Barrel export
+│   │   ├── refreshEngine.ts      # Background refresh of delegate snapshots
+│   │   └── schema.sql            # Delegate tables schema (tenants, delegates, snapshots)
+│   ├── eaForumClient.ts          # EA Forum GraphQL client
 │   ├── emailDigest.ts            # AI digest generation logic
 │   ├── emailService.ts           # Resend email sending service
+│   ├── externalSources.ts        # External source registry (EA Forum, GitHub, Snapshot, HN)
 │   ├── fetchWithRetry.ts         # Fetch with exponential backoff retry
 │   ├── forumCache.ts             # Server-side forum cache (Redis + memory + Postgres)
 │   ├── forumPresets.ts           # 100+ pre-configured forum presets by category
+│   ├── githubDiscussionsClient.ts # GitHub Discussions GraphQL client
 │   ├── logoUtils.ts              # Protocol logo URL utilities
+│   ├── privy.ts                  # Privy REST API client (fetchPrivyUsers)
 │   ├── rateLimit.ts              # Server-side rate limiting (per-IP, per-forum)
 │   ├── rateLimiter.ts            # Client-side token bucket rate limiter
 │   ├── redis.ts                  # Redis client and caching utilities
 │   ├── sanitize.ts               # Input sanitization utilities (sanitize-html for HTML, escaping for text)
+│   ├── schema.sql                # Core database schema (users, preferences, forums, alerts, etc.)
+│   ├── snapshotClient.ts         # Snapshot governance client
 │   ├── storage.ts                # LocalStorage utilities for forums/alerts
-│   ├── storageMigration.ts       # LocalStorage migration utilities
+│   ├── storageMigration.ts       # LocalStorage migration (gov-forum-watcher-*/gov-watch-* → discuss-watch-*)
 │   ├── theme.ts                  # c() theme utility for consistent color tokens
 │   └── url.ts                    # URL validation, normalization, and SSRF protection
 └── types/
-    └── index.ts                  # TypeScript interfaces and types
+    ├── delegates.ts              # Delegate monitoring types (tenants, delegates, snapshots)
+    └── index.ts                  # Core TypeScript interfaces and types
 ```
 
 ## Development Commands
@@ -178,11 +212,13 @@ npm run lint     # Run ESLint
 
 ### Data Flow
 1. **Forum Cache** (`lib/forumCache.ts`) - Background refresh fetches all preset forums every 15 min, stores in Redis + memory + Postgres
-2. **API Routes** (`/api/discourse`, `/api/discourse/topic`, `/api/digest`) - Serve cached data, proxy individual topic requests
-3. **Custom Hooks** - Client-side state management, data fetching, localStorage persistence
-4. **Storage Layer** (`lib/storage.ts`) - LocalStorage persistence for forums, alerts, bookmarks, read state
-5. **Server Sync** (`/api/user/*`) - Optional authenticated sync of user data to Postgres via Privy
-6. **Components** - Presentational layer with theme-aware styling via `c()` utility
+2. **External Sources** (`lib/externalSources.ts`) - Fetches from EA Forum, GitHub Discussions, Snapshot, HN via dedicated clients
+3. **API Routes** (`/api/discourse`, `/api/discourse/topic`, `/api/digest`, `/api/external-sources`) - Serve cached data, proxy individual topic requests
+4. **Auth Layer** (`lib/auth.ts`) - `verifyAuth()` for user routes, `verifyAdminAuth()` for admin/cron routes (CRON_SECRET or Privy + admin allowlist)
+5. **Custom Hooks** - Client-side state management, data fetching, localStorage persistence
+6. **Storage Layer** (`lib/storage.ts`) - LocalStorage persistence for forums, alerts, bookmarks, read state
+7. **Server Sync** (`/api/user/*`) - Optional authenticated sync of user data to Postgres via Privy
+8. **Components** - Presentational layer with theme-aware styling via `c()` utility
 
 ### State Management
 - No external state library (Redux, Zustand, etc.)
@@ -257,13 +293,22 @@ Requires admin auth (`x-admin-email` header) or `CRON_SECRET` bearer token.
 | `/api/user/preferences` | GET/POST | Sync user preferences |
 | `/api/user/digest-preferences` | GET/POST | Email digest settings |
 | `/api/admin` | GET | Admin dashboard data |
+| `/api/backfill` | POST | Database backfill |
 | `/api/cache` | GET | Cache status and stats |
+| `/api/cron/digest` | GET | Cron-triggered digest email sending |
 | `/api/db` | GET | Database connection status |
+| `/api/delegates/[tenant]` | GET | Delegate dashboard data for a tenant |
+| `/api/delegates/[tenant]/[username]` | GET | Individual delegate detail |
+| `/api/delegates/[tenant]/refresh` | POST | Trigger delegate data refresh |
+| `/api/delegates/admin` | POST | Admin ops for delegate tenants (create, update) |
+| `/api/external-sources` | GET | Fetch from non-Discourse sources |
+| `/api/mcp` | GET | MCP tool definitions for AI agents |
 | `/api/v1` | GET | Public API root |
 | `/api/v1/forums` | GET | List all cached forums |
 | `/api/v1/discussions` | GET | Search/list discussions |
 | `/api/v1/categories` | GET | List forum categories |
 | `/api/v1/search` | GET | Full-text search |
+| `/feed/[vertical]` | GET | RSS/Atom feeds (all, crypto, ai, oss) |
 
 ## Core Types
 
@@ -284,6 +329,9 @@ type ForumCategoryId =
   | 'oss-infrastructure'
   | 'custom';            // User-added custom forums
 
+// Source platform types for multi-platform support
+type SourceType = 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews';
+
 // Forum configuration (stored in localStorage, synced to server when authenticated)
 interface Forum {
   id: string;              // UUID
@@ -293,17 +341,18 @@ interface Forum {
   logoUrl?: string;
   token?: string;          // Associated token symbol (e.g., "AAVE", "UNI")
   category?: ForumCategoryId;
+  sourceType?: SourceType; // Platform type (defaults to 'discourse')
   discourseForum: {
-    url: string;           // Base Discourse URL
+    url: string;           // Base Discourse URL (or source URL for non-Discourse)
     categoryId?: number;   // Optional Discourse category filter
   };
   isEnabled: boolean;
   createdAt: string;       // ISO timestamp
 }
 
-// Discussion topic (transformed from Discourse API)
+// Discussion topic (transformed from source API)
 interface DiscussionTopic {
-  id: number;              // Discourse topic ID
+  id: number;              // Topic ID from source platform
   refId: string;           // Unique reference: "{protocol}-{id}"
   protocol: string;        // Forum cname
   title: string;
@@ -323,6 +372,11 @@ interface DiscussionTopic {
   imageUrl?: string;
   forumUrl: string;        // Base forum URL for constructing links
   excerpt?: string;        // Plain-text excerpt (HTML stripped, max 200 chars)
+  // Multi-source fields (optional for backwards compatibility)
+  sourceType?: SourceType; // Platform this topic came from
+  authorName?: string;     // Author display name (non-Discourse sources)
+  score?: number;          // For voting-based platforms (HN, EA Forum)
+  externalUrl?: string;    // Full canonical URL for non-Discourse sources
 }
 
 // Individual post within a discussion topic (used by inline reader)
@@ -370,12 +424,14 @@ interface DigestPreferences {
   email?: string;          // Override email if different from account
 }
 
-// Per-forum loading state (used in useDiscussions)
+// Per-forum loading state (defined locally in useDiscussions.ts, not in types/index.ts)
 interface ForumLoadingState {
   forumId: string;
   forumName: string;
   status: 'pending' | 'loading' | 'success' | 'error';
   error?: string;
+  isDefunct?: boolean;     // Forum no longer responding
+  retryCount?: number;     // Number of retry attempts
 }
 
 // Bookmarked discussion (stored in localStorage)
@@ -388,7 +444,7 @@ interface Bookmark {
   createdAt: string;       // ISO timestamp
 }
 
-// Theme preference
+// Theme preference (defined locally in useTheme.ts, not in types/index.ts)
 type Theme = 'dark' | 'light';
 
 // Raw Discourse API response types
@@ -455,16 +511,13 @@ The application includes 100+ pre-configured Discourse forums organized by categ
 
 ### Categories
 
+The preset system uses 3 top-level categories (the old 8-subcategory IDs are retained as legacy aliases in `ForumCategoryId`):
+
 | Category ID | Name | Examples |
 |-------------|------|----------|
-| `crypto-governance` | Crypto Governance | Arbitrum, Optimism, ENS, Gitcoin |
-| `crypto-defi` | Crypto DeFi | Aave, Uniswap, Compound, MakerDAO, Lido |
-| `crypto-niche` | Crypto Niche | Privacy protocols, AI+crypto |
-| `ai-research` | AI Research | OpenAI, EA Forum adjacent |
-| `ai-tools` | AI Tools | Hugging Face, PyTorch, LangChain |
-| `oss-languages` | OSS Languages | Rust, Swift, Julia, Haskell, Elixir |
-| `oss-frameworks` | OSS Frameworks | Django, Ember.js, Godot, Blender |
-| `oss-infrastructure` | OSS Infrastructure | Mozilla, NixOS, Let's Encrypt, Fedora |
+| `crypto` | Crypto | Arbitrum, Optimism, ENS, Uniswap, Aave, MakerDAO, Lido |
+| `ai` | AI / ML | OpenAI, Hugging Face, Google AI, PyTorch, EA Forum |
+| `oss` | Open Source | Rust, Swift, Julia, NixOS, Mozilla, Django, Godot |
 
 ### Tiers
 
@@ -597,7 +650,7 @@ The `.discourse-content` CSS class in `globals.css` provides styling for inline-
 ### TypeScript
 - Strict mode enabled
 - Path alias: `@/*` maps to `./src/*`
-- All interfaces defined in `types/index.ts`
+- Core interfaces in `types/index.ts`, delegate types in `types/delegates.ts`
 - Explicit typing for component props and hook returns
 
 ### React Components
@@ -619,7 +672,7 @@ The `.discourse-content` CSS class in `globals.css` provides styling for inline-
 ## Important Notes for AI Assistants
 
 ### Do
-- Use the existing type system in `types/index.ts`
+- Use the existing type system in `types/index.ts` and `types/delegates.ts`
 - Follow the established hook patterns for state management
 - Use Tailwind classes for styling (dark theme)
 - Handle SSR hydration when adding new localStorage-based features
@@ -696,13 +749,18 @@ No testing framework is currently configured. If adding tests:
 
 | Variable | Purpose |
 |----------|---------|
-| `RESEND_API_KEY` | Resend email service for digest delivery |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection string |
 | `ANTHROPIC_API_KEY` | Claude API for AI digest summaries |
+| `RESEND_API_KEY` | Resend email service for digest delivery |
+| `RESEND_FROM_EMAIL` | Sender address for digest emails |
 | `CRON_SECRET` | Bearer token for cron-triggered digest generation |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Privy authentication app ID |
 | `PRIVY_APP_SECRET` | Privy app secret (for server-side user sync) |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection string |
+| `GITHUB_TOKEN` | GitHub PAT for GitHub Discussions (optional — sources skipped without it) |
+| `SNAPSHOT_API_KEY` | Snapshot API key for governance data (optional) |
+| `ENCRYPTION_KEY` | AES-256-GCM key for encrypting delegate API keys at rest |
+| `NEXT_PUBLIC_APP_URL` | Public app URL (used in digest email links) |
 
 The app functions without these variables in development (gracefully degrades: no auth, no email, no server cache, localStorage-only persistence).
 
@@ -731,6 +789,86 @@ Google login requires configuration in both code and Privy Dashboard:
    - Authorized JavaScript origins: `https://auth.privy.io`
    - Authorized redirect URI: `https://auth.privy.io/api/v1/oauth/callback`
 
+## Forum Analytics / Delegate Monitoring
+
+Multi-tenant delegate activity tracking for Discourse forums. Any community can create a "tenant" with their forum URL and API key, and a public dashboard is generated at `discuss.watch/<slug>`.
+
+### Architecture
+
+- **Tenants** (`delegate_tenants` table) — Each tenant represents one Discourse forum. API keys are encrypted at rest with AES-256-GCM via `ENCRYPTION_KEY`.
+- **Delegates** (`delegates` table) — Tracked members per tenant (delegates, council members, maintainers, etc.)
+- **Snapshots** (`delegate_snapshots` table) — Point-in-time captures of each delegate's Discourse activity stats, enabling trending over time.
+- **Refresh Engine** (`lib/delegates/refreshEngine.ts`) — Fetches latest stats from Discourse API, creates snapshots, detects rationale posts.
+
+### Key Files
+
+- `src/lib/delegates/` — Core subsystem (DB queries, Discourse client, encryption, refresh engine)
+- `src/types/delegates.ts` — All delegate-related TypeScript types
+- `src/app/[tenant]/` — Public dashboard pages
+- `src/app/api/delegates/` — API routes for tenant/delegate management
+
+### API Routes
+
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/api/delegates/[tenant]` | GET | Public | Dashboard data (delegates, stats, summary) |
+| `/api/delegates/[tenant]/[username]` | GET | Public | Individual delegate detail + recent posts |
+| `/api/delegates/[tenant]/refresh` | POST | Admin | Trigger data refresh from Discourse API |
+| `/api/delegates/admin` | POST | Admin | Create/update tenants, manage delegates |
+
+See `improvements.md` for the full delegate monitoring roadmap.
+
+## External Source Integrations
+
+Beyond Discourse, the app integrates with multiple platforms via dedicated clients:
+
+| Platform | Client | Status | Auth Required |
+|----------|--------|--------|---------------|
+| EA Forum | `lib/eaForumClient.ts` | Live | No |
+| GitHub Discussions | `lib/githubDiscussionsClient.ts` | Live | `GITHUB_TOKEN` |
+| Snapshot | `lib/snapshotClient.ts` | Live | Optional (`SNAPSHOT_API_KEY`) |
+| Hacker News | via `lib/externalSources.ts` | Live | No |
+| LessWrong | `lib/eaForumClient.ts` (shared) | Live | No |
+
+The `lib/externalSources.ts` registry defines 20+ configured sources with their fetch logic. Sources without required tokens are silently skipped.
+
+## RSS/Atom Feeds
+
+Available at `/feed/[vertical].xml`:
+
+| Feed | URL |
+|------|-----|
+| All (top forums) | `/feed/all.xml` |
+| Crypto | `/feed/crypto.xml` |
+| AI / ML | `/feed/ai.xml` |
+| Open Source | `/feed/oss.xml` |
+
+## MCP (Model Context Protocol)
+
+- **Endpoint**: `GET /api/mcp` — Returns MCP-compatible tool definitions
+- **Standalone server**: `node mcp-server.js` at project root
+
+Tools exposed: `search_discussions`, `get_discussions`, `list_forums`, `list_categories`.
+
+## Public Directory (`public/`)
+
+| File | Purpose |
+|------|---------|
+| `llms.txt` | LLM/agent instruction file |
+| `skill.md` | AI agent skill manifest |
+| `robots.txt` | SEO configuration |
+| `.well-known/ai-plugin.json` | AI plugin manifest |
+| `api/v1/openapi.json` | OpenAPI specification |
+
+## Database Schema
+
+Two schema files define the database structure:
+
+- **`src/lib/schema.sql`** — Core tables: `users`, `user_preferences`, `user_forums`, `custom_forums`, `keyword_alerts`, `bookmarks`, `read_state`
+- **`src/lib/delegates/schema.sql`** — Delegate tables: `delegate_tenants`, `delegates`, `delegate_snapshots`
+
+Note: `db.ts` also handles dynamic schema management with `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for forward-compatible migrations.
+
 ## Phase 1 Features (Completed)
 
 The following features have been implemented:
@@ -739,7 +877,7 @@ The following features have been implemented:
 2. **Discussion Bookmarking** - Bookmark icon on each discussion, "Saved" view in sidebar
 3. **Date Range Filtering** - Filter by Today, This Week, This Month, All Time
 4. **Forum Source Filtering** - Filter discussions by specific forum
-5. **Custom Favicon** - Red bell icon with notification dot (`/icon.svg`)
+5. **Custom Favicon** - Eye-speech-bubble emoji on dark zinc background (`/icon.svg`)
 6. **Mobile Responsive Layout** - Hamburger menu, floating search button, slide-in panels
 
 ## Phase 2 Features (Completed)

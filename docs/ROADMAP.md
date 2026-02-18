@@ -39,7 +39,7 @@
 - [x] OpenAI Developer Forum (community.openai.com)
 - [x] Hugging Face Forums (discuss.huggingface.co)
 - [x] Google AI Forum (discuss.ai.google.dev)
-- [ ] EA Forum — Not Discourse (custom LessWrong platform, requires separate integration)
+- [x] EA Forum — Custom GraphQL integration via `eaForumClient.ts`
 
 ### OSS Forum Presets ✅
 - [x] Rust Users (users.rust-lang.org)
@@ -69,14 +69,15 @@
 ---
 
 ## Phase 2: GitHub Discussions Integration
-**Status:** Planned
+**Status:** ✅ Core Implemented
 **Target:** Mar 2026
 
 ### Core Integration
-- [ ] GitHub GraphQL API connector
-- [ ] Discussion fetching and normalization
-- [ ] Rate limiting and caching
-- [ ] Unified feed display (Discourse + GitHub)
+- [x] GitHub GraphQL API connector (`lib/githubDiscussionsClient.ts`)
+- [x] Discussion fetching and normalization to `DiscussionTopic` type
+- [x] Rate limiting and caching
+- [x] Unified feed display (Discourse + GitHub via external sources)
+- [ ] Full preset coverage (subset implemented via `externalSources.ts`)
 
 ### GitHub Presets — OSS
 - [ ] Node.js, Deno, Bun
@@ -113,11 +114,11 @@
 ---
 
 ## Phase 4: LessWrong / AI Alignment Forum
-**Status:** Planned
+**Status:** ✅ Implemented
 **Target:** Apr 2026
 
-- [ ] LessWrong API integration
-- [ ] AI Alignment Forum (same backend)
+- [x] LessWrong API integration (via `eaForumClient.ts` — shared GraphQL backend)
+- [x] AI Alignment Forum (same backend as LessWrong)
 - [ ] Funding/grants keyword filtering
 
 ---
@@ -155,14 +156,14 @@
 - [ ] Apache Foundation lists
 
 ### Hacker News
-- [ ] Keyword monitoring for funding announcements
+- [x] Keyword monitoring for funding announcements (via `externalSources.ts`)
 
 ---
 
 ## Future Considerations
 
 ### On-chain Integration
-- Snapshot voting data
+- ~~Snapshot voting data~~ ✅ Implemented via `lib/snapshotClient.ts`
 - Tally governance data
 - Complement forum discussions with execution layer
 

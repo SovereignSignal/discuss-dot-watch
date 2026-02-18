@@ -10,7 +10,7 @@ Unified monitoring for community discussions across crypto, AI, and open source.
 
 ## What It Does
 
-Aggregates discussions from Discourse forums, GitHub Discussions, Commonwealth, and other platforms where grants, funding, governance, and ecosystem decisions happen.
+Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snapshot, and other platforms where grants, funding, governance, and ecosystem decisions happen.
 
 **Three verticals:**
 - **Crypto** — DAO governance, protocol proposals, grants programs
@@ -42,11 +42,12 @@ Aggregates discussions from Discourse forums, GitHub Discussions, Commonwealth, 
 - **Discourse (Crypto)** — 70+ forums: Arbitrum, Optimism, ENS, Uniswap, Aave, etc.
 - **Discourse (AI)** — OpenAI, Hugging Face, Google AI, PyTorch
 - **Discourse (OSS)** — Rust, Swift, Mozilla, NixOS, Django, Elixir, etc.
+- **EA Forum / LessWrong** — GraphQL integration for AI safety and alignment communities
+- **GitHub Discussions** — Node.js, React, LangChain, llama.cpp, and more
+- **Snapshot** — On-chain governance voting data
 
 ### Coming Soon
-- **GitHub Discussions** — Node.js, React, LangChain, llama.cpp, etc.
 - **Commonwealth** — Cosmos ecosystem (Osmosis, Celestia, etc.)
-- **LessWrong/EA Forum** — Custom integration (not Discourse)
 
 See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for the complete target list.
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for implementation timeline.

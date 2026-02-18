@@ -9,7 +9,10 @@ All monitorable community platforms across crypto, AI, and OSS.
 | Platform | Status | API | Effort |
 |----------|--------|-----|--------|
 | Discourse | ✅ Live | REST | Done |
-| GitHub Discussions | 🔜 Planned | GraphQL | Medium |
+| EA Forum / LessWrong | ✅ Live | GraphQL | Done |
+| GitHub Discussions | ✅ Live | GraphQL | Done |
+| Snapshot | ✅ Live | GraphQL | Done |
+| Hacker News | ✅ Live | REST | Done |
 | Commonwealth | 🔜 Planned | REST | Medium |
 | Reddit | 📋 Backlog | REST | Medium |
 | Zulip | 📋 Backlog | REST | Medium |
@@ -69,14 +72,14 @@ All monitorable community platforms across crypto, AI, and OSS.
 
 ### AI (New — Discourse Based)
 
-**HIGHEST PRIORITY**
-- EA Forum (forum.effectivealtruism.org) — AI safety funding hub
-- OpenAI Developer Forum (community.openai.com)
-- Hugging Face Forums (discuss.huggingface.co)
+**HIGHEST PRIORITY** ✅ All implemented
+- EA Forum (forum.effectivealtruism.org) — ✅ Live via `eaForumClient.ts` (GraphQL)
+- OpenAI Developer Forum (community.openai.com) — ✅ Live (Discourse)
+- Hugging Face Forums (discuss.huggingface.co) — ✅ Live (Discourse)
 
-**Custom Platform (needs different approach)**
-- LessWrong (lesswrong.com) — has API
-- AI Alignment Forum (alignmentforum.org) — same backend as LessWrong
+**Custom Platform** ✅ Implemented
+- LessWrong (lesswrong.com) — ✅ Live via `eaForumClient.ts` (shared GraphQL backend)
+- AI Alignment Forum (alignmentforum.org) — ✅ Live (same backend as LessWrong)
 
 ### OSS (New — Discourse Based)
 
@@ -215,10 +218,10 @@ High signal, no clean API.
 ## OTHER PLATFORMS
 
 **Complementary (not forum-style)**
-- Snapshot — on-chain voting
+- Snapshot — ✅ Live via `snapshotClient.ts` (governance voting data)
 - Tally — on-chain governance
 - Loomio — cooperative governance
-- Hacker News — keyword monitoring
+- Hacker News — ✅ Live via `externalSources.ts` (keyword monitoring)
 
 **Government/Institutional (feeds Grant Wires)**
 - grants.gov
@@ -257,22 +260,18 @@ Not forums, but announcement/funding sources that feed the Grant Wires.
 
 ## PRIORITY MATRIX
 
-### Immediate (plug into existing architecture)
+### Immediate (plug into existing architecture) — ✅ Done
 
-Discourse forums or comparable APIs. Directly serve the three verticals.
-
-1. **EA Forum** — AI vertical, highest value single addition
-2. **LessWrong / AI Alignment Forum** — AI vertical, overlaps EA audience
-3. **OpenAI Developer Forum** — AI vertical, Discourse based
-4. **Hugging Face Forums** — AI/OSS cross vertical, Discourse based
+1. ~~**EA Forum**~~ — ✅ Implemented
+2. ~~**LessWrong / AI Alignment Forum**~~ — ✅ Implemented
+3. ~~**OpenAI Developer Forum**~~ — ✅ Implemented (Discourse)
+4. ~~**Hugging Face Forums**~~ — ✅ Implemented (Discourse)
 5. **Commonwealth instances** — Crypto vertical, fills gaps
-6. **Top 10 OSS Discourse forums** — Rust, Mozilla, NixOS, Django, etc.
+6. ~~**Top 10 OSS Discourse forums**~~ — ✅ Implemented
 
 ### Near Term (new platform integration)
 
-Require building new connectors. High value.
-
-1. **GitHub Discussions** — Highest value new platform. GraphQL API. Critical for OSS.
+1. ~~**GitHub Discussions**~~ — ✅ Implemented via `githubDiscussionsClient.ts`
 2. **Open Collective** — API available. Real time OSS funding data.
 3. **Reddit (filtered)** — API available. Tight keyword filters needed.
 4. **AISafety.com Discord** — AI safety funding coordination.
@@ -281,5 +280,5 @@ Require building new connectors. High value.
 
 1. **Mailing list archives** — High signal, no standard API. Custom scraping.
 2. **Zulip instances** — API available, lower priority.
-3. **Hacker News** — Keyword monitoring for announcements.
-4. **Snapshot/Tally** — On-chain data, different architecture.
+3. ~~**Hacker News**~~ — ✅ Implemented via `externalSources.ts`
+4. ~~**Snapshot**~~ — ✅ Implemented via `snapshotClient.ts`. **Tally** — TBD.

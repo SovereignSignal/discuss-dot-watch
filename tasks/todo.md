@@ -1,4 +1,4 @@
-# Gov Watch - Task Tracking
+# discuss.watch - Task Tracking
 
 > Last Updated: February 13, 2026
 
@@ -92,7 +92,7 @@
 - [x] Skip links for accessibility
 
 ### Landing Page
-- [x] Hero section with "Gov Watch" branding
+- [x] Hero section with "discuss.watch" branding
 - [x] Feature highlights (Save Time, Never Miss, Privacy First)
 - [x] "70+ Forums" badge
 - [x] Launch App button
@@ -127,7 +127,7 @@
 |----------|--------|-----------|
 | Auth Provider | Privy | Web3-native, supports email+wallet, good DX |
 | Database | Railway Postgres | Same platform as hosting, simple billing |
-| DB Client | @neondatabase/serverless | Works with any Postgres, serverless-friendly |
+| DB Client | postgres (Porsager) | Works with any Postgres, lightweight |
 | Anonymous Mode | Yes | Lower friction, localStorage fallback |
 | Data Sync | Debounced writes | Avoid excessive API calls |
 

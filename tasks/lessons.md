@@ -1,4 +1,4 @@
-# Gov Watch - Lessons Learned
+# discuss.watch - Lessons Learned
 
 > Patterns and learnings to prevent repeated mistakes
 
@@ -139,32 +139,12 @@ useEffect(() => setIsHydrated(true), []);
 
 ## Database
 
-### Neon Serverless Deprecation Warning
-**Issue:** `fetchConnectionCache` option is deprecated
-
-**Solution:** Remove the option - it's now always true:
+### Database Client
+**Note:** The project originally used `@neondatabase/serverless` but has since migrated to `postgres` (Porsager's library, v3.4.8). The `@neondatabase/serverless` package is still in `package.json` but no longer imported. The `postgres` library uses tagged template literals for queries:
 ```typescript
-// Old
-neonConfig.fetchConnectionCache = true;
-
-// New - just don't set it
-import { neon } from '@neondatabase/serverless';
-```
-
----
-
-## TypeScript
-
-### Neon Query Result Types
-**Issue:** Neon returns `Record<string, any>[]`, explicit type annotations in `.map()` callbacks cause errors
-
-**Solution:** Let TypeScript infer types or use type assertions:
-```typescript
-// Don't do this
-forums.map((f: { forum_cname: string }) => ...)
-
-// Do this
-forums.map((f) => ({ cname: f.forum_cname }))
+import postgres from 'postgres';
+const sql = postgres(process.env.DATABASE_URL!);
+const users = await sql`SELECT * FROM users WHERE email = ${email}`;
 ```
 
 ---

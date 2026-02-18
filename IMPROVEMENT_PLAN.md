@@ -82,7 +82,7 @@
 
 **Implemented:**
 
-- [x] Custom purple bell icon with notification dot
+- [x] Custom eye-speech-bubble emoji favicon on dark zinc background
 - [x] Replaces default Vercel favicon
 - [x] Configured in layout.tsx metadata
 

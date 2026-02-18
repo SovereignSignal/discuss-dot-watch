@@ -29,7 +29,7 @@ curl https://discuss.watch/api/v1
 curl https://discuss.watch/api/v1/forums
 
 # Get hot crypto governance discussions
-curl "https://discuss.watch/api/v1/discussions?category=crypto-governance&hot=true"
+curl "https://discuss.watch/api/v1/discussions?category=crypto&hot=true"
 
 # Search for a topic
 curl "https://discuss.watch/api/v1/search?q=grants"
@@ -96,30 +96,27 @@ Search discussions.
 
 ## Categories
 
+Three top-level categories (legacy subcategory IDs are still accepted as aliases):
+
 ### Crypto
-- `crypto-governance` — L1s, L2s, DAOs, infrastructure (44 forums)
-- `crypto-defi` — DeFi protocols (28 forums)
-- `crypto-niche` — Privacy, AI-crypto (5 forums)
+- `crypto` — Blockchain protocols, DeFi, DAOs, governance (~77 forums)
 
 ### AI / ML
-- `ai-research` — Safety, alignment, ML research (4 forums)
-- `ai-tools` — Developer platforms (3 forums)
+- `ai` — AI/ML research, safety, developer platforms (~7 forums)
 
 ### Open Source
-- `oss-languages` — Programming languages (8 forums)
-- `oss-frameworks` — Frameworks and tools (7 forums)
-- `oss-infrastructure` — OS, distros, infrastructure (9 forums)
+- `oss` — Programming languages, frameworks, infrastructure (~18 forums)
 
 ## Example Use Cases
 
 **Monitor governance proposals:**
 ```bash
-curl "https://discuss.watch/api/v1/search?q=proposal&category=crypto-governance"
+curl "https://discuss.watch/api/v1/search?q=proposal&category=crypto"
 ```
 
 **Track AI safety discussions:**
 ```bash
-curl "https://discuss.watch/api/v1/discussions?category=ai-research&sort=activity"
+curl "https://discuss.watch/api/v1/discussions?category=ai&sort=activity"
 ```
 
 **Find grant opportunities:**
