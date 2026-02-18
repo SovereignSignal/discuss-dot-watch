@@ -32,6 +32,7 @@ import {
   upsertForum,
   upsertTopic,
   getForumByUrl,
+  getRecentTopics,
   updateForumLastFetched,
 } from './db';
 import { checkOutgoingRateLimit } from './rateLimit';
@@ -50,10 +51,47 @@ const memoryCache = new Map<string, CachedForum>();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const FETCH_DELAY_MS = 2000; // 2 second delay between forum fetches
 const MAX_CONCURRENT = 3; // Max concurrent fetches
-const MAX_RETRIES = 1; // Retry failed fetches (429s) once — stale cache fallback handles the rest
+const MAX_RETRIES = 2; // Retry failed fetches (429s) with backoff — stale cache fallback handles the rest
 
 let isRefreshing = false;
 let lastRefreshStart = 0;
+
+/**
+ * Map a Postgres topic row (from getRecentTopics) to a DiscussionTopic.
+ * Centralizes the DB→domain mapping to avoid divergence across fallback paths.
+ */
+export function mapDbRowToTopic(
+  row: Record<string, unknown>,
+  overrides?: { protocol?: string; logoUrl?: string; forumUrl?: string }
+): DiscussionTopic {
+  const forumName = row.forum_name as string || 'unknown';
+  const protocol = overrides?.protocol ?? forumName;
+  return {
+    id: row.discourse_id as number,
+    refId: `${protocol.toLowerCase().replace(/\s+/g, '-')}-${row.discourse_id}`,
+    protocol,
+    title: row.title as string,
+    slug: row.slug as string || '',
+    tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+    postsCount: (row.posts_count as number) ?? 0,
+    views: (row.views as number) ?? 0,
+    replyCount: (row.reply_count as number) ?? 0,
+    likeCount: (row.like_count as number) ?? 0,
+    categoryId: (row.category_id as number) ?? 0,
+    pinned: (row.pinned as boolean) ?? false,
+    visible: true,
+    closed: (row.closed as boolean) ?? false,
+    archived: (row.archived as boolean) ?? false,
+    createdAt: row.created_at instanceof Date
+      ? row.created_at.toISOString()
+      : typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
+    bumpedAt: row.bumped_at instanceof Date
+      ? row.bumped_at.toISOString()
+      : typeof row.bumped_at === 'string' ? row.bumped_at : new Date().toISOString(),
+    imageUrl: overrides?.logoUrl ?? (row.forum_logo as string) ?? undefined,
+    forumUrl: (overrides?.forumUrl ?? row.forum_url as string ?? '').replace(/\/$/, ''),
+  };
+}
 
 /**
  * Normalize URL for cache key
@@ -82,13 +120,40 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
   
   // Fall back to memory cache
   const cached = memoryCache.get(key);
-  if (!cached) return null;
-  
-  // Check if cache is still valid
-  if (Date.now() - cached.fetchedAt > CACHE_TTL_MS * 2) {
-    return null;
+
+  // If memory cache has valid topics, return them
+  if (cached && cached.topics.length > 0 && !cached.error) {
+    if (Date.now() - cached.fetchedAt > CACHE_TTL_MS * 2) {
+      return null;
+    }
+    return cached;
   }
-  
+
+  // If memory cache has an error or no topics, try Postgres as last resort
+  if (isDatabaseConfigured() && (!cached || cached.error || cached.topics.length === 0)) {
+    try {
+      const forumRecord = await getForumByUrl(forumUrl);
+      if (forumRecord) {
+        const dbTopics = await getRecentTopics({ forumId: forumRecord.id, limit: 30 });
+        if (dbTopics && dbTopics.length > 0) {
+          const topics = dbTopics.map((row: Record<string, unknown>) =>
+            mapDbRowToTopic(row, { forumUrl })
+          );
+          const fetchedAt = forumRecord.last_fetched_at ? new Date(forumRecord.last_fetched_at).getTime() : Date.now();
+          console.log(`[ForumCache] Postgres fallback: serving ${topics.length} topics for ${forumRecord.name} (cache had: ${cached?.error || 'no data'})`);
+          // Warm memory cache so subsequent requests don't hit Postgres again
+          memoryCache.set(key, { url: forumUrl, topics, fetchedAt });
+          return { url: forumUrl, topics, fetchedAt };
+        }
+      }
+    } catch (error) {
+      console.error(`[ForumCache] Postgres fallback error for ${forumUrl}:`, error);
+    }
+  }
+
+  // Return memory cache entry as-is (may have error) or null
+  if (!cached) return null;
+  if (Date.now() - cached.fetchedAt > CACHE_TTL_MS * 2) return null;
   return cached;
 }
 
@@ -325,7 +390,7 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
     if (response.status === 429) {
       if (retryCount < MAX_RETRIES) {
         const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10);
-        const backoffMs = Math.max(retryAfter * 1000, (retryCount + 1) * 10000);
+        const backoffMs = Math.max(retryAfter * 1000, (retryCount + 1) * 15000);
         console.log(`[ForumCache] ⏳ ${forum.name}: rate limited, retrying in ${backoffMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
         await sleep(backoffMs);
         return fetchForumTopics(forum, retryCount + 1);
@@ -469,10 +534,15 @@ async function refreshExternalSources(): Promise<void> {
 
       const key = `external:${source.id}`;
       
-      // If fetch failed but we have existing good data, keep it
+      // If fetch failed but we have existing topics, keep them (even from a previous error cycle)
       const existing = memoryCache.get(key);
-      if (result.error && existing && existing.topics && existing.topics.length > 0 && !existing.error) {
-        console.log(`[ForumCache] ⚠️ ${source.name}: keeping ${existing.topics.length} cached posts despite refresh error: ${result.error}`);
+      if (result.error && existing && existing.topics && existing.topics.length > 0) {
+        console.log(`[ForumCache] ⚠️ ${source.name}: keeping ${existing.topics.length} stale posts despite refresh error: ${result.error}`);
+        memoryCache.set(key, {
+          url: source.id,
+          topics: existing.topics,
+          fetchedAt: Date.now(),
+        });
       } else {
         memoryCache.set(key, {
           url: source.id,
@@ -545,13 +615,19 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
           const result = await fetchForumTopics(forum);
           const key = normalizeUrl(forum.url);
           
-          // If fetch failed but we have existing good data, keep it
+          // If fetch failed but we have existing topics (even from a previous error cycle), keep them
           const existing = memoryCache.get(key);
-          if (result.error && existing && existing.topics && existing.topics.length > 0 && !existing.error) {
-            // Keep the old topics but note the refresh error
-            console.log(`[ForumCache] ⚠️ ${forum.name}: keeping ${existing.topics.length} cached topics despite refresh error: ${result.error}`);
+          if (result.error && existing && existing.topics && existing.topics.length > 0) {
+            // Keep the old topics, refresh the timestamp so TTL doesn't expire
+            console.log(`[ForumCache] ⚠️ ${forum.name}: keeping ${existing.topics.length} stale topics despite refresh error: ${result.error}`);
+            memoryCache.set(key, {
+              url: forum.url,
+              topics: existing.topics,
+              fetchedAt: Date.now(),
+              // Clear the error flag so getCachedForum serves these topics
+            });
           } else {
-            // Store in memory cache (new data or first-time error)
+            // Store in memory cache (new data or first-time error with no fallback)
             memoryCache.set(key, {
               url: forum.url,
               topics: result.topics,

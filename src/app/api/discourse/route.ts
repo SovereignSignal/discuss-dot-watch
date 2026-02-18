@@ -95,10 +95,10 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // If cached but has error, return appropriate message
+    // If cached but has error (Postgres fallback already attempted inside getCachedForum)
     if (cached && cached.error) {
       return NextResponse.json(
-        { 
+        {
           error: `Forum temporarily unavailable: ${cached.error}`,
           cached: true,
           cachedAt: cached.fetchedAt,
