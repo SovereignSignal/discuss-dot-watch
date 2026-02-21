@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import {
   ArrowUpDown,
@@ -29,6 +29,11 @@ import { c } from '@/lib/theme';
 import { useAuth } from '@/components/AuthProvider';
 import { isAdminEmail } from '@/lib/admin';
 import { formatDistanceToNow } from 'date-fns';
+
+const RESERVED_SLUGS = new Set([
+  'terms', 'about', 'privacy', 'contact', 'pricing',
+  'help', 'docs', 'blog', 'login', 'signup', 'settings',
+]);
 
 type SortField =
   | 'displayName'
@@ -86,11 +91,18 @@ export default function TenantDashboardPage() {
     localStorage.setItem('discuss-watch-theme', next);
     document.documentElement.classList.toggle('light', next === 'light');
     document.documentElement.classList.toggle('dark', next === 'dark');
+    window.dispatchEvent(new Event('themechange'));
   };
 
   // Fetch dashboard data
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || RESERVED_SLUGS.has(slug)) {
+      if (slug && RESERVED_SLUGS.has(slug)) {
+        setError('not_found');
+        setLoading(false);
+      }
+      return;
+    }
     let cancelled = false;
     fetch(`/api/delegates/${slug}`)
       .then((res) => {
@@ -318,6 +330,29 @@ export default function TenantDashboardPage() {
           </button>
         </div>
       </header>
+
+      {/* Stale data warning */}
+      {dashboard.lastRefreshAt && (() => {
+        const hoursSinceRefresh = (Date.now() - new Date(dashboard.lastRefreshAt!).getTime()) / (1000 * 60 * 60);
+        if (hoursSinceRefresh <= 24) return null;
+        const staleAgo = formatDistanceToNow(new Date(dashboard.lastRefreshAt!), { addSuffix: true });
+        return (
+          <div
+            style={{
+              margin: '0 24px',
+              marginTop: 12,
+              padding: '10px 16px',
+              borderRadius: 8,
+              background: isDark ? 'rgba(245,158,11,0.1)' : 'rgba(245,158,11,0.08)',
+              border: `1px solid ${isDark ? 'rgba(245,158,11,0.25)' : 'rgba(245,158,11,0.3)'}`,
+              color: isDark ? '#fbbf24' : '#b45309',
+              fontSize: 13,
+            }}
+          >
+            Data last refreshed {staleAgo}. Stats may be outdated.
+          </div>
+        );
+      })()}
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px' }}>
         {/* Summary Cards */}
@@ -555,10 +590,7 @@ export default function TenantDashboardPage() {
           }}
         >
           <span>
-            Not affiliated with Discourse. Data from the Discourse REST API.{' '}
-            <Link href="/terms" style={{ color: t.fgMuted, textDecoration: 'underline' }}>
-              Terms
-            </Link>
+            Not affiliated with Discourse. Data from the Discourse REST API.
           </span>
           <span>
             <Link href="/" style={{ color: t.fgMuted, textDecoration: 'none' }}>
@@ -916,6 +948,9 @@ function DelegateDetailPanel({
   t: ReturnType<typeof c>;
   isDark: boolean;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+
   const [detail, setDetail] = useState<{
     recentPosts: Array<{
       topicTitle: string;
@@ -932,6 +967,27 @@ function DelegateDetailPanel({
     }>;
   } | null>(null);
   const [detailLoading, setDetailLoading] = useState(true);
+
+  // Accessibility: Escape key, scroll lock, focus management
+  useEffect(() => {
+    previousActiveElement.current = document.activeElement as HTMLElement;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+
+    // Focus close button on open
+    const closeBtn = panelRef.current?.querySelector<HTMLButtonElement>('[data-close-button]');
+    closeBtn?.focus();
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+      previousActiveElement.current?.focus();
+    };
+  }, [onClose]);
 
   useEffect(() => {
     let cancelled = false;
@@ -955,6 +1011,7 @@ function DelegateDetailPanel({
       {/* Backdrop */}
       <div
         onClick={onClose}
+        aria-hidden="true"
         style={{
           position: 'fixed',
           inset: 0,
@@ -964,6 +1021,10 @@ function DelegateDetailPanel({
       />
       {/* Panel */}
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${d.displayName} delegate details`}
         style={{
           position: 'fixed',
           top: 0,
@@ -1026,6 +1087,8 @@ function DelegateDetailPanel({
             </div>
           </div>
           <button
+            data-close-button
+            aria-label="Close"
             onClick={onClose}
             style={{
               background: 'none',
