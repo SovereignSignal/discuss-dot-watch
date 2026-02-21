@@ -91,9 +91,10 @@ export function DiscussionItem({
       style={{
         borderColor: isSelected ? t.borderActive : isRead ? t.readBorder : t.border,
         backgroundColor: isSelected ? t.bgActive : isRead ? 'transparent' : t.bgCard,
+        cursor: 'pointer',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = t.hoverBorder; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = isRead ? t.readBorder : t.border; }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = t.hoverBorder; e.currentTarget.style.backgroundColor = isSelected ? t.bgActive : t.bgCardHover; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = isRead ? t.readBorder : t.border; e.currentTarget.style.backgroundColor = isSelected ? t.bgActive : isRead ? 'transparent' : t.bgCard; }}
     >
       {/* Unread indicator */}
       {!isRead && <div className="absolute left-0 top-0 h-full w-0.5" style={{ backgroundColor: t.fg }} />}

@@ -477,6 +477,25 @@ html.light .border-amber-500\/30 {
   border-color: rgba(217, 119, 6, 0.3) !important;
 }
 
+/* ===== ACCESSIBLE FOCUS INDICATORS ===== */
+html.light button:focus-visible,
+html.light a:focus-visible,
+html.light [tabindex]:focus-visible,
+html.light select:focus-visible,
+html.light input:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+html.dark button:focus-visible,
+html.dark a:focus-visible,
+html.dark [tabindex]:focus-visible,
+html.dark select:focus-visible,
+html.dark input:focus-visible {
+  outline: 2px solid rgba(250, 250, 250, 0.5);
+  outline-offset: 2px;
+}
+
 /* ===== REDUCED MOTION SUPPORT ===== */
 /* Disable animations for users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {

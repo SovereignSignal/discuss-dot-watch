@@ -11,6 +11,7 @@ import {
   ExternalLink,
   ChevronRight,
   X,
+  ArrowLeft,
   Users,
   Activity,
   MessageSquare,
@@ -94,6 +95,15 @@ export default function TenantDashboardPage() {
   const userIsAdmin = isAdminEmail(user?.email);
   const branding = dashboard?.tenant.branding;
   const bc = brandedColors(branding);
+
+  // Responsive breakpoint
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // Theme — apply saved preference to DOM on mount
   useEffect(() => {
@@ -265,7 +275,7 @@ export default function TenantDashboardPage() {
       <header
         style={{
           borderBottom: `1px solid ${t.border}`,
-          padding: '16px 24px',
+          padding: isMobile ? '12px 16px' : '16px 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -274,27 +284,28 @@ export default function TenantDashboardPage() {
           zIndex: 30,
           background: (!isDark && branding?.bgColor) || t.bg,
           backdropFilter: 'blur(12px)',
+          gap: 8,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, minWidth: 0 }}>
           {branding?.logoUrl && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={branding.logoUrl}
               alt={`${dashboard.tenant.name} logo`}
-              style={{ height: 28, width: 'auto' }}
+              style={{ height: isMobile ? 24 : 28, width: 'auto', flexShrink: 0 }}
             />
           )}
-          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
+          <h1 style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {dashboard.tenant.name}
           </h1>
-          {dashboard.lastRefreshAt && (
-            <span style={{ fontSize: 12, color: t.fgDim }}>
+          {!isMobile && dashboard.lastRefreshAt && (
+            <span style={{ fontSize: 12, color: t.fgDim, whiteSpace: 'nowrap' }}>
               Updated {formatDistanceToNow(new Date(dashboard.lastRefreshAt), { addSuffix: true })}
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
           {userIsAdmin && (
             <Link
               href="/admin"
@@ -348,7 +359,7 @@ export default function TenantDashboardPage() {
         return (
           <div
             style={{
-              margin: '0 24px',
+              margin: isMobile ? '0 12px' : '0 24px',
               marginTop: 12,
               padding: '10px 16px',
               borderRadius: 8,
@@ -367,13 +378,13 @@ export default function TenantDashboardPage() {
       {branding?.heroTitle && (
         <div
           style={{
-            padding: '40px 24px 32px',
+            padding: isMobile ? '24px 16px 20px' : '40px 24px 32px',
             textAlign: 'center',
             background: bc?.accentBg || 'transparent',
             borderBottom: bc ? `1px solid ${bc.accentBorder}` : undefined,
           }}
         >
-          <h2 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 8px' }}>
+          <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, margin: '0 0 8px' }}>
             {branding.heroTitle}
           </h2>
           {branding.heroSubtitle && (
@@ -384,9 +395,9 @@ export default function TenantDashboardPage() {
         </div>
       )}
 
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '16px 12px' : '24px 24px' }}>
         {/* Summary Cards */}
-        <SummaryCards summary={dashboard.summary} t={t} accent={bc?.accent} />
+        <SummaryCards summary={dashboard.summary} t={t} accent={bc?.accent} isMobile={isMobile} />
 
         {/* Filters Bar */}
         <div
@@ -401,8 +412,8 @@ export default function TenantDashboardPage() {
           <div
             style={{
               position: 'relative',
-              flex: '1 1 220px',
-              maxWidth: 320,
+              flex: isMobile ? '1 1 100%' : '1 1 220px',
+              maxWidth: isMobile ? undefined : 320,
             }}
           >
             <Search
@@ -497,90 +508,120 @@ export default function TenantDashboardPage() {
             </select>
           )}
 
-          <span style={{ fontSize: 12, color: t.fgDim, marginLeft: 'auto' }}>
-            {filteredDelegates.length} delegate{filteredDelegates.length !== 1 ? 's' : ''}
-          </span>
+          {!isMobile && (
+            <span style={{ fontSize: 12, color: t.fgDim, marginLeft: 'auto' }}>
+              {filteredDelegates.length} delegate{filteredDelegates.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
 
-        {/* Delegate Table */}
-        <div
-          style={{
-            border: `1px solid ${t.border}`,
-            borderRadius: 12,
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ overflowX: 'auto' }}>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: 13,
-              }}
-            >
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${t.border}` }}>
-                  <SortHeader
-                    label="Delegate"
-                    field="displayName"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleSort}
-                    t={t}
-                    accent={bc?.accent}
-                    sticky
-                  />
-                  <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
-                    Role
-                  </th>
-                  <SortHeader label="Posts" field="postCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                  <SortHeader label="Topics" field="topicCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                  <SortHeader label="Likes" field="likesReceived" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                  <SortHeader label="Days Active" field="daysVisited" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                  <SortHeader label="Rationales" field="rationaleCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                  <SortHeader label="Vote Rate" field="voteRate" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                  <SortHeader label="Last Seen" field="lastSeenAt" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                  <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
-                    Programs
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDelegates.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={10}
-                      style={{
-                        padding: 40,
-                        textAlign: 'center',
-                        color: t.fgDim,
-                      }}
-                    >
-                      No delegates found.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredDelegates.map((d) => (
-                    <DelegateTableRow
-                      key={d.username}
-                      delegate={d}
-                      forumUrl={dashboard.tenant.forumUrl}
-                      isSelected={selectedDelegate === d.username}
-                      onSelect={() =>
-                        setSelectedDelegate(
-                          selectedDelegate === d.username ? null : d.username
-                        )
-                      }
-                      t={t}
-                      accentHover={bc?.accentHover}
-                      accentBg={bc?.accentBg}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
+        {/* Delegate Table / Cards */}
+        {isMobile ? (
+          /* Mobile: Card layout */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {filteredDelegates.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: t.fgDim }}>
+                No delegates found.
+              </div>
+            ) : (
+              filteredDelegates.map((d) => (
+                <MobileDelegateCard
+                  key={d.username}
+                  delegate={d}
+                  isSelected={selectedDelegate === d.username}
+                  onSelect={() =>
+                    setSelectedDelegate(
+                      selectedDelegate === d.username ? null : d.username
+                    )
+                  }
+                  t={t}
+                  accentHover={bc?.accentHover}
+                  accentBg={bc?.accentBg}
+                />
+              ))
+            )}
           </div>
-        </div>
+        ) : (
+          /* Desktop: Table layout */
+          <div
+            style={{
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ overflowX: 'auto' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+                    <SortHeader
+                      label="Delegate"
+                      field="displayName"
+                      current={sortField}
+                      dir={sortDir}
+                      onSort={handleSort}
+                      t={t}
+                      accent={bc?.accent}
+                      sticky
+                    />
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
+                      Role
+                    </th>
+                    <SortHeader label="Posts" field="postCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                    <SortHeader label="Topics" field="topicCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                    <SortHeader label="Likes" field="likesReceived" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                    <SortHeader label="Days Active" field="daysVisited" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                    <SortHeader label="Rationales" field="rationaleCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                    <SortHeader label="Vote Rate" field="voteRate" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                    <SortHeader label="Last Seen" field="lastSeenAt" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
+                      Programs
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDelegates.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        style={{
+                          padding: 40,
+                          textAlign: 'center',
+                          color: t.fgDim,
+                        }}
+                      >
+                        No delegates found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDelegates.map((d) => (
+                      <DelegateTableRow
+                        key={d.username}
+                        delegate={d}
+                        forumUrl={dashboard.tenant.forumUrl}
+                        isSelected={selectedDelegate === d.username}
+                        onSelect={() =>
+                          setSelectedDelegate(
+                            selectedDelegate === d.username ? null : d.username
+                          )
+                        }
+                        t={t}
+                        accentHover={bc?.accentHover}
+                        accentBg={bc?.accentBg}
+                      />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Data attribution */}
         <div
@@ -648,6 +689,7 @@ export default function TenantDashboardPage() {
           t={t}
           accent={bc?.accent}
           accentBorder={bc?.accentBorder}
+          isMobile={isMobile}
         />
       )}
     </div>
@@ -658,7 +700,7 @@ export default function TenantDashboardPage() {
 // Sub-components
 // ============================================================
 
-function SummaryCards({ summary, t, accent }: { summary: DashboardSummary; t: ReturnType<typeof c>; accent?: string }) {
+function SummaryCards({ summary, t, accent, isMobile }: { summary: DashboardSummary; t: ReturnType<typeof c>; accent?: string; isMobile?: boolean }) {
   const cards = [
     { label: 'Total Delegates', value: summary.totalDelegates, icon: Users },
     { label: 'Active', value: summary.activeDelegates, icon: Activity },
@@ -687,15 +729,15 @@ function SummaryCards({ summary, t, accent }: { summary: DashboardSummary; t: Re
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))',
-        gap: 10,
-        marginBottom: 24,
+        gap: isMobile ? 8 : 10,
+        marginBottom: isMobile ? 16 : 24,
       }}
     >
       {cards.map((card) => (
         <div
           key={card.label}
           style={{
-            padding: '14px 16px',
+            padding: isMobile ? '10px 12px' : '14px 16px',
             borderRadius: 10,
             border: `1px solid ${t.border}`,
             background: t.bgCard,
@@ -706,13 +748,13 @@ function SummaryCards({ summary, t, accent }: { summary: DashboardSummary; t: Re
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              marginBottom: 6,
+              marginBottom: isMobile ? 4 : 6,
             }}
           >
             <card.icon size={13} color={accent || t.fgDim} />
             <span style={{ fontSize: 11, color: t.fgDim }}>{card.label}</span>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{card.value}</div>
+          <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>{card.value}</div>
         </div>
       ))}
     </div>
@@ -976,6 +1018,139 @@ function DelegateTableRow({
   );
 }
 
+function MobileDelegateCard({
+  delegate: d,
+  isSelected,
+  onSelect,
+  t,
+  accentHover,
+  accentBg,
+}: {
+  delegate: DelegateRow;
+  isSelected: boolean;
+  onSelect: () => void;
+  t: ReturnType<typeof c>;
+  accentHover?: string;
+  accentBg?: string;
+}) {
+  const seenAgo = d.lastSeenAt
+    ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
+    : '—';
+
+  return (
+    <div
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      tabIndex={0}
+      role="button"
+      aria-pressed={isSelected}
+      style={{
+        padding: '12px 14px',
+        borderRadius: 10,
+        border: `1px solid ${isSelected ? (accentBg ? t.borderActive : t.borderActive) : t.border}`,
+        background: isSelected ? (accentBg || t.bgActive) : t.bgCard,
+        cursor: 'pointer',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={(e) => {
+        if (!isSelected) e.currentTarget.style.background = accentHover || t.bgCardHover;
+      }}
+      onMouseLeave={(e) => {
+        if (!isSelected) e.currentTarget.style.background = t.bgCard;
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {d.avatarUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={d.avatarUrl}
+            alt=""
+            width={32}
+            height={32}
+            style={{ borderRadius: '50%', flexShrink: 0 }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: t.bgActive,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 13,
+              fontWeight: 600,
+              flexShrink: 0,
+            }}
+          >
+            {d.displayName?.[0] || '?'}
+          </div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontWeight: 500, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {d.displayName}
+            </span>
+            {!d.isActive && (
+              <span
+                style={{
+                  fontSize: 10,
+                  color: '#f59e0b',
+                  background: 'rgba(245,158,11,0.1)',
+                  padding: '1px 6px',
+                  borderRadius: 9999,
+                  flexShrink: 0,
+                }}
+              >
+                Inactive
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</div>
+        </div>
+        {d.role && (
+          <span
+            style={{
+              fontSize: 10,
+              padding: '2px 8px',
+              borderRadius: 9999,
+              background: `${dashboardGetRoleColor(d.role)}15`,
+              border: `1px solid ${dashboardGetRoleColor(d.role)}33`,
+              color: dashboardGetRoleColor(d.role),
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            {dashboardGetRoleLabel(d.role)}
+          </span>
+        )}
+        <ChevronRight size={14} color={t.fgDim} style={{ flexShrink: 0 }} />
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 16,
+          marginTop: 8,
+          paddingTop: 8,
+          borderTop: `1px solid ${t.border}`,
+          fontSize: 12,
+          color: t.fgMuted,
+        }}
+      >
+        <span><MessageSquare size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />{d.postCount}</span>
+        <span><ThumbsUp size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />{d.likesReceived}</span>
+        <span style={{ color: t.fgDim }}>Seen {seenAgo}</span>
+      </div>
+    </div>
+  );
+}
+
 function NumCell({
   value,
   t,
@@ -1011,6 +1186,7 @@ function DelegateDetailPanel({
   t,
   accent,
   accentBorder,
+  isMobile,
 }: {
   delegate: DelegateRow;
   forumUrl: string;
@@ -1019,6 +1195,7 @@ function DelegateDetailPanel({
   t: ReturnType<typeof c>;
   accent?: string;
   accentBorder?: string;
+  isMobile?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -1127,18 +1304,18 @@ function DelegateDetailPanel({
           right: 0,
           bottom: 0,
           width: '100%',
-          maxWidth: 520,
+          maxWidth: isMobile ? undefined : 520,
           background: t.bg,
-          borderLeft: `1px solid ${t.border}`,
+          borderLeft: isMobile ? undefined : `1px solid ${t.border}`,
           zIndex: 50,
           overflowY: 'auto',
-          boxShadow: '-4px 0 24px rgba(0,0,0,0.2)',
+          boxShadow: isMobile ? undefined : '-4px 0 24px rgba(0,0,0,0.2)',
         }}
       >
         {/* Panel Header */}
         <div
           style={{
-            padding: '16px 20px',
+            padding: isMobile ? '12px 16px' : '16px 20px',
             borderBottom: `2px solid ${accentBorder || t.border}`,
             display: 'flex',
             alignItems: 'center',
@@ -1150,6 +1327,23 @@ function DelegateDetailPanel({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {isMobile && (
+              <button
+                data-close-button
+                aria-label="Go back"
+                onClick={onClose}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: t.fgMuted,
+                  padding: 4,
+                  marginRight: 2,
+                }}
+              >
+                <ArrowLeft size={18} />
+              </button>
+            )}
             {d.avatarUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={d.avatarUrl} alt="" width={36} height={36} style={{ borderRadius: '50%' }} />
@@ -1182,20 +1376,22 @@ function DelegateDetailPanel({
               </a>
             </div>
           </div>
-          <button
-            data-close-button
-            aria-label="Close"
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: t.fgMuted,
-              padding: 4,
-            }}
-          >
-            <X size={18} />
-          </button>
+          {!isMobile && (
+            <button
+              data-close-button
+              aria-label="Close"
+              onClick={onClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: t.fgMuted,
+                padding: 4,
+              }}
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
 
         <div style={{ padding: 20 }}>

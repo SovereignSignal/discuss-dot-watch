@@ -40,8 +40,8 @@ export const colors = {
     // Text
     fg: '#09090b',
     fgSecondary: '#3f3f46',
-    fgMuted: '#52525b',
-    fgDim: '#71717a',
+    fgMuted: '#4b5563',
+    fgDim: '#6b7280',
     
     // Backgrounds
     bg: '#f8f9fa',
