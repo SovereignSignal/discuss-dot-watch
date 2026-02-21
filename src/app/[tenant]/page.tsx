@@ -627,12 +627,14 @@ export default function TenantDashboardPage() {
           {branding?.footerText && (
             <span>{branding.footerText}</span>
           )}
-          <span>
-            Powered by{' '}
-            <Link href="/" style={{ color: bc?.accent || t.fgMuted, textDecoration: 'none', fontWeight: 500 }}>
-              discuss.watch
-            </Link>
-          </span>
+          {!branding?.footerText && (
+            <span>
+              Powered by{' '}
+              <Link href="/" style={{ color: bc?.accent || t.fgMuted, textDecoration: 'none', fontWeight: 500 }}>
+                discuss.watch
+              </Link>
+            </span>
+          )}
         </footer>
       </div>
 
