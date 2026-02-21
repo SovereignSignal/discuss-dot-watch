@@ -20,6 +20,15 @@ export interface DelegateTenant {
   lastRefreshAt: string | null;
 }
 
+export interface TenantBranding {
+  accentColor?: string;      // e.g. "#FF684B" for Scroll
+  bgColor?: string;          // Light-mode custom bg, e.g. "#FFF8F3"
+  logoUrl?: string;          // Tenant logo URL
+  heroTitle?: string;        // e.g. "Welcome to Scroll Governance"
+  heroSubtitle?: string;     // Descriptive text below hero
+  footerText?: string;       // Custom footer text
+}
+
 export interface TenantConfig {
   // Rationale detection
   rationaleSearchPattern?: string;   // Default: "rationale"
@@ -27,6 +36,8 @@ export interface TenantConfig {
   rationaleTags?: string[];          // Tags that indicate rationale posts
   // Display
   programLabels?: string[];          // e.g. ["Council", "Grants"]
+  // Branding
+  branding?: TenantBranding;         // Per-tenant visual branding
   // Refresh
   refreshIntervalHours?: number;     // Default: 12
 }
@@ -162,6 +173,7 @@ export interface DelegateDashboard {
     slug: string;
     name: string;
     forumUrl: string;
+    branding?: TenantBranding;
   };
   delegates: DelegateRow[];
   summary: DashboardSummary;

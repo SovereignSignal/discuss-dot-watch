@@ -408,6 +408,7 @@ export async function getDashboardData(slug: string): Promise<DelegateDashboard 
       slug: tenant.slug,
       name: tenant.name,
       forumUrl: tenant.forumUrl,
+      branding: tenant.config.branding,
     },
     delegates: delegateRows,
     summary,

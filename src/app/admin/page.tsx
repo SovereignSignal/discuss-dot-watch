@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, EyeOff, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Upload, X, UserPlus, Trash2, Pencil, Save } from 'lucide-react';
+import { RefreshCw, Database, Server, Users, Play, Pause, RotateCcw, Loader2, ArrowLeft, Search, Plus, Globe, Eye, EyeOff, ExternalLink, Check, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Upload, X, UserPlus, Trash2, Pencil, Save, Palette } from 'lucide-react';
 import Link from 'next/link';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FORUM_CATEGORIES, ForumPreset } from '@/lib/forumPresets';
 import { DELEGATE_ROLES } from '@/types/delegates';
-import type { UserSearchResult } from '@/types/delegates';
+import type { UserSearchResult, TenantConfig, TenantBranding } from '@/types/delegates';
 
 interface SystemStats {
   database: {
@@ -360,6 +360,7 @@ interface TenantInfo {
   name: string;
   forumUrl: string;
   apiUsername: string;
+  config: TenantConfig;
   capabilities: {
     canListUsers?: boolean;
     canViewUserStats?: boolean;
@@ -435,6 +436,15 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   const [editApiKey, setEditApiKey] = useState('');
   const [editApiUsername, setEditApiUsername] = useState('');
   const [editShowKey, setEditShowKey] = useState(false);
+
+  // Branding editor state
+  const [editingBranding, setEditingBranding] = useState<string | null>(null);
+  const [brandAccent, setBrandAccent] = useState('');
+  const [brandBgColor, setBrandBgColor] = useState('');
+  const [brandLogoUrl, setBrandLogoUrl] = useState('');
+  const [brandHeroTitle, setBrandHeroTitle] = useState('');
+  const [brandHeroSubtitle, setBrandHeroSubtitle] = useState('');
+  const [brandFooterText, setBrandFooterText] = useState('');
 
   const cardBg = isDark ? '#18181b' : '#ffffff';
   const cardBorder = isDark ? '#27272a' : 'rgba(0,0,0,0.08)';
@@ -904,6 +914,110 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
       setTimeout(() => setFormSuccess(null), 3000);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to update tenant');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openBrandingEditor = (tenant: TenantInfo) => {
+    const b = tenant.config?.branding || {};
+    setEditingBranding(tenant.slug);
+    setBrandAccent(b.accentColor || '');
+    setBrandBgColor(b.bgColor || '');
+    setBrandLogoUrl(b.logoUrl || '');
+    setBrandHeroTitle(b.heroTitle || '');
+    setBrandHeroSubtitle(b.heroSubtitle || '');
+    setBrandFooterText(b.footerText || '');
+    setFormError(null);
+  };
+
+  const closeBrandingEditor = () => {
+    setEditingBranding(null);
+    setBrandAccent('');
+    setBrandBgColor('');
+    setBrandLogoUrl('');
+    setBrandHeroTitle('');
+    setBrandHeroSubtitle('');
+    setBrandFooterText('');
+  };
+
+  const handleSaveBranding = async (slug: string) => {
+    setActionLoading(`save-branding-${slug}`);
+    setFormError(null);
+    try {
+      const tenant = tenants.find(t => t.slug === slug);
+      if (!tenant) return;
+
+      const branding: TenantBranding = {};
+      if (brandAccent.trim()) branding.accentColor = brandAccent.trim();
+      if (brandBgColor.trim()) branding.bgColor = brandBgColor.trim();
+      if (brandLogoUrl.trim()) branding.logoUrl = brandLogoUrl.trim();
+      if (brandHeroTitle.trim()) branding.heroTitle = brandHeroTitle.trim();
+      if (brandHeroSubtitle.trim()) branding.heroSubtitle = brandHeroSubtitle.trim();
+      if (brandFooterText.trim()) branding.footerText = brandFooterText.trim();
+
+      // Merge into existing config, preserving non-branding fields
+      const existingConfig = tenant.config || {};
+      const newConfig: TenantConfig = { ...existingConfig, branding };
+
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: await getPostHeaders(),
+        body: JSON.stringify({
+          action: 'update-tenant',
+          tenantSlug: slug,
+          config: newConfig,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.error || 'Failed to save branding');
+        return;
+      }
+
+      // Update local state
+      setTenants(prev => prev.map(t => t.slug === slug ? { ...t, config: newConfig } : t));
+      closeBrandingEditor();
+      setFormSuccess('Branding saved');
+      setTimeout(() => setFormSuccess(null), 3000);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save branding');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleClearBranding = async (slug: string) => {
+    setActionLoading(`clear-branding-${slug}`);
+    setFormError(null);
+    try {
+      const tenant = tenants.find(t => t.slug === slug);
+      if (!tenant) return;
+
+      const existingConfig = tenant.config || {};
+      const newConfig: TenantConfig = { ...existingConfig, branding: {} };
+
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: await getPostHeaders(),
+        body: JSON.stringify({
+          action: 'update-tenant',
+          tenantSlug: slug,
+          config: newConfig,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.error || 'Failed to clear branding');
+        return;
+      }
+
+      setTenants(prev => prev.map(t => t.slug === slug ? { ...t, config: newConfig } : t));
+      closeBrandingEditor();
+      setFormSuccess('Branding cleared');
+      setTimeout(() => setFormSuccess(null), 3000);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to clear branding');
     } finally {
       setActionLoading(null);
     }
@@ -1677,6 +1791,137 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity"
                         style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
                         <Pencil className="w-3 h-3" /> Edit API Settings
+                      </button>
+                    )}
+
+                    {/* Branding Editor */}
+                    {editingBranding === tenant.slug ? (
+                      <div className="rounded-lg p-3 space-y-3" style={{ border: `1px solid ${cardBorder}`, backgroundColor: inputBg }}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium flex items-center gap-1.5" style={{ color: textMuted }}>
+                            <Palette className="w-3 h-3" /> Customize Branding
+                          </p>
+                          <Link href={`/${tenant.slug}`} target="_blank" rel="noopener noreferrer"
+                            className="text-[11px] flex items-center gap-1 hover:underline"
+                            style={{ color: textMuted }}>
+                            Preview <ExternalLink className="w-2.5 h-2.5" />
+                          </Link>
+                        </div>
+
+                        {/* Color pickers row */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] mb-1" style={{ color: textDim }}>Accent Color</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={brandAccent || '#6366f1'}
+                                onChange={e => setBrandAccent(e.target.value)}
+                                className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                                style={{ backgroundColor: 'transparent' }} />
+                              <input type="text" value={brandAccent}
+                                onChange={e => setBrandAccent(e.target.value)}
+                                placeholder="#6366f1"
+                                className="flex-1 px-2 py-1.5 text-xs font-mono rounded-lg"
+                                style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }} />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] mb-1" style={{ color: textDim }}>Background Color <span className="opacity-60">(light mode)</span></label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={brandBgColor || '#f8f9fa'}
+                                onChange={e => setBrandBgColor(e.target.value)}
+                                className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                                style={{ backgroundColor: 'transparent' }} />
+                              <input type="text" value={brandBgColor}
+                                onChange={e => setBrandBgColor(e.target.value)}
+                                placeholder="#f8f9fa"
+                                className="flex-1 px-2 py-1.5 text-xs font-mono rounded-lg"
+                                style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Logo URL with preview */}
+                        <div>
+                          <label className="block text-[11px] mb-1" style={{ color: textDim }}>Logo URL</label>
+                          <div className="flex items-center gap-2">
+                            <input type="url" value={brandLogoUrl}
+                              onChange={e => setBrandLogoUrl(e.target.value)}
+                              placeholder="https://example.com/logo.png"
+                              className="flex-1 px-2 py-1.5 text-xs rounded-lg"
+                              style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }} />
+                            {brandLogoUrl && (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={brandLogoUrl} alt="Logo preview" width={28} height={28}
+                                  className="rounded"
+                                  style={{ objectFit: 'contain', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}
+                                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                                  onLoad={e => { (e.target as HTMLImageElement).style.display = 'block'; (e.target as HTMLImageElement).nextElementSibling?.classList.add('hidden'); }} />
+                                <span className="text-[10px] hidden" style={{ color: '#ef4444' }}>Bad URL</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Hero fields */}
+                        <div>
+                          <label className="block text-[11px] mb-1" style={{ color: textDim }}>Hero Title</label>
+                          <input type="text" value={brandHeroTitle}
+                            onChange={e => setBrandHeroTitle(e.target.value)}
+                            placeholder={`e.g. Welcome to ${tenant.name} Governance`}
+                            className="w-full px-2 py-1.5 text-xs rounded-lg"
+                            style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }} />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] mb-1" style={{ color: textDim }}>Hero Subtitle</label>
+                          <textarea value={brandHeroSubtitle}
+                            onChange={e => setBrandHeroSubtitle(e.target.value)}
+                            placeholder="Descriptive text below the hero title"
+                            rows={2}
+                            className="w-full px-2 py-1.5 text-xs rounded-lg resize-y"
+                            style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }} />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] mb-1" style={{ color: textDim }}>Footer Text</label>
+                          <input type="text" value={brandFooterText}
+                            onChange={e => setBrandFooterText(e.target.value)}
+                            placeholder="e.g. Powered by MyDAO"
+                            className="w-full px-2 py-1.5 text-xs rounded-lg"
+                            style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }} />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button onClick={() => handleSaveBranding(tenant.slug)}
+                            disabled={actionLoading === `save-branding-${tenant.slug}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                            style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                            {actionLoading === `save-branding-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                            Save Branding
+                          </button>
+                          <button onClick={() => handleClearBranding(tenant.slug)}
+                            disabled={actionLoading === `clear-branding-${tenant.slug}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                            style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>
+                            {actionLoading === `clear-branding-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                            Clear All
+                          </button>
+                          <button onClick={closeBrandingEditor}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                            style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => openBrandingEditor(tenant)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity"
+                        style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textMuted }}>
+                        <Palette className="w-3 h-3" />
+                        Customize Branding
+                        {tenant.config?.branding?.accentColor && (
+                          <span className="w-3 h-3 rounded-full ml-1 flex-shrink-0" style={{ backgroundColor: tenant.config.branding.accentColor, border: `1px solid ${cardBorder}` }} />
+                        )}
                       </button>
                     )}
 

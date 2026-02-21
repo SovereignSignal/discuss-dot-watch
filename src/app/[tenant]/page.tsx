@@ -23,7 +23,7 @@ import {
   FileText,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { DelegateDashboard, DelegateRow, DashboardSummary } from '@/types/delegates';
+import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantBranding } from '@/types/delegates';
 import { DELEGATE_ROLES } from '@/types/delegates';
 import { c } from '@/lib/theme';
 import { useAuth } from '@/components/AuthProvider';
@@ -34,6 +34,25 @@ const RESERVED_SLUGS = new Set([
   'terms', 'about', 'privacy', 'contact', 'pricing',
   'help', 'docs', 'blog', 'login', 'signup', 'settings',
 ]);
+
+/** Derive accent-based color tokens from branding. Returns null if no accent. */
+function brandedColors(branding?: TenantBranding) {
+  const accent = branding?.accentColor;
+  if (!accent) return null;
+  // Parse hex to r,g,b for opacity variants
+  const hex = accent.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  return {
+    accent,
+    accentBg: `rgba(${r},${g},${b},0.07)`,
+    accentBorder: `rgba(${r},${g},${b},0.19)`,
+    accentHover: `rgba(${r},${g},${b},0.12)`,
+    accentBadgeBg: `rgba(${r},${g},${b},0.12)`,
+    accentBadgeBorder: `rgba(${r},${g},${b},0.25)`,
+  };
+}
 
 type SortField =
   | 'displayName'
@@ -73,6 +92,8 @@ export default function TenantDashboardPage() {
   const t = c(isDark);
   const { user } = useAuth();
   const userIsAdmin = isAdminEmail(user?.email);
+  const branding = dashboard?.tenant.branding;
+  const bc = brandedColors(branding);
 
   // Theme — apply saved preference to DOM on mount
   useEffect(() => {
@@ -239,7 +260,7 @@ export default function TenantDashboardPage() {
     : null;
 
   return (
-    <div style={{ background: t.bg, color: t.fg, minHeight: '100vh' }}>
+    <div style={{ background: (!isDark && branding?.bgColor) || t.bg, color: t.fg, minHeight: '100vh' }}>
       {/* Header */}
       <header
         style={{
@@ -251,49 +272,36 @@ export default function TenantDashboardPage() {
           position: 'sticky',
           top: 0,
           zIndex: 30,
-          background: t.bg,
+          background: (!isDark && branding?.bgColor) || t.bg,
           backdropFilter: 'blur(12px)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link
-            href="/"
-            style={{ color: t.fgDim, textDecoration: 'none', fontSize: 13 }}
-          >
-            discuss.watch
-          </Link>
-          <ChevronRight size={14} color={t.fgDim} />
-          {userIsAdmin && (
-            <>
-              <Link
-                href="/admin"
-                style={{ color: t.fgDim, textDecoration: 'none', fontSize: 13 }}
-              >
-                Admin
-              </Link>
-              <ChevronRight size={14} color={t.fgDim} />
-            </>
+          {branding?.logoUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={branding.logoUrl}
+              alt={`${dashboard.tenant.name} logo`}
+              style={{ height: 28, width: 'auto' }}
+            />
           )}
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
             {dashboard.tenant.name}
           </h1>
-          <span
-            style={{
-              fontSize: 11,
-              color: t.fgDim,
-              background: t.bgActive,
-              padding: '2px 8px',
-              borderRadius: 9999,
-            }}
-          >
-            Delegate Dashboard
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {dashboard.lastRefreshAt && (
             <span style={{ fontSize: 12, color: t.fgDim }}>
               Updated {formatDistanceToNow(new Date(dashboard.lastRefreshAt), { addSuffix: true })}
             </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {userIsAdmin && (
+            <Link
+              href="/admin"
+              style={{ color: t.fgDim, textDecoration: 'none', fontSize: 12 }}
+            >
+              Admin
+            </Link>
           )}
           <a
             href={dashboard.tenant.forumUrl}
@@ -303,11 +311,11 @@ export default function TenantDashboardPage() {
               display: 'flex',
               alignItems: 'center',
               gap: 4,
-              color: t.fgMuted,
+              color: bc?.accent || t.fgMuted,
               fontSize: 12,
               textDecoration: 'none',
               padding: '4px 10px',
-              border: `1px solid ${t.border}`,
+              border: `1px solid ${bc?.accentBorder || t.border}`,
               borderRadius: 6,
             }}
           >
@@ -355,9 +363,30 @@ export default function TenantDashboardPage() {
         );
       })()}
 
+      {/* Hero section (only when branding has a title) */}
+      {branding?.heroTitle && (
+        <div
+          style={{
+            padding: '40px 24px 32px',
+            textAlign: 'center',
+            background: bc?.accentBg || 'transparent',
+            borderBottom: bc ? `1px solid ${bc.accentBorder}` : undefined,
+          }}
+        >
+          <h2 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 8px' }}>
+            {branding.heroTitle}
+          </h2>
+          {branding.heroSubtitle && (
+            <p style={{ fontSize: 15, color: t.fgMuted, margin: 0, maxWidth: 600, marginInline: 'auto' }}>
+              {branding.heroSubtitle}
+            </p>
+          )}
+        </div>
+      )}
+
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px' }}>
         {/* Summary Cards */}
-        <SummaryCards summary={dashboard.summary} t={t} />
+        <SummaryCards summary={dashboard.summary} t={t} accent={bc?.accent} />
 
         {/* Filters Bar */}
         <div
@@ -498,18 +527,19 @@ export default function TenantDashboardPage() {
                     dir={sortDir}
                     onSort={handleSort}
                     t={t}
+                    accent={bc?.accent}
                     sticky
                   />
                   <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
                     Role
                   </th>
-                  <SortHeader label="Posts" field="postCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
-                  <SortHeader label="Topics" field="topicCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
-                  <SortHeader label="Likes" field="likesReceived" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
-                  <SortHeader label="Days Active" field="daysVisited" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
-                  <SortHeader label="Rationales" field="rationaleCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
-                  <SortHeader label="Vote Rate" field="voteRate" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
-                  <SortHeader label="Last Seen" field="lastSeenAt" current={sortField} dir={sortDir} onSort={handleSort} t={t} />
+                  <SortHeader label="Posts" field="postCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                  <SortHeader label="Topics" field="topicCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                  <SortHeader label="Likes" field="likesReceived" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                  <SortHeader label="Days Active" field="daysVisited" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                  <SortHeader label="Rationales" field="rationaleCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                  <SortHeader label="Vote Rate" field="voteRate" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                  <SortHeader label="Last Seen" field="lastSeenAt" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
                   <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
                     Programs
                   </th>
@@ -542,6 +572,8 @@ export default function TenantDashboardPage() {
                         )
                       }
                       t={t}
+                      accentHover={bc?.accentHover}
+                      accentBg={bc?.accentBg}
                     />
                   ))
                 )}
@@ -573,7 +605,7 @@ export default function TenantDashboardPage() {
             Discourse REST API
           </a>{' '}
           of {dashboard.tenant.forumUrl}. On-chain voting data manually entered (pending chain integration).
-          Identity data from admin-provided records. discuss.watch does not generate or infer data.
+          Identity data from admin-provided records. Not affiliated with Discourse.
         </div>
 
         {/* Footer */}
@@ -582,22 +614,24 @@ export default function TenantDashboardPage() {
             marginTop: 32,
             paddingTop: 16,
             borderTop: `1px solid ${t.border}`,
-            fontSize: 11,
+            fontSize: 12,
             color: t.fgDim,
             display: 'flex',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 8,
+            justifyContent: 'center',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
+            paddingBottom: 24,
           }}
         >
+          {branding?.footerText && (
+            <span>{branding.footerText}</span>
+          )}
           <span>
-            Not affiliated with Discourse. Data from the Discourse REST API.
-          </span>
-          <span>
-            <Link href="/" style={{ color: t.fgMuted, textDecoration: 'none' }}>
+            Powered by{' '}
+            <Link href="/" style={{ color: bc?.accent || t.fgMuted, textDecoration: 'none', fontWeight: 500 }}>
               discuss.watch
-            </Link>{' '}
-            — Delegate monitoring for governance forums
+            </Link>
           </span>
         </footer>
       </div>
@@ -610,6 +644,8 @@ export default function TenantDashboardPage() {
           tenantSlug={slug}
           onClose={closeDelegatePanel}
           t={t}
+          accent={bc?.accent}
+          accentBorder={bc?.accentBorder}
         />
       )}
     </div>
@@ -620,7 +656,7 @@ export default function TenantDashboardPage() {
 // Sub-components
 // ============================================================
 
-function SummaryCards({ summary, t }: { summary: DashboardSummary; t: ReturnType<typeof c> }) {
+function SummaryCards({ summary, t, accent }: { summary: DashboardSummary; t: ReturnType<typeof c>; accent?: string }) {
   const cards = [
     { label: 'Total Delegates', value: summary.totalDelegates, icon: Users },
     { label: 'Active', value: summary.activeDelegates, icon: Activity },
@@ -671,7 +707,7 @@ function SummaryCards({ summary, t }: { summary: DashboardSummary; t: ReturnType
               marginBottom: 6,
             }}
           >
-            <card.icon size={13} color={t.fgDim} />
+            <card.icon size={13} color={accent || t.fgDim} />
             <span style={{ fontSize: 11, color: t.fgDim }}>{card.label}</span>
           </div>
           <div style={{ fontSize: 22, fontWeight: 700 }}>{card.value}</div>
@@ -688,6 +724,7 @@ function SortHeader({
   dir,
   onSort,
   t,
+  accent,
   sticky,
 }: {
   label: string;
@@ -696,9 +733,11 @@ function SortHeader({
   dir: SortDir;
   onSort: (f: SortField) => void;
   t: ReturnType<typeof c>;
+  accent?: string;
   sticky?: boolean;
 }) {
   const isActive = current === field;
+  const activeColor = accent || t.fg;
   return (
     <th
       style={{
@@ -721,7 +760,7 @@ function SortHeader({
           padding: '10px 16px',
           textAlign: field === 'displayName' ? 'left' : 'right',
           justifyContent: field === 'displayName' ? 'flex-start' : 'flex-end',
-          color: isActive ? t.fg : t.fgDim,
+          color: isActive ? activeColor : t.fgDim,
           fontWeight: 500,
           fontSize: 12,
           cursor: 'pointer',
@@ -751,12 +790,16 @@ function DelegateTableRow({
   isSelected,
   onSelect,
   t,
+  accentHover,
+  accentBg,
 }: {
   delegate: DelegateRow;
   forumUrl: string;
   isSelected: boolean;
   onSelect: () => void;
   t: ReturnType<typeof c>;
+  accentHover?: string;
+  accentBg?: string;
 }) {
   const seenAgo = d.lastSeenAt
     ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
@@ -782,12 +825,12 @@ function DelegateTableRow({
       style={{
         borderBottom: `1px solid ${t.border}`,
         cursor: 'pointer',
-        background: isSelected ? t.bgActive : 'transparent',
+        background: isSelected ? (accentBg || t.bgActive) : 'transparent',
         transition: 'background 0.1s',
         outline: 'none',
       }}
       onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.background = t.bgSubtle;
+        if (!isSelected) e.currentTarget.style.background = accentHover || t.bgSubtle;
       }}
       onMouseLeave={(e) => {
         if (!isSelected) e.currentTarget.style.background = 'transparent';
@@ -800,7 +843,7 @@ function DelegateTableRow({
           whiteSpace: 'nowrap',
           position: 'sticky',
           left: 0,
-          background: isSelected ? t.bgActive : t.bg,
+          background: isSelected ? (accentBg || t.bgActive) : t.bg,
           zIndex: 1,
         }}
       >
@@ -964,12 +1007,16 @@ function DelegateDetailPanel({
   tenantSlug,
   onClose,
   t,
+  accent,
+  accentBorder,
 }: {
   delegate: DelegateRow;
   forumUrl: string;
   tenantSlug: string;
   onClose: () => void;
   t: ReturnType<typeof c>;
+  accent?: string;
+  accentBorder?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -1090,7 +1137,7 @@ function DelegateDetailPanel({
         <div
           style={{
             padding: '16px 20px',
-            borderBottom: `1px solid ${t.border}`,
+            borderBottom: `2px solid ${accentBorder || t.border}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -1154,7 +1201,7 @@ function DelegateDetailPanel({
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
             <Badge
               label={d.isActive ? 'Active' : 'Inactive'}
-              color={d.isActive ? '#10b981' : '#f59e0b'}
+              color={d.isActive ? (accent || '#10b981') : '#f59e0b'}
             />
             {d.role && (
               <Badge label={dashboardGetRoleLabel(d.role)} color={dashboardGetRoleColor(d.role)} />
@@ -1174,18 +1221,19 @@ function DelegateDetailPanel({
               marginBottom: 20,
             }}
           >
-            <StatBox label="Posts" value={d.postCount} source="Discourse API" t={t} />
-            <StatBox label="Topics Created" value={d.topicCount} source="Discourse API" t={t} />
-            <StatBox label="Likes Received" value={d.likesReceived} source="Discourse API" t={t} />
-            <StatBox label="Likes Given" value={d.likesGiven} source="Discourse API" t={t} />
-            <StatBox label="Days Visited" value={d.daysVisited} source="Discourse API" t={t} />
-            <StatBox label="Posts Read" value={d.postsRead} source="Discourse API" t={t} />
-            <StatBox label="Rationales" value={d.rationaleCount} source="Discourse Search API" t={t} />
+            <StatBox label="Posts" value={d.postCount} source="Discourse API" t={t} accentBorder={accentBorder} />
+            <StatBox label="Topics Created" value={d.topicCount} source="Discourse API" t={t} accentBorder={accentBorder} />
+            <StatBox label="Likes Received" value={d.likesReceived} source="Discourse API" t={t} accentBorder={accentBorder} />
+            <StatBox label="Likes Given" value={d.likesGiven} source="Discourse API" t={t} accentBorder={accentBorder} />
+            <StatBox label="Days Visited" value={d.daysVisited} source="Discourse API" t={t} accentBorder={accentBorder} />
+            <StatBox label="Posts Read" value={d.postsRead} source="Discourse API" t={t} accentBorder={accentBorder} />
+            <StatBox label="Rationales" value={d.rationaleCount} source="Discourse Search API" t={t} accentBorder={accentBorder} />
             <StatBox
               label="Vote Rate"
               value={d.voteRate != null ? `${d.voteRate}%` : '—'}
               source="Manual entry"
               t={t}
+              accentBorder={accentBorder}
             />
           </div>
 
@@ -1335,18 +1383,20 @@ function StatBox({
   value,
   source,
   t,
+  accentBorder,
 }: {
   label: string;
   value: string | number;
   source: string;
   t: ReturnType<typeof c>;
+  accentBorder?: string;
 }) {
   return (
     <div
       style={{
         padding: '10px 12px',
         borderRadius: 8,
-        border: `1px solid ${t.border}`,
+        border: `1px solid ${accentBorder || t.border}`,
         background: t.bgSubtle,
       }}
     >

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
+import type { TenantBranding } from '@/types/delegates';
 
-// Dynamic metadata: tries to fetch tenant name, falls back to capitalizing slug
+// Dynamic metadata: tries to fetch tenant name + branding, falls back to capitalizing slug
 export async function generateMetadata({
   params,
 }: {
@@ -12,12 +13,15 @@ export async function generateMetadata({
   const isValidSlug = /^[a-z0-9][a-z0-9-]*$/.test(slug) && slug.length <= 64;
 
   let tenantName: string | null = null;
+  let branding: TenantBranding | undefined;
   if (isValidSlug) {
     try {
-      // Dynamic import to avoid bundling DB deps in the client
       const { getTenantBySlug } = await import('@/lib/delegates/db');
       const tenant = await getTenantBySlug(slug);
-      if (tenant) tenantName = tenant.name;
+      if (tenant) {
+        tenantName = tenant.name;
+        branding = tenant.config.branding;
+      }
     } catch {
       // DB unavailable — fall through to slug-based title
     }
@@ -27,10 +31,14 @@ export async function generateMetadata({
     ? slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
     : 'discuss.watch');
 
-  return {
-    title: `${displayName} — discuss.watch Delegate Dashboard`,
-    description: `Delegate activity monitoring for ${displayName} governance forum.`,
-  };
+  const title = branding?.heroTitle
+    ? `${displayName} — Community Dashboard`
+    : `${displayName} — discuss.watch Delegate Dashboard`;
+
+  const description = branding?.heroSubtitle
+    || `Delegate activity monitoring for ${displayName} governance forum.`;
+
+  return { title, description };
 }
 
 export default function TenantLayout({
