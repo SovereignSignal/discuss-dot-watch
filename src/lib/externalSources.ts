@@ -96,7 +96,7 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     description: 'PyTorch framework discussions and RFCs',
     logoUrl: 'https://github.com/pytorch.png',
     tier: 1,
-    enabled: true,
+    enabled: false, // No GitHub Discussions — uses discuss.pytorch.org (Discourse)
     repoRef: 'pytorch/pytorch',
   },
   {
@@ -107,7 +107,7 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     description: 'Transformers library discussions',
     logoUrl: 'https://github.com/huggingface.png',
     tier: 1,
-    enabled: true,
+    enabled: false, // No GitHub Discussions — uses discuss.huggingface.co
     repoRef: 'huggingface/transformers',
   },
   {
@@ -118,7 +118,7 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     description: 'LangChain framework discussions',
     logoUrl: 'https://github.com/langchain-ai.png',
     tier: 2,
-    enabled: true,
+    enabled: false, // Migrated to LangChain Forum (discuss.langchain.com)
     repoRef: 'langchain-ai/langchain',
   },
   {
@@ -127,10 +127,10 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     sourceType: 'github',
     category: 'ai',
     description: 'LLM inference in C/C++ discussions',
-    logoUrl: 'https://github.com/ggerganov.png',
+    logoUrl: 'https://github.com/ggml-org.png',
     tier: 1,
     enabled: true,
-    repoRef: 'ggerganov/llama.cpp',
+    repoRef: 'ggml-org/llama.cpp',
   },
   {
     id: 'github-vllm',
@@ -140,7 +140,7 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     description: 'High-throughput LLM serving engine discussions',
     logoUrl: 'https://github.com/vllm-project.png',
     tier: 2,
-    enabled: true,
+    enabled: false, // Discussions migrated away (March 2025)
     repoRef: 'vllm-project/vllm',
   },
   {
@@ -154,6 +154,17 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     enabled: true,
     repoRef: 'mlflow/mlflow',
   },
+  {
+    id: 'github-jax',
+    name: 'JAX',
+    sourceType: 'github',
+    category: 'ai',
+    description: 'Google JAX numerical computing discussions',
+    logoUrl: 'https://github.com/jax-ml.png',
+    tier: 1,
+    enabled: true,
+    repoRef: 'jax-ml/jax',
+  },
   // GitHub Discussions — Open Source
   {
     id: 'github-rust-rfcs',
@@ -163,7 +174,7 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     description: 'Rust language RFCs and design discussions',
     logoUrl: 'https://github.com/rust-lang.png',
     tier: 1,
-    enabled: true,
+    enabled: false, // No GitHub Discussions — uses PRs + Zulip for RFC discussion
     repoRef: 'rust-lang/rfcs',
   },
   {
@@ -185,7 +196,7 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     description: 'Node.js runtime discussions',
     logoUrl: 'https://github.com/nodejs.png',
     tier: 2,
-    enabled: true,
+    enabled: false, // No GitHub Discussions — uses nodejs/help and Discourse
     repoRef: 'nodejs/node',
   },
   {
@@ -275,6 +286,83 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     tier: 2,
     enabled: true,
     repoRef: 'Homebrew/discussions',
+  },
+  {
+    id: 'github-astro-roadmap',
+    name: 'Astro',
+    sourceType: 'github',
+    category: 'oss',
+    description: 'Astro web framework roadmap and feature discussions',
+    logoUrl: 'https://github.com/withastro.png',
+    tier: 1,
+    enabled: true,
+    repoRef: 'withastro/roadmap',
+  },
+  {
+    id: 'github-ruff',
+    name: 'Ruff',
+    sourceType: 'github',
+    category: 'oss',
+    description: 'Ruff Python linter and formatter discussions',
+    logoUrl: 'https://github.com/astral-sh.png',
+    tier: 1,
+    enabled: true,
+    repoRef: 'astral-sh/ruff',
+  },
+  {
+    id: 'github-typescript-go',
+    name: 'TypeScript Native',
+    sourceType: 'github',
+    category: 'oss',
+    description: 'TypeScript native port (Go) discussions',
+    logoUrl: 'https://github.com/microsoft.png',
+    tier: 1,
+    enabled: true,
+    repoRef: 'microsoft/typescript-go',
+  },
+  {
+    id: 'github-golang',
+    name: 'Go',
+    sourceType: 'github',
+    category: 'oss',
+    description: 'Go programming language discussions',
+    logoUrl: 'https://github.com/golang.png',
+    tier: 2,
+    enabled: true,
+    repoRef: 'golang/go',
+  },
+  {
+    id: 'github-vscode',
+    name: 'VS Code',
+    sourceType: 'github',
+    category: 'oss',
+    description: 'Visual Studio Code discussions',
+    logoUrl: 'https://github.com/microsoft.png',
+    tier: 2,
+    enabled: true,
+    repoRef: 'microsoft/vscode-discussions',
+  },
+  {
+    id: 'github-oxc',
+    name: 'OXC',
+    sourceType: 'github',
+    category: 'oss',
+    description: 'OXC JavaScript toolchain discussions',
+    logoUrl: 'https://github.com/oxc-project.png',
+    tier: 2,
+    enabled: true,
+    repoRef: 'oxc-project/oxc',
+  },
+  {
+    id: 'github-gleam',
+    name: 'Gleam',
+    sourceType: 'github',
+    category: 'oss',
+    description: 'Gleam programming language discussions',
+    logoUrl: 'https://github.com/gleam-lang.png',
+    tier: 3,
+    enabled: true,
+    repoRef: 'gleam-lang/gleam',
   },
   // Snapshot Governance Spaces
   {
