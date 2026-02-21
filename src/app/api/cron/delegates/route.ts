@@ -8,28 +8,12 @@
  * Protected by CRON_SECRET (constant-time comparison).
  */
 
-import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { isDatabaseConfigured } from '@/lib/db';
+import { validateCronSecret } from '@/lib/auth';
 import { ensureSchema, getAllTenants } from '@/lib/delegates/db';
 import { refreshTenant } from '@/lib/delegates/refreshEngine';
 import type { RefreshResult, DelegateTenant } from '@/types/delegates';
-
-function validateCronSecret(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret && process.env.NODE_ENV === 'development') {
-    return true;
-  }
-
-  if (!authHeader || !cronSecret) return false;
-
-  const expected = `Bearer ${cronSecret}`;
-  if (authHeader.length !== expected.length) return false;
-
-  return timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
-}
 
 function isRefreshDue(tenant: DelegateTenant): boolean {
   if (!tenant.lastRefreshAt) return true;

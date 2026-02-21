@@ -58,7 +58,10 @@ export default function TenantDashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   // UI state
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('discuss-watch-theme') !== 'light';
+  });
   const [sortField, setSortField] = useState<SortField>('postCount');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,11 +81,6 @@ export default function TenantDashboardPage() {
       document.documentElement.classList.toggle('light', saved === 'light');
       document.documentElement.classList.toggle('dark', saved === 'dark');
     }
-    // Defer state update to after initial render
-    requestAnimationFrame(() => {
-      const s = localStorage.getItem('discuss-watch-theme') as 'dark' | 'light' | null;
-      if (s === 'light') setIsDark(false);
-    });
   }, []);
 
   const toggleTheme = () => {
@@ -703,23 +701,35 @@ function SortHeader({
   const isActive = current === field;
   return (
     <th
-      onClick={() => onSort(field)}
       style={{
-        padding: '10px 16px',
-        textAlign: field === 'displayName' ? 'left' : 'right',
-        color: isActive ? t.fg : t.fgDim,
-        fontWeight: 500,
-        fontSize: 12,
-        cursor: 'pointer',
-        userSelect: 'none',
-        whiteSpace: 'nowrap',
+        padding: 0,
         position: sticky ? 'sticky' : undefined,
         left: sticky ? 0 : undefined,
         background: sticky ? t.bg : undefined,
         zIndex: sticky ? 2 : undefined,
       }}
     >
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <button
+        onClick={() => onSort(field)}
+        aria-sort={isActive ? (dir === 'desc' ? 'descending' : 'ascending') : undefined}
+        style={{
+          all: 'unset',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          width: '100%',
+          padding: '10px 16px',
+          textAlign: field === 'displayName' ? 'left' : 'right',
+          justifyContent: field === 'displayName' ? 'flex-start' : 'flex-end',
+          color: isActive ? t.fg : t.fgDim,
+          fontWeight: 500,
+          fontSize: 12,
+          cursor: 'pointer',
+          userSelect: 'none',
+          whiteSpace: 'nowrap',
+          boxSizing: 'border-box',
+        }}
+      >
         {label}
         {isActive ? (
           dir === 'desc' ? (
@@ -730,7 +740,7 @@ function SortHeader({
         ) : (
           <ArrowUpDown size={11} color={t.fgDim} style={{ opacity: 0.5 }} />
         )}
-      </span>
+      </button>
     </th>
   );
 }
@@ -752,17 +762,29 @@ function DelegateTableRow({
     ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
     : '—';
 
-  // Inactive warning: not seen in 30+ days (derive from formatted string to avoid impure Date.now)
-  const stale = seenAgo.includes('month') || seenAgo.includes('year');
+  // Inactive warning: not seen in 30+ days
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const stale = d.lastSeenAt
+    ? Date.now() - new Date(d.lastSeenAt).getTime() > THIRTY_DAYS_MS
+    : false;
 
   return (
     <tr
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      tabIndex={0}
+      aria-selected={isSelected}
       style={{
         borderBottom: `1px solid ${t.border}`,
         cursor: 'pointer',
         background: isSelected ? t.bgActive : 'transparent',
         transition: 'background 0.1s',
+        outline: 'none',
       }}
       onMouseEnter={(e) => {
         if (!isSelected) e.currentTarget.style.background = t.bgSubtle;
@@ -807,7 +829,7 @@ function DelegateTableRow({
                 flexShrink: 0,
               }}
             >
-              {d.displayName[0]}
+              {d.displayName?.[0] || '?'}
             </div>
           )}
           <div>
@@ -971,19 +993,40 @@ function DelegateDetailPanel({
   } | null>(null);
   const [detailLoading, setDetailLoading] = useState(true);
 
-  // Accessibility: Escape key, scroll lock, focus management
+  // Accessibility: Escape key, focus trap, scroll lock, focus management
   useEffect(() => {
     previousActiveElement.current = document.activeElement as HTMLElement;
 
+    const panel = panelRef.current;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+
+      // Focus trap: cycle Tab within the panel
+      if (e.key === 'Tab' && panel) {
+        const focusable = panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     // Focus close button on open
-    const closeBtn = panelRef.current?.querySelector<HTMLButtonElement>('[data-close-button]');
+    const closeBtn = panel?.querySelector<HTMLButtonElement>('[data-close-button]');
     closeBtn?.focus();
 
     return () => {
@@ -1075,7 +1118,7 @@ function DelegateDetailPanel({
                   fontWeight: 600,
                 }}
               >
-                {d.displayName[0]}
+                {d.displayName?.[0] || '?'}
               </div>
             )}
             <div>
@@ -1112,15 +1155,14 @@ function DelegateDetailPanel({
             <Badge
               label={d.isActive ? 'Active' : 'Inactive'}
               color={d.isActive ? '#10b981' : '#f59e0b'}
-              t={t}
             />
             {d.role && (
-              <Badge label={dashboardGetRoleLabel(d.role)} color={dashboardGetRoleColor(d.role)} t={t} />
+              <Badge label={dashboardGetRoleLabel(d.role)} color={dashboardGetRoleColor(d.role)} />
             )}
             {d.programs.map((p) => (
-              <Badge key={p} label={p} color={t.fgDim} t={t} />
+              <Badge key={p} label={p} color={t.fgDim} />
             ))}
-            <Badge label={`Trust Level ${d.trustLevel}`} color={t.fgDim} t={t} />
+            <Badge label={`Trust Level ${d.trustLevel}`} color={t.fgDim} />
           </div>
 
           {/* Stats Grid */}
@@ -1243,7 +1285,7 @@ function DelegateDetailPanel({
                           maxWidth: '100%',
                         }}
                       >
-                        {post.content.replace(/<[^>]+>/g, '').slice(0, 120)}
+                        {extractText(post.content, 120)}
                       </div>
                     )}
                     <div
@@ -1271,7 +1313,7 @@ function DelegateDetailPanel({
   );
 }
 
-function Badge({ label, color }: { label: string; color: string; t?: ReturnType<typeof c> }) {
+function Badge({ label, color }: { label: string; color: string }) {
   return (
     <span
       style={{
@@ -1315,6 +1357,21 @@ function StatBox({
       <div style={{ fontSize: 9, color: t.fgDim, marginTop: 2 }}>{source}</div>
     </div>
   );
+}
+
+// ============================================================
+// Utilities
+// ============================================================
+
+/** Extract plain text from HTML using the browser's native parser */
+function extractText(html: string, maxLen: number = 120): string {
+  if (typeof document !== 'undefined') {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const text = div.textContent || div.innerText || '';
+    return text.trim().slice(0, maxLen);
+  }
+  return html.replace(/<[^>]+>/g, '').trim().slice(0, maxLen);
 }
 
 // ============================================================

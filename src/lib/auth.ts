@@ -133,3 +133,24 @@ export function isAuthError(
 ): result is AuthError {
   return 'error' in result;
 }
+
+/**
+ * Validate CRON_SECRET from Authorization header (Bearer token).
+ * Shared by cron endpoints (delegates, digest).
+ * In development mode, allows access when CRON_SECRET is not set.
+ */
+export function validateCronSecret(request: NextRequest): boolean {
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret && process.env.NODE_ENV === 'development') {
+    return true;
+  }
+
+  if (!authHeader || !cronSecret) return false;
+
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!token) return false;
+
+  return safeCompare(token, cronSecret);
+}
