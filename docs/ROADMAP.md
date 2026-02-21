@@ -115,7 +115,7 @@
 
 ## Phase 4: LessWrong / AI Alignment Forum
 **Status:** ✅ Implemented
-**Target:** Apr 2026
+**Completed:** Feb 2026
 
 - [x] LessWrong API integration (via `eaForumClient.ts` — shared GraphQL backend)
 - [x] AI Alignment Forum (same backend as LessWrong)

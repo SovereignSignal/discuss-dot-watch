@@ -19,7 +19,7 @@
           {
             "name": "category",
             "in": "query",
-            "description": "Filter by category ID (e.g., crypto-governance, ai-research)",
+            "description": "Filter by category ID (e.g., crypto, ai, oss)",
             "schema": { "type": "string" }
           },
           {
@@ -84,7 +84,7 @@
           {
             "name": "category",
             "in": "query",
-            "description": "Category ID (e.g., crypto-governance, ai-research, oss-languages)",
+            "description": "Category ID (e.g., crypto, ai, oss)",
             "schema": { "type": "string" }
           },
           {

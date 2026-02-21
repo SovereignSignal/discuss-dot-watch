@@ -150,7 +150,10 @@ git push
 Check `nixpacks.toml` specifies correct Node:
 ```toml
 [phases.setup]
-nixPkgs = ["nodejs_22", "npm"]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm i -g npm@11", "npm ci"]
 ```
 
 ### Database Connection Errors

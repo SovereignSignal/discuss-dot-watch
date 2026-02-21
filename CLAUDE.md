@@ -50,11 +50,13 @@ See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for complete platform/forum
 | Language | TypeScript 5 |
 | UI | React 19 |
 | Styling | Tailwind CSS 4 |
+| Typography | Geist font |
 | Icons | Lucide React |
 | Date Handling | date-fns |
 | ID Generation | uuid |
 | Linting | ESLint 9 |
-| Auth | Privy |
+| Auth | Privy (`@privy-io/react-auth` client, `@privy-io/node` server) |
+| React Compiler | Enabled via `babel-plugin-react-compiler` (`reactCompiler: true` in `next.config.ts`) |
 | Email | Resend |
 | AI | Anthropic Claude via @anthropic-ai/sdk (Haiku 4.5 + Sonnet 4.5) |
 | Validation | Zod 4 |
@@ -84,7 +86,9 @@ src/
 │   │   │   │   ├── route.ts      # Delegate dashboard data for a tenant
 │   │   │   │   ├── [username]/route.ts # Individual delegate detail
 │   │   │   │   └── refresh/route.ts    # Trigger delegate data refresh
-│   │   │   └── admin/route.ts    # Admin operations for delegate tenants
+│   │   │   ├── admin/
+│   │   │   │   ├── route.ts      # Admin operations for delegate tenants
+│   │   │   │   └── search/route.ts # Search forum users for a tenant
 │   │   ├── external-sources/
 │   │   │   └── route.ts          # Fetch from non-Discourse sources (EA Forum, GitHub, etc.)
 │   │   ├── user/
@@ -107,8 +111,8 @@ src/
 │   │       ├── forums/route.ts
 │   │       └── search/route.ts
 │   ├── [tenant]/                 # Multi-tenant delegate analytics dashboards
-│   │   ├── layout.tsx            # Tenant layout with metadata
-│   │   └── page.tsx              # Tenant dashboard page
+│   │   ├── layout.tsx            # Tenant layout with dynamic metadata (generateMetadata)
+│   │   └── page.tsx              # Tenant dashboard page (reserved slug guard, stale banner, a11y)
 │   ├── admin/
 │   │   └── page.tsx              # Admin dashboard page
 │   ├── app/
@@ -140,6 +144,8 @@ src/
 │   ├── OfflineBanner.tsx         # Offline status notification banner
 │   ├── OnboardingWizard.tsx      # New user onboarding flow
 │   ├── RightSidebar.tsx          # Search and keyword alerts sidebar (mobile: slide-in panel)
+│   ├── SavedView.tsx             # Bookmarked discussions view
+│   ├── SettingsView.tsx          # Settings panel (export/import, email prefs, keyboard shortcuts)
 │   ├── Sidebar.tsx               # Left navigation with theme toggle (mobile: hamburger menu)
 │   ├── SkipLinks.tsx             # Accessibility skip links
 │   ├── Toast.tsx                 # Toast notification system
@@ -164,7 +170,7 @@ src/
 │   ├── useUserSync.ts            # Sync local state with server on auth
 │   └── useVirtualList.ts         # Virtual scrolling hook
 ├── lib/                          # Utility libraries
-│   ├── admin.ts                  # Admin email validation
+│   ├── admin.ts                  # Admin role checking (email, DID, combined)
 │   ├── auth.ts                   # Server-side auth middleware (verifyAuth, verifyAdminAuth)
 │   ├── backfill.ts               # Database backfill utilities
 │   ├── db.ts                     # PostgreSQL database client and queries (dynamic schema)
@@ -425,6 +431,8 @@ interface DigestPreferences {
   includeKeywordMatches: boolean;
   includeDelegateCorner: boolean;
   email?: string;          // Override email if different from account
+  forums?: string[];       // Forum IDs to include, empty = all
+  keywords?: string[];     // Keywords to track
 }
 
 // Per-forum loading state (defined locally in useDiscussions.ts, not in types/index.ts)
@@ -557,6 +565,8 @@ import {
 | `FilterTabs` | Toggle between "All Forums" and "Your Forums" | `filterMode`, `onFilterChange`, `totalCount`, `enabledCount`, `isDark` |
 | `ForumManager` | Full forum management UI with presets | `forums`, `onAddForum`, `onRemoveForum`, `onToggleForum` |
 | `RightSidebar` | Search input and keyword alerts panel | `searchQuery`, `onSearchChange`, `alerts`, `onAddAlert`, `activeKeywordFilter`, `isMobileOpen`, `onMobileToggle`, `isDark` |
+| `SavedView` | Dedicated bookmarked discussions view | `bookmarks`, `onRemoveBookmark`, `isDark` |
+| `SettingsView` | Settings panel with export/import, email prefs, keyboard shortcuts | `forums`, `alerts`, `bookmarks`, `quota`, `onImport`, `onResetOnboarding`, `isDark` |
 | `Sidebar` | Left navigation (Feed/Briefs/Communities/Saved/Settings) | `activeView`, `onViewChange`, `theme`, `onToggleTheme`, `isMobileOpen`, `onMobileToggle` |
 | `Tooltip` | Hover tooltip wrapper | `content`, `children`, `position` |
 | `UserButton` | Auth login/logout button | (uses auth context internally) |
@@ -817,9 +827,28 @@ Multi-tenant delegate activity tracking for Discourse forums. Any community can 
 | `/api/delegates/[tenant]` | GET | Public | Dashboard data (delegates, stats, summary) |
 | `/api/delegates/[tenant]/[username]` | GET | Public | Individual delegate detail + recent posts |
 | `/api/delegates/[tenant]/refresh` | POST | Admin | Trigger data refresh from Discourse API |
-| `/api/delegates/admin` | POST | Admin | Create/update tenants, manage delegates |
+| `/api/delegates/admin` | GET/POST | Admin | Create/update/list tenants, manage delegates |
+| `/api/delegates/admin/search` | GET | Admin | Search forum users for a tenant |
+| `/api/cron/delegates` | GET | Cron | Automated delegate data refresh for all active tenants |
 
 See `improvements.md` for the full delegate monitoring roadmap.
+
+### Tenant Dashboard (`/[tenant]`)
+
+The delegate dashboard uses a reserved slugs pattern to prevent URL collisions with potential future pages:
+```typescript
+const RESERVED_SLUGS = new Set([
+  'terms', 'about', 'privacy', 'contact', 'pricing',
+  'help', 'docs', 'blog', 'login', 'signup', 'settings',
+]);
+```
+
+Features:
+- Dynamic metadata via `generateMetadata` (DB lookup for tenant name, falls back to capitalized slug)
+- Stale data banner when last refresh > 24 hours ago
+- Accessible detail panel: Escape key, scroll lock, focus management, ARIA attributes
+- Admin breadcrumb navigation (shown when authenticated admin)
+- Theme toggle with `themechange` event dispatch
 
 ## External Source Integrations
 
@@ -834,6 +863,15 @@ Beyond Discourse, the app integrates with multiple platforms via dedicated clien
 | LessWrong | `lib/eaForumClient.ts` (shared) | Live | No |
 
 The `lib/externalSources.ts` registry defines 20+ configured sources with their fetch logic. Sources without required tokens are silently skipped.
+
+## Cron Jobs
+
+| Endpoint | Schedule | Purpose |
+|----------|----------|---------|
+| `/api/cron/digest` | Daily 8am UTC | Send email digests to subscribers |
+| `/api/cron/delegates` | Per-tenant interval (default 12h) | Refresh delegate stats from Discourse |
+
+Both endpoints are protected by `CRON_SECRET` (constant-time comparison via `timingSafeEqual`). In development mode, `/api/cron/delegates` allows unauthenticated access when `CRON_SECRET` is not set.
 
 ## RSS/Atom Feeds
 
