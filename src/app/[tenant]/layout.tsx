@@ -8,17 +8,24 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { tenant: slug } = await params;
 
+  // Skip DB lookup for reserved slugs and invalid formats
+  const isValidSlug = /^[a-z0-9][a-z0-9-]*$/.test(slug) && slug.length <= 64;
+
   let tenantName: string | null = null;
-  try {
-    // Dynamic import to avoid bundling DB deps in the client
-    const { getTenantBySlug } = await import('@/lib/delegates/db');
-    const tenant = await getTenantBySlug(slug);
-    if (tenant) tenantName = tenant.name;
-  } catch {
-    // DB unavailable — fall through to slug-based title
+  if (isValidSlug) {
+    try {
+      // Dynamic import to avoid bundling DB deps in the client
+      const { getTenantBySlug } = await import('@/lib/delegates/db');
+      const tenant = await getTenantBySlug(slug);
+      if (tenant) tenantName = tenant.name;
+    } catch {
+      // DB unavailable — fall through to slug-based title
+    }
   }
 
-  const displayName = tenantName || slug.charAt(0).toUpperCase() + slug.slice(1);
+  const displayName = tenantName || (isValidSlug
+    ? slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    : 'discuss.watch');
 
   return {
     title: `${displayName} — discuss.watch Delegate Dashboard`,

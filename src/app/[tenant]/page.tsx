@@ -220,6 +220,8 @@ export default function TenantDashboardPage() {
     [sortField]
   );
 
+  const closeDelegatePanel = useCallback(() => setSelectedDelegate(null), []);
+
   // --- Render ---
 
   if (loading) {
@@ -315,6 +317,7 @@ export default function TenantDashboardPage() {
           </a>
           <button
             onClick={toggleTheme}
+            aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
             style={{
               background: 'none',
               border: `1px solid ${t.border}`,
@@ -607,9 +610,8 @@ export default function TenantDashboardPage() {
           delegate={detail}
           forumUrl={dashboard.tenant.forumUrl}
           tenantSlug={slug}
-          onClose={() => setSelectedDelegate(null)}
+          onClose={closeDelegatePanel}
           t={t}
-          isDark={isDark}
         />
       )}
     </div>
@@ -946,10 +948,11 @@ function DelegateDetailPanel({
   tenantSlug: string;
   onClose: () => void;
   t: ReturnType<typeof c>;
-  isDark: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const [detail, setDetail] = useState<{
     recentPosts: Array<{
@@ -973,9 +976,10 @@ function DelegateDetailPanel({
     previousActiveElement.current = document.activeElement as HTMLElement;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     // Focus close button on open
@@ -984,10 +988,10 @@ function DelegateDetailPanel({
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
+      document.body.style.overflow = originalOverflow;
       previousActiveElement.current?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

@@ -77,6 +77,7 @@ src/
 │   │   ├── digest/
 │   │   │   └── route.ts          # AI digest generation and retrieval
 │   │   ├── cron/
+│   │   │   ├── delegates/route.ts # Cron-triggered delegate data refresh
 │   │   │   └── digest/route.ts   # Cron-triggered digest email sending
 │   │   ├── delegates/
 │   │   │   ├── [tenant]/
@@ -295,12 +296,14 @@ Requires admin auth (`x-admin-email` header) or `CRON_SECRET` bearer token.
 | `/api/admin` | GET | Admin dashboard data |
 | `/api/backfill` | POST | Database backfill |
 | `/api/cache` | GET | Cache status and stats |
+| `/api/cron/delegates` | GET | Cron-triggered delegate data refresh for all active tenants |
 | `/api/cron/digest` | GET | Cron-triggered digest email sending |
 | `/api/db` | GET | Database connection status |
 | `/api/delegates/[tenant]` | GET | Delegate dashboard data for a tenant |
 | `/api/delegates/[tenant]/[username]` | GET | Individual delegate detail |
 | `/api/delegates/[tenant]/refresh` | POST | Trigger delegate data refresh |
-| `/api/delegates/admin` | POST | Admin ops for delegate tenants (create, update) |
+| `/api/delegates/admin` | GET/POST | Admin ops for delegate tenants (create, update, list) |
+| `/api/delegates/admin/search` | GET | Search forum users for a tenant (admin only) |
 | `/api/external-sources` | GET | Fetch from non-Discourse sources |
 | `/api/mcp` | GET | MCP tool definitions for AI agents |
 | `/api/v1` | GET | Public API root |

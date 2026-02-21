@@ -11,7 +11,7 @@
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { isDatabaseConfigured } from '@/lib/db';
-import { getAllTenants } from '@/lib/delegates/db';
+import { ensureSchema, getAllTenants } from '@/lib/delegates/db';
 import { refreshTenant } from '@/lib/delegates/refreshEngine';
 import type { RefreshResult, DelegateTenant } from '@/types/delegates';
 
@@ -49,39 +49,45 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }
 
-  const tenants = await getAllTenants();
-  const activeTenants = tenants.filter((t) => t.isActive);
+  try {
+    await ensureSchema();
+    const tenants = await getAllTenants();
+    const activeTenants = tenants.filter((t) => t.isActive);
 
-  const results: RefreshResult[] = [];
-  const skippedDetails: Array<{ slug: string; reason: string }> = [];
+    const results: RefreshResult[] = [];
+    const skippedDetails: Array<{ slug: string; reason: string }> = [];
 
-  for (const tenant of activeTenants) {
-    if (!isRefreshDue(tenant)) {
-      skippedDetails.push({ slug: tenant.slug, reason: 'Not due yet' });
-      continue;
+    for (const tenant of activeTenants) {
+      if (!isRefreshDue(tenant)) {
+        skippedDetails.push({ slug: tenant.slug, reason: 'Not due yet' });
+        continue;
+      }
+
+      try {
+        console.log(`[Cron Delegates] Refreshing ${tenant.slug}...`);
+        const result = await refreshTenant(tenant.slug);
+        results.push(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[Cron Delegates] Error refreshing ${tenant.slug}:`, message);
+        skippedDetails.push({ slug: tenant.slug, reason: 'Refresh failed' });
+      }
     }
 
-    try {
-      console.log(`[Cron Delegates] Refreshing ${tenant.slug}...`);
-      const result = await refreshTenant(tenant.slug);
-      results.push(result);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[Cron Delegates] Error refreshing ${tenant.slug}:`, message);
-      skippedDetails.push({ slug: tenant.slug, reason: message });
-    }
+    console.log(
+      `[Cron Delegates] Done: ${results.length} refreshed, ${skippedDetails.length} skipped`
+    );
+
+    return NextResponse.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      refreshed: results.length,
+      skipped: skippedDetails.length,
+      refreshedSlugs: results.map((r) => r.tenantSlug),
+      skippedDetails,
+    });
+  } catch (err) {
+    console.error('[Cron Delegates] Fatal error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  console.log(
-    `[Cron Delegates] Done: ${results.length} refreshed, ${skippedDetails.length} skipped`
-  );
-
-  return NextResponse.json({
-    success: true,
-    timestamp: new Date().toISOString(),
-    refreshed: results.length,
-    skipped: skippedDetails.length,
-    results,
-    skippedDetails,
-  });
 }
