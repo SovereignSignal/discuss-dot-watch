@@ -2048,6 +2048,10 @@ interface ForumHealth {
   error?: string;
 }
 
+function safeHostname(url: string): string {
+  try { return new URL(url).hostname; } catch { return url; }
+}
+
 function ForumHealthSection({ getAuthHeaders, isDark = true }: { getAuthHeaders: () => Promise<Record<string, string>>; isDark?: boolean }) {
   const [results, setResults] = useState<ForumHealth[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2142,7 +2146,7 @@ function ForumHealthSection({ getAuthHeaders, isDark = true }: { getAuthHeaders:
                 <div key={r.url} className="flex items-center justify-between px-3 py-2 rounded-lg">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm" style={{ color: fhTextPrimary }}>{r.name}</span>
-                    <span className="text-xs ml-2" style={{ color: fhTextDim }}>{new URL(r.url).hostname}</span>
+                    <span className="text-xs ml-2" style={{ color: fhTextDim }}>{safeHostname(r.url)}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     {r.status === 'ok' && (
