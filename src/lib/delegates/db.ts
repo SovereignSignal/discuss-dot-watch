@@ -202,6 +202,13 @@ export async function updateTenant(tenantId: number, updates: {
   );
 }
 
+export async function deleteTenant(tenantId: number): Promise<boolean> {
+  const db = getDb();
+  // CASCADE deletes delegates and snapshots via FK constraints
+  const [row] = await db`DELETE FROM delegate_tenants WHERE id = ${tenantId} RETURNING id`;
+  return !!row;
+}
+
 export async function updateTenantCapabilities(
   tenantId: number,
   capabilities: TenantCapabilities

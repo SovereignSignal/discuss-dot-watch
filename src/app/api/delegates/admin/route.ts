@@ -293,6 +293,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
+      case 'delete-tenant': {
+        const { tenantSlug } = body;
+        if (!tenantSlug) {
+          return NextResponse.json({ error: 'Missing tenantSlug' }, { status: 400 });
+        }
+
+        const tenant = await getTenantBySlug(tenantSlug);
+        if (!tenant) {
+          return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        const { deleteTenant } = await import('@/lib/delegates/db');
+        const removed = await deleteTenant(tenant.id);
+        return NextResponse.json({ success: removed });
+      }
+
       case 'detect-capabilities': {
         const { tenantSlug } = body;
         if (!tenantSlug) {
