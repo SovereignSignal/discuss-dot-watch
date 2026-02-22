@@ -53,8 +53,8 @@ export function DiscussionFeed({
   onSelectTopic, selectedTopicRefId, isDark = true, totalForumCount,
 }: DiscussionFeedProps) {
   const [displayCount, setDisplayCount] = useState(20);
-  const [dateRange, setDateRange] = useState<DateRangeFilter>('today');
-  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('activity');
+  const [dateRange, setDateRange] = useState<DateRangeFilter>('week');
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('created');
   const [selectedForumId, setSelectedForumId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('recent');
@@ -262,6 +262,7 @@ export function DiscussionFeed({
                 onSelect={onSelectTopic}
                 forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
                 forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
+                dateFilterMode={dateFilterMode}
                 isDark={isDark}
               />
             ))}

@@ -2,7 +2,7 @@
 
 import { format, isToday, isYesterday } from 'date-fns';
 import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink, TrendingUp, User } from 'lucide-react';
-import { DiscussionTopic, KeywordAlert } from '@/types';
+import { DiscussionTopic, KeywordAlert, DateFilterMode } from '@/types';
 import { c } from '@/lib/theme';
 
 function isExternalSource(topic: DiscussionTopic): boolean {
@@ -25,6 +25,7 @@ interface DiscussionItemProps {
   onSelect?: (topic: DiscussionTopic) => void;
   forumLogoUrl?: string;
   forumDisplayName?: string;
+  dateFilterMode?: DateFilterMode;
   isDark?: boolean;
 }
 
@@ -41,6 +42,7 @@ function isNewTopic(createdAt: string): boolean {
   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
   return created > threeDaysAgo;
 }
+
 
 const MAX_KEYWORD_LENGTH = 100;
 const MAX_KEYWORDS = 50;
@@ -76,7 +78,7 @@ function highlightKeywords(text: string, alerts: KeywordAlert[], isDark: boolean
 
 export function DiscussionItem({
   topic, alerts, isBookmarked, isRead = false, isSelected = false,
-  onToggleBookmark, onMarkAsRead, onSelect, forumLogoUrl, forumDisplayName, isDark = true,
+  onToggleBookmark, onMarkAsRead, onSelect, forumLogoUrl, forumDisplayName, dateFilterMode, isDark = true,
 }: DiscussionItemProps) {
   // External sources use different URL formats
   const topicUrl = topic.externalUrl
@@ -203,7 +205,7 @@ export function DiscussionItem({
                   {topic.likeCount > 0 && <span className="flex items-center gap-1"><ThumbsUp className="h-3 w-3" />{topic.likeCount}</span>}
                 </>
               )}
-              <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTimestamp(topic.bumpedAt)}</span>
+              <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTimestamp(dateFilterMode === 'created' ? topic.createdAt : topic.bumpedAt)}</span>
               {topic.pinned && <Pin className="h-3 w-3" />}
               {topic.closed && <Lock className="h-3 w-3" />}
               {topic.archived && <Archive className="h-3 w-3" />}

@@ -94,12 +94,12 @@ export function FeedFilters({
         <button onClick={() => onDateFilterModeChange('created')}
           className="px-2 py-1 rounded-md font-medium transition-colors"
           style={{ backgroundColor: dateFilterMode === 'created' ? t.bgActive : 'transparent', color: dateFilterMode === 'created' ? t.fgSecondary : t.fgMuted }}>
-          Created
+          New
         </button>
         <button onClick={() => onDateFilterModeChange('activity')}
           className="px-2 py-1 rounded-md font-medium transition-colors"
           style={{ backgroundColor: dateFilterMode === 'activity' ? t.bgActive : 'transparent', color: dateFilterMode === 'activity' ? t.fgSecondary : t.fgMuted }}>
-          Activity
+          Active
         </button>
       </div>
 
