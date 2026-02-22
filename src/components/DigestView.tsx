@@ -1,37 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Newspaper, MessageSquare, Eye, ThumbsUp, TrendingUp, Sparkles, Users, Send, AlertCircle } from 'lucide-react';
+import { Newspaper, MessageSquare, Eye, ThumbsUp, TrendingUp, Sparkles, AlertCircle } from 'lucide-react';
 import { DiscussionTopic } from '@/types';
-import { useAuth } from './AuthProvider';
 import { c } from '@/lib/theme';
 
-interface TopicSummary {
-  title: string;
-  protocol: string;
-  url: string;
-  replies: number;
-  views: number;
-  likes: number;
-  summary: string;
-  sentiment?: 'positive' | 'neutral' | 'contentious';
-  matchedKeywords?: string[];
+type Category = 'all' | 'crypto' | 'ai' | 'oss';
+
+interface BriefsTopic extends DiscussionTopic {
+  isFollowing: boolean;
+  category: string;
 }
 
-interface DigestContent {
-  period: 'daily' | 'weekly';
-  startDate: string;
-  endDate: string;
-  hotTopics: TopicSummary[];
-  newProposals: TopicSummary[];
-  delegateCorner?: TopicSummary[];
-  keywordMatches: TopicSummary[];
-  overallSummary: string;
-  stats: {
-    totalDiscussions: number;
-    totalReplies: number;
-    mostActiveProtocol: string;
-  };
+interface BriefsResponse {
+  hot: BriefsTopic[];
+  fresh: BriefsTopic[];
+  category: string;
+  cachedForumCount: number;
 }
 
 interface DigestViewProps {
@@ -44,12 +29,10 @@ function TopicCard({
   topic,
   onSelect,
   isDark,
-  matchedKeywords,
 }: {
-  topic: TopicSummary;
-  onSelect?: (topic: TopicSummary) => void;
+  topic: BriefsTopic;
+  onSelect?: (topic: BriefsTopic) => void;
   isDark: boolean;
-  matchedKeywords?: string[];
 }) {
   const t = c(isDark);
 
@@ -65,13 +48,13 @@ function TopicCard({
         >
           {topic.protocol}
         </span>
-        {matchedKeywords && matchedKeywords.length > 0 && (
-          matchedKeywords.map((kw) => (
-            <span key={kw} className="px-1.5 py-0.5 text-[11px] font-medium rounded flex-shrink-0"
-              style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', color: t.fgDim }}>
-              {kw}
-            </span>
-          ))
+        {topic.isFollowing && (
+          <span
+            className="px-1.5 py-0.5 text-[11px] font-medium rounded flex-shrink-0"
+            style={{ backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(79,70,229,0.1)', color: isDark ? '#a5b4fc' : '#4f46e5' }}
+          >
+            following
+          </span>
         )}
       </div>
 
@@ -83,16 +66,16 @@ function TopicCard({
         {topic.title}
       </button>
 
-      {topic.summary && (
+      {topic.excerpt && (
         <p className="mt-1 text-[12px] leading-relaxed line-clamp-3" style={{ color: t.fgMuted }}>
-          {topic.summary}
+          {topic.excerpt}
         </p>
       )}
 
       <div className="mt-2 flex items-center gap-3 text-[11px]" style={{ color: t.fgDim }}>
-        <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{topic.replies}</span>
+        <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{topic.replyCount}</span>
         <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{topic.views.toLocaleString()}</span>
-        {topic.likes > 0 && <span className="flex items-center gap-1"><ThumbsUp className="w-3 h-3" />{topic.likes}</span>}
+        {topic.likeCount > 0 && <span className="flex items-center gap-1"><ThumbsUp className="w-3 h-3" />{topic.likeCount}</span>}
       </div>
     </div>
   );
@@ -117,49 +100,52 @@ function SectionHeader({ icon: Icon, title, count, isDark }: {
   );
 }
 
-function DigestSkeleton({ isDark }: { isDark: boolean }) {
+function BriefsSkeleton({ isDark }: { isDark: boolean }) {
   const t = c(isDark);
   return (
     <div className="p-6 space-y-4 animate-pulse">
       <div className="h-6 w-48 rounded" style={{ backgroundColor: t.bgBadge }} />
-      <div className="h-20 rounded-lg" style={{ backgroundColor: t.bgBadge }} />
       <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-24 rounded-lg" style={{ backgroundColor: t.bgBadge }} />
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-20 rounded-lg" style={{ backgroundColor: t.bgBadge }} />
         ))}
       </div>
     </div>
   );
 }
 
+const CATEGORIES: { id: Category; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'crypto', label: 'Crypto' },
+  { id: 'ai', label: 'AI' },
+  { id: 'oss', label: 'OSS' },
+];
+
 export function DigestView({ onSelectTopic, isDark = true, forumUrls }: DigestViewProps) {
   const t = c(isDark);
-  const { user } = useAuth();
-  const [digest, setDigest] = useState<DigestContent | null>(null);
+  const [activeCategory, setActiveCategory] = useState<Category>('all');
+  const [data, setData] = useState<BriefsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [period, setPeriod] = useState<'daily' | 'weekly'>('weekly');
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
 
-    const params = new URLSearchParams({ format: 'json', period });
+    const params = new URLSearchParams({ category: activeCategory });
     if (forumUrls && forumUrls.length > 0) {
       params.set('forumUrls', forumUrls.join(','));
-    } else if (user?.id) {
-      params.set('privyDid', user.id);
     }
 
-    fetch(`/api/digest?${params}`)
+    fetch(`/api/briefs?${params}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data) => {
+      .then((json: BriefsResponse) => {
         if (!cancelled) {
-          setDigest(data.digest);
+          setData(json);
           setIsLoading(false);
         }
       })
@@ -171,171 +157,92 @@ export function DigestView({ onSelectTopic, isDark = true, forumUrls }: DigestVi
       });
 
     return () => { cancelled = true; };
-  }, [period, user?.id, forumUrls]);
+  }, [activeCategory, forumUrls]);
 
-  const handleTopicSelect = (topic: TopicSummary) => {
+  const handleTopicSelect = (topic: BriefsTopic) => {
     if (!onSelectTopic) {
-      window.open(topic.url, '_blank', 'noopener,noreferrer');
+      // Fallback: open externally
+      const url = topic.externalUrl || `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
       return;
     }
-    // Build a minimal DiscussionTopic for the reader
-    // Extract forumUrl and topicId from the URL
-    const urlParts = topic.url.match(/^(https?:\/\/[^/]+)\/t\/[^/]+\/(\d+)/);
-    if (urlParts) {
-      const forumUrl = urlParts[1];
-      const topicId = parseInt(urlParts[2], 10);
-      const slug = topic.url.split('/t/')[1]?.split('/')[0] || '';
-      onSelectTopic({
-        id: topicId,
-        refId: `${topic.protocol.toLowerCase().replace(/\s+/g, '-')}-${topicId}`,
-        protocol: topic.protocol,
-        title: topic.title,
-        slug,
-        tags: [],
-        postsCount: topic.replies,
-        views: topic.views,
-        replyCount: topic.replies,
-        likeCount: topic.likes,
-        categoryId: 0,
-        pinned: false,
-        visible: true,
-        closed: false,
-        archived: false,
-        createdAt: '',
-        bumpedAt: '',
-        forumUrl,
-      });
-    } else {
-      window.open(topic.url, '_blank', 'noopener,noreferrer');
+    // For external sources without a forumUrl that the reader can handle, open in new tab
+    if (topic.sourceType && topic.sourceType !== 'discourse' && topic.externalUrl) {
+      window.open(topic.externalUrl, '_blank', 'noopener,noreferrer');
+      return;
     }
+    // Pass full DiscussionTopic to the reader — server already provides all fields
+    onSelectTopic(topic);
   };
 
-  const totalTopics = digest
-    ? digest.keywordMatches.length + digest.newProposals.length + digest.hotTopics.length + (digest.delegateCorner?.length || 0)
-    : 0;
+  const totalTopics = data ? data.hot.length + data.fresh.length : 0;
 
   return (
     <section className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-5 sm:px-6 py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{ color: t.fg }}>
-              <Newspaper className="w-5 h-5" />
-              Briefs
-            </h1>
-            <p className="mt-0.5 text-sm" style={{ color: t.fgMuted }}>
-              AI-powered digest of community discussions
-            </p>
-          </div>
+        <div className="mb-4">
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{ color: t.fg }}>
+            <Newspaper className="w-5 h-5" />
+            Briefs
+          </h1>
+          <p className="mt-0.5 text-sm" style={{ color: t.fgMuted }}>
+            Discover across communities
+          </p>
+        </div>
 
-          {/* Period toggle */}
-          <div className="flex items-center gap-0.5 p-1 rounded-lg" style={{ backgroundColor: t.bgCard }}>
-            {(['daily', 'weekly'] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize"
-                style={{
-                  backgroundColor: period === p ? t.bgActive : 'transparent',
-                  color: period === p ? t.fg : t.fgMuted,
-                }}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+        {/* Category tabs */}
+        <div className="flex items-center gap-0.5 p-1 rounded-lg mb-4" style={{ backgroundColor: t.bgCard }}>
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+              style={{
+                backgroundColor: activeCategory === cat.id ? t.bgActive : 'transparent',
+                color: activeCategory === cat.id ? t.fg : t.fgMuted,
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
         </div>
 
         {isLoading ? (
-          <DigestSkeleton isDark={isDark} />
+          <BriefsSkeleton isDark={isDark} />
         ) : error ? (
           <div className="rounded-lg border p-6 text-center" style={{ borderColor: t.border }}>
             <AlertCircle className="w-6 h-6 mx-auto mb-2" style={{ color: t.fgMuted }} />
             <p className="text-sm" style={{ color: t.fgMuted }}>
-              {error === 'HTTP 500' ? 'Digest is being generated. Check back soon.' : `Failed to load briefs: ${error}`}
+              Failed to load briefs: {error}
             </p>
           </div>
-        ) : digest ? (
+        ) : data ? (
           <>
-            {/* Summary card */}
-            <div
-              className="rounded-lg border p-4 mb-4"
-              style={{ borderColor: t.border, backgroundColor: t.bgCard }}
-            >
-              <p className="text-sm leading-relaxed" style={{ color: t.fgSecondary }}>
-                {digest.overallSummary}
-              </p>
-              <div className="mt-3 flex items-center gap-4 text-[12px]" style={{ color: t.fgDim }}>
-                <span className="flex items-center gap-1">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  {digest.stats.totalDiscussions} discussions
-                </span>
-                <span className="flex items-center gap-1">
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  {digest.stats.totalReplies.toLocaleString()} replies
-                </span>
-                <span className="flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5" />
-                  {digest.stats.mostActiveProtocol}
-                </span>
-              </div>
-            </div>
-
             {totalTopics === 0 && (
               <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: t.border }}>
                 <Newspaper className="w-6 h-6 mx-auto mb-2" style={{ color: t.fgMuted }} />
                 <p className="text-sm" style={{ color: t.fgMuted }}>
-                  No discussions found for this period. Try switching to weekly.
+                  No discussions found. The forum cache may still be warming up.
                 </p>
               </div>
             )}
-
-            {/* Keyword Matches */}
-            <SectionHeader icon={AlertCircle} title="Keyword Matches" count={digest.keywordMatches.length} isDark={isDark} />
-            {digest.keywordMatches.map((topic, i) => (
-              <div key={i} className="mb-2">
-                <TopicCard topic={topic} onSelect={handleTopicSelect} isDark={isDark} matchedKeywords={topic.matchedKeywords} />
-              </div>
-            ))}
-
-            {/* New Conversations */}
-            <SectionHeader icon={Sparkles} title="New Conversations" count={digest.newProposals.length} isDark={isDark} />
-            {digest.newProposals.map((topic, i) => (
-              <div key={i} className="mb-2">
-                <TopicCard topic={topic} onSelect={handleTopicSelect} isDark={isDark} />
-              </div>
-            ))}
 
             {/* Trending */}
-            <SectionHeader icon={TrendingUp} title="Trending" count={digest.hotTopics.length} isDark={isDark} />
-            {digest.hotTopics.map((topic, i) => (
-              <div key={i} className="mb-2">
+            <SectionHeader icon={TrendingUp} title="Trending" count={data.hot.length} isDark={isDark} />
+            {data.hot.map((topic) => (
+              <div key={topic.refId} className="mb-2">
                 <TopicCard topic={topic} onSelect={handleTopicSelect} isDark={isDark} />
               </div>
             ))}
 
-            {/* Delegate Corner */}
-            {digest.delegateCorner && digest.delegateCorner.length > 0 && (
-              <>
-                <SectionHeader icon={Users} title="Delegate Corner" count={digest.delegateCorner.length} isDark={isDark} />
-                {digest.delegateCorner.map((topic, i) => (
-                  <div key={i} className="mb-2">
-                    <TopicCard topic={topic} onSelect={handleTopicSelect} isDark={isDark} />
-                  </div>
-                ))}
-              </>
-            )}
-
-            {/* Send to email hint */}
-            {user?.email && (
-              <div className="mt-6 pt-4 border-t text-center" style={{ borderColor: t.border }}>
-                <p className="text-[12px]" style={{ color: t.fgDim }}>
-                  <Send className="w-3 h-3 inline mr-1" />
-                  Want this in your inbox? Set up email digests in Settings.
-                </p>
+            {/* New */}
+            <SectionHeader icon={Sparkles} title="New" count={data.fresh.length} isDark={isDark} />
+            {data.fresh.map((topic) => (
+              <div key={topic.refId} className="mb-2">
+                <TopicCard topic={topic} onSelect={handleTopicSelect} isDark={isDark} />
               </div>
-            )}
+            ))}
           </>
         ) : null}
       </div>
