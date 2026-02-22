@@ -51,7 +51,7 @@ const memoryCache = new Map<string, CachedForum>();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const FETCH_DELAY_MS = 2000; // 2 second delay between forum fetches
 const MAX_CONCURRENT = 3; // Max concurrent fetches
-const MAX_RETRIES = 2; // Retry failed fetches (429s) with backoff — stale cache fallback handles the rest
+const MAX_RETRIES = 1; // Retry failed fetches (429s) once — Redis/stale cache fallback handles persistent failures
 
 let isRefreshing = false;
 let lastRefreshStart = 0;
@@ -395,9 +395,10 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
     
     if (response.status === 429) {
       if (retryCount < MAX_RETRIES) {
+        // Discourse rate limits reset every 60s — wait at least that long
         const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10);
-        const backoffMs = Math.max(retryAfter * 1000, (retryCount + 1) * 15000);
-        console.log(`[ForumCache] ⏳ ${forum.name}: rate limited, retrying in ${backoffMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+        const backoffMs = Math.max(retryAfter * 1000, 60000);
+        console.log(`[ForumCache] ⏳ ${forum.name}: rate limited (429), retrying in ${backoffMs / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
         await sleep(backoffMs);
         return fetchForumTopics(forum, retryCount + 1);
       }
