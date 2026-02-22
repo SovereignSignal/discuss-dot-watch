@@ -2148,8 +2148,11 @@ function ForumHealthSection({ getAuthHeaders, isDark = true }: { getAuthHeaders:
                     {r.status === 'ok' && (
                       <span className="text-xs" style={{ color: fhTextMuted }}>{r.topicCount} topics</span>
                     )}
-                    <span className="text-[11px] font-medium" style={{ 
-                      color: r.status === 'ok' ? '#22c55e' : 
+                    {r.status === 'error' && r.error && (
+                      <span className="text-xs" style={{ color: fhTextDim }}>{r.error}</span>
+                    )}
+                    <span className="text-[11px] font-medium" style={{
+                      color: r.status === 'ok' ? '#22c55e' :
                              r.status === 'error' ? '#ef4444' : fhTextDim
                     }}>
                       {r.status === 'not_cached' ? 'not cached' : r.status}

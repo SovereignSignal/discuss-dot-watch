@@ -632,8 +632,32 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
               fetchedAt: Date.now(),
               // Clear the error flag so getCachedForum serves these topics
             });
+          } else if (result.error && (!existing || existing.topics.length === 0)) {
+            // Fetch failed with no memory fallback — try Redis before giving up
+            // This handles post-deploy scenarios where memory cache is empty
+            let redisFallback: DiscussionTopic[] | null = null;
+            if (isRedisConfigured()) {
+              const normalizedUrl = forum.url.replace(/\/$/, '');
+              redisFallback = await getCachedTopics(normalizedUrl) || await getCachedTopics(normalizedUrl + '/');
+            }
+            if (redisFallback && redisFallback.length > 0) {
+              console.log(`[ForumCache] ⚠️ ${forum.name}: using ${redisFallback.length} Redis-cached topics after refresh error: ${result.error}`);
+              memoryCache.set(key, {
+                url: forum.url,
+                topics: redisFallback,
+                fetchedAt: Date.now(),
+              });
+            } else {
+              // No fallback at all — store the error
+              memoryCache.set(key, {
+                url: forum.url,
+                topics: result.topics,
+                fetchedAt: Date.now(),
+                error: result.error,
+              });
+            }
           } else {
-            // Store in memory cache (new data or first-time error with no fallback)
+            // Store in memory cache (new data)
             memoryCache.set(key, {
               url: forum.url,
               topics: result.topics,
