@@ -133,7 +133,10 @@ export function DiscussionFeed({
       // Forum filter
       if (selectedForumId) {
         const forum = forums.find((f) => f.id === selectedForumId);
-        if (forum && topic.protocol.toLowerCase() !== forum.cname.toLowerCase()) return false;
+        if (forum) {
+          const proto = topic.protocol.toLowerCase();
+          if (proto !== forum.cname.toLowerCase() && proto !== forum.name.toLowerCase()) return false;
+        }
       }
       return true;
     });

@@ -156,6 +156,12 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
 
       allTopics.sort((a, b) => new Date(b.bumpedAt).getTime() - new Date(a.bumpedAt).getTime());
 
+      // Debug: log external source topic integration
+      const externalTopicCount = allTopics.filter(t => t.sourceType && t.sourceType !== 'discourse').length;
+      const protocols = new Map<string, number>();
+      allTopics.forEach(t => protocols.set(t.protocol, (protocols.get(t.protocol) || 0) + 1));
+      console.log(`[useDiscussions] Total topics: ${allTopics.length}, external: ${externalTopicCount}, aborted: ${signal.aborted}, protocols:`, Object.fromEntries(protocols));
+
       // Only update state if request wasn't aborted
       if (!signal.aborted) {
         setDiscussions(allTopics);
