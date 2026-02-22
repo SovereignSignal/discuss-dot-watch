@@ -24,7 +24,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useToast } from '@/hooks/useToast';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { StorageError } from '@/lib/storage';
-import { ForumPreset } from '@/lib/forumPresets';
+import { ForumPreset, getTotalForumCount } from '@/lib/forumPresets';
 import { DiscussionTopic } from '@/types';
 import { c } from '@/lib/theme';
 import { DiscussionReader } from '@/components/DiscussionReader';
@@ -274,7 +274,7 @@ export default function AppPage() {
               <FilterTabs
                 filterMode={filterMode}
                 onFilterChange={setFilterMode}
-                totalCount={forums.length}
+                totalCount={Math.max(forums.length, getTotalForumCount())}
                 enabledCount={enabledForums.length}
                 isDark={isDark}
               />

@@ -443,7 +443,7 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
             if (text.length <= 200) return text;
             const truncated = text.slice(0, 200);
             const lastSpace = truncated.lastIndexOf(' ');
-            return (lastSpace > 100 ? truncated.slice(0, lastSpace) : truncated) + '...';
+            return (lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated) + '\u2026';
           })()
         : undefined,
     }));

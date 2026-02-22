@@ -110,7 +110,7 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
       </header>
 
       {/* Posts */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-w-0">
         {isLoading ? (
           <>
             <PostSkeleton isDark={isDark} />
@@ -133,13 +133,10 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
             </a>
           </div>
         ) : (
-          posts.filter((post) => {
-            const stripped = post.content.replace(/<[^>]*>/g, '').trim();
-            return !(post.username === 'system' && stripped.length === 0);
-          }).map((post) => (
+          posts.filter((post) => post.username !== 'system').map((post) => (
             <article
               key={post.id}
-              className="px-5 py-4 border-b overflow-hidden"
+              className="px-5 py-4 border-b min-w-0"
               style={{ borderColor: t.border }}
             >
               {/* Post header */}

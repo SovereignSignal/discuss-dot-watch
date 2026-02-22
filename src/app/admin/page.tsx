@@ -333,7 +333,7 @@ export default function AdminPage() {
                       <td className="py-2.5 pr-4" style={{ color: textPrimary }}>
                         {u.email || (u.wallet_address
                           ? <span className="font-mono text-xs" title={u.wallet_address}>{u.wallet_address.slice(0, 6)}...{u.wallet_address.slice(-4)} <span style={{ color: textDim }}>(wallet)</span></span>
-                          : <span style={{ color: textDim }}>{u.privy_did.slice(0, 20)}…</span>)}
+                          : <span className="font-mono text-xs" style={{ color: textDim }} title={u.privy_did}>Anonymous ({u.privy_did.slice(-6)})</span>)}
                       </td>
                       <td className="py-2.5 pr-4 font-mono" style={{ color: textSecondary }}>{u.alert_count}</td>
                       <td className="py-2.5 pr-4 font-mono" style={{ color: textSecondary }}>{u.bookmark_count}</td>
