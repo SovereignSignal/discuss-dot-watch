@@ -95,31 +95,41 @@
 ---
 
 ## Phase 2: GitHub Discussions Integration
-**Status:** ✅ Core Implemented
-**Target:** Mar 2026
+**Status:** ✅ Completed
+**Completed:** Feb 2026
 
 ### Core Integration
 - [x] GitHub GraphQL API connector (`lib/githubDiscussionsClient.ts`)
 - [x] Discussion fetching and normalization to `DiscussionTopic` type
 - [x] Rate limiting and caching
 - [x] Unified feed display (Discourse + GitHub via external sources)
-- [ ] Full preset coverage (subset implemented via `externalSources.ts`)
+- [x] Full preset coverage (38 GitHub sources configured)
 
-### GitHub Presets — OSS
-- [ ] Node.js, Deno, Bun
-- [ ] React, Next.js, Vue, Svelte, Astro
-- [ ] Tauri, Leptos
-- [ ] Homebrew, Terraform
+### GitHub Presets — OSS (28 repos)
+- [x] Deno, Bun, Fresh
+- [x] Next.js, Vue, Svelte, Astro, Nuxt, Remix, Angular
+- [x] Tauri, Leptos
+- [x] Homebrew, OpenTofu
+- [x] Tailwind CSS, shadcn/ui, Turborepo, pnpm, Biome, OXC
+- [x] Go, TypeScript Native, Ruff, VS Code
+- [x] Godot Proposals, Gleam, Typst, Tokio
+- [x] Grafana, Prometheus
+- Node.js — no GitHub Discussions (uses Discourse)
+- React — no GitHub Discussions (uses reactjs/react.dev)
+- Terraform — no GitHub Discussions (uses Discuss forum)
 
-### GitHub Presets — AI/ML
-- [ ] Hugging Face Transformers
-- [ ] LangChain
-- [ ] llama.cpp, Ollama, vLLM
-- [ ] MLflow
+### GitHub Presets — AI/ML (3 repos)
+- [x] llama.cpp, MLflow, JAX
+- HuggingFace Transformers — no GitHub Discussions (uses Discourse)
+- LangChain — no GitHub Discussions (migrated to Discourse)
+- Ollama — no GitHub Discussions (uses Discord)
+- vLLM — GitHub Discussions migrated away (March 2025)
+- PyTorch — no GitHub Discussions (uses Discourse)
 
-### GitHub Presets — Crypto
-- [ ] go-ethereum
-- [ ] Foundry, Hardhat
+### GitHub Presets — Crypto (4 repos)
+- [x] Ethereum EIPs, Ethereum PM
+- [x] Foundry, Hardhat
+- go-ethereum — no GitHub Discussions (uses Discord/Gitter)
 
 ---
 
