@@ -22,6 +22,7 @@ import {
   Moon,
   Sun,
   FileText,
+  Star,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantBranding } from '@/types/delegates';
@@ -88,6 +89,7 @@ export default function TenantDashboardPage() {
   const [filterProgram, setFilterProgram] = useState<FilterProgram>('all');
   const [filterRole, setFilterRole] = useState<FilterRole>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  const [filterTracked, setFilterTracked] = useState<'all' | 'tracked'>('all');
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
 
   const t = c(isDark);
@@ -95,6 +97,9 @@ export default function TenantDashboardPage() {
   const userIsAdmin = isAdminEmail(user?.email);
   const branding = dashboard?.tenant.branding;
   const bc = brandedColors(branding);
+  const trackedLabel = dashboard?.tenant.trackedMemberLabel || 'Tracked Member';
+  const trackedLabelPlural = dashboard?.tenant.trackedMemberLabelPlural || trackedLabel + 's';
+  const hasTracked = (dashboard?.trackedCount ?? 0) > 0;
 
   // Responsive breakpoint
   const [isMobile, setIsMobile] = useState(false);
@@ -133,7 +138,10 @@ export default function TenantDashboardPage() {
       return;
     }
     let cancelled = false;
-    fetch(`/api/delegates/${slug}`)
+    const url = filterTracked === 'tracked'
+      ? `/api/delegates/${slug}?filter=tracked`
+      : `/api/delegates/${slug}`;
+    fetch(url)
       .then((res) => {
         if (!res.ok) throw new Error(res.status === 404 ? 'not_found' : 'fetch_error');
         return res.json();
@@ -149,7 +157,7 @@ export default function TenantDashboardPage() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, filterTracked]);
 
   // Available programs for filter
   const programs = useMemo(() => {
@@ -409,6 +417,38 @@ export default function TenantDashboardPage() {
             marginBottom: 16,
           }}
         >
+          {/* All / Tracked toggle (only shown if tracked members exist) */}
+          {hasTracked && (
+            <div
+              style={{
+                display: 'flex',
+                borderRadius: 8,
+                border: `1px solid ${t.border}`,
+                overflow: 'hidden',
+                flexShrink: 0,
+              }}
+            >
+              {(['all', 'tracked'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setFilterTracked(mode)}
+                  style={{
+                    padding: '7px 14px',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: filterTracked === mode ? (bc?.accent || t.fg) : 'transparent',
+                    color: filterTracked === mode ? (bc ? '#fff' : t.bg) : t.fgMuted,
+                    transition: 'background 0.15s, color 0.15s',
+                  }}
+                >
+                  {mode === 'all' ? 'All Contributors' : trackedLabelPlural}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div
             style={{
               position: 'relative',
@@ -428,7 +468,7 @@ export default function TenantDashboardPage() {
             />
             <input
               type="text"
-              placeholder="Search delegates..."
+              placeholder="Search contributors..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -510,7 +550,7 @@ export default function TenantDashboardPage() {
 
           {!isMobile && (
             <span style={{ fontSize: 12, color: t.fgDim, marginLeft: 'auto' }}>
-              {filteredDelegates.length} delegate{filteredDelegates.length !== 1 ? 's' : ''}
+              {filteredDelegates.length} contributor{filteredDelegates.length !== 1 ? 's' : ''}
             </span>
           )}
         </div>
@@ -521,7 +561,7 @@ export default function TenantDashboardPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {filteredDelegates.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: t.fgDim }}>
-                No delegates found.
+                No contributors found.
               </div>
             ) : (
               filteredDelegates.map((d) => (
@@ -561,7 +601,7 @@ export default function TenantDashboardPage() {
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${t.border}` }}>
                     <SortHeader
-                      label="Delegate"
+                      label="Contributor"
                       field="displayName"
                       current={sortField}
                       dir={sortDir}
@@ -596,7 +636,7 @@ export default function TenantDashboardPage() {
                           color: t.fgDim,
                         }}
                       >
-                        No delegates found.
+                        No contributors found.
                       </td>
                     </tr>
                   ) : (
@@ -702,7 +742,7 @@ export default function TenantDashboardPage() {
 
 function SummaryCards({ summary, t, accent, isMobile }: { summary: DashboardSummary; t: ReturnType<typeof c>; accent?: string; isMobile?: boolean }) {
   const cards = [
-    { label: 'Total Delegates', value: summary.totalDelegates, icon: Users },
+    { label: 'Total Contributors', value: summary.totalDelegates, icon: Users },
     { label: 'Active', value: summary.activeDelegates, icon: Activity },
     { label: 'Avg Posts', value: summary.avgPostCount, icon: MessageSquare },
     { label: 'Avg Likes Received', value: summary.avgLikesReceived, icon: ThumbsUp },
@@ -880,7 +920,7 @@ function DelegateTableRow({
         if (!isSelected) e.currentTarget.style.background = 'transparent';
       }}
     >
-      {/* Delegate name cell */}
+      {/* Contributor name cell */}
       <td
         style={{
           padding: '10px 16px',
@@ -922,6 +962,18 @@ function DelegateTableRow({
           <div>
             <div style={{ fontWeight: 500, fontSize: 13 }}>
               {d.displayName}
+              {d.isTracked && (
+                <Star
+                  size={11}
+                  fill="currentColor"
+                  style={{
+                    display: 'inline',
+                    verticalAlign: '-1px',
+                    marginLeft: 5,
+                    color: '#f59e0b',
+                  }}
+                />
+              )}
               {!d.isActive && (
                 <span
                   style={{
@@ -1096,6 +1148,18 @@ function MobileDelegateCard({
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontWeight: 500, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {d.displayName}
+              {d.isTracked && (
+                <Star
+                  size={11}
+                  fill="currentColor"
+                  style={{
+                    display: 'inline',
+                    verticalAlign: '-1px',
+                    marginLeft: 5,
+                    color: '#f59e0b',
+                  }}
+                />
+              )}
             </span>
             {!d.isActive && (
               <span
@@ -1297,7 +1361,7 @@ function DelegateDetailPanel({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${d.displayName} delegate details`}
+        aria-label={`${d.displayName} contributor details`}
         style={{
           position: 'fixed',
           top: 0,
@@ -1419,12 +1483,12 @@ function DelegateDetailPanel({
               marginBottom: 20,
             }}
           >
-            <StatBox label="Posts" value={d.postCount} source="Discourse API" t={t} accentBorder={accentBorder} />
-            <StatBox label="Topics Created" value={d.topicCount} source="Discourse API" t={t} accentBorder={accentBorder} />
-            <StatBox label="Likes Received" value={d.likesReceived} source="Discourse API" t={t} accentBorder={accentBorder} />
-            <StatBox label="Likes Given" value={d.likesGiven} source="Discourse API" t={t} accentBorder={accentBorder} />
-            <StatBox label="Days Visited" value={d.daysVisited} source="Discourse API" t={t} accentBorder={accentBorder} />
-            <StatBox label="Posts Read" value={d.postsRead} source="Discourse API" t={t} accentBorder={accentBorder} />
+            <StatBox label="Posts" value={d.postCount} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} percentile={d.postCountPercentile} />
+            <StatBox label="Topics Created" value={d.topicCount} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} percentile={d.topicsEnteredPercentile} />
+            <StatBox label="Likes Received" value={d.likesReceived} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} percentile={d.likesReceivedPercentile} />
+            <StatBox label="Likes Given" value={d.likesGiven} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} />
+            <StatBox label="Days Visited" value={d.daysVisited} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} percentile={d.daysVisitedPercentile} />
+            <StatBox label="Posts Read" value={d.postsRead} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} />
             <StatBox label="Rationales" value={d.rationaleCount} source="Discourse Search API" t={t} accentBorder={accentBorder} />
             <StatBox
               label="Vote Rate"
@@ -1582,12 +1646,14 @@ function StatBox({
   source,
   t,
   accentBorder,
+  percentile,
 }: {
   label: string;
   value: string | number;
   source: string;
   t: ReturnType<typeof c>;
   accentBorder?: string;
+  percentile?: number;
 }) {
   return (
     <div
@@ -1599,8 +1665,15 @@ function StatBox({
       }}
     >
       <div style={{ fontSize: 11, color: t.fgDim, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 700 }}>
-        {typeof value === 'number' ? value.toLocaleString() : value}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span style={{ fontSize: 18, fontWeight: 700 }}>
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </span>
+        {percentile != null && (
+          <span style={{ fontSize: 11, color: t.fgDim, fontWeight: 400 }}>
+            top {100 - percentile}%
+          </span>
+        )}
       </div>
       <div style={{ fontSize: 9, color: t.fgDim, marginTop: 2 }}>{source}</div>
     </div>
@@ -1732,7 +1805,7 @@ function NotFound({ slug, isDark }: { slug: string; isDark: boolean }) {
     >
       <h1 style={{ fontSize: 48, fontWeight: 700, margin: 0 }}>404</h1>
       <p style={{ color: t.fgMuted, fontSize: 15, margin: 0 }}>
-        No delegate dashboard found for <strong>&ldquo;{slug}&rdquo;</strong>
+        No community dashboard found for <strong>&ldquo;{slug}&rdquo;</strong>
       </p>
       <Link
         href="/"

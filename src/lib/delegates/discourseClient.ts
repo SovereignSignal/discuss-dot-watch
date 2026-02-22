@@ -8,6 +8,7 @@
 import type {
   DiscourseUserStats,
   DiscourseUserPost,
+  DirectoryItem,
   TenantCapabilities,
 } from '@/types/delegates';
 
@@ -93,6 +94,49 @@ export async function searchUsers(
   }
 }
 
+// --- Directory items ---
+
+export async function fetchDirectoryItems(
+  config: DiscourseClientConfig,
+  options: { period?: string; order?: string; page?: number } = {}
+): Promise<{ items: DirectoryItem[]; totalCount: number }> {
+  const period = options.period || 'all';
+  const order = options.order || 'post_count';
+  const page = options.page ?? 0;
+
+  const res = await discourseGet(
+    config,
+    `/directory_items.json?period=${period}&order=${order}&page=${page}`
+  );
+
+  if (!res.ok) {
+    console.error(`[Discourse] Directory fetch failed: ${res.status}`);
+    return { items: [], totalCount: 0 };
+  }
+
+  const data = await res.json();
+  const rawItems = data.directory_items || [];
+  const totalCount = data.meta?.total_rows_directory_items ?? rawItems.length;
+
+  const items: DirectoryItem[] = rawItems.map((item: Record<string, unknown>) => {
+    const user = item.user as Record<string, unknown> | undefined;
+    return {
+      username: (user?.username as string) || '',
+      name: (user?.name as string) || null,
+      avatarTemplate: (user?.avatar_template as string) || '',
+      postCount: (item.post_count as number) || 0,
+      topicCount: (item.topic_count as number) || 0,
+      likesReceived: (item.likes_received as number) || 0,
+      likesGiven: (item.likes_given as number) || 0,
+      daysVisited: (item.days_visited as number) || 0,
+      postsRead: (item.posts_read as number) || 0,
+      topicsEntered: (item.topics_entered as number) || 0,
+    };
+  });
+
+  return { items, totalCount };
+}
+
 // --- Capability detection ---
 
 export async function detectCapabilities(
@@ -101,6 +145,14 @@ export async function detectCapabilities(
   const capabilities: TenantCapabilities = {
     testedAt: new Date().toISOString(),
   };
+
+  // Test directory access (public on most Discourse instances)
+  try {
+    const res = await discourseGet(config, '/directory_items.json?period=all&order=post_count&page=0');
+    capabilities.canListDirectory = res.ok;
+  } catch {
+    capabilities.canListDirectory = false;
+  }
 
   // Test user list access
   try {

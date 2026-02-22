@@ -35,7 +35,7 @@ This document provides essential context for AI assistants working with this cod
 - RSS/Atom feeds for all verticals
 - Privy authentication (optional)
 - Server-side forum cache with Redis + Postgres persistence
-- Multi-tenant forum analytics dashboards (delegate monitoring)
+- Multi-tenant forum analytics dashboards (delegate monitoring + forum-wide contributor analytics)
 - MCP (Model Context Protocol) endpoint and standalone server
 
 ### Roadmap
@@ -175,6 +175,7 @@ src/
 │   ├── backfill.ts               # Database backfill utilities
 │   ├── db.ts                     # PostgreSQL database client and queries (dynamic schema)
 │   ├── delegates/                # Delegate monitoring subsystem
+│   │   ├── contributorSync.ts    # Forum-wide contributor sync from Discourse directory
 │   │   ├── db.ts                 # Delegate-specific DB queries
 │   │   ├── discourseClient.ts    # Discourse API client for delegate data
 │   │   ├── encryption.ts         # AES-256-GCM encryption for API keys
@@ -305,7 +306,7 @@ Requires admin auth (`x-admin-email` header) or `CRON_SECRET` bearer token.
 | `/api/cron/delegates` | GET | Cron-triggered delegate data refresh for all active tenants |
 | `/api/cron/digest` | GET | Cron-triggered digest email sending |
 | `/api/db` | GET | Database connection status |
-| `/api/delegates/[tenant]` | GET | Delegate dashboard data for a tenant |
+| `/api/delegates/[tenant]` | GET | Delegate dashboard data for a tenant (`?filter=tracked` for tracked-only) |
 | `/api/delegates/[tenant]/[username]` | GET | Individual delegate detail |
 | `/api/delegates/[tenant]/refresh` | POST | Trigger delegate data refresh |
 | `/api/delegates/admin` | GET/POST | Admin ops for delegate tenants (create, update, list) |
@@ -484,6 +485,121 @@ interface DiscourseLatestResponse {
   topic_list: {
     topics: DiscourseTopicResponse[];
   };
+}
+```
+
+### Delegate Types (`types/delegates.ts`)
+
+Key types for the forum analytics / delegate monitoring subsystem:
+
+```typescript
+// Tenant configuration (stored as JSONB in delegate_tenants.config)
+interface TenantConfig {
+  rationaleSearchPattern?: string;   // Default: "rationale"
+  rationaleCategoryIds?: number[];
+  rationaleTags?: string[];
+  programLabels?: string[];          // e.g. ["Council", "Grants"]
+  trackedMemberLabel?: string;       // e.g. "Delegate", "Steward" — tenant-configurable
+  trackedMemberLabelPlural?: string; // e.g. "Delegates", defaults to label + "s"
+  branding?: TenantBranding;
+  refreshIntervalHours?: number;     // Default: 12
+  maxContributors?: number;          // Default: 200 — max directory contributors to sync
+}
+
+// Discovered API capabilities (stored as JSONB in delegate_tenants.capabilities)
+interface TenantCapabilities {
+  canListUsers?: boolean;
+  canListDirectory?: boolean;        // /directory_items.json access — primary data source
+  canViewUserStats?: boolean;
+  canViewUserPosts?: boolean;
+  canSearchPosts?: boolean;
+  canViewUserEmails?: boolean;
+  testedAt?: string;
+}
+
+// Directory item from Discourse /directory_items.json
+interface DirectoryItem {
+  username: string;
+  name: string | null;
+  avatarTemplate: string;
+  postCount: number;
+  topicCount: number;
+  likesReceived: number;
+  likesGiven: number;
+  daysVisited: number;
+  postsRead: number;
+  topicsEntered: number;
+}
+
+// Delegate (DB row) — represents both tracked members and directory contributors
+interface Delegate {
+  id: number;
+  tenantId: number;
+  username: string;
+  displayName: string;
+  isTracked: boolean;                // true = admin-added, false = auto-synced from directory
+  // Manual fields (admin-provided)
+  walletAddress?: string;
+  kycStatus?: 'verified' | 'pending' | 'not_required' | null;
+  programs?: string[];
+  role?: string;
+  isActive: boolean;
+  // Directory stats (from /directory_items.json)
+  directoryPostCount?: number;
+  directoryTopicCount?: number;
+  directoryLikesReceived?: number;
+  directoryLikesGiven?: number;
+  directoryDaysVisited?: number;
+  directoryPostsRead?: number;
+  directoryTopicsEntered?: number;
+  // Percentile rankings (computed during sync, against total forum population)
+  postCountPercentile?: number;
+  likesReceivedPercentile?: number;
+  daysVisitedPercentile?: number;
+  topicsEnteredPercentile?: number;
+  // ... (on-chain fields, metadata, timestamps)
+}
+
+// Dashboard row (aggregated view for API consumers)
+interface DelegateRow {
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+  isActive: boolean;
+  isTracked: boolean;                // Distinguishes tracked members from directory contributors
+  // Forum stats (from latest snapshot if available, else directory stats)
+  postCount: number;
+  likesReceived: number;
+  daysVisited: number;
+  // Percentile rankings
+  postCountPercentile?: number;
+  likesReceivedPercentile?: number;
+  daysVisitedPercentile?: number;
+  topicsEnteredPercentile?: number;
+  // Data source tracking
+  dataSource: {
+    forumStats: 'discourse_api' | 'directory';  // 'directory' for non-tracked contributors
+    onChain: 'manual' | 'chain_integration';
+    identity: 'admin_provided' | 'directory';   // 'directory' for auto-synced contributors
+  };
+  // ... (other fields: role, programs, rationales, on-chain, etc.)
+}
+
+// Full dashboard response from GET /api/delegates/[tenant]
+interface DelegateDashboard {
+  tenant: {
+    slug: string;
+    name: string;
+    forumUrl: string;
+    branding?: TenantBranding;
+    trackedMemberLabel?: string;       // Tenant-configurable label
+    trackedMemberLabelPlural?: string;
+  };
+  delegates: DelegateRow[];
+  summary: DashboardSummary;
+  trackedCount: number;                // Number of tracked members (for toggle UI)
+  lastRefreshAt: string | null;
+  capabilities: TenantCapabilities;
 }
 ```
 
@@ -804,32 +920,44 @@ Google login requires configuration in both code and Privy Dashboard:
 
 ## Forum Analytics / Delegate Monitoring
 
-Multi-tenant delegate activity tracking for Discourse forums. Any community can create a "tenant" with their forum URL and API key, and a public dashboard is generated at `discuss.watch/<slug>`.
+Multi-tenant forum contributor analytics for Discourse forums. Any community can create a "tenant" with their forum URL and API key, and a public dashboard is generated at `discuss.watch/<slug>`.
+
+The system has two layers:
+1. **Forum-wide contributor analytics** (base) -- auto-synced from Discourse `/directory_items.json`, showing top contributors with percentile rankings. Useful with zero manual configuration.
+2. **Tracked members** (optional overlay) -- admin-curated roster of delegates, stewards, council members, etc. with deeper per-user stats (snapshots, rationale detection, recent posts). The label is tenant-configurable (e.g. "Delegate", "Steward", "Council Member").
 
 ### Architecture
 
-- **Tenants** (`delegate_tenants` table) — Each tenant represents one Discourse forum. API keys are encrypted at rest with AES-256-GCM via `ENCRYPTION_KEY`.
-- **Delegates** (`delegates` table) — Tracked members per tenant (delegates, council members, maintainers, etc.)
-- **Snapshots** (`delegate_snapshots` table) — Point-in-time captures of each delegate's Discourse activity stats, enabling trending over time.
-- **Refresh Engine** (`lib/delegates/refreshEngine.ts`) — Fetches latest stats from Discourse API, creates snapshots, detects rationale posts.
+- **Tenants** (`delegate_tenants` table) -- Each tenant represents one Discourse forum. API keys are encrypted at rest with AES-256-GCM via `ENCRYPTION_KEY`.
+- **Delegates** (`delegates` table) -- All contributors per tenant. `is_tracked = true` for admin-added tracked members, `is_tracked = false` for auto-synced directory contributors. Includes directory stats and percentile rankings.
+- **Snapshots** (`delegate_snapshots` table) -- Point-in-time captures of tracked member stats (expensive per-user API calls), enabling trending over time.
+- **Contributor Sync** (`lib/delegates/contributorSync.ts`) -- Fetches forum-wide contributor data from Discourse `/directory_items.json`, computes percentile rankings against total forum population, upserts into delegates table. Runs as Phase 1 of each refresh cycle (~4 API calls).
+- **Refresh Engine** (`lib/delegates/refreshEngine.ts`) -- Two-phase refresh: (1) directory sync for all contributors, (2) per-user detailed stats/posts/rationales for tracked members only.
 
 ### Key Files
 
-- `src/lib/delegates/` — Core subsystem (DB queries, Discourse client, encryption, refresh engine)
-- `src/types/delegates.ts` — All delegate-related TypeScript types
-- `src/app/[tenant]/` — Public dashboard pages
-- `src/app/api/delegates/` — API routes for tenant/delegate management
+- `src/lib/delegates/contributorSync.ts` -- Forum-wide contributor sync from Discourse directory
+- `src/lib/delegates/db.ts` -- DB queries (CRUD, dashboard assembly, schema migrations)
+- `src/lib/delegates/discourseClient.ts` -- Discourse API client (user stats, posts, rationales, directory items, capability detection)
+- `src/lib/delegates/encryption.ts` -- AES-256-GCM encryption for API keys
+- `src/lib/delegates/refreshEngine.ts` -- Two-phase refresh orchestration
+- `src/lib/delegates/index.ts` -- Barrel export (includes `fetchDirectoryItems`, `syncContributorsFromDirectory`)
+- `src/types/delegates.ts` -- All delegate-related TypeScript types
+- `src/app/[tenant]/` -- Public dashboard pages
+- `src/app/api/delegates/` -- API routes for tenant/delegate management
 
 ### API Routes
 
 | Route | Method | Auth | Purpose |
 |-------|--------|------|---------|
-| `/api/delegates/[tenant]` | GET | Public | Dashboard data (delegates, stats, summary) |
+| `/api/delegates/[tenant]` | GET | Public | Dashboard data (`?filter=tracked` for tracked-only view) |
 | `/api/delegates/[tenant]/[username]` | GET | Public | Individual delegate detail + recent posts |
 | `/api/delegates/[tenant]/refresh` | POST | Admin | Trigger data refresh from Discourse API |
 | `/api/delegates/admin` | GET/POST | Admin | Create/update/list tenants, manage delegates |
 | `/api/delegates/admin/search` | GET | Admin | Search forum users for a tenant |
 | `/api/cron/delegates` | GET | Cron | Automated delegate data refresh for all active tenants |
+
+The `create-tenant` admin action auto-detects capabilities and auto-syncs contributors from the directory on creation. Response includes `contributorsSynced` count, `dashboardUrl`, and a status `message`.
 
 See `improvements.md` for the full delegate monitoring roadmap.
 
@@ -905,10 +1033,10 @@ Tools exposed: `search_discussions`, `get_discussions`, `list_forums`, `list_cat
 
 Two schema files define the database structure:
 
-- **`src/lib/schema.sql`** — Core tables: `users`, `user_preferences`, `user_forums`, `custom_forums`, `keyword_alerts`, `bookmarks`, `read_state`
-- **`src/lib/delegates/schema.sql`** — Delegate tables: `delegate_tenants`, `delegates`, `delegate_snapshots`
+- **`src/lib/schema.sql`** -- Core tables: `users`, `user_preferences`, `user_forums`, `custom_forums`, `keyword_alerts`, `bookmarks`, `read_state`
+- **`src/lib/delegates/schema.sql`** -- Delegate tables: `delegate_tenants`, `delegates`, `delegate_snapshots`
 
-Note: `db.ts` also handles dynamic schema management with `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for forward-compatible migrations.
+Note: `db.ts` and `delegates/db.ts` handle dynamic schema management with `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for forward-compatible migrations. The `delegates` table has been extended with columns for directory stats (`directory_post_count`, `directory_topic_count`, etc.), percentile rankings (`post_count_percentile`, etc.), `is_tracked`, and `role`. A backfill query marks pre-existing delegates (before directory sync) as `is_tracked = true`.
 
 ## Phase 1 Features (Completed)
 
@@ -948,6 +1076,17 @@ The following features have been implemented:
 7. **Command Menu** - Cmd+K / Ctrl+K palette for quick forum/category/sort navigation.
 8. **Design System Consolidation** - `c()` theme utility for consistent color tokens across components.
 9. **Public API v1** - REST API for external consumers at `/api/v1/`.
+
+## Phase 1.5 Features (Completed) -- Forum-Wide Contributor Analytics
+
+1. **Directory Contributor Sync** -- Auto-fetches top contributors from Discourse `/directory_items.json` endpoint and populates the delegates table with `is_tracked = false`. Configurable via `maxContributors` (default 200).
+2. **Percentile Rankings** -- Computed during sync against total forum population (not just fetched users). Stored per-delegate: `postCountPercentile`, `likesReceivedPercentile`, `daysVisitedPercentile`, `topicsEnteredPercentile`.
+3. **Two-Phase Refresh** -- Refresh engine now runs directory sync first (lightweight, ~4 API calls), then per-user detailed stats only for tracked members (expensive). Non-tracked contributors get stats from directory data.
+4. **Tracked vs Directory Data Sources** -- `DelegateRow.dataSource` distinguishes `'directory'` vs `'discourse_api'` for forum stats and `'admin_provided'` vs `'directory'` for identity.
+5. **Tenant-Configurable Labels** -- `trackedMemberLabel` / `trackedMemberLabelPlural` in `TenantConfig` (e.g. "Delegate", "Steward", "Council Member").
+6. **Dashboard Filter** -- `GET /api/delegates/[tenant]?filter=tracked` returns tracked members only. `trackedCount` in response enables toggle UI.
+7. **Auto-Sync on Tenant Creation** -- `create-tenant` admin action auto-detects capabilities and syncs contributors if `canListDirectory` is true. Response includes `contributorsSynced`, `dashboardUrl`, `message`.
+8. **Capability Detection** -- `canListDirectory` added to `TenantCapabilities`, tested during capability detection via `/directory_items.json`.
 
 ## Known Patterns and Gotchas
 

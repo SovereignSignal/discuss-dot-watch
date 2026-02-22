@@ -22,6 +22,7 @@
 - ✅ Command menu (Cmd+K) for quick navigation
 - ✅ Public API v1 for external consumers
 - ✅ Personalized email digests per user
+- ✅ Forum-wide contributor analytics (directory sync, percentile rankings, two-phase refresh)
 
 ---
 
@@ -65,6 +66,31 @@
 - [x] Add "Open Source" category
 - [x] Keep existing crypto categories
 - [x] Update category icons/colors
+
+---
+
+## Phase 1.5: Forum-Wide Contributor Analytics
+**Status:** ✅ Completed
+**Completed:** Feb 2026
+
+### Contributor Sync
+- [x] Fetch top contributors from Discourse `/directory_items.json`
+- [x] Compute percentile rankings against total forum population
+- [x] Store directory stats on delegates table (`directory_post_count`, etc.)
+- [x] Two-phase refresh: directory sync (lightweight) then tracked-only detailed stats
+- [x] Auto-sync contributors on tenant creation
+
+### Dashboard Enhancements
+- [x] `?filter=tracked` query param for tracked-only view
+- [x] `trackedCount` in dashboard response for toggle UI
+- [x] `dataSource` field distinguishes directory vs API data
+- [x] Tenant-configurable labels (`trackedMemberLabel`, `trackedMemberLabelPlural`)
+
+### Schema
+- [x] `is_tracked` column on delegates (true = admin-added, false = directory)
+- [x] Directory stat columns (`directory_post_count`, etc.)
+- [x] Percentile ranking columns (`post_count_percentile`, etc.)
+- [x] Backfill: pre-existing delegates marked as `is_tracked = true`
 
 ---
 
@@ -201,4 +227,4 @@
 
 ---
 
-*Last updated: 2026-02-13*
+*Last updated: 2026-02-21*

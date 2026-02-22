@@ -89,6 +89,23 @@ export async function initializeDelegateSchema() {
 
   // Forward-compatible migrations
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS role TEXT DEFAULT NULL`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS is_tracked BOOLEAN DEFAULT false`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_post_count INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_topic_count INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_likes_received INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_likes_given INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_days_visited INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_posts_read INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_topics_entered INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS post_count_percentile INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS likes_received_percentile INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS days_visited_percentile INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS topics_entered_percentile INTEGER`;
+
+  // Backfill: pre-existing delegates (before directory sync feature) should be marked as tracked.
+  // Only affects rows with no directory data (directory_post_count IS NULL), so
+  // auto-synced contributors won't be flipped to tracked on subsequent runs.
+  await db`UPDATE delegates SET is_tracked = true WHERE is_tracked = false AND directory_post_count IS NULL`;
 
   // Indexes
   await db`CREATE INDEX IF NOT EXISTS idx_delegate_tenants_slug ON delegate_tenants(slug)`;
@@ -209,6 +226,7 @@ export async function updateTenantLastRefresh(tenantId: number): Promise<void> {
 export async function upsertDelegate(tenantId: number, delegate: {
   username: string;
   displayName: string;
+  isTracked?: boolean;
   walletAddress?: string;
   kycStatus?: string | null;
   verifiedStatus?: boolean;
@@ -219,18 +237,35 @@ export async function upsertDelegate(tenantId: number, delegate: {
   votesTotal?: number;
   votingPower?: string;
   notes?: string;
+  directoryPostCount?: number;
+  directoryTopicCount?: number;
+  directoryLikesReceived?: number;
+  directoryLikesGiven?: number;
+  directoryDaysVisited?: number;
+  directoryPostsRead?: number;
+  directoryTopicsEntered?: number;
+  postCountPercentile?: number;
+  likesReceivedPercentile?: number;
+  daysVisitedPercentile?: number;
+  topicsEnteredPercentile?: number;
 }): Promise<Delegate> {
   await ensureSchema();
   const db = getDb();
   const [row] = await db`
     INSERT INTO delegates (
-      tenant_id, username, display_name, wallet_address, kyc_status,
+      tenant_id, username, display_name, is_tracked, wallet_address, kyc_status,
       verified_status, programs, role, is_active, votes_cast, votes_total,
-      voting_power, notes
+      voting_power, notes,
+      directory_post_count, directory_topic_count, directory_likes_received,
+      directory_likes_given, directory_days_visited, directory_posts_read,
+      directory_topics_entered,
+      post_count_percentile, likes_received_percentile, days_visited_percentile,
+      topics_entered_percentile
     ) VALUES (
       ${tenantId},
       ${delegate.username},
       ${delegate.displayName},
+      ${delegate.isTracked ?? false},
       ${delegate.walletAddress || null},
       ${delegate.kycStatus || null},
       ${delegate.verifiedStatus ?? false},
@@ -240,31 +275,54 @@ export async function upsertDelegate(tenantId: number, delegate: {
       ${delegate.votesCast ?? null},
       ${delegate.votesTotal ?? null},
       ${delegate.votingPower || null},
-      ${delegate.notes || null}
+      ${delegate.notes || null},
+      ${delegate.directoryPostCount ?? null},
+      ${delegate.directoryTopicCount ?? null},
+      ${delegate.directoryLikesReceived ?? null},
+      ${delegate.directoryLikesGiven ?? null},
+      ${delegate.directoryDaysVisited ?? null},
+      ${delegate.directoryPostsRead ?? null},
+      ${delegate.directoryTopicsEntered ?? null},
+      ${delegate.postCountPercentile ?? null},
+      ${delegate.likesReceivedPercentile ?? null},
+      ${delegate.daysVisitedPercentile ?? null},
+      ${delegate.topicsEnteredPercentile ?? null}
     )
     ON CONFLICT (tenant_id, username) DO UPDATE SET
-      display_name = EXCLUDED.display_name,
+      display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), delegates.display_name),
+      is_tracked = GREATEST(EXCLUDED.is_tracked, delegates.is_tracked),
       wallet_address = COALESCE(EXCLUDED.wallet_address, delegates.wallet_address),
       kyc_status = COALESCE(EXCLUDED.kyc_status, delegates.kyc_status),
       verified_status = COALESCE(EXCLUDED.verified_status, delegates.verified_status),
-      programs = COALESCE(EXCLUDED.programs, delegates.programs),
+      programs = COALESCE(NULLIF(EXCLUDED.programs, '{}'), delegates.programs),
       role = COALESCE(EXCLUDED.role, delegates.role),
       is_active = COALESCE(EXCLUDED.is_active, delegates.is_active),
       votes_cast = COALESCE(EXCLUDED.votes_cast, delegates.votes_cast),
       votes_total = COALESCE(EXCLUDED.votes_total, delegates.votes_total),
       voting_power = COALESCE(EXCLUDED.voting_power, delegates.voting_power),
       notes = COALESCE(EXCLUDED.notes, delegates.notes),
+      directory_post_count = COALESCE(EXCLUDED.directory_post_count, delegates.directory_post_count),
+      directory_topic_count = COALESCE(EXCLUDED.directory_topic_count, delegates.directory_topic_count),
+      directory_likes_received = COALESCE(EXCLUDED.directory_likes_received, delegates.directory_likes_received),
+      directory_likes_given = COALESCE(EXCLUDED.directory_likes_given, delegates.directory_likes_given),
+      directory_days_visited = COALESCE(EXCLUDED.directory_days_visited, delegates.directory_days_visited),
+      directory_posts_read = COALESCE(EXCLUDED.directory_posts_read, delegates.directory_posts_read),
+      directory_topics_entered = COALESCE(EXCLUDED.directory_topics_entered, delegates.directory_topics_entered),
+      post_count_percentile = COALESCE(EXCLUDED.post_count_percentile, delegates.post_count_percentile),
+      likes_received_percentile = COALESCE(EXCLUDED.likes_received_percentile, delegates.likes_received_percentile),
+      days_visited_percentile = COALESCE(EXCLUDED.days_visited_percentile, delegates.days_visited_percentile),
+      topics_entered_percentile = COALESCE(EXCLUDED.topics_entered_percentile, delegates.topics_entered_percentile),
       updated_at = NOW()
     RETURNING *
   `;
   return mapDelegateRow(row);
 }
 
-export async function getDelegatesByTenant(tenantId: number): Promise<Delegate[]> {
+export async function getDelegatesByTenant(tenantId: number, opts?: { trackedOnly?: boolean }): Promise<Delegate[]> {
   const db = getDb();
-  const rows = await db`
-    SELECT * FROM delegates WHERE tenant_id = ${tenantId} ORDER BY display_name
-  `;
+  const rows = opts?.trackedOnly
+    ? await db`SELECT * FROM delegates WHERE tenant_id = ${tenantId} AND is_tracked = true ORDER BY display_name`
+    : await db`SELECT * FROM delegates WHERE tenant_id = ${tenantId} ORDER BY display_name`;
   return rows.map(mapDelegateRow);
 }
 
@@ -343,16 +401,22 @@ export async function getSnapshotHistory(
 
 // --- Dashboard assembly ---
 
-export async function getDashboardData(slug: string): Promise<DelegateDashboard | null> {
+export async function getDashboardData(slug: string, opts?: { trackedOnly?: boolean }): Promise<DelegateDashboard | null> {
   const tenant = await getTenantBySlug(slug);
   if (!tenant) return null;
 
-  const delegates = await getDelegatesByTenant(tenant.id);
+  const delegates = await getDelegatesByTenant(tenant.id, opts);
   const snapshots = await getLatestSnapshots(tenant.id);
+
+  // Count tracked members from full roster (for showing toggle)
+  const trackedCount = opts?.trackedOnly
+    ? delegates.length  // Already filtered
+    : delegates.filter((d) => d.isTracked).length;
 
   const delegateRows: DelegateRow[] = delegates.map((d) => {
     const snapshot = snapshots.get(d.id);
     const stats = snapshot?.stats;
+    const hasSnapshot = !!stats;
     const voteRate =
       d.votesCast != null && d.votesTotal != null && d.votesTotal > 0
         ? Math.round((d.votesCast / d.votesTotal) * 100)
@@ -367,22 +431,28 @@ export async function getDashboardData(slug: string): Promise<DelegateDashboard 
         : `${tenant.forumUrl}${tpl.replace('{size}', '120')}`;
     }
 
+    // Use snapshot stats when available, fall back to directory stats
     return {
       username: d.username,
       displayName: d.displayName,
       avatarUrl,
       isActive: d.isActive,
+      isTracked: d.isTracked,
       programs: d.programs || [],
       role: d.role ?? undefined,
       trustLevel: stats?.trustLevel ?? 0,
-      topicCount: stats?.topicCount ?? 0,
-      postCount: stats?.postCount ?? 0,
-      likesGiven: stats?.likesGiven ?? 0,
-      likesReceived: stats?.likesReceived ?? 0,
-      daysVisited: stats?.daysVisited ?? 0,
-      postsRead: stats?.postsRead ?? 0,
+      topicCount: hasSnapshot ? (stats?.topicCount ?? 0) : (d.directoryTopicCount ?? 0),
+      postCount: hasSnapshot ? (stats?.postCount ?? 0) : (d.directoryPostCount ?? 0),
+      likesGiven: hasSnapshot ? (stats?.likesGiven ?? 0) : (d.directoryLikesGiven ?? 0),
+      likesReceived: hasSnapshot ? (stats?.likesReceived ?? 0) : (d.directoryLikesReceived ?? 0),
+      daysVisited: hasSnapshot ? (stats?.daysVisited ?? 0) : (d.directoryDaysVisited ?? 0),
+      postsRead: hasSnapshot ? (stats?.postsRead ?? 0) : (d.directoryPostsRead ?? 0),
       lastSeenAt: stats?.lastSeenAt ?? null,
       lastPostedAt: stats?.lastPostedAt ?? null,
+      postCountPercentile: d.postCountPercentile ?? undefined,
+      likesReceivedPercentile: d.likesReceivedPercentile ?? undefined,
+      daysVisitedPercentile: d.daysVisitedPercentile ?? undefined,
+      topicsEnteredPercentile: d.topicsEnteredPercentile ?? undefined,
       rationaleCount: snapshot?.rationaleCount ?? 0,
       votesCast: d.votesCast ?? undefined,
       votesTotal: d.votesTotal ?? undefined,
@@ -393,9 +463,9 @@ export async function getDashboardData(slug: string): Promise<DelegateDashboard 
       verifiedStatus: d.verifiedStatus ?? undefined,
       notes: d.notes ?? undefined,
       dataSource: {
-        forumStats: 'discourse_api',
+        forumStats: hasSnapshot ? 'discourse_api' : 'directory',
         onChain: d.votesCast != null ? 'manual' : 'manual',
-        identity: 'admin_provided',
+        identity: d.isTracked ? 'admin_provided' : 'directory',
       },
       snapshotAt: snapshot?.capturedAt ?? null,
     };
@@ -409,9 +479,12 @@ export async function getDashboardData(slug: string): Promise<DelegateDashboard 
       name: tenant.name,
       forumUrl: tenant.forumUrl,
       branding: tenant.config.branding,
+      trackedMemberLabel: tenant.config.trackedMemberLabel,
+      trackedMemberLabelPlural: tenant.config.trackedMemberLabelPlural,
     },
     delegates: delegateRows,
     summary,
+    trackedCount,
     lastRefreshAt: tenant.lastRefreshAt,
     capabilities: tenant.capabilities,
   };
@@ -502,6 +575,7 @@ function mapDelegateRow(row: Record<string, unknown>): Delegate {
     tenantId: row.tenant_id as number,
     username: row.username as string,
     displayName: row.display_name as string,
+    isTracked: (row.is_tracked as boolean) ?? false,
     walletAddress: row.wallet_address as string | undefined,
     kycStatus: row.kyc_status as Delegate['kycStatus'],
     verifiedStatus: row.verified_status as boolean | undefined,
@@ -511,6 +585,17 @@ function mapDelegateRow(row: Record<string, unknown>): Delegate {
     votesCast: row.votes_cast as number | undefined,
     votesTotal: row.votes_total as number | undefined,
     votingPower: row.voting_power as string | undefined,
+    directoryPostCount: row.directory_post_count as number | undefined,
+    directoryTopicCount: row.directory_topic_count as number | undefined,
+    directoryLikesReceived: row.directory_likes_received as number | undefined,
+    directoryLikesGiven: row.directory_likes_given as number | undefined,
+    directoryDaysVisited: row.directory_days_visited as number | undefined,
+    directoryPostsRead: row.directory_posts_read as number | undefined,
+    directoryTopicsEntered: row.directory_topics_entered as number | undefined,
+    postCountPercentile: row.post_count_percentile as number | undefined,
+    likesReceivedPercentile: row.likes_received_percentile as number | undefined,
+    daysVisitedPercentile: row.days_visited_percentile as number | undefined,
+    topicsEnteredPercentile: row.topics_entered_percentile as number | undefined,
     notes: row.notes as string | undefined,
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString(),

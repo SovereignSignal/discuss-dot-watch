@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDashboardData } from '@/lib/delegates';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ tenant: string }> }
 ) {
   try {
@@ -17,7 +17,10 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 });
     }
 
-    const dashboard = await getDashboardData(slug);
+    const filter = request.nextUrl.searchParams.get('filter');
+    const trackedOnly = filter === 'tracked';
+
+    const dashboard = await getDashboardData(slug, { trackedOnly });
     if (!dashboard) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }

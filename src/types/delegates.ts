@@ -36,20 +36,40 @@ export interface TenantConfig {
   rationaleTags?: string[];          // Tags that indicate rationale posts
   // Display
   programLabels?: string[];          // e.g. ["Council", "Grants"]
+  trackedMemberLabel?: string;       // e.g. "Delegate", "Steward", "Council Member"
+  trackedMemberLabelPlural?: string; // e.g. "Delegates", defaults to label + "s"
   // Branding
   branding?: TenantBranding;         // Per-tenant visual branding
   // Refresh
   refreshIntervalHours?: number;     // Default: 12
+  // Contributor sync
+  maxContributors?: number;          // Default: 200
 }
 
 export interface TenantCapabilities {
   // Discovered on first connection by testing endpoints
   canListUsers?: boolean;
+  canListDirectory?: boolean;
   canViewUserStats?: boolean;
   canViewUserPosts?: boolean;
   canSearchPosts?: boolean;
   canViewUserEmails?: boolean;       // Should always be false for this use case
   testedAt?: string;
+}
+
+// --- Directory Item (from Discourse /directory_items.json) ---
+
+export interface DirectoryItem {
+  username: string;
+  name: string | null;
+  avatarTemplate: string;
+  postCount: number;
+  topicCount: number;
+  likesReceived: number;
+  likesGiven: number;
+  daysVisited: number;
+  postsRead: number;
+  topicsEntered: number;
 }
 
 // --- Delegate ---
@@ -59,6 +79,7 @@ export interface Delegate {
   tenantId: number;
   username: string;                  // Discourse username (primary key per tenant)
   displayName: string;               // Admin-provided display name
+  isTracked: boolean;                // true = manually added tracked member, false = auto-synced from directory
   // Manual fields (admin-provided)
   walletAddress?: string;
   kycStatus?: 'verified' | 'pending' | 'not_required' | null;
@@ -70,6 +91,19 @@ export interface Delegate {
   votesCast?: number;
   votesTotal?: number;
   votingPower?: string;              // String to handle large numbers
+  // Directory stats (from /directory_items.json)
+  directoryPostCount?: number;
+  directoryTopicCount?: number;
+  directoryLikesReceived?: number;
+  directoryLikesGiven?: number;
+  directoryDaysVisited?: number;
+  directoryPostsRead?: number;
+  directoryTopicsEntered?: number;
+  // Percentile rankings (computed during sync)
+  postCountPercentile?: number;
+  likesReceivedPercentile?: number;
+  daysVisitedPercentile?: number;
+  topicsEnteredPercentile?: number;
   // Metadata
   notes?: string;
   createdAt: string;
@@ -134,9 +168,10 @@ export interface DelegateRow {
   displayName: string;
   avatarUrl: string;
   isActive: boolean;
+  isTracked: boolean;
   programs: string[];
   role?: string;
-  // Forum stats (from latest snapshot)
+  // Forum stats (from latest snapshot or directory)
   trustLevel: number;
   topicCount: number;
   postCount: number;
@@ -146,6 +181,11 @@ export interface DelegateRow {
   postsRead: number;
   lastSeenAt: string | null;
   lastPostedAt: string | null;
+  // Percentile rankings
+  postCountPercentile?: number;
+  likesReceivedPercentile?: number;
+  daysVisitedPercentile?: number;
+  topicsEnteredPercentile?: number;
   // Computed
   rationaleCount: number;
   // On-chain (manual)
@@ -160,9 +200,9 @@ export interface DelegateRow {
   notes?: string;
   // Data source tracking
   dataSource: {
-    forumStats: 'discourse_api';
+    forumStats: 'discourse_api' | 'directory';
     onChain: 'manual' | 'chain_integration';
-    identity: 'admin_provided';
+    identity: 'admin_provided' | 'directory';
   };
   // Latest snapshot timestamp
   snapshotAt: string | null;
@@ -174,9 +214,12 @@ export interface DelegateDashboard {
     name: string;
     forumUrl: string;
     branding?: TenantBranding;
+    trackedMemberLabel?: string;
+    trackedMemberLabelPlural?: string;
   };
   delegates: DelegateRow[];
   summary: DashboardSummary;
+  trackedCount: number;
   lastRefreshAt: string | null;
   capabilities: TenantCapabilities;
 }

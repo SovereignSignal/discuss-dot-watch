@@ -7,6 +7,7 @@
 
 import { decrypt } from './encryption';
 import { getUserStats, getUserPosts, searchRationales } from './discourseClient';
+import { syncContributorsFromDirectory } from './contributorSync';
 import {
   getDelegatesByTenant,
   getTenantBySlug,
@@ -43,12 +44,25 @@ export async function refreshTenant(slug: string): Promise<RefreshResult> {
   };
 
   const tenantConfig: TenantConfig = tenant.config || {};
-  const delegates = await getDelegatesByTenant(tenant.id);
+
+  // Phase 1: Sync contributors from directory (lightweight — ~4 API calls)
+  if (tenant.capabilities.canListDirectory !== false) {
+    try {
+      const maxContributors = tenantConfig.maxContributors ?? 200;
+      const syncResult = await syncContributorsFromDirectory(tenant.id, config, maxContributors);
+      console.log(`[Refresh] Directory sync for ${slug}: ${syncResult.synced} contributors`);
+    } catch (err) {
+      console.error(`[Refresh] Directory sync failed for ${slug}:`, err);
+    }
+  }
+
+  // Phase 2: Detailed per-user refresh (expensive — only for tracked members)
+  const delegates = await getDelegatesByTenant(tenant.id, { trackedOnly: true });
   let snapshotsCreated = 0;
 
-  console.log(`[Refresh] Starting refresh for ${slug}: ${delegates.length} delegates`);
+  console.log(`[Refresh] Starting tracked member refresh for ${slug}: ${delegates.length} tracked members`);
 
-  // Process delegates sequentially to respect rate limits
+  // Process tracked delegates sequentially to respect rate limits
   for (const delegate of delegates) {
     try {
       console.log(`[Refresh] Fetching data for ${delegate.username}...`);

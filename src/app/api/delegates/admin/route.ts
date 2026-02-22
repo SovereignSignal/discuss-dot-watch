@@ -27,6 +27,7 @@ import {
   isEncryptionConfigured,
   detectCapabilities,
   lookupUsername,
+  syncContributorsFromDirectory,
 } from '@/lib/delegates';
 import { decrypt } from '@/lib/delegates/encryption';
 
@@ -102,12 +103,29 @@ export async function POST(request: NextRequest) {
         });
 
         // Auto-detect capabilities
-        const capabilities = await detectCapabilities({
+        const discourseConfig = {
           baseUrl: tenant.forumUrl,
           apiKey,
           apiUsername,
-        });
+        };
+        const capabilities = await detectCapabilities(discourseConfig);
         await updateTenantCapabilities(tenant.id, capabilities);
+
+        // Auto-sync contributors from directory if available
+        let contributorsSynced = 0;
+        if (capabilities.canListDirectory) {
+          try {
+            const maxContributors = config?.maxContributors ?? 200;
+            const result = await syncContributorsFromDirectory(
+              tenant.id,
+              discourseConfig,
+              maxContributors
+            );
+            contributorsSynced = result.synced;
+          } catch (err) {
+            console.error('[Admin] Auto-sync contributors failed:', err);
+          }
+        }
 
         return NextResponse.json({
           success: true,
@@ -117,7 +135,12 @@ export async function POST(request: NextRequest) {
             name: tenant.name,
             forumUrl: tenant.forumUrl,
             capabilities,
+            dashboardUrl: `/${tenant.slug}`,
           },
+          contributorsSynced,
+          message: contributorsSynced > 0
+            ? `Dashboard ready with ${contributorsSynced} contributors.`
+            : 'Tenant created. Add tracked members or enable directory access.',
         });
       }
 
@@ -180,7 +203,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
         }
 
-        const result = await upsertDelegate(tenant.id, delegate);
+        // Admin-added delegates are always tracked
+        const result = await upsertDelegate(tenant.id, { ...delegate, isTracked: true });
         return NextResponse.json({ success: true, delegate: result });
       }
 
@@ -229,7 +253,8 @@ export async function POST(request: NextRequest) {
               d.displayName = d.username;
             }
 
-            const result = await upsertDelegate(tenant.id, d);
+            // Admin-added delegates are always tracked
+            const result = await upsertDelegate(tenant.id, { ...d, isTracked: true });
             results.push(result);
           } catch (err) {
             errors.push({
