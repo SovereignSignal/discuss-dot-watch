@@ -75,10 +75,17 @@ export function DiscussionFeed({
     };
   }, []);
 
-  // Map cname → category for filtering
+  // Map protocol → category for filtering
+  // External sources set protocol to human-readable names (e.g. "llama.cpp", "ENS")
+  // while cname uses sourceId (e.g. "github-llama-cpp", "snapshot-ens"),
+  // so we key by both cname and name to handle both Discourse and external sources.
   const forumCategoryMap = useMemo(() => {
     const map = new Map<string, string | null>();
-    forums.forEach(f => map.set(f.cname.toLowerCase(), resolveCategory(f.category)));
+    forums.forEach(f => {
+      const cat = resolveCategory(f.category);
+      map.set(f.cname.toLowerCase(), cat);
+      map.set(f.name.toLowerCase(), cat);
+    });
     return map;
   }, [forums]);
 
@@ -86,15 +93,21 @@ export function DiscussionFeed({
     const map = new Map<string, string>();
     forums.forEach((forum) => {
       const logoUrl = forum.logoUrl || getProtocolLogo(forum.name);
-      if (logoUrl) map.set(forum.cname.toLowerCase(), logoUrl);
+      if (logoUrl) {
+        map.set(forum.cname.toLowerCase(), logoUrl);
+        map.set(forum.name.toLowerCase(), logoUrl);
+      }
     });
     return map;
   }, [forums]);
 
-  // Map cname → display name for rendering
+  // Map protocol → display name for rendering
   const forumNameMap = useMemo(() => {
     const map = new Map<string, string>();
-    forums.forEach(f => map.set(f.cname.toLowerCase(), f.name));
+    forums.forEach(f => {
+      map.set(f.cname.toLowerCase(), f.name);
+      map.set(f.name.toLowerCase(), f.name);
+    });
     return map;
   }, [forums]);
 
