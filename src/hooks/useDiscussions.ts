@@ -46,7 +46,7 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
     }
 
     // Separate Discourse forums from external sources
-    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'hackernews']);
+    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'hackernews', 'snapshot']);
     const discourseForums = enabledForums.filter(f => !f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType));
     const externalForums = enabledForums.filter(f => f.sourceType && EXTERNAL_SOURCE_TYPES.has(f.sourceType));
 
@@ -125,7 +125,7 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
       // Fetch external sources only if user has enabled any
       if (externalForums.length > 0) {
         try {
-          const sourceIds = externalForums.map(f => f.sourceType!).join(',');
+          const sourceIds = externalForums.map(f => f.cname).join(',');
           const externalRes = await fetch(`/api/external-sources?sources=${sourceIds}`, { signal });
           if (externalRes.ok) {
             const externalData = await externalRes.json();

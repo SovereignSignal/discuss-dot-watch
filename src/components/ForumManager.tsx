@@ -135,7 +135,7 @@ export function ForumManager({
       return;
     }
     onAddForum({
-      cname: preset.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+      cname: preset.sourceId || preset.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
       name: preset.name,
       description: preset.description,
       token: preset.token,
@@ -248,6 +248,13 @@ export function ForumManager({
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm truncate" style={{ color: isAdded ? t.fgMuted : t.fg }}>{preset.name}</span>
             {preset.token && <span className="text-xs font-mono" style={{ color: t.fgDim }}>${preset.token}</span>}
+            {preset.sourceType && preset.sourceType !== 'discourse' && !preset.token && (
+              <span className="text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0" style={{ backgroundColor: t.bgBadge, color: t.fgDim }}>
+                {preset.sourceType === 'github' ? 'GitHub' :
+                 preset.sourceType === 'snapshot' ? 'Snapshot' :
+                 preset.sourceType === 'ea-forum' ? 'EA Forum' : preset.sourceType}
+              </span>
+            )}
             {isAdded && <span className="text-xs font-medium" style={{ color: t.fgMuted }}>added</span>}
           </div>
           {preset.description && (
