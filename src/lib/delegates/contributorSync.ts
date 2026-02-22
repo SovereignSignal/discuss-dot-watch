@@ -66,6 +66,7 @@ export async function syncContributorsFromDirectory(
         username: item.username,
         displayName: item.name || item.username,
         isTracked: false, // GREATEST in upsert preserves existing is_tracked = true
+        avatarTemplate: item.avatarTemplate || undefined,
         directoryPostCount: item.postCount,
         directoryTopicCount: item.topicCount,
         directoryLikesReceived: item.likesReceived,
@@ -89,22 +90,20 @@ export async function syncContributorsFromDirectory(
 }
 
 /**
- * Compute percentile rankings for each metric.
+ * Compute percentile rankings for each metric WITHIN the synced cohort.
  *
- * The directory is sorted by post_count (descending) from the API, so the
- * first item is the highest poster. For each metric, we sort locally and
- * compute: percentile = ((usersBelow) / totalForumUsers) * 100
- *
- * totalForumUsers comes from the directory API meta, representing ALL users
- * on the forum, not just the ones we fetched.
+ * Percentiles are relative to the synced contributors (not the whole forum),
+ * so the least active synced contributor is near 0th percentile and the most
+ * active is near 99th. This gives stakeholders a meaningful comparison.
  */
 function computePercentiles(
   items: DirectoryItem[],
-  totalForumUsers: number
+  _totalForumUsers: number
 ): Map<string, { postCount: number; likesReceived: number; daysVisited: number; topicsEntered: number }> {
   const result = new Map<string, { postCount: number; likesReceived: number; daysVisited: number; topicsEntered: number }>();
+  const cohortSize = items.length;
 
-  if (items.length === 0 || totalForumUsers === 0) return result;
+  if (cohortSize === 0) return result;
 
   // Initialize result map
   for (const item of items) {
@@ -116,10 +115,6 @@ function computePercentiles(
     });
   }
 
-  // For each metric, sort and assign percentiles
-  // Users we didn't fetch are assumed to have lower values (they didn't make top N)
-  const unfetchedUsers = totalForumUsers - items.length;
-
   const computeForMetric = (
     getValue: (item: DirectoryItem) => number,
     setPercentile: (username: string, percentile: number) => void
@@ -128,9 +123,8 @@ function computePercentiles(
     const sorted = [...items].sort((a, b) => getValue(a) - getValue(b));
 
     for (let i = 0; i < sorted.length; i++) {
-      // Users below this one = unfetched users + items with lower index in sorted array
-      const usersBelow = unfetchedUsers + i;
-      const percentile = Math.round((usersBelow / totalForumUsers) * 100);
+      // Percentile within the cohort: what fraction of cohort members have a lower value
+      const percentile = Math.round((i / cohortSize) * 100);
       setPercentile(sorted[i].username, Math.min(percentile, 99));
     }
   };

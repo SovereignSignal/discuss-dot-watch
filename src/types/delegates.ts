@@ -80,6 +80,7 @@ export interface Delegate {
   username: string;                  // Discourse username (primary key per tenant)
   displayName: string;               // Admin-provided display name
   isTracked: boolean;                // true = manually added tracked member, false = auto-synced from directory
+  avatarTemplate?: string;           // Discourse avatar URL template (from directory or API)
   // Manual fields (admin-provided)
   walletAddress?: string;
   kycStatus?: 'verified' | 'pending' | 'not_required' | null;
@@ -228,6 +229,7 @@ export interface DashboardSummary {
   totalDelegates: number;
   activeDelegates: number;
   avgPostCount: number;
+  medianPostCount: number;
   avgLikesReceived: number;
   avgDaysVisited: number;
   avgRationaleCount: number;
@@ -235,6 +237,16 @@ export interface DashboardSummary {
   delegatesWithRationales: number;
   delegatesSeenLast30Days: number;
   delegatesPostedLast30Days: number;
+  // Activity distribution (bucket counts)
+  activityDistribution: {
+    highlyActive: number;    // 50+ posts
+    active: number;          // 11-50 posts
+    lowActivity: number;     // 2-10 posts
+    minimal: number;         // 1 post
+    dormant: number;         // 0 posts
+  };
+  // Whether timestamp data is available (tracked members only)
+  hasTimestampData: boolean;
 }
 
 // --- API request/response types ---

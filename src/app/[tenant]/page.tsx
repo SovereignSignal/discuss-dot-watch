@@ -159,6 +159,19 @@ export default function TenantDashboardPage() {
     return () => { cancelled = true; };
   }, [slug, filterTracked]);
 
+  // Detect duplicate display names for disambiguation
+  const duplicateNames = useMemo(() => {
+    if (!dashboard) return new Set<string>();
+    const counts = new Map<string, number>();
+    dashboard.delegates.forEach((d) => {
+      const name = d.displayName.toLowerCase();
+      counts.set(name, (counts.get(name) || 0) + 1);
+    });
+    const dupes = new Set<string>();
+    counts.forEach((count, name) => { if (count > 1) dupes.add(name); });
+    return dupes;
+  }, [dashboard]);
+
   // Available programs for filter
   const programs = useMemo(() => {
     if (!dashboard) return [];
@@ -577,6 +590,7 @@ export default function TenantDashboardPage() {
                   t={t}
                   accentHover={bc?.accentHover}
                   accentBg={bc?.accentBg}
+                  showUsername={duplicateNames.has(d.displayName.toLowerCase())}
                 />
               ))
             )}
@@ -654,6 +668,7 @@ export default function TenantDashboardPage() {
                         t={t}
                         accentHover={bc?.accentHover}
                         accentBg={bc?.accentBg}
+                        showUsername={duplicateNames.has(d.displayName.toLowerCase())}
                       />
                     ))
                   )}
@@ -741,22 +756,15 @@ export default function TenantDashboardPage() {
 // ============================================================
 
 function SummaryCards({ summary, t, accent, isMobile }: { summary: DashboardSummary; t: ReturnType<typeof c>; accent?: string; isMobile?: boolean }) {
+  const dist = summary.activityDistribution;
   const cards = [
     { label: 'Total Contributors', value: summary.totalDelegates, icon: Users },
-    { label: 'Active', value: summary.activeDelegates, icon: Activity },
+    { label: 'Highly Active (50+)', value: dist?.highlyActive ?? 0, icon: Activity },
+    { label: 'Active (11-50)', value: dist?.active ?? 0, icon: MessageSquare },
+    { label: 'Dormant (0 posts)', value: dist?.dormant ?? 0, icon: Eye },
+    { label: 'Median Posts', value: summary.medianPostCount ?? 0, icon: FileText },
     { label: 'Avg Posts', value: summary.avgPostCount, icon: MessageSquare },
     { label: 'Avg Likes Received', value: summary.avgLikesReceived, icon: ThumbsUp },
-    { label: 'Avg Rationales', value: summary.avgRationaleCount, icon: FileText },
-    {
-      label: 'Seen Last 30d',
-      value: `${summary.delegatesSeenLast30Days}/${summary.totalDelegates}`,
-      icon: Eye,
-    },
-    {
-      label: 'Posted Last 30d',
-      value: `${summary.delegatesPostedLast30Days}/${summary.totalDelegates}`,
-      icon: Calendar,
-    },
     {
       label: 'Avg Vote Rate',
       value: summary.avgVoteRate != null ? `${summary.avgVoteRate}%` : '—',
@@ -876,6 +884,7 @@ function DelegateTableRow({
   t,
   accentHover,
   accentBg,
+  showUsername,
 }: {
   delegate: DelegateRow;
   forumUrl: string;
@@ -884,6 +893,7 @@ function DelegateTableRow({
   t: ReturnType<typeof c>;
   accentHover?: string;
   accentBg?: string;
+  showUsername?: boolean;
 }) {
   const seenAgo = d.lastSeenAt
     ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
@@ -960,29 +970,46 @@ function DelegateTableRow({
             </div>
           )}
           <div>
-            <div style={{ fontWeight: 500, fontSize: 13 }}>
-              {d.displayName}
+            <div style={{ fontWeight: 500, fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+              <span>{d.displayName}</span>
+              {showUsername && (
+                <span style={{ fontSize: 11, color: t.fgDim, fontWeight: 400 }}>@{d.username}</span>
+              )}
               {d.isTracked && (
                 <Star
                   size={11}
                   fill="currentColor"
-                  style={{
-                    display: 'inline',
-                    verticalAlign: '-1px',
-                    marginLeft: 5,
-                    color: '#f59e0b',
-                  }}
+                  style={{ color: '#f59e0b', flexShrink: 0 }}
                 />
               )}
+              {(() => {
+                const tier = getActivityTier(d.postCount);
+                return (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      borderRadius: 9999,
+                      background: `${tier.color}15`,
+                      border: `1px solid ${tier.color}33`,
+                      color: tier.color,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {tier.label}
+                  </span>
+                );
+              })()}
               {!d.isActive && (
                 <span
                   style={{
-                    marginLeft: 6,
-                    fontSize: 10,
+                    fontSize: 9,
                     color: '#f59e0b',
                     background: 'rgba(245,158,11,0.1)',
                     padding: '1px 6px',
                     borderRadius: 9999,
+                    flexShrink: 0,
                   }}
                 >
                   Inactive
@@ -996,7 +1023,7 @@ function DelegateTableRow({
               onClick={(e) => e.stopPropagation()}
               style={{ fontSize: 11, color: t.fgDim, textDecoration: 'none' }}
             >
-              @{d.username}
+              {showUsername ? 'View profile' : `@${d.username}`}
             </a>
           </div>
         </div>
@@ -1077,6 +1104,7 @@ function MobileDelegateCard({
   t,
   accentHover,
   accentBg,
+  showUsername,
 }: {
   delegate: DelegateRow;
   isSelected: boolean;
@@ -1084,6 +1112,7 @@ function MobileDelegateCard({
   t: ReturnType<typeof c>;
   accentHover?: string;
   accentBg?: string;
+  showUsername?: boolean;
 }) {
   const seenAgo = d.lastSeenAt
     ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
@@ -1145,26 +1174,39 @@ function MobileDelegateCard({
           </div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 500, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {d.displayName}
-              {d.isTracked && (
-                <Star
-                  size={11}
-                  fill="currentColor"
-                  style={{
-                    display: 'inline',
-                    verticalAlign: '-1px',
-                    marginLeft: 5,
-                    color: '#f59e0b',
-                  }}
-                />
-              )}
             </span>
+            {showUsername && (
+              <span style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</span>
+            )}
+            {d.isTracked && (
+              <Star size={11} fill="currentColor" style={{ color: '#f59e0b', flexShrink: 0 }} />
+            )}
+            {(() => {
+              const tier = getActivityTier(d.postCount);
+              return (
+                <span
+                  style={{
+                    fontSize: 9,
+                    padding: '1px 6px',
+                    borderRadius: 9999,
+                    background: `${tier.color}15`,
+                    border: `1px solid ${tier.color}33`,
+                    color: tier.color,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  {tier.label}
+                </span>
+              );
+            })()}
             {!d.isActive && (
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: 9,
                   color: '#f59e0b',
                   background: 'rgba(245,158,11,0.1)',
                   padding: '1px 6px',
@@ -1176,7 +1218,9 @@ function MobileDelegateCard({
               </span>
             )}
           </div>
-          <div style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</div>
+          <div style={{ fontSize: 11, color: t.fgDim }}>
+            {showUsername ? 'View profile' : `@${d.username}`}
+          </div>
         </div>
         {d.role && (
           <span
@@ -1698,6 +1742,15 @@ function extractText(html: string, maxLen: number = 120): string {
 // ============================================================
 // Role helpers
 // ============================================================
+
+/** Compute activity tier from post count */
+function getActivityTier(postCount: number): { label: string; color: string } {
+  if (postCount >= 50) return { label: 'Highly Active', color: '#10b981' };
+  if (postCount >= 11) return { label: 'Active', color: '#3b82f6' };
+  if (postCount >= 2) return { label: 'Low Activity', color: '#f59e0b' };
+  if (postCount >= 1) return { label: 'Minimal', color: '#f97316' };
+  return { label: 'Dormant', color: '#ef4444' };
+}
 
 function dashboardGetRoleColor(role: string): string {
   switch (role) {

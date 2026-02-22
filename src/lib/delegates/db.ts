@@ -97,6 +97,7 @@ export async function initializeDelegateSchema() {
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_days_visited INTEGER`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_posts_read INTEGER`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_topics_entered INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS avatar_template TEXT`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS post_count_percentile INTEGER`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS likes_received_percentile INTEGER`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS days_visited_percentile INTEGER`;
@@ -234,6 +235,7 @@ export async function upsertDelegate(tenantId: number, delegate: {
   username: string;
   displayName: string;
   isTracked?: boolean;
+  avatarTemplate?: string;
   walletAddress?: string;
   kycStatus?: string | null;
   verifiedStatus?: boolean;
@@ -260,7 +262,8 @@ export async function upsertDelegate(tenantId: number, delegate: {
   const db = getDb();
   const [row] = await db`
     INSERT INTO delegates (
-      tenant_id, username, display_name, is_tracked, wallet_address, kyc_status,
+      tenant_id, username, display_name, is_tracked, avatar_template,
+      wallet_address, kyc_status,
       verified_status, programs, role, is_active, votes_cast, votes_total,
       voting_power, notes,
       directory_post_count, directory_topic_count, directory_likes_received,
@@ -273,6 +276,7 @@ export async function upsertDelegate(tenantId: number, delegate: {
       ${delegate.username},
       ${delegate.displayName},
       ${delegate.isTracked ?? false},
+      ${delegate.avatarTemplate || null},
       ${delegate.walletAddress || null},
       ${delegate.kycStatus || null},
       ${delegate.verifiedStatus ?? false},
@@ -298,6 +302,7 @@ export async function upsertDelegate(tenantId: number, delegate: {
     ON CONFLICT (tenant_id, username) DO UPDATE SET
       display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), delegates.display_name),
       is_tracked = GREATEST(EXCLUDED.is_tracked, delegates.is_tracked),
+      avatar_template = COALESCE(EXCLUDED.avatar_template, delegates.avatar_template),
       wallet_address = COALESCE(EXCLUDED.wallet_address, delegates.wallet_address),
       kyc_status = COALESCE(EXCLUDED.kyc_status, delegates.kyc_status),
       verified_status = COALESCE(EXCLUDED.verified_status, delegates.verified_status),
@@ -429,10 +434,10 @@ export async function getDashboardData(slug: string, opts?: { trackedOnly?: bool
         ? Math.round((d.votesCast / d.votesTotal) * 100)
         : undefined;
 
-    // Build avatar URL from template
+    // Build avatar URL from snapshot stats or delegate's stored template
     let avatarUrl = '';
-    if (stats?.avatarTemplate) {
-      const tpl = stats.avatarTemplate;
+    const tpl = stats?.avatarTemplate || d.avatarTemplate;
+    if (tpl) {
       avatarUrl = tpl.startsWith('http')
         ? tpl.replace('{size}', '120')
         : `${tenant.forumUrl}${tpl.replace('{size}', '120')}`;
@@ -501,31 +506,38 @@ export async function getDashboardData(slug: string, opts?: { trackedOnly?: bool
 
 function computeSummary(delegates: DelegateRow[]): DashboardSummary {
   const total = delegates.length;
-  if (total === 0) {
-    return {
-      totalDelegates: 0,
-      activeDelegates: 0,
-      avgPostCount: 0,
-      avgLikesReceived: 0,
-      avgDaysVisited: 0,
-      avgRationaleCount: 0,
-      avgVoteRate: null,
-      delegatesWithRationales: 0,
-      delegatesSeenLast30Days: 0,
-      delegatesPostedLast30Days: 0,
-    };
-  }
+  const empty: DashboardSummary = {
+    totalDelegates: 0,
+    activeDelegates: 0,
+    avgPostCount: 0,
+    medianPostCount: 0,
+    avgLikesReceived: 0,
+    avgDaysVisited: 0,
+    avgRationaleCount: 0,
+    avgVoteRate: null,
+    delegatesWithRationales: 0,
+    delegatesSeenLast30Days: 0,
+    delegatesPostedLast30Days: 0,
+    activityDistribution: { highlyActive: 0, active: 0, lowActivity: 0, minimal: 0, dormant: 0 },
+    hasTimestampData: false,
+  };
+  if (total === 0) return empty;
 
   const active = delegates.filter((d) => d.isActive);
   const now = Date.now();
   const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
 
-  const seenLast30 = delegates.filter(
-    (d) => d.lastSeenAt && new Date(d.lastSeenAt).getTime() > thirtyDaysAgo
+  // Only count timestamp-based stats from delegates that have the data
+  const withTimestamps = delegates.filter((d) => d.lastSeenAt != null);
+  const hasTimestampData = withTimestamps.length > 0;
+
+  const seenLast30 = withTimestamps.filter(
+    (d) => new Date(d.lastSeenAt!).getTime() > thirtyDaysAgo
   ).length;
 
-  const postedLast30 = delegates.filter(
-    (d) => d.lastPostedAt && new Date(d.lastPostedAt).getTime() > thirtyDaysAgo
+  const withPostTimestamps = delegates.filter((d) => d.lastPostedAt != null);
+  const postedLast30 = withPostTimestamps.filter(
+    (d) => new Date(d.lastPostedAt!).getTime() > thirtyDaysAgo
   ).length;
 
   const withRationales = delegates.filter((d) => d.rationaleCount > 0).length;
@@ -534,10 +546,26 @@ function computeSummary(delegates: DelegateRow[]): DashboardSummary {
     .map((d) => d.voteRate)
     .filter((v): v is number => v != null);
 
+  // Median post count
+  const postCounts = delegates.map((d) => d.postCount).sort((a, b) => a - b);
+  const medianPostCount = total % 2 === 0
+    ? Math.round((postCounts[total / 2 - 1] + postCounts[total / 2]) / 2)
+    : postCounts[Math.floor(total / 2)];
+
+  // Activity distribution
+  const activityDistribution = {
+    highlyActive: delegates.filter((d) => d.postCount >= 50).length,
+    active: delegates.filter((d) => d.postCount >= 11 && d.postCount < 50).length,
+    lowActivity: delegates.filter((d) => d.postCount >= 2 && d.postCount < 11).length,
+    minimal: delegates.filter((d) => d.postCount === 1).length,
+    dormant: delegates.filter((d) => d.postCount === 0).length,
+  };
+
   return {
     totalDelegates: total,
     activeDelegates: active.length,
     avgPostCount: Math.round(delegates.reduce((s, d) => s + d.postCount, 0) / total),
+    medianPostCount,
     avgLikesReceived: Math.round(delegates.reduce((s, d) => s + d.likesReceived, 0) / total),
     avgDaysVisited: Math.round(delegates.reduce((s, d) => s + d.daysVisited, 0) / total),
     avgRationaleCount: Math.round(delegates.reduce((s, d) => s + d.rationaleCount, 0) / total),
@@ -547,6 +575,8 @@ function computeSummary(delegates: DelegateRow[]): DashboardSummary {
     delegatesWithRationales: withRationales,
     delegatesSeenLast30Days: seenLast30,
     delegatesPostedLast30Days: postedLast30,
+    activityDistribution,
+    hasTimestampData,
   };
 }
 
@@ -583,6 +613,7 @@ function mapDelegateRow(row: Record<string, unknown>): Delegate {
     username: row.username as string,
     displayName: row.display_name as string,
     isTracked: (row.is_tracked as boolean) ?? false,
+    avatarTemplate: row.avatar_template as string | undefined,
     walletAddress: row.wallet_address as string | undefined,
     kycStatus: row.kyc_status as Delegate['kycStatus'],
     verifiedStatus: row.verified_status as boolean | undefined,
