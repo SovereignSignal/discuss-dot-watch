@@ -16,9 +16,14 @@ import {
   TopicSummary,
   generateTopicInsight,
 } from '@/lib/emailDigest';
-import { sendTestDigestEmail } from '@/lib/emailService';
+import { sendTestDigestEmail, sendEmail } from '@/lib/emailService';
 import { getCachedDiscussions } from '@/lib/forumCache';
 import { FORUM_CATEGORIES } from '@/lib/forumPresets';
+import {
+  generateGrantsBrief,
+  formatGrantsBriefEmail,
+  formatGrantsBriefText,
+} from '@/lib/grantsBrief';
 
 import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 
@@ -370,6 +375,51 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Grants brief flow
+    if (body.type === 'grants-brief') {
+      const brief = await generateGrantsBrief();
+      if (!brief) {
+        return NextResponse.json({
+          success: true,
+          sent: false,
+          reason: 'No grants discussions found in last 24h',
+        });
+      }
+
+      // If testEmail provided, send the brief
+      if (testEmail) {
+        const html = formatGrantsBriefEmail(brief);
+        const text = formatGrantsBriefText(brief);
+        const dateStr = brief.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const result = await sendEmail({
+          to: testEmail,
+          subject: `[TEST] Grants & Funding Brief — ${dateStr}`,
+          html,
+          text,
+          tags: [{ name: 'type', value: 'grants-brief-test' }],
+        });
+
+        return NextResponse.json({
+          success: result.success,
+          sent: result.success,
+          stats: brief.stats,
+          error: result.success ? undefined : result.error,
+        });
+      }
+
+      // No testEmail — return brief JSON for preview
+      return NextResponse.json({
+        success: true,
+        brief: {
+          date: brief.date,
+          executiveSummary: brief.executiveSummary,
+          newTopics: brief.newTopics,
+          activeTopics: brief.activeTopics,
+          stats: brief.stats,
+        },
+      });
+    }
+
     // Test email flow
     if (testEmail) {
       const simpleTest = body.simple !== false;
