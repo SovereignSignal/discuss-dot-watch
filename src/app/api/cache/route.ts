@@ -1,21 +1,30 @@
-import { NextResponse } from 'next/server';
-import { getCacheStats, refreshCache } from '@/lib/forumCache';
+import { NextRequest, NextResponse } from 'next/server';
+import { getCacheStats, getForumHealthFromCache, refreshCache } from '@/lib/forumCache';
 
 /**
  * GET /api/cache - Get cache statistics
+ * ?details=true - Include per-forum health status
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const stats = getCacheStats();
-  
-  return NextResponse.json({
+  const showDetails = request.nextUrl.searchParams.get('details') === 'true';
+
+  const response: Record<string, unknown> = {
     status: 'ok',
     cache: {
       ...stats,
-      lastRefreshAgo: stats.lastRefresh 
+      lastRefreshAgo: stats.lastRefresh
         ? `${Math.round((Date.now() - stats.lastRefresh) / 1000)}s ago`
         : 'never',
     },
-  });
+  };
+
+  if (showDetails) {
+    const health = getForumHealthFromCache();
+    response.forums = health;
+  }
+
+  return NextResponse.json(response);
 }
 
 /**
