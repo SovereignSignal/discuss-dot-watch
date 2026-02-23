@@ -228,13 +228,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
       },
       {
-        name: 'Gnosis',
-        url: 'https://forum.gnosis.io/',
-        description: 'GnosisDAO governance and xDai sidechain',
-        token: 'GNO',
-        tier: 1,
-      },
-      {
         name: 'Berachain',
         url: 'https://forum.berachain.com/',
         description: 'EVM L1 with Proof of Liquidity consensus',
@@ -316,13 +309,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         token: 'MAGIC',
         logoUrl: 'https://assets.coingecko.com/coins/images/18623/small/magic.png',
         tier: 3,
-      },
-      {
-        name: 'Nouns DAO',
-        url: 'https://discourse.nouns.wtf/',
-        description: 'CC0 NFT DAO with daily auctions and proposals',
-        token: 'NOUNS',
-        tier: 2,
       },
       {
         name: 'Octant',
@@ -572,13 +558,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         description: 'DEX aggregator governance',
         token: '1INCH',
         logoUrl: 'https://assets.coingecko.com/coins/images/13469/small/1inch.png',
-        tier: 2,
-      },
-      {
-        name: 'SushiSwap',
-        url: 'https://forum.sushi.com/',
-        description: 'Multi-chain DEX with concentrated liquidity',
-        token: 'SUSHI',
         tier: 2,
       },
       {
@@ -1267,12 +1246,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         name: 'Ansible',
         url: 'https://forum.ansible.com/',
         description: 'Ansible automation platform community',
-        tier: 2,
-      },
-      {
-        name: 'Cloudflare',
-        url: 'https://community.cloudflare.com/',
-        description: 'Cloudflare CDN and edge computing community',
         tier: 2,
       },
       // GitHub Discussions — Open Source
