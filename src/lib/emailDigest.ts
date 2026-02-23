@@ -4,7 +4,6 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-export type { DigestPreferences } from '@/types';
 
 export interface TopicSummary {
   title: string;

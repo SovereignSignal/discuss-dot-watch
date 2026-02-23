@@ -71,20 +71,6 @@ export interface KeywordAlert {
 export type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
 export type DateFilterMode = 'created' | 'activity';
 
-// Email digest preferences
-export type DigestFrequency = 'daily' | 'weekly' | 'never';
-
-export interface DigestPreferences {
-  frequency: DigestFrequency;
-  includeHotTopics: boolean;
-  includeNewProposals: boolean;
-  includeKeywordMatches: boolean;
-  includeDelegateCorner: boolean;
-  email?: string; // Override email if different from account
-  forums?: string[]; // Forum IDs to include, empty = all
-  keywords?: string[]; // Keywords to track
-}
-
 export type SortOption = 'recent' | 'replies' | 'views' | 'likes';
 
 export interface Bookmark {

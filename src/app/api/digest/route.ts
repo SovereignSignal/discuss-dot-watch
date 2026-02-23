@@ -2,11 +2,10 @@
  * Digest Generation API
  *
  * GET /api/digest - Preview digest content (add ?format=html for email preview)
- *   - ?privyDid=xxx for personalized preview
- * POST /api/digest - Generate and send digest emails
+ *   - ?forumUrls=url1,url2 for specific forums
+ * POST /api/digest - Send test digest email (admin only)
  *   - { testEmail: "x@y.com" } sends simple test email
- *   - { testEmail: "x@y.com", simple: false } sends full personalized digest
- *   - { period: "weekly" } sends batch to all subscribers
+ *   - { testEmail: "x@y.com", simple: false } sends full digest email
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -17,16 +16,9 @@ import {
   TopicSummary,
   generateTopicInsight,
 } from '@/lib/emailDigest';
-import { sendTestDigestEmail, sendBatchDigestEmails } from '@/lib/emailService';
+import { sendTestDigestEmail } from '@/lib/emailService';
 import { getCachedDiscussions } from '@/lib/forumCache';
 import { FORUM_CATEGORIES } from '@/lib/forumPresets';
-import {
-  isDatabaseConfigured,
-  getDigestSubscribers,
-  getUserForumUrls,
-  getUserKeywords,
-  updateLastDigestSent,
-} from '@/lib/db';
 
 import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 
@@ -312,7 +304,6 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const period = (searchParams.get('period') as 'daily' | 'weekly') || 'weekly';
   const format = searchParams.get('format') || 'json';
-  const privyDid = searchParams.get('privyDid');
   // Client-side forum URLs override (comma-separated, from user's local forum selection)
   const clientForumUrls = searchParams.get('forumUrls')
     ? searchParams.get('forumUrls')!.split(',').map(u => u.trim()).filter(Boolean)
@@ -330,38 +321,6 @@ export async function GET(request: NextRequest) {
         includeKeywordMatches: false,
         includeDelegateCorner: true,
       }, insightCache);
-    } else if (privyDid && isDatabaseConfigured()) {
-      // Personalized preview for a specific user
-      const { getDb } = await import('@/lib/db');
-      const sql = getDb();
-      const users = await sql`SELECT id, email FROM users WHERE privy_did = ${privyDid}`;
-
-      if (users.length > 0) {
-        const userId = users[0].id;
-        const [forumUrls, keywords] = await Promise.all([
-          getUserForumUrls(userId),
-          getUserKeywords(userId),
-        ]);
-
-        // Get user content toggles
-        const prefs = await sql`
-          SELECT include_hot_topics, include_new_proposals, include_keyword_matches, include_delegate_corner
-          FROM user_preferences WHERE user_id = ${userId}
-        `;
-        const p = prefs[0];
-
-        const userForumUrls = forumUrls.length > 0 ? forumUrls : getDigestForums().map(f => f.url);
-        const insightCache = new Map<string, string>();
-
-        digest = await generatePersonalizedDigest(period, userForumUrls, keywords, {
-          includeHotTopics: p?.include_hot_topics ?? true,
-          includeNewProposals: p?.include_new_proposals ?? true,
-          includeKeywordMatches: p?.include_keyword_matches ?? true,
-          includeDelegateCorner: p?.include_delegate_corner ?? true,
-        }, insightCache);
-      } else {
-        digest = await generateDigestContent(period);
-      }
     } else {
       digest = await generateDigestContent(period);
     }
@@ -394,8 +353,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Generate and send digests (ADMIN ONLY)
-// Users can opt-in to receive digests, but only admins can trigger sends
+// POST - Send test digest email (ADMIN ONLY)
 export async function POST(request: NextRequest) {
   let body;
   try {
@@ -456,41 +414,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Full personalized digest test (simple=false)
-      // Try to find user in DB for personalization
-      let digest: DigestContent;
-      const insightCache = new Map<string, string>();
-
-      if (isDatabaseConfigured()) {
-        const { getDb } = await import('@/lib/db');
-        const sql = getDb();
-        const users = await sql`SELECT id, email FROM users WHERE email = ${testEmail}`;
-
-        if (users.length > 0) {
-          const userId = users[0].id;
-          const [forumUrls, keywords] = await Promise.all([
-            getUserForumUrls(userId),
-            getUserKeywords(userId),
-          ]);
-          const prefs = await sql`
-            SELECT include_hot_topics, include_new_proposals, include_keyword_matches, include_delegate_corner
-            FROM user_preferences WHERE user_id = ${userId}
-          `;
-          const p = prefs[0];
-          const userForumUrls = forumUrls.length > 0 ? forumUrls : getDigestForums().map(f => f.url);
-
-          digest = await generatePersonalizedDigest(period, userForumUrls, keywords, {
-            includeHotTopics: p?.include_hot_topics ?? true,
-            includeNewProposals: p?.include_new_proposals ?? true,
-            includeKeywordMatches: p?.include_keyword_matches ?? true,
-            includeDelegateCorner: p?.include_delegate_corner ?? true,
-          }, insightCache);
-        } else {
-          digest = await generateDigestContent(period);
-        }
-      } else {
-        digest = await generateDigestContent(period);
-      }
+      // Full digest test (simple=false) — generates a global tier-1 digest
+      const digest = await generateDigestContent(period);
 
       const html = formatDigestEmail(digest);
       const text = formatDigestPlainText(digest);
@@ -502,94 +427,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Production batch: generate and send to all subscribers for this period
-    if (!isDatabaseConfigured()) {
-      return NextResponse.json({
-        success: false,
-        error: 'Database not configured — cannot send batch digests',
-      }, { status: 503 });
-    }
-
-    const subscribers = await getDigestSubscribers(period as 'daily' | 'weekly');
-
-    if (subscribers.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'No subscribers for this period',
-        sent: 0,
-      });
-    }
-
-    console.log(`[Digest] Generating personalized digests for ${subscribers.length} ${period} subscribers`);
-
-    // Shared insight cache across all users to minimize AI calls
-    const insightCache = new Map<string, string>();
-    const recipients: Array<{ email: string; html: string; text: string; subject: string }> = [];
-    const subject = `👁️‍🗨️ Your ${period === 'daily' ? 'Daily' : 'Weekly'} Community Digest`;
-    const skipped: string[] = [];
-
-    for (const sub of subscribers) {
-      const email = sub.digest_email || sub.email;
-      if (!email) { skipped.push(`user ${sub.id}: no email`); continue; }
-
-      try {
-        const [forumUrls, keywords] = await Promise.all([
-          getUserForumUrls(sub.id),
-          getUserKeywords(sub.id),
-        ]);
-
-        // Fall back to global tier-1 forums if user has no forums configured
-        const userForumUrls = forumUrls.length > 0 ? forumUrls : getDigestForums().map(f => f.url);
-
-        const digest = await generatePersonalizedDigest(period as 'daily' | 'weekly', userForumUrls, keywords, {
-          includeHotTopics: sub.include_hot_topics ?? true,
-          includeNewProposals: sub.include_new_proposals ?? true,
-          includeKeywordMatches: sub.include_keyword_matches ?? true,
-          includeDelegateCorner: sub.include_delegate_corner ?? true,
-        }, insightCache);
-
-        // Skip empty digests
-        const totalTopics = digest.hotTopics.length + digest.newProposals.length
-          + digest.keywordMatches.length + (digest.delegateCorner?.length || 0);
-        if (totalTopics === 0) {
-          skipped.push(`${email}: empty digest`);
-          continue;
-        }
-
-        recipients.push({
-          email,
-          html: formatDigestEmail(digest, email.split('@')[0]),
-          text: formatDigestPlainText(digest, email.split('@')[0]),
-          subject,
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[Digest] Error generating for ${email}:`, msg);
-        skipped.push(`${email}: ${msg}`);
-      }
-    }
-
-    // Send all emails
-    const results = await sendBatchDigestEmails(recipients, period as 'daily' | 'weekly');
-
-    // Update last_digest_sent_at for successfully sent users
-    for (const sub of subscribers) {
-      const email = sub.digest_email || sub.email;
-      if (recipients.some(r => r.email === email)) {
-        await updateLastDigestSent(sub.id);
-      }
-    }
-
-    console.log(`[Digest] Batch complete: ${results.sent} sent, ${results.failed} failed, ${skipped.length} skipped`);
-
+    // No testEmail provided — nothing to do (batch subscriber sends removed)
     return NextResponse.json({
-      success: true,
-      message: `Digest batch complete`,
-      sent: results.sent,
-      failed: results.failed,
-      skipped: skipped.length,
-      errors: results.errors.length > 0 ? results.errors : undefined,
-    });
+      success: false,
+      error: 'Missing testEmail parameter. Use { testEmail: "x@y.com" } to send a test digest.',
+    }, { status: 400 });
   } catch (error) {
     console.error('Error generating/sending digest:', error);
     return NextResponse.json(

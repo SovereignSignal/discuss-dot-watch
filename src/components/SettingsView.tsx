@@ -3,7 +3,6 @@
 import { Forum, KeywordAlert, Bookmark } from '@/types';
 import { StorageQuota } from '@/lib/storage';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
-import { EmailPreferences } from '@/components/EmailPreferences';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { c } from '@/lib/theme';
 
@@ -69,11 +68,6 @@ export function SettingsView({
             onImport={onImport}
             isDark={isDark}
           />
-        </section>
-
-        <section className="pb-6 border-b" style={{ borderColor: t.borderSubtle }}>
-          <h3 className="text-[13px] font-medium mb-3" style={{ color: t.fgSecondary }}>Email Preferences</h3>
-          <EmailPreferences isDark={isDark} />
         </section>
 
         <section className="pb-6 border-b" style={{ borderColor: t.borderSubtle }}>

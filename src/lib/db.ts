@@ -131,14 +131,6 @@ export async function initializeSchema() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )
   `;
-  // Add columns via migrations (safe to run repeatedly)
-  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS digest_frequency TEXT DEFAULT 'never'`;
-  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS digest_email TEXT`;
-  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_hot_topics BOOLEAN DEFAULT true`;
-  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_new_proposals BOOLEAN DEFAULT true`;
-  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_keyword_matches BOOLEAN DEFAULT true`;
-  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_delegate_corner BOOLEAN DEFAULT true`;
-  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMPTZ`;
   await db`
     CREATE TABLE IF NOT EXISTS keyword_alerts (
       id SERIAL PRIMARY KEY,
@@ -450,84 +442,3 @@ export async function getDbStats() {
   };
 }
 
-/**
- * Get users subscribed to a specific digest frequency
- */
-export async function getDigestSubscribers(frequency: 'daily' | 'weekly') {
-  const db = getDb();
-  return db`
-    SELECT u.id, u.privy_did, u.email,
-           p.digest_email, p.digest_frequency,
-           p.include_hot_topics, p.include_new_proposals,
-           p.include_keyword_matches, p.include_delegate_corner,
-           p.last_digest_sent_at
-    FROM users u
-    JOIN user_preferences p ON p.user_id = u.id
-    WHERE p.digest_frequency = ${frequency}
-      AND (u.email IS NOT NULL OR p.digest_email IS NOT NULL)
-  `;
-}
-
-/**
- * Get a user's enabled forum URLs from their stored forum data
- */
-export async function getUserForumUrls(userId: number): Promise<string[]> {
-  const db = getDb();
-  const rows = await db`
-    SELECT forum_data FROM user_forums_data WHERE user_id = ${userId}
-  `;
-  if (!rows[0]?.forum_data) return [];
-
-  const raw = rows[0].forum_data;
-  const forums = Array.isArray(raw) ? raw as Array<{ discourseForum?: { url?: string }; isEnabled?: boolean }> : [];
-  return forums
-    .filter(f => f.isEnabled !== false && f.discourseForum?.url)
-    .map(f => f.discourseForum!.url!.replace(/\/$/, ''));
-}
-
-/**
- * Get a user's enabled keyword alerts
- */
-export async function getUserKeywords(userId: number): Promise<string[]> {
-  const db = getDb();
-  const rows = await db`
-    SELECT keyword FROM keyword_alerts
-    WHERE user_id = ${userId} AND is_enabled = true
-  `;
-  return rows.map(r => r.keyword);
-}
-
-/**
- * Update digest preferences for a user
- */
-export async function updateDigestPreferences(userId: number, prefs: {
-  digestFrequency?: string;
-  digestEmail?: string | null;
-  includeHotTopics?: boolean;
-  includeNewProposals?: boolean;
-  includeKeywordMatches?: boolean;
-  includeDelegateCorner?: boolean;
-}) {
-  const db = getDb();
-  return db`
-    UPDATE user_preferences SET
-      digest_frequency = COALESCE(${prefs.digestFrequency ?? null}, digest_frequency),
-      digest_email = CASE WHEN ${prefs.digestEmail !== undefined} THEN ${prefs.digestEmail ?? null} ELSE digest_email END,
-      include_hot_topics = COALESCE(${prefs.includeHotTopics ?? null}, include_hot_topics),
-      include_new_proposals = COALESCE(${prefs.includeNewProposals ?? null}, include_new_proposals),
-      include_keyword_matches = COALESCE(${prefs.includeKeywordMatches ?? null}, include_keyword_matches),
-      include_delegate_corner = COALESCE(${prefs.includeDelegateCorner ?? null}, include_delegate_corner)
-    WHERE user_id = ${userId}
-    RETURNING digest_frequency, digest_email, include_hot_topics, include_new_proposals, include_keyword_matches, include_delegate_corner
-  `;
-}
-
-/**
- * Update last_digest_sent_at for a user
- */
-export async function updateLastDigestSent(userId: number) {
-  const db = getDb();
-  await db`
-    UPDATE user_preferences SET last_digest_sent_at = NOW() WHERE user_id = ${userId}
-  `;
-}

@@ -81,54 +81,6 @@ export async function sendDigestEmail(
 }
 
 /**
- * Send batch digest emails
- */
-export async function sendBatchDigestEmails(
-  recipients: Array<{
-    email: string;
-    html: string;
-    text: string;
-    subject: string;
-  }>,
-  digestType: 'daily' | 'weekly'
-): Promise<{ sent: number; failed: number; errors: string[] }> {
-  const results = {
-    sent: 0,
-    failed: 0,
-    errors: [] as string[],
-  };
-
-  // Resend has a batch API, but for simplicity we'll send one at a time
-  // with a small delay to respect rate limits
-  for (const recipient of recipients) {
-    try {
-      const result = await sendDigestEmail(
-        recipient.email,
-        recipient.subject,
-        recipient.html,
-        recipient.text,
-        digestType
-      );
-
-      if (result.success) {
-        results.sent++;
-      } else {
-        results.failed++;
-        results.errors.push(`${recipient.email}: ${result.error}`);
-      }
-
-      // Small delay to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 100));
-    } catch (error) {
-      results.failed++;
-      results.errors.push(`${recipient.email}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  return results;
-}
-
-/**
  * Send a test digest email
  */
 export async function sendTestDigestEmail(
