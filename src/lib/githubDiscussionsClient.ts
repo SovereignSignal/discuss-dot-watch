@@ -10,12 +10,8 @@ import { DiscussionTopic, SourceType } from '@/types';
 
 const GITHUB_GRAPHQL_ENDPOINT = 'https://api.github.com/graphql';
 
-// GraphQL query for recent discussions in a repository
-const DISCUSSIONS_QUERY = `
-query RecentDiscussions($owner: String!, $repo: String!, $first: Int!) {
-  repository(owner: $owner, name: $repo) {
-    discussions(first: $first, orderBy: {field: UPDATED_AT, direction: DESC}) {
-      nodes {
+// Shared fragment for discussion fields
+const DISCUSSION_FIELDS = `
         id
         databaseId
         number
@@ -46,7 +42,28 @@ query RecentDiscussions($owner: String!, $repo: String!, $first: Int!) {
         }
         locked
         closed
-        isAnswered
+        isAnswered`;
+
+// GraphQL query for recently updated discussions
+const UPDATED_AT_QUERY = `
+query RecentlyUpdatedDiscussions($owner: String!, $repo: String!, $first: Int!) {
+  repository(owner: $owner, name: $repo) {
+    discussions(first: $first, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes {
+${DISCUSSION_FIELDS}
+      }
+    }
+  }
+}
+`;
+
+// GraphQL query for recently created discussions
+const CREATED_AT_QUERY = `
+query RecentlyCreatedDiscussions($owner: String!, $repo: String!, $first: Int!) {
+  repository(owner: $owner, name: $repo) {
+    discussions(first: $first, orderBy: {field: CREATED_AT, direction: DESC}) {
+      nodes {
+${DISCUSSION_FIELDS}
       }
     }
   }
@@ -226,23 +243,54 @@ export async function fetchGitHubDiscussions(
     return { posts: [], error: `Invalid repo format: ${repoRef} (expected owner/repo)` };
   }
 
-  const result = await githubGraphQL<{
+  type RepoDiscussions = {
     repository: { discussions: { nodes: GitHubDiscussion[] } } | null;
-  }>(DISCUSSIONS_QUERY, {
-    owner: parsed.owner,
-    repo: parsed.repo,
-    first: Math.min(limit, 50),
-  });
+  };
 
-  if (result.error) {
-    return { posts: [], error: result.error };
+  // Run both queries in parallel: updated_at (full limit) + created_at (half limit)
+  const [updatedResult, createdResult] = await Promise.allSettled([
+    githubGraphQL<RepoDiscussions>(UPDATED_AT_QUERY, {
+      owner: parsed.owner,
+      repo: parsed.repo,
+      first: Math.min(limit, 50),
+    }),
+    githubGraphQL<RepoDiscussions>(CREATED_AT_QUERY, {
+      owner: parsed.owner,
+      repo: parsed.repo,
+      first: Math.min(Math.ceil(limit / 2), 25),
+    }),
+  ]);
+
+  const updatedNodes =
+    updatedResult.status === 'fulfilled' && !updatedResult.value.error
+      ? updatedResult.value.data?.repository?.discussions?.nodes ?? []
+      : [];
+  const createdNodes =
+    createdResult.status === 'fulfilled' && !createdResult.value.error
+      ? createdResult.value.data?.repository?.discussions?.nodes ?? []
+      : [];
+
+  // If both failed, report the error from the primary query
+  if (updatedNodes.length === 0 && createdNodes.length === 0) {
+    const primaryError =
+      updatedResult.status === 'fulfilled'
+        ? updatedResult.value.error
+        : updatedResult.reason?.message;
+    return {
+      posts: [],
+      error: primaryError || 'Repository not found or discussions not enabled',
+    };
   }
 
-  if (!result.data?.repository?.discussions) {
-    return { posts: [], error: 'Repository not found or discussions not enabled' };
+  // Merge and deduplicate by discussion number (stable unique ID per repo)
+  const seen = new Set<number>();
+  const discussions: GitHubDiscussion[] = [];
+  for (const d of [...updatedNodes, ...createdNodes]) {
+    if (!seen.has(d.number)) {
+      seen.add(d.number);
+      discussions.push(d);
+    }
   }
-
-  const discussions = result.data.repository.discussions.nodes;
   const baseUrl = `https://github.com/${repoRef}`;
 
   const posts: DiscussionTopic[] = discussions.map((d) => ({
