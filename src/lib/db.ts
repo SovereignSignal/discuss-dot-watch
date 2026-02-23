@@ -317,6 +317,14 @@ export async function updateForumLastFetched(forumId: number) {
 }
 
 /**
+ * Mark a forum as active or inactive (informational flag for admin visibility)
+ */
+export async function updateForumActive(forumUrl: string, isActive: boolean) {
+  const db = getDb();
+  await db`UPDATE forums SET is_active = ${isActive}, updated_at = NOW() WHERE url = ${forumUrl}`;
+}
+
+/**
  * Get recent topics across all forums
  */
 export async function getRecentTopics(options: {

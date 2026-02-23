@@ -2046,10 +2046,24 @@ interface ForumHealth {
   topicCount: number;
   lastFetched: number | null;
   error?: string;
+  consecutiveFailures: number;
+  lastSuccess: number | null;
 }
 
 function safeHostname(url: string): string {
   try { return new URL(url).hostname; } catch { return url; }
+}
+
+function formatTimeSince(ts: number | null): string {
+  if (!ts) return 'never';
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 function ForumHealthSection({ getAuthHeaders, isDark = true }: { getAuthHeaders: () => Promise<Record<string, string>>; isDark?: boolean }) {
@@ -2086,23 +2100,25 @@ function ForumHealthSection({ getAuthHeaders, isDark = true }: { getAuthHeaders:
     fetchHealth();
   }, [fetchHealth]);
 
-  const issues = results.filter(r => r.status === 'error');
+  const issues = results.filter(r => r.status === 'error' || r.consecutiveFailures > 0);
   const notCached = results.filter(r => r.status === 'not_cached');
-  const ok = results.filter(r => r.status === 'ok');
-  const displayResults = filter === 'issues' ? issues : results;
+  const ok = results.filter(r => r.status === 'ok' && r.consecutiveFailures === 0);
+  const displayResults = filter === 'issues'
+    ? [...issues].sort((a, b) => b.consecutiveFailures - a.consecutiveFailures)
+    : results;
 
   return (
     <div className="rounded-xl p-5" style={{ backgroundColor: fhCardBg, border: `1px solid ${fhCardBorder}` }}>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-medium" style={{ color: fhTextPrimary }}>Forum Health</h2>
-          <p className="text-xs mt-0.5" style={{ color: fhTextDim }}>Based on last cache refresh</p>
+          <p className="text-xs mt-0.5" style={{ color: fhTextDim }}>Consecutive failures persist across refresh cycles</p>
         </div>
         <div className="flex items-center gap-3">
           {results.length > 0 && (
             <div className="flex items-center gap-3 text-sm" style={{ color: fhTextMuted }}>
               <span style={{ color: '#22c55e' }}>{ok.length} ok</span>
-              {issues.length > 0 && <span style={{ color: '#ef4444' }}>{issues.length} failed</span>}
+              {issues.length > 0 && <span style={{ color: '#ef4444' }}>{issues.length} failing</span>}
               {notCached.length > 0 && <span style={{ color: fhTextDim }}>{notCached.length} not cached</span>}
             </div>
           )}
@@ -2120,17 +2136,17 @@ function ForumHealthSection({ getAuthHeaders, isDark = true }: { getAuthHeaders:
           <div className="flex gap-2 mb-4">
             <button onClick={() => setFilter('issues')}
               className="px-2.5 py-1 text-xs rounded-md transition-opacity"
-              style={{ 
-                backgroundColor: filter === 'issues' ? fhBtnBg : 'transparent', 
-                color: filter === 'issues' ? fhTextPrimary : fhTextDim 
+              style={{
+                backgroundColor: filter === 'issues' ? fhBtnBg : 'transparent',
+                color: filter === 'issues' ? fhTextPrimary : fhTextDim
               }}>
-              Failed Only ({issues.length})
+              Failing ({issues.length})
             </button>
             <button onClick={() => setFilter('all')}
               className="px-2.5 py-1 text-xs rounded-md transition-opacity"
-              style={{ 
-                backgroundColor: filter === 'all' ? fhBtnBg : 'transparent', 
-                color: filter === 'all' ? fhTextPrimary : fhTextDim 
+              style={{
+                backgroundColor: filter === 'all' ? fhBtnBg : 'transparent',
+                color: filter === 'all' ? fhTextPrimary : fhTextDim
               }}>
               All ({results.length})
             </button>
@@ -2138,32 +2154,46 @@ function ForumHealthSection({ getAuthHeaders, isDark = true }: { getAuthHeaders:
 
           {displayResults.length === 0 ? (
             <p className="text-sm" style={{ color: fhTextMuted }}>
-              {filter === 'issues' ? 'No failed forums — all cached forums loaded successfully.' : 'No results yet'}
+              {filter === 'issues' ? 'All forums healthy — no consecutive failures detected.' : 'No results yet'}
             </p>
           ) : (
-            <div className="space-y-1 max-h-64 overflow-y-auto">
-              {displayResults.map(r => (
-                <div key={r.url} className="flex items-center justify-between px-3 py-2 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm" style={{ color: fhTextPrimary }}>{r.name}</span>
-                    <span className="text-xs ml-2" style={{ color: fhTextDim }}>{safeHostname(r.url)}</span>
+            <div className="space-y-1 max-h-80 overflow-y-auto">
+              {displayResults.map(r => {
+                const failColor = r.consecutiveFailures >= 6
+                  ? '#ef4444' // red
+                  : r.consecutiveFailures >= 1
+                    ? '#eab308' // yellow
+                    : '#22c55e'; // green
+
+                return (
+                  <div key={r.url} className="flex items-center justify-between px-3 py-2 rounded-lg"
+                    style={{ backgroundColor: r.consecutiveFailures >= 6 ? (isDark ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.05)') : 'transparent' }}>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm" style={{ color: fhTextPrimary }}>{r.name}</span>
+                      <span className="text-xs ml-2" style={{ color: fhTextDim }}>{safeHostname(r.url)}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {r.status === 'ok' && r.consecutiveFailures === 0 && (
+                        <span className="text-xs" style={{ color: fhTextMuted }}>{r.topicCount} topics</span>
+                      )}
+                      {r.consecutiveFailures > 0 && (
+                        <span className="text-xs font-mono" style={{ color: failColor }}>
+                          {r.consecutiveFailures}x fail
+                        </span>
+                      )}
+                      {r.error && (
+                        <span className="text-xs max-w-[160px] truncate" style={{ color: fhTextDim }} title={r.error}>{r.error}</span>
+                      )}
+                      {r.consecutiveFailures > 0 && (
+                        <span className="text-[11px]" style={{ color: fhTextDim }} title={r.lastSuccess ? new Date(r.lastSuccess).toISOString() : 'never succeeded'}>
+                          ok {formatTimeSince(r.lastSuccess)}
+                        </span>
+                      )}
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: failColor }} />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {r.status === 'ok' && (
-                      <span className="text-xs" style={{ color: fhTextMuted }}>{r.topicCount} topics</span>
-                    )}
-                    {r.status === 'error' && r.error && (
-                      <span className="text-xs" style={{ color: fhTextDim }}>{r.error}</span>
-                    )}
-                    <span className="text-[11px] font-medium" style={{
-                      color: r.status === 'ok' ? '#22c55e' :
-                             r.status === 'error' ? '#ef4444' : fhTextDim
-                    }}>
-                      {r.status === 'not_cached' ? 'not cached' : r.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

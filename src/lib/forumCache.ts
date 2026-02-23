@@ -34,6 +34,7 @@ import {
   getForumByUrl,
   getRecentTopics,
   updateForumLastFetched,
+  updateForumActive,
 } from './db';
 import { checkOutgoingRateLimit } from './rateLimit';
 
@@ -46,6 +47,17 @@ interface CachedForum {
 
 // In-memory fallback cache (used when Redis unavailable)
 const memoryCache = new Map<string, CachedForum>();
+
+// Persistent health tracking across refresh cycles
+interface ForumHealthState {
+  consecutiveFailures: number;
+  lastSuccess: number | null;  // timestamp
+  lastError: string | null;
+  lastAttempt: number;         // timestamp
+}
+const forumHealthState = new Map<string, ForumHealthState>();
+
+const DEFUNCT_THRESHOLD = 10; // ~2.5 hours of consecutive failures
 
 // Cache settings
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -253,32 +265,38 @@ export function getCacheStats() {
 }
 
 /**
- * Get health status of all forums from the last cache refresh
+ * Forum health result type (exported for API consumers)
  */
-export function getForumHealthFromCache(): Array<{
+export interface ForumHealthResult {
   name: string;
   url: string;
   status: 'ok' | 'error' | 'not_cached';
   topicCount: number;
   lastFetched: number | null;
   error?: string;
-}> {
-  const results: Array<{
-    name: string;
-    url: string;
-    status: 'ok' | 'error' | 'not_cached';
-    topicCount: number;
-    lastFetched: number | null;
-    error?: string;
-  }> = [];
+  consecutiveFailures: number;
+  lastSuccess: number | null;
+}
+
+/**
+ * Get health status of all forums from the last cache refresh
+ */
+export function getForumHealthFromCache(): ForumHealthResult[] {
+  const results: ForumHealthResult[] = [];
 
   // Get all Discourse forums from presets
   const allForums = FORUM_CATEGORIES.flatMap(cat => cat.forums);
-  
+
   for (const forum of allForums) {
     const key = normalizeUrl(forum.url);
     const cached = memoryCache.get(key);
-    
+    const health = forumHealthState.get(key);
+
+    const base = {
+      consecutiveFailures: health?.consecutiveFailures ?? 0,
+      lastSuccess: health?.lastSuccess ?? null,
+    };
+
     if (!cached) {
       results.push({
         name: forum.name,
@@ -286,6 +304,7 @@ export function getForumHealthFromCache(): Array<{
         status: 'not_cached',
         topicCount: 0,
         lastFetched: null,
+        ...base,
       });
     } else if (cached.error) {
       results.push({
@@ -295,6 +314,7 @@ export function getForumHealthFromCache(): Array<{
         topicCount: 0,
         lastFetched: cached.fetchedAt,
         error: cached.error,
+        ...base,
       });
     } else {
       results.push({
@@ -303,6 +323,7 @@ export function getForumHealthFromCache(): Array<{
         status: 'ok',
         topicCount: cached.topics?.length || 0,
         lastFetched: cached.fetchedAt,
+        ...base,
       });
     }
   }
@@ -312,7 +333,13 @@ export function getForumHealthFromCache(): Array<{
   for (const source of externalSources) {
     const key = `external:${source.id}`;
     const cached = memoryCache.get(key);
-    
+    const health = forumHealthState.get(key);
+
+    const base = {
+      consecutiveFailures: health?.consecutiveFailures ?? 0,
+      lastSuccess: health?.lastSuccess ?? null,
+    };
+
     if (!cached) {
       results.push({
         name: source.name,
@@ -320,6 +347,7 @@ export function getForumHealthFromCache(): Array<{
         status: 'not_cached',
         topicCount: 0,
         lastFetched: null,
+        ...base,
       });
     } else if (cached.error) {
       results.push({
@@ -329,6 +357,7 @@ export function getForumHealthFromCache(): Array<{
         topicCount: 0,
         lastFetched: cached.fetchedAt,
         error: cached.error,
+        ...base,
       });
     } else {
       results.push({
@@ -337,6 +366,7 @@ export function getForumHealthFromCache(): Array<{
         status: 'ok',
         topicCount: cached.topics?.length || 0,
         lastFetched: cached.fetchedAt,
+        ...base,
       });
     }
   }
@@ -540,7 +570,31 @@ async function refreshExternalSources(): Promise<void> {
       }
 
       const key = `external:${source.id}`;
-      
+      const now = Date.now();
+
+      // Update health state for external sources
+      const prev = forumHealthState.get(key) || {
+        consecutiveFailures: 0,
+        lastSuccess: null,
+        lastError: null,
+        lastAttempt: 0,
+      };
+      if (result.error) {
+        forumHealthState.set(key, {
+          consecutiveFailures: prev.consecutiveFailures + 1,
+          lastSuccess: prev.lastSuccess,
+          lastError: result.error,
+          lastAttempt: now,
+        });
+      } else {
+        forumHealthState.set(key, {
+          consecutiveFailures: 0,
+          lastSuccess: now,
+          lastError: null,
+          lastAttempt: now,
+        });
+      }
+
       // If fetch failed but we have existing topics, keep them (even from a previous error cycle)
       const existing = memoryCache.get(key);
       if (result.error && existing && existing.topics && existing.topics.length > 0) {
@@ -558,7 +612,7 @@ async function refreshExternalSources(): Promise<void> {
           error: result.error,
         });
       }
-      
+
       if (result.error) {
         console.log(`[ForumCache] ❌ ${source.name}: ${result.error}`);
       } else {
@@ -616,12 +670,54 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
     // Process in batches with delays to avoid rate limiting
     for (let i = 0; i < forumsWithCategory.length; i += MAX_CONCURRENT) {
       const batch = forumsWithCategory.slice(i, i + MAX_CONCURRENT);
-      
+
       await Promise.all(
         batch.map(async ({ forum, category }) => {
           const result = await fetchForumTopics(forum);
           const key = normalizeUrl(forum.url);
-          
+          const now = Date.now();
+
+          // Update health state
+          const prev = forumHealthState.get(key) || {
+            consecutiveFailures: 0,
+            lastSuccess: null,
+            lastError: null,
+            lastAttempt: 0,
+          };
+
+          if (result.error) {
+            const failures = prev.consecutiveFailures + 1;
+            forumHealthState.set(key, {
+              consecutiveFailures: failures,
+              lastSuccess: prev.lastSuccess,
+              lastError: result.error,
+              lastAttempt: now,
+            });
+
+            // Mark as inactive in DB when crossing threshold
+            if (failures === DEFUNCT_THRESHOLD && isDatabaseConfigured()) {
+              console.log(`[ForumCache] ⚠️ ${forum.name}: ${failures} consecutive failures — marking inactive in DB`);
+              updateForumActive(forum.url, false).catch(err =>
+                console.error(`[ForumCache] Failed to mark ${forum.name} inactive:`, err)
+              );
+            }
+          } else {
+            forumHealthState.set(key, {
+              consecutiveFailures: 0,
+              lastSuccess: now,
+              lastError: null,
+              lastAttempt: now,
+            });
+
+            // Re-activate in DB if previously marked inactive
+            if (prev.consecutiveFailures >= DEFUNCT_THRESHOLD && isDatabaseConfigured()) {
+              console.log(`[ForumCache] ✓ ${forum.name}: recovered after ${prev.consecutiveFailures} failures — marking active`);
+              updateForumActive(forum.url, true).catch(err =>
+                console.error(`[ForumCache] Failed to mark ${forum.name} active:`, err)
+              );
+            }
+          }
+
           // If fetch failed but we have existing topics (even from a previous error cycle), keep them
           const existing = memoryCache.get(key);
           if (result.error && existing && existing.topics && existing.topics.length > 0) {
@@ -666,16 +762,16 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
               error: result.error,
             });
           }
-          
+
           // Store in Redis cache
           if (!result.error && result.topics.length > 0) {
             await setCachedTopics(forum.url, result.topics);
             forumUrls.push(forum.url);
-            
+
             // Persist to database
             await persistToDatabase(forum, category, result.topics);
           }
-          
+
           if (result.error) {
             errorCount++;
             console.log(`[ForumCache] ❌ ${forum.name}: ${result.error}`);
@@ -685,7 +781,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
           }
         })
       );
-      
+
       // Delay between batches
       if (i + MAX_CONCURRENT < forumsWithCategory.length) {
         await sleep(FETCH_DELAY_MS);

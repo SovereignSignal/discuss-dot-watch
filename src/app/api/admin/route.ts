@@ -54,10 +54,18 @@ export async function GET(request: NextRequest) {
     const ok = health.filter(f => f.status === 'ok').length;
     const errors = health.filter(f => f.status === 'error').length;
     const notCached = health.filter(f => f.status === 'not_cached').length;
-    
-    return NextResponse.json({ 
+    const failing = health
+      .filter(f => f.consecutiveFailures > 0)
+      .sort((a, b) => b.consecutiveFailures - a.consecutiveFailures);
+    const stale = health.filter(f =>
+      f.lastSuccess && Date.now() - f.lastSuccess > 24 * 60 * 60 * 1000
+    );
+
+    return NextResponse.json({
       forums: health,
-      summary: { ok, errors, notCached, total: health.length }
+      failing,
+      stale,
+      summary: { ok, errors, notCached, failing: failing.length, stale: stale.length, total: health.length }
     });
   }
   
