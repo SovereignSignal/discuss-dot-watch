@@ -654,7 +654,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   
   try {
     // Get all Discourse forums from specified tiers (skip external sources like EA Forum, LessWrong)
-    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'hackernews']);
+    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews']);
     const forumsWithCategory = FORUM_CATEGORIES.flatMap(cat => 
       cat.forums
         .filter(f => tiers.includes(f.tier) && (!f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType)))
