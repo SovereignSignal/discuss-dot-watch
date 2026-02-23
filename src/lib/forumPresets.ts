@@ -100,6 +100,13 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/36632/small/linea.jpeg',
         tier: 2,
       },
+      {
+        name: 'Taiko',
+        url: 'https://community.taiko.xyz/',
+        description: 'Type 1 ZK-EVM Ethereum L2',
+        token: 'TAIKO',
+        tier: 3,
+      },
       // L1 Protocols
       {
         name: 'Ethereum Magicians',
@@ -213,6 +220,62 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/1094/small/tron-logo.png',
         tier: 3,
       },
+      {
+        name: 'Avalanche',
+        url: 'https://forum.avax.network/',
+        description: 'Subnet architecture with active validator governance',
+        token: 'AVAX',
+        tier: 1,
+      },
+      {
+        name: 'Gnosis',
+        url: 'https://forum.gnosis.io/',
+        description: 'GnosisDAO governance and xDai sidechain',
+        token: 'GNO',
+        tier: 1,
+      },
+      {
+        name: 'Berachain',
+        url: 'https://forum.berachain.com/',
+        description: 'EVM L1 with Proof of Liquidity consensus',
+        token: 'BERA',
+        tier: 2,
+      },
+      {
+        name: 'Stacks',
+        url: 'https://forum.stacks.org/',
+        description: 'Bitcoin L2 with SIP governance',
+        token: 'STX',
+        tier: 2,
+      },
+      {
+        name: 'Algorand',
+        url: 'https://forum.algorand.co/',
+        description: 'Pure proof-of-stake L1 governance',
+        token: 'ALGO',
+        tier: 2,
+      },
+      {
+        name: 'Internet Computer',
+        url: 'https://forum.dfinity.org/',
+        description: 'NNS governance and canister smart contracts',
+        token: 'ICP',
+        tier: 2,
+      },
+      {
+        name: 'Mina Protocol',
+        url: 'https://forums.minaprotocol.com/',
+        description: 'Lightweight ZK blockchain governance',
+        token: 'MINA',
+        tier: 3,
+      },
+      {
+        name: 'Flare Network',
+        url: 'https://forum.flare.network/',
+        description: 'Data oracle network for cross-chain',
+        token: 'FLR',
+        tier: 3,
+      },
       // Major DAOs
       {
         name: 'ENS',
@@ -252,6 +315,19 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         description: 'Gaming ecosystem on Arbitrum',
         token: 'MAGIC',
         logoUrl: 'https://assets.coingecko.com/coins/images/18623/small/magic.png',
+        tier: 3,
+      },
+      {
+        name: 'Nouns DAO',
+        url: 'https://discourse.nouns.wtf/',
+        description: 'CC0 NFT DAO with daily auctions and proposals',
+        token: 'NOUNS',
+        tier: 2,
+      },
+      {
+        name: 'Octant',
+        url: 'https://discuss.octant.app/',
+        description: 'Golem Foundation public goods funding',
         tier: 3,
       },
       // Infrastructure
@@ -343,7 +419,21 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/28161/small/across.png',
         tier: 2,
       },
-    
+      {
+        name: 'Pyth Network',
+        url: 'https://forum.pyth.network/',
+        description: 'Cross-chain oracle network for DeFi',
+        token: 'PYTH',
+        tier: 2,
+      },
+      {
+        name: 'Everclear',
+        url: 'https://forum.connext.network/',
+        description: 'Cross-chain clearing layer (formerly Connext)',
+        token: 'NEXT',
+        tier: 3,
+      },
+
       // Lending
       {
         name: 'Aave',
@@ -484,6 +574,20 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/13469/small/1inch.png',
         tier: 2,
       },
+      {
+        name: 'SushiSwap',
+        url: 'https://forum.sushi.com/',
+        description: 'Multi-chain DEX with concentrated liquidity',
+        token: 'SUSHI',
+        tier: 2,
+      },
+      {
+        name: 'Osmosis',
+        url: 'https://forum.osmosis.zone/',
+        description: 'Cosmos ecosystem DEX with superfluid staking',
+        token: 'OSMO',
+        tier: 2,
+      },
       // Staking
       {
         name: 'Lido Finance',
@@ -507,6 +611,13 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         description: 'Decentralized ETH staking',
         token: 'RPL',
         logoUrl: 'https://assets.coingecko.com/coins/images/2090/small/rocket_pool.png',
+        tier: 2,
+      },
+      {
+        name: 'Jito',
+        url: 'https://forum.jito.network/',
+        description: 'Solana MEV and liquid staking',
+        token: 'JTO',
         tier: 2,
       },
       // Other DeFi
@@ -550,7 +661,14 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/8365/small/reserve.png',
         tier: 2,
       },
-    
+      {
+        name: 'Ethena',
+        url: 'https://gov.ethenafoundation.com/',
+        description: 'Synthetic dollar protocol (USDe)',
+        token: 'ENA',
+        tier: 2,
+      },
+
       // Privacy
       {
         name: 'Zcash',
@@ -628,6 +746,24 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
         sourceType: 'github',
         sourceId: 'github-hardhat',
+      },
+      {
+        name: 'Reth',
+        url: 'https://github.com/paradigmxyz/reth/discussions',
+        description: 'Reth Ethereum execution client discussions',
+        logoUrl: 'https://github.com/paradigmxyz.png',
+        tier: 2,
+        sourceType: 'github',
+        sourceId: 'github-reth',
+      },
+      {
+        name: 'Filecoin FIPs',
+        url: 'https://github.com/filecoin-project/FIPs/discussions',
+        description: 'Filecoin Improvement Proposals discussions',
+        logoUrl: 'https://github.com/filecoin-project.png',
+        tier: 2,
+        sourceType: 'github',
+        sourceId: 'github-filecoin-fips',
       },
       // Snapshot — Crypto
       {
@@ -750,6 +886,51 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         sourceType: 'snapshot',
         sourceId: 'snapshot-sushiswap',
       },
+      {
+        name: 'Gnosis (Snapshot)',
+        url: 'https://snapshot.org/#/gnosisdao.eth',
+        description: 'GnosisDAO governance proposals',
+        token: 'GNO',
+        tier: 2,
+        sourceType: 'snapshot',
+        sourceId: 'snapshot-gnosis',
+      },
+      {
+        name: 'dYdX (Snapshot)',
+        url: 'https://snapshot.org/#/dydxgov.eth',
+        description: 'dYdX governance proposals',
+        token: 'DYDX',
+        tier: 2,
+        sourceType: 'snapshot',
+        sourceId: 'snapshot-dydx',
+      },
+      {
+        name: 'Frax Finance (Snapshot)',
+        url: 'https://snapshot.org/#/frax.eth',
+        description: 'Frax Finance governance proposals',
+        token: 'FXS',
+        tier: 2,
+        sourceType: 'snapshot',
+        sourceId: 'snapshot-frax',
+      },
+      {
+        name: 'Hop Protocol (Snapshot)',
+        url: 'https://snapshot.org/#/hop.eth',
+        description: 'Hop Protocol governance proposals',
+        token: 'HOP',
+        tier: 3,
+        sourceType: 'snapshot',
+        sourceId: 'snapshot-hop',
+      },
+      {
+        name: 'Rocket Pool (Snapshot)',
+        url: 'https://snapshot.org/#/rocketpool-dao.eth',
+        description: 'Rocket Pool DAO governance proposals',
+        token: 'RPL',
+        tier: 2,
+        sourceType: 'snapshot',
+        sourceId: 'snapshot-rocketpool',
+      },
 
     ],
   },
@@ -810,6 +991,25 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://www.gstatic.com/devrel-devsite/prod/v45f61267e22826169cf5d5f452882f7812c8cfb5f8b103a48c0d88727908b295/developers/images/touchicon-180.png',
         tier: 2,
       },
+      {
+        name: 'Python',
+        url: 'https://discuss.python.org/',
+        description: 'CPython development, PEPs, and packaging',
+        logoUrl: 'https://www.python.org/static/community_logos/python-logo-generic.svg',
+        tier: 1,
+      },
+      {
+        name: 'Scientific Python',
+        url: 'https://discuss.scientific-python.org/',
+        description: 'NumPy, SciPy, and scientific Python ecosystem',
+        tier: 2,
+      },
+      {
+        name: 'OSI Discuss',
+        url: 'https://discuss.opensource.org/',
+        description: 'Open Source Initiative policy and licensing',
+        tier: 2,
+      },
       // GitHub Discussions — AI
       {
         name: 'llama.cpp',
@@ -837,6 +1037,24 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
         sourceType: 'github',
         sourceId: 'github-jax',
+      },
+      {
+        name: 'Ollama',
+        url: 'https://github.com/ollama/ollama/discussions',
+        description: 'Local LLM runner discussions',
+        logoUrl: 'https://github.com/ollama.png',
+        tier: 1,
+        sourceType: 'github',
+        sourceId: 'github-ollama',
+      },
+      {
+        name: 'Open WebUI',
+        url: 'https://github.com/open-webui/open-webui/discussions',
+        description: 'Open-source LLM web interface discussions',
+        logoUrl: 'https://github.com/open-webui.png',
+        tier: 2,
+        sourceType: 'github',
+        sourceId: 'github-open-webui',
       },
 
     ],
@@ -1007,6 +1225,54 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://community.openstreetmap.org/',
         description: 'OSM governance and OSMF',
         logoUrl: 'https://wiki.openstreetmap.org/w/images/7/79/Public-images-osm_logo.svg',
+        tier: 2,
+      },
+      {
+        name: 'Kubernetes',
+        url: 'https://discuss.kubernetes.io/',
+        description: 'Container orchestration community and governance',
+        tier: 1,
+      },
+      {
+        name: 'Jupyter',
+        url: 'https://discourse.jupyter.org/',
+        description: 'Jupyter notebooks and scientific computing',
+        tier: 1,
+      },
+      {
+        name: 'HashiCorp',
+        url: 'https://discuss.hashicorp.com/',
+        description: 'Terraform, Vault, Consul infrastructure tools',
+        tier: 1,
+      },
+      {
+        name: 'Elastic',
+        url: 'https://discuss.elastic.co/',
+        description: 'Elasticsearch, Kibana, and observability stack',
+        tier: 1,
+      },
+      {
+        name: 'Kotlin',
+        url: 'https://discuss.kotlinlang.org/',
+        description: 'Kotlin language development and community',
+        tier: 2,
+      },
+      {
+        name: 'Ruby on Rails',
+        url: 'https://discuss.rubyonrails.org/',
+        description: 'Rails framework development and governance',
+        tier: 2,
+      },
+      {
+        name: 'Ansible',
+        url: 'https://forum.ansible.com/',
+        description: 'Ansible automation platform community',
+        tier: 2,
+      },
+      {
+        name: 'Cloudflare',
+        url: 'https://community.cloudflare.com/',
+        description: 'Cloudflare CDN and edge computing community',
         tier: 2,
       },
       // GitHub Discussions — Open Source
@@ -1279,6 +1545,15 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 3,
         sourceType: 'github',
         sourceId: 'github-leptos',
+      },
+      {
+        name: 'Zed Editor',
+        url: 'https://github.com/zed-industries/zed/discussions',
+        description: 'Zed code editor discussions',
+        logoUrl: 'https://github.com/zed-industries.png',
+        tier: 2,
+        sourceType: 'github',
+        sourceId: 'github-zed',
       },
 
     ],
