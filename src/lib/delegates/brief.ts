@@ -1,8 +1,8 @@
 /**
  * AI Brief Generation for Delegate Dashboards
  *
- * Generates a 2-3 paragraph natural-language summary of a community's
- * governance health using Haiku 4.5. Cached in Redis per refresh cycle.
+ * Generates a short, descriptive activity snapshot for a community's
+ * forum using Haiku 4.5. Cached in Redis per refresh cycle.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -71,29 +71,23 @@ export async function generateDelegateBrief(
   const client = getAnthropicClient();
   if (!client) return null;
 
-  // Build top 10 by post count
-  const top10 = [...delegates]
+  // Build top 5 by post count
+  const top5 = [...delegates]
     .sort((a, b) => b.postCount - a.postCount)
-    .slice(0, 10);
+    .slice(0, 5);
 
   const dist = summary.activityDistribution;
-  const healthScore = summary.totalDelegates > 0
-    ? Math.round((summary.delegatesSeenLast30Days / summary.totalDelegates) * 100)
-    : 0;
 
-  let prompt = `You are a community governance analyst. Based on the following forum contributor data, write a 2-3 paragraph brief about the health of this community's governance participation.
+  let prompt = `Write a short activity snapshot (3-5 sentences) for the ${tenant.name} forum based on this data. Be descriptive and neutral — describe what the activity looks like, not whether it's good or bad. Forum activity is just one signal; governance may also happen on-chain, in Discord, or on other platforms.
 
-Forum: ${tenant.name} (${tenant.forumUrl})
-Total contributors: ${summary.totalDelegates}
-Active (posted last 30d): ${summary.delegatesPostedLast30Days}
-Seen last 30d: ${summary.delegatesSeenLast30Days}
-Health score (% seen last 30d): ${healthScore}%
-Activity distribution: ${dist.highlyActive} highly active, ${dist.active} active, ${dist.lowActivity} low activity, ${dist.minimal} minimal, ${dist.dormant} dormant
-Median posts: ${summary.medianPostCount}, Avg posts: ${summary.avgPostCount}
-Avg likes received: ${summary.avgLikesReceived}
-
-Top 10 contributors by posts:
-${top10.map(d => `- ${d.displayName}: ${d.postCount} posts, ${d.likesReceived} likes${d.postCountPercentile != null ? `, top ${100 - d.postCountPercentile}%` : ''}`).join('\n')}`;
+Data:
+- ${summary.totalDelegates} contributors tracked from the forum directory
+- ${summary.delegatesPostedLast30Days} posted in the last 30 days
+- ${summary.delegatesSeenLast30Days} visited in the last 30 days
+- Activity tiers: ${dist.highlyActive} highly active (50+ posts), ${dist.active} active (11-50), ${dist.lowActivity} low (2-10), ${dist.minimal} minimal (1), ${dist.dormant} dormant (0)
+- Median posts per contributor: ${summary.medianPostCount}, average: ${summary.avgPostCount}
+- Average likes received: ${summary.avgLikesReceived}
+- Most active: ${top5.map(d => `${d.displayName} (${d.postCount} posts)`).join(', ')}`;
 
   if (trackedCount > 0) {
     const tracked = delegates.filter(d => d.isTracked);
@@ -101,16 +95,18 @@ ${top10.map(d => `- ${d.displayName}: ${d.postCount} posts, ${d.likesReceived} l
       if (!d.lastPostedAt) return false;
       return Date.now() - new Date(d.lastPostedAt).getTime() < 30 * 24 * 60 * 60 * 1000;
     });
-    prompt += `\n\nTracked members: ${trackedCount} total, ${trackedActive.length} posted in last 30 days`;
+    prompt += `\n- ${trackedCount} tracked members, ${trackedActive.length} posted in the last 30 days`;
   }
 
-  prompt += `\n\nBe specific with numbers. Highlight strengths and concerns. Keep it conversational but data-driven.
-Do not use markdown formatting. Plain text only.`;
+  prompt += `
+
+Describe the forum's activity pattern — who's contributing, how engagement is distributed, and any notable patterns. Do not judge, diagnose, or prescribe. Do not use words like "concerning", "alarming", "critical", "severe", or "healthy/unhealthy". Just describe what the data shows.
+Plain text only, no markdown.`;
 
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 500,
+      max_tokens: 300,
       messages: [{ role: 'user', content: prompt }],
     });
 
