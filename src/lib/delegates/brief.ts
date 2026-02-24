@@ -20,7 +20,7 @@ function briefCacheKey(slug: string, lastRefreshAt: string | null): string {
   const dateKey = lastRefreshAt
     ? new Date(lastRefreshAt).toISOString().slice(0, 13) // YYYY-MM-DDTHH (hour granularity)
     : 'no-refresh';
-  return `delegate-brief:${slug}:${dateKey}`;
+  return `delegate-brief:v2:${slug}:${dateKey}`;
 }
 
 /** Retrieve a cached brief, or null if not cached */
