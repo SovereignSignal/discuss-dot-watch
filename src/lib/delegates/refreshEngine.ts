@@ -11,10 +11,13 @@ import { syncContributorsFromDirectory } from './contributorSync';
 import {
   getDelegatesByTenant,
   getTenantBySlug,
+  getAllTenants,
+  ensureSchema,
   createSnapshot,
   updateTenantLastRefresh,
 } from './db';
-import type { RefreshResult, TenantConfig } from '@/types/delegates';
+import { isDatabaseConfigured } from '@/lib/db';
+import type { DelegateTenant, RefreshResult, TenantConfig } from '@/types/delegates';
 
 /**
  * Refresh all delegate data for a tenant.
@@ -127,4 +130,77 @@ export async function refreshTenant(slug: string): Promise<RefreshResult> {
   );
 
   return result;
+}
+
+/**
+ * Check if a tenant is due for a refresh based on its config interval.
+ */
+export function isRefreshDue(tenant: DelegateTenant): boolean {
+  if (!tenant.lastRefreshAt) return true;
+
+  const intervalHours = tenant.config?.refreshIntervalHours ?? 4;
+  const lastRefresh = new Date(tenant.lastRefreshAt).getTime();
+  const elapsed = Date.now() - lastRefresh;
+  return elapsed >= intervalHours * 60 * 60 * 1000;
+}
+
+/**
+ * Background loop that checks all active tenants every 30 minutes
+ * and refreshes any that are due. Same pattern as forumCache.ts.
+ */
+let delegateRefreshStarted = false;
+
+export function startDelegateRefreshLoop() {
+  if (delegateRefreshStarted) return;
+  delegateRefreshStarted = true;
+
+  const INITIAL_DELAY = 5 * 60 * 1000; // 5 minutes — let forum cache warm up first
+  const CHECK_INTERVAL = 30 * 60 * 1000; // 30 minutes
+
+  console.log('[Delegate Refresh] Loop registered, will start checking in 5 minutes');
+
+  setTimeout(async () => {
+    // Run immediately after initial delay, then every CHECK_INTERVAL
+    await runDelegateRefreshCycle();
+    setInterval(runDelegateRefreshCycle, CHECK_INTERVAL);
+  }, INITIAL_DELAY);
+}
+
+async function runDelegateRefreshCycle() {
+  if (!isDatabaseConfigured()) return;
+
+  try {
+    await ensureSchema();
+    const tenants = await getAllTenants();
+    const activeTenants = tenants.filter((t) => t.isActive);
+
+    if (activeTenants.length === 0) {
+      console.log('[Delegate Refresh] No active tenants found');
+      return;
+    }
+
+    const due = activeTenants.filter(isRefreshDue);
+    if (due.length === 0) {
+      console.log(`[Delegate Refresh] ${activeTenants.length} active tenants, none due for refresh`);
+      return;
+    }
+
+    console.log(`[Delegate Refresh] ${due.length}/${activeTenants.length} tenants due for refresh`);
+
+    for (const tenant of due) {
+      try {
+        console.log(`[Delegate Refresh] Refreshing ${tenant.slug}...`);
+        const result = await refreshTenant(tenant.slug);
+        console.log(
+          `[Delegate Refresh] ${tenant.slug}: ${result.snapshotsCreated} snapshots, ${result.duration}ms` +
+          (result.errors.length > 0 ? ` (${result.errors.length} errors)` : '')
+        );
+      } catch (err) {
+        console.error(`[Delegate Refresh] Error refreshing ${tenant.slug}:`, err instanceof Error ? err.message : err);
+      }
+    }
+  } catch (err) {
+    // Silently fail if DB not available (dev mode)
+    console.error('[Delegate Refresh] Cycle error:', err instanceof Error ? err.message : err);
+  }
 }

@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch';
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch').replace(/\/+$/, '');
 
   return NextResponse.json({
     name: 'discuss-watch',

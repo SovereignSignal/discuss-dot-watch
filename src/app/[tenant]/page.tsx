@@ -375,7 +375,7 @@ export default function TenantDashboardPage() {
       {/* Stale data warning */}
       {dashboard.lastRefreshAt && (() => {
         const hoursSinceRefresh = (Date.now() - new Date(dashboard.lastRefreshAt!).getTime()) / (1000 * 60 * 60);
-        if (hoursSinceRefresh <= 24) return null;
+        if (hoursSinceRefresh <= 8) return null;
         const staleAgo = formatDistanceToNow(new Date(dashboard.lastRefreshAt!), { addSuffix: true });
         return (
           <div

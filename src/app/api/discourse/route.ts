@@ -3,10 +3,12 @@ import { DiscourseLatestResponse, DiscourseTopicResponse, DiscussionTopic } from
 import { isAllowedUrl, isAllowedRedirectUrl } from '@/lib/url';
 import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
 import { getCachedForum, startBackgroundRefresh } from '@/lib/forumCache';
+import { startDelegateRefreshLoop } from '@/lib/delegates/refreshEngine';
 
 // Start background refresh on first import (server startup)
 if (typeof window === 'undefined') {
   startBackgroundRefresh();
+  startDelegateRefreshLoop();
 }
 
 /**

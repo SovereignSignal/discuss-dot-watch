@@ -2,7 +2,7 @@
  * Cron endpoint for automated delegate data refresh.
  *
  * Iterates all active tenants, checks if a refresh is due based on
- * each tenant's `refreshIntervalHours` config (default 12h), and
+ * each tenant's `refreshIntervalHours` config (default 4h), and
  * triggers a refresh via the existing refreshEngine.
  *
  * Protected by CRON_SECRET (constant-time comparison).
@@ -18,7 +18,7 @@ import type { RefreshResult, DelegateTenant } from '@/types/delegates';
 function isRefreshDue(tenant: DelegateTenant): boolean {
   if (!tenant.lastRefreshAt) return true;
 
-  const intervalHours = tenant.config?.refreshIntervalHours ?? 12;
+  const intervalHours = tenant.config?.refreshIntervalHours ?? 4;
   const lastRefresh = new Date(tenant.lastRefreshAt).getTime();
   const elapsed = Date.now() - lastRefresh;
   return elapsed >= intervalHours * 60 * 60 * 1000;

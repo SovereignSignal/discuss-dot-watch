@@ -503,15 +503,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/26536/small/radiant.png',
         tier: 3,
       },
-      // DEX
-      {
-        name: 'Uniswap',
-        url: 'https://gov.uniswap.org/',
-        description: 'Largest DEX governance',
-        token: 'UNI',
-        logoUrl: 'https://cryptologos.cc/logos/uniswap-uni-logo.png',
-        tier: 1,
-      },
+      // DEX (Uniswap governance covered by Snapshot source in externalSources.ts)
       {
         name: 'Curve Finance',
         url: 'https://gov.curve.finance/',

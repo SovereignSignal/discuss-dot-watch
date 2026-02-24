@@ -105,7 +105,7 @@ export async function GET(
       break;
     case 'crypto':
       forums = FORUM_CATEGORIES
-        .filter(c => c.id.startsWith('crypto-'))
+        .filter(c => c.id === 'crypto' || c.id.startsWith('crypto-'))
         .flatMap(c => c.forums)
         .filter(f => f.tier === 1)
         .slice(0, 10);
@@ -113,14 +113,14 @@ export async function GET(
       break;
     case 'ai':
       forums = FORUM_CATEGORIES
-        .filter(c => c.id.startsWith('ai-'))
+        .filter(c => c.id === 'ai' || c.id.startsWith('ai-'))
         .flatMap(c => c.forums)
         .slice(0, 6);
       title = 'discuss.watch - AI / ML';
       break;
     case 'oss':
       forums = FORUM_CATEGORIES
-        .filter(c => c.id.startsWith('oss-'))
+        .filter(c => c.id === 'oss' || c.id.startsWith('oss-'))
         .flatMap(c => c.forums)
         .filter(f => f.tier === 1)
         .slice(0, 8);

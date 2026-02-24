@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Flame,
 } from 'lucide-react';
+import { getTotalForumCount, getForumsByCategory } from '@/lib/forumPresets';
 
 export default function LandingPage() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -97,7 +98,7 @@ export default function LandingPage() {
             }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Tracking 120 forums across 3 verticals
+            Tracking {getTotalForumCount()} forums across 3 verticals
           </div>
           
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-[1.1] tracking-tight">
@@ -159,21 +160,21 @@ export default function LandingPage() {
             <VerticalCard
               icon={<Coins className="w-5 h-5" />}
               title="Crypto"
-              count={83}
+              count={getForumsByCategory('crypto').length}
               examples={['Arbitrum', 'Uniswap', 'Aave', 'ENS', 'Optimism', 'Lido']}
               isDark={isDark}
             />
             <VerticalCard
               icon={<Bot className="w-5 h-5" />}
               title="AI"
-              count={10}
+              count={getForumsByCategory('ai').length}
               examples={['OpenAI', 'EA Forum', 'PyTorch', 'HuggingFace', 'LangChain']}
               isDark={isDark}
             />
             <VerticalCard
               icon={<Code2 className="w-5 h-5" />}
               title="Open Source"
-              count={27}
+              count={getForumsByCategory('oss').length}
               examples={['Rust', 'Swift', 'NixOS', 'Godot', 'Next.js', 'Node.js']}
               isDark={isDark}
             />
