@@ -100,6 +100,11 @@ export interface Delegate {
   directoryDaysVisited?: number;
   directoryPostsRead?: number;
   directoryTopicsEntered?: number;
+  // Monthly directory stats (from /directory_items.json?period=monthly)
+  directoryPostCountMonth?: number;
+  directoryTopicCountMonth?: number;
+  directoryLikesReceivedMonth?: number;
+  directoryDaysVisitedMonth?: number;
   // Percentile rankings (computed during sync)
   postCountPercentile?: number;
   likesReceivedPercentile?: number;
@@ -182,6 +187,10 @@ export interface DelegateRow {
   postsRead: number;
   lastSeenAt: string | null;
   lastPostedAt: string | null;
+  // Monthly stats (from directory?period=monthly)
+  postCountMonth?: number;
+  likesReceivedMonth?: number;
+  daysVisitedMonth?: number;
   // Percentile rankings
   postCountPercentile?: number;
   likesReceivedPercentile?: number;
@@ -248,6 +257,17 @@ export interface DashboardSummary {
   };
   // Whether timestamp data is available (tracked members only)
   hasTimestampData: boolean;
+  // Monthly aggregates (from directory?period=monthly)
+  monthlyPostTotal?: number;
+  monthlyActiveContributors?: number;
+  monthlyActivityDistribution?: {
+    highlyActive: number;    // 50+ posts this month
+    active: number;          // 11-50 posts
+    lowActivity: number;     // 2-10 posts
+    minimal: number;         // 1 post
+    dormant: number;         // 0 posts
+  };
+  hasMonthlyData?: boolean;
 }
 
 // --- API request/response types ---

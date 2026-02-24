@@ -17,50 +17,72 @@ interface ContributorSyncConfig {
   apiUsername: string;
 }
 
-export async function syncContributorsFromDirectory(
-  tenantId: number,
+async function fetchPages(
   config: ContributorSyncConfig,
-  maxContributors: number = 200
-): Promise<{ synced: number; totalForum: number }> {
+  period: string,
+  maxContributors: number
+): Promise<{ items: DirectoryItem[]; totalCount: number }> {
   const allItems: DirectoryItem[] = [];
-  let totalForum = 0;
+  let totalCount = 0;
   let page = 0;
 
-  console.log(`[ContributorSync] Starting sync for tenant ${tenantId}, max ${maxContributors}`);
-
-  // Fetch directory pages until we have enough or pages exhausted
   while (allItems.length < maxContributors) {
-    const { items, totalCount } = await fetchDirectoryItems(config, {
-      period: 'all',
+    const result = await fetchDirectoryItems(config, {
+      period,
       order: 'post_count',
       page,
     });
 
     if (page === 0) {
-      totalForum = totalCount;
+      totalCount = result.totalCount;
     }
 
-    if (items.length === 0) break;
+    if (result.items.length === 0) break;
 
-    allItems.push(...items);
+    allItems.push(...result.items);
     page++;
 
-    // Stop if we've fetched all available items
-    if (allItems.length >= totalCount) break;
+    if (allItems.length >= result.totalCount) break;
   }
 
-  // Trim to maxContributors
-  const contributors = allItems.slice(0, maxContributors);
+  return { items: allItems.slice(0, maxContributors), totalCount };
+}
 
-  console.log(`[ContributorSync] Fetched ${contributors.length} contributors (total forum: ${totalForum})`);
+export async function syncContributorsFromDirectory(
+  tenantId: number,
+  config: ContributorSyncConfig,
+  maxContributors: number = 200
+): Promise<{ synced: number; totalForum: number }> {
+  console.log(`[ContributorSync] Starting sync for tenant ${tenantId}, max ${maxContributors}`);
 
-  // Compute percentiles
+  // Fetch all-time directory data
+  const allTimeResult = await fetchPages(config, 'all', maxContributors);
+  const contributors = allTimeResult.items;
+  const totalForum = allTimeResult.totalCount;
+
+  console.log(`[ContributorSync] Fetched ${contributors.length} all-time contributors (total forum: ${totalForum})`);
+
+  // Fetch monthly directory data (~4 extra API calls)
+  let monthlyMap: Map<string, DirectoryItem> | null = null;
+  try {
+    const monthlyResult = await fetchPages(config, 'monthly', maxContributors);
+    monthlyMap = new Map<string, DirectoryItem>();
+    for (const item of monthlyResult.items) {
+      monthlyMap.set(item.username, item);
+    }
+    console.log(`[ContributorSync] Fetched ${monthlyResult.items.length} monthly contributors`);
+  } catch (err) {
+    console.error(`[ContributorSync] Monthly fetch failed (non-fatal):`, err);
+  }
+
+  // Compute percentiles for all-time data
   const percentiles = computePercentiles(contributors, totalForum);
 
   // Upsert each contributor
   let synced = 0;
   for (const item of contributors) {
     const pct = percentiles.get(item.username);
+    const monthly = monthlyMap?.get(item.username);
     try {
       await upsertDelegate(tenantId, {
         username: item.username,
@@ -78,6 +100,11 @@ export async function syncContributorsFromDirectory(
         likesReceivedPercentile: pct?.likesReceived,
         daysVisitedPercentile: pct?.daysVisited,
         topicsEnteredPercentile: pct?.topicsEntered,
+        // Monthly stats (null if user had no monthly activity)
+        directoryPostCountMonth: monthly?.postCount ?? null,
+        directoryTopicCountMonth: monthly?.topicCount ?? null,
+        directoryLikesReceivedMonth: monthly?.likesReceived ?? null,
+        directoryDaysVisitedMonth: monthly?.daysVisited ?? null,
       });
       synced++;
     } catch (err) {

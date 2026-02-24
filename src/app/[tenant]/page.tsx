@@ -831,15 +831,22 @@ function OverviewTab({
       <KeyStatsRow summary={summary} t={t} accent={bc?.accent} isMobile={isMobile} />
 
       {/* Activity Distribution Bar */}
-      <ActivityBar distribution={summary.activityDistribution} total={summary.totalDelegates} t={t} isMobile={isMobile} />
+      <ActivityBar
+        distribution={summary.hasMonthlyData && summary.monthlyActivityDistribution ? summary.monthlyActivityDistribution : summary.activityDistribution}
+        total={summary.totalDelegates}
+        t={t}
+        isMobile={isMobile}
+        isMonthly={!!summary.hasMonthlyData}
+      />
 
-      {/* Top Contributors */}
+      {/* Recently Active / Top Contributors */}
       <TopContributorsList
         delegates={delegates}
         t={t}
         bc={bc}
         isMobile={isMobile}
         onSelect={onSelectDelegate}
+        hasMonthlyData={!!summary.hasMonthlyData}
       />
 
       {/* Highlights */}
@@ -850,6 +857,7 @@ function OverviewTab({
         trackedLabelPlural={trackedLabelPlural}
         t={t}
         isMobile={isMobile}
+        hasMonthlyData={!!summary.hasMonthlyData}
       />
     </div>
   );
@@ -906,15 +914,17 @@ function KeyStatsRow({
   accent?: string;
   isMobile: boolean;
 }) {
-  const healthScore = summary.totalDelegates > 0
-    ? Math.round((summary.delegatesSeenLast30Days / summary.totalDelegates) * 100)
+  const hasMonthly = summary.hasMonthlyData;
+  const monthlyActive = hasMonthly ? (summary.monthlyActiveContributors ?? 0) : summary.delegatesPostedLast30Days;
+  const activeRate = summary.totalDelegates > 0
+    ? Math.round((monthlyActive / summary.totalDelegates) * 100)
     : 0;
 
   const cards = [
     { label: 'Total Contributors', value: summary.totalDelegates, icon: Users },
-    { label: 'Active (30d)', value: summary.delegatesPostedLast30Days, icon: Activity },
-    { label: 'Median Posts', value: summary.medianPostCount ?? 0, icon: MessageSquare },
-    { label: 'Health Score', value: `${healthScore}%`, icon: TrendingUp },
+    { label: 'Active This Month', value: monthlyActive, icon: Activity },
+    { label: 'Posts This Month', value: hasMonthly ? (summary.monthlyPostTotal ?? 0) : (summary.medianPostCount ?? 0), icon: MessageSquare },
+    { label: 'Active Rate', value: `${activeRate}%`, icon: TrendingUp },
   ];
 
   return (
@@ -951,11 +961,13 @@ function ActivityBar({
   total,
   t,
   isMobile,
+  isMonthly,
 }: {
   distribution: DashboardSummary['activityDistribution'];
   total: number;
   t: ReturnType<typeof c>;
   isMobile: boolean;
+  isMonthly?: boolean;
 }) {
   if (!distribution || total === 0) return null;
 
@@ -976,7 +988,9 @@ function ActivityBar({
         background: t.bgCard,
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Activity Distribution</div>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+        Activity Distribution{isMonthly ? ' (Last 30 Days)' : ''}
+      </div>
 
       {/* Stacked bar */}
       <div
@@ -1026,19 +1040,44 @@ function TopContributorsList({
   bc,
   isMobile,
   onSelect,
+  hasMonthlyData,
 }: {
   delegates: DelegateRow[];
   t: ReturnType<typeof c>;
   bc: ReturnType<typeof brandedColors>;
   isMobile: boolean;
   onSelect: (username: string) => void;
+  hasMonthlyData?: boolean;
 }) {
-  const top5 = useMemo(
-    () => [...delegates].sort((a, b) => b.postCount - a.postCount).slice(0, 5),
-    [delegates]
-  );
+  const top5 = useMemo(() => {
+    if (hasMonthlyData) {
+      // Show recently active contributors sorted by monthly posts
+      return [...delegates]
+        .filter((d) => (d.postCountMonth ?? 0) > 0)
+        .sort((a, b) => (b.postCountMonth ?? 0) - (a.postCountMonth ?? 0))
+        .slice(0, 5);
+    }
+    return [...delegates].sort((a, b) => b.postCount - a.postCount).slice(0, 5);
+  }, [delegates, hasMonthlyData]);
 
-  if (top5.length === 0) return null;
+  if (top5.length === 0) {
+    if (hasMonthlyData) {
+      return (
+        <div
+          style={{
+            padding: isMobile ? '14px 14px' : '18px 20px',
+            borderRadius: 12,
+            border: `1px solid ${t.border}`,
+            background: t.bgCard,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Recently Active</div>
+          <div style={{ fontSize: 13, color: t.fgDim }}>No contributors posted in the last 30 days.</div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div
@@ -1049,77 +1088,85 @@ function TopContributorsList({
         background: t.bgCard,
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Top Contributors</div>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+        {hasMonthlyData ? 'Recently Active' : 'Top Contributors'}
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {top5.map((d, i) => (
-          <div
-            key={d.username}
-            onClick={() => onSelect(d.username)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(d.username); } }}
-            tabIndex={0}
-            role="button"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '8px 10px',
-              borderRadius: 8,
-              cursor: 'pointer',
-              transition: 'background 0.1s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = bc?.accentHover || t.bgSubtle; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            <span style={{ fontSize: 12, color: t.fgDim, width: 18, textAlign: 'center', fontWeight: 600 }}>
-              {i + 1}
-            </span>
-            {d.avatarUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={d.avatarUrl} alt="" width={28} height={28} style={{ borderRadius: '50%', flexShrink: 0 }} />
-            ) : (
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: t.bgActive,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  flexShrink: 0,
-                }}
-              >
-                {d.displayName?.[0] || '?'}
-              </div>
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {d.displayName}
-              </div>
-              <div style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</div>
-            </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{d.postCount.toLocaleString()} posts</div>
-              {d.postCountPercentile != null && (
-                <span
+        {top5.map((d, i) => {
+          const postDisplay = hasMonthlyData ? (d.postCountMonth ?? 0) : d.postCount;
+          return (
+            <div
+              key={d.username}
+              onClick={() => onSelect(d.username)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(d.username); } }}
+              tabIndex={0}
+              role="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = bc?.accentHover || t.bgSubtle; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span style={{ fontSize: 12, color: t.fgDim, width: 18, textAlign: 'center', fontWeight: 600 }}>
+                {i + 1}
+              </span>
+              {d.avatarUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={d.avatarUrl} alt="" width={28} height={28} style={{ borderRadius: '50%', flexShrink: 0 }} />
+              ) : (
+                <div
                   style={{
-                    fontSize: 10,
-                    padding: '1px 6px',
-                    borderRadius: 9999,
-                    background: '#10b98115',
-                    border: '1px solid #10b98133',
-                    color: '#10b981',
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: t.bgActive,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    flexShrink: 0,
                   }}
                 >
-                  top {100 - d.postCountPercentile}%
-                </span>
+                  {d.displayName?.[0] || '?'}
+                </div>
               )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {d.displayName}
+                </div>
+                <div style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                  {postDisplay.toLocaleString()} post{postDisplay !== 1 ? 's' : ''}
+                  {hasMonthlyData && <span style={{ fontSize: 10, color: t.fgDim, fontWeight: 400 }}> this month</span>}
+                </div>
+                {!hasMonthlyData && d.postCountPercentile != null && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: '1px 6px',
+                      borderRadius: 9999,
+                      background: '#10b98115',
+                      border: '1px solid #10b98133',
+                      color: '#10b981',
+                    }}
+                  >
+                    top {100 - d.postCountPercentile}%
+                  </span>
+                )}
+              </div>
+              <ChevronRight size={14} color={t.fgDim} style={{ flexShrink: 0 }} />
             </div>
-            <ChevronRight size={14} color={t.fgDim} style={{ flexShrink: 0 }} />
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1132,6 +1179,7 @@ function HighlightsList({
   trackedLabelPlural,
   t,
   isMobile,
+  hasMonthlyData,
 }: {
   summary: DashboardSummary;
   delegates: DelegateRow[];
@@ -1139,56 +1187,92 @@ function HighlightsList({
   trackedLabelPlural: string;
   t: ReturnType<typeof c>;
   isMobile: boolean;
+  hasMonthlyData?: boolean;
 }) {
   const highlights: Array<{ icon: typeof AlertTriangle; text: string; color: string }> = [];
 
-  // Tracked members not posting
-  if (hasTracked) {
-    const tracked = delegates.filter(d => d.isTracked);
-    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
-    const dormantTracked = tracked.filter(d => {
-      if (!d.lastPostedAt) return true;
-      return Date.now() - new Date(d.lastPostedAt).getTime() > THIRTY_DAYS;
-    });
-    if (dormantTracked.length > 0) {
+  if (hasMonthlyData) {
+    // Monthly-focused highlights
+    const monthlyActive = summary.monthlyActiveContributors ?? 0;
+    if (monthlyActive > 0) {
       highlights.push({
-        icon: AlertTriangle,
-        text: `${dormantTracked.length} ${trackedLabelPlural.toLowerCase()} haven't posted in 30+ days`,
-        color: '#f59e0b',
+        icon: Activity,
+        text: `${monthlyActive} contributor${monthlyActive !== 1 ? 's' : ''} posted this month`,
+        color: '#10b981',
       });
     }
-  }
 
-  // Top 10% contributors
-  const topTenPercent = delegates.filter(d => d.postCountPercentile != null && d.postCountPercentile >= 90);
-  if (topTenPercent.length > 0) {
-    highlights.push({
-      icon: TrendingUp,
-      text: `${topTenPercent.length} contributor${topTenPercent.length !== 1 ? 's' : ''} in the top 10% of forum-wide engagement`,
-      color: '#10b981',
-    });
-  }
-
-  // Rationale authors
-  if (hasTracked) {
-    const withRationales = delegates.filter(d => d.isTracked && d.rationaleCount > 0);
-    if (withRationales.length > 0) {
+    const withMonthlyLikes = delegates.filter(d => (d.likesReceivedMonth ?? 0) > 0).length;
+    if (withMonthlyLikes > 0) {
       highlights.push({
-        icon: FileText,
-        text: `${withRationales.length} ${trackedLabelPlural.toLowerCase()} have published rationales`,
+        icon: ThumbsUp,
+        text: `${withMonthlyLikes} contributor${withMonthlyLikes !== 1 ? 's' : ''} received likes this month`,
         color: '#3b82f6',
       });
     }
-  }
 
-  // Highly active count
-  const highlyActive = summary.activityDistribution?.highlyActive ?? 0;
-  if (highlyActive > 0) {
-    highlights.push({
-      icon: Activity,
-      text: `${highlyActive} highly active contributor${highlyActive !== 1 ? 's' : ''} with 50+ posts`,
-      color: '#10b981',
-    });
+    // Tracked members not posting this month
+    if (hasTracked) {
+      const tracked = delegates.filter(d => d.isTracked);
+      const dormantTracked = tracked.filter(d => (d.postCountMonth ?? 0) === 0);
+      if (dormantTracked.length > 0) {
+        highlights.push({
+          icon: AlertTriangle,
+          text: `${dormantTracked.length} ${trackedLabelPlural.toLowerCase()} haven't posted this month`,
+          color: '#f59e0b',
+        });
+      }
+    }
+  } else {
+    // All-time fallback highlights
+    // Tracked members not posting
+    if (hasTracked) {
+      const tracked = delegates.filter(d => d.isTracked);
+      const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+      const dormantTracked = tracked.filter(d => {
+        if (!d.lastPostedAt) return true;
+        return Date.now() - new Date(d.lastPostedAt).getTime() > THIRTY_DAYS;
+      });
+      if (dormantTracked.length > 0) {
+        highlights.push({
+          icon: AlertTriangle,
+          text: `${dormantTracked.length} ${trackedLabelPlural.toLowerCase()} haven't posted in 30+ days`,
+          color: '#f59e0b',
+        });
+      }
+    }
+
+    // Top 10% contributors
+    const topTenPercent = delegates.filter(d => d.postCountPercentile != null && d.postCountPercentile >= 90);
+    if (topTenPercent.length > 0) {
+      highlights.push({
+        icon: TrendingUp,
+        text: `${topTenPercent.length} contributor${topTenPercent.length !== 1 ? 's' : ''} in the top 10% of forum-wide engagement`,
+        color: '#10b981',
+      });
+    }
+
+    // Rationale authors
+    if (hasTracked) {
+      const withRationales = delegates.filter(d => d.isTracked && d.rationaleCount > 0);
+      if (withRationales.length > 0) {
+        highlights.push({
+          icon: FileText,
+          text: `${withRationales.length} ${trackedLabelPlural.toLowerCase()} have published rationales`,
+          color: '#3b82f6',
+        });
+      }
+    }
+
+    // Highly active count
+    const highlyActive = summary.activityDistribution?.highlyActive ?? 0;
+    if (highlyActive > 0) {
+      highlights.push({
+        icon: Activity,
+        text: `${highlyActive} highly active contributor${highlyActive !== 1 ? 's' : ''} with 50+ posts`,
+        color: '#10b981',
+      });
+    }
   }
 
   if (highlights.length === 0) return null;

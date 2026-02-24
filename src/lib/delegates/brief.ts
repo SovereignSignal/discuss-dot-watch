@@ -20,7 +20,7 @@ function briefCacheKey(slug: string, lastRefreshAt: string | null): string {
   const dateKey = lastRefreshAt
     ? new Date(lastRefreshAt).toISOString().slice(0, 13) // YYYY-MM-DDTHH (hour granularity)
     : 'no-refresh';
-  return `delegate-brief:v2:${slug}:${dateKey}`;
+  return `delegate-brief:v3:${slug}:${dateKey}`;
 }
 
 /** Retrieve a cached brief, or null if not cached */
@@ -71,14 +71,42 @@ export async function generateDelegateBrief(
   const client = getAnthropicClient();
   if (!client) return null;
 
-  // Build top 5 by post count
-  const top5 = [...delegates]
-    .sort((a, b) => b.postCount - a.postCount)
-    .slice(0, 5);
+  const hasMonthly = summary.hasMonthlyData;
 
-  const dist = summary.activityDistribution;
+  // Build top 5 by monthly posts (if available) or all-time posts
+  const top5 = hasMonthly
+    ? [...delegates]
+        .filter((d) => (d.postCountMonth ?? 0) > 0)
+        .sort((a, b) => (b.postCountMonth ?? 0) - (a.postCountMonth ?? 0))
+        .slice(0, 5)
+    : [...delegates]
+        .sort((a, b) => b.postCount - a.postCount)
+        .slice(0, 5);
 
-  let prompt = `Write a short activity snapshot (3-5 sentences) for the ${tenant.name} forum based on this data. Be descriptive and neutral — describe what the activity looks like, not whether it's good or bad. Forum activity is just one signal; governance may also happen on-chain, in Discord, or on other platforms.
+  let prompt: string;
+
+  if (hasMonthly) {
+    const monthlyDist = summary.monthlyActivityDistribution!;
+    const monthlyActive = summary.monthlyActiveContributors ?? 0;
+    const monthlyPosts = summary.monthlyPostTotal ?? 0;
+
+    prompt = `Write a short activity snapshot (3-5 sentences) for the ${tenant.name} forum based on the LAST 30 DAYS of activity data. Focus on recent activity — who's contributing now, not all-time history. Be descriptive and neutral. Forum activity is just one signal; governance may also happen on-chain, in Discord, or on other platforms.
+
+Recent activity data (last 30 days):
+- ${summary.totalDelegates} total contributors in directory, ${monthlyActive} active this month
+- ${monthlyPosts} total posts this month
+- Monthly activity tiers: ${monthlyDist.highlyActive} highly active (50+ posts/mo), ${monthlyDist.active} active (11-50), ${monthlyDist.lowActivity} low (2-10), ${monthlyDist.minimal} minimal (1), ${monthlyDist.dormant} dormant (0)
+- Most active this month: ${top5.map(d => `${d.displayName} (${d.postCountMonth ?? 0} posts)`).join(', ')}`;
+
+    if (trackedCount > 0) {
+      const tracked = delegates.filter(d => d.isTracked);
+      const trackedMonthlyActive = tracked.filter(d => (d.postCountMonth ?? 0) > 0).length;
+      prompt += `\n- ${trackedCount} tracked members, ${trackedMonthlyActive} posted this month`;
+    }
+  } else {
+    const dist = summary.activityDistribution;
+
+    prompt = `Write a short activity snapshot (3-5 sentences) for the ${tenant.name} forum based on this data. Be descriptive and neutral — describe what the activity looks like, not whether it's good or bad. Forum activity is just one signal; governance may also happen on-chain, in Discord, or on other platforms.
 
 Data:
 - ${summary.totalDelegates} contributors tracked from the forum directory
@@ -89,18 +117,19 @@ Data:
 - Average likes received: ${summary.avgLikesReceived}
 - Most active: ${top5.map(d => `${d.displayName} (${d.postCount} posts)`).join(', ')}`;
 
-  if (trackedCount > 0) {
-    const tracked = delegates.filter(d => d.isTracked);
-    const trackedActive = tracked.filter(d => {
-      if (!d.lastPostedAt) return false;
-      return Date.now() - new Date(d.lastPostedAt).getTime() < 30 * 24 * 60 * 60 * 1000;
-    });
-    prompt += `\n- ${trackedCount} tracked members, ${trackedActive.length} posted in the last 30 days`;
+    if (trackedCount > 0) {
+      const tracked = delegates.filter(d => d.isTracked);
+      const trackedActive = tracked.filter(d => {
+        if (!d.lastPostedAt) return false;
+        return Date.now() - new Date(d.lastPostedAt).getTime() < 30 * 24 * 60 * 60 * 1000;
+      });
+      prompt += `\n- ${trackedCount} tracked members, ${trackedActive.length} posted in the last 30 days`;
+    }
   }
 
   prompt += `
 
-Describe the forum's activity pattern — who's contributing, how engagement is distributed, and any notable patterns. Do not judge, diagnose, or prescribe. Do not use words like "concerning", "alarming", "critical", "severe", or "healthy/unhealthy". Just describe what the data shows.
+Describe the forum's recent activity pattern — who's contributing, how engagement is distributed, and any notable patterns. Do not judge, diagnose, or prescribe. Do not use words like "concerning", "alarming", "critical", "severe", or "healthy/unhealthy". Just describe what the data shows.
 Plain text only, no markdown.`;
 
   try {

@@ -102,6 +102,11 @@ export async function initializeDelegateSchema() {
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS likes_received_percentile INTEGER`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS days_visited_percentile INTEGER`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS topics_entered_percentile INTEGER`;
+  // Monthly directory stats (period=monthly)
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_post_count_month INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_topic_count_month INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_likes_received_month INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_days_visited_month INTEGER`;
 
   // Backfill: pre-existing delegates (before directory sync feature) should be marked as tracked.
   // Only affects rows with no directory data (directory_post_count IS NULL), so
@@ -257,6 +262,10 @@ export async function upsertDelegate(tenantId: number, delegate: {
   likesReceivedPercentile?: number;
   daysVisitedPercentile?: number;
   topicsEnteredPercentile?: number;
+  directoryPostCountMonth?: number | null;
+  directoryTopicCountMonth?: number | null;
+  directoryLikesReceivedMonth?: number | null;
+  directoryDaysVisitedMonth?: number | null;
 }): Promise<Delegate> {
   await ensureSchema();
   const db = getDb();
@@ -270,7 +279,9 @@ export async function upsertDelegate(tenantId: number, delegate: {
       directory_likes_given, directory_days_visited, directory_posts_read,
       directory_topics_entered,
       post_count_percentile, likes_received_percentile, days_visited_percentile,
-      topics_entered_percentile
+      topics_entered_percentile,
+      directory_post_count_month, directory_topic_count_month,
+      directory_likes_received_month, directory_days_visited_month
     ) VALUES (
       ${tenantId},
       ${delegate.username},
@@ -297,7 +308,11 @@ export async function upsertDelegate(tenantId: number, delegate: {
       ${delegate.postCountPercentile ?? null},
       ${delegate.likesReceivedPercentile ?? null},
       ${delegate.daysVisitedPercentile ?? null},
-      ${delegate.topicsEnteredPercentile ?? null}
+      ${delegate.topicsEnteredPercentile ?? null},
+      ${delegate.directoryPostCountMonth ?? null},
+      ${delegate.directoryTopicCountMonth ?? null},
+      ${delegate.directoryLikesReceivedMonth ?? null},
+      ${delegate.directoryDaysVisitedMonth ?? null}
     )
     ON CONFLICT (tenant_id, username) DO UPDATE SET
       display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), delegates.display_name),
@@ -324,6 +339,10 @@ export async function upsertDelegate(tenantId: number, delegate: {
       likes_received_percentile = COALESCE(EXCLUDED.likes_received_percentile, delegates.likes_received_percentile),
       days_visited_percentile = COALESCE(EXCLUDED.days_visited_percentile, delegates.days_visited_percentile),
       topics_entered_percentile = COALESCE(EXCLUDED.topics_entered_percentile, delegates.topics_entered_percentile),
+      directory_post_count_month = EXCLUDED.directory_post_count_month,
+      directory_topic_count_month = EXCLUDED.directory_topic_count_month,
+      directory_likes_received_month = EXCLUDED.directory_likes_received_month,
+      directory_days_visited_month = EXCLUDED.directory_days_visited_month,
       updated_at = NOW()
     RETURNING *
   `;
@@ -461,6 +480,9 @@ export async function getDashboardData(slug: string, opts?: { trackedOnly?: bool
       postsRead: hasSnapshot ? (stats?.postsRead ?? 0) : (d.directoryPostsRead ?? 0),
       lastSeenAt: stats?.lastSeenAt ?? null,
       lastPostedAt: stats?.lastPostedAt ?? null,
+      postCountMonth: d.directoryPostCountMonth ?? undefined,
+      likesReceivedMonth: d.directoryLikesReceivedMonth ?? undefined,
+      daysVisitedMonth: d.directoryDaysVisitedMonth ?? undefined,
       postCountPercentile: d.postCountPercentile ?? undefined,
       likesReceivedPercentile: d.likesReceivedPercentile ?? undefined,
       daysVisitedPercentile: d.daysVisitedPercentile ?? undefined,
@@ -520,6 +542,7 @@ function computeSummary(delegates: DelegateRow[]): DashboardSummary {
     delegatesPostedLast30Days: 0,
     activityDistribution: { highlyActive: 0, active: 0, lowActivity: 0, minimal: 0, dormant: 0 },
     hasTimestampData: false,
+    hasMonthlyData: false,
   };
   if (total === 0) return empty;
 
@@ -561,6 +584,24 @@ function computeSummary(delegates: DelegateRow[]): DashboardSummary {
     dormant: delegates.filter((d) => d.postCount === 0).length,
   };
 
+  // Monthly aggregates (from directory?period=monthly)
+  const hasMonthlyData = delegates.some((d) => d.postCountMonth != null);
+  let monthlyPostTotal: number | undefined;
+  let monthlyActiveContributors: number | undefined;
+  let monthlyActivityDistribution: DashboardSummary['monthlyActivityDistribution'];
+
+  if (hasMonthlyData) {
+    monthlyPostTotal = delegates.reduce((s, d) => s + (d.postCountMonth ?? 0), 0);
+    monthlyActiveContributors = delegates.filter((d) => (d.postCountMonth ?? 0) > 0).length;
+    monthlyActivityDistribution = {
+      highlyActive: delegates.filter((d) => (d.postCountMonth ?? 0) >= 50).length,
+      active: delegates.filter((d) => (d.postCountMonth ?? 0) >= 11 && (d.postCountMonth ?? 0) < 50).length,
+      lowActivity: delegates.filter((d) => (d.postCountMonth ?? 0) >= 2 && (d.postCountMonth ?? 0) < 11).length,
+      minimal: delegates.filter((d) => (d.postCountMonth ?? 0) === 1).length,
+      dormant: delegates.filter((d) => (d.postCountMonth ?? 0) === 0).length,
+    };
+  }
+
   return {
     totalDelegates: total,
     activeDelegates: active.length,
@@ -577,6 +618,10 @@ function computeSummary(delegates: DelegateRow[]): DashboardSummary {
     delegatesPostedLast30Days: postedLast30,
     activityDistribution,
     hasTimestampData,
+    hasMonthlyData,
+    monthlyPostTotal,
+    monthlyActiveContributors,
+    monthlyActivityDistribution,
   };
 }
 
@@ -634,6 +679,10 @@ function mapDelegateRow(row: Record<string, unknown>): Delegate {
     likesReceivedPercentile: row.likes_received_percentile as number | undefined,
     daysVisitedPercentile: row.days_visited_percentile as number | undefined,
     topicsEnteredPercentile: row.topics_entered_percentile as number | undefined,
+    directoryPostCountMonth: row.directory_post_count_month as number | undefined,
+    directoryTopicCountMonth: row.directory_topic_count_month as number | undefined,
+    directoryLikesReceivedMonth: row.directory_likes_received_month as number | undefined,
+    directoryDaysVisitedMonth: row.directory_days_visited_month as number | undefined,
     notes: row.notes as string | undefined,
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString(),
