@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDashboardData } from '@/lib/delegates';
+import { generateDelegateBrief, getCachedBrief } from '@/lib/delegates/brief';
 
 export async function GET(
   request: NextRequest,
@@ -25,7 +26,24 @@ export async function GET(
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
-    return NextResponse.json(dashboard, {
+    // Try to get cached brief first (fast path)
+    const brief = await getCachedBrief(slug, dashboard.lastRefreshAt);
+
+    if (!brief) {
+      // Generate in the background — don't block the response
+      // Fire-and-forget: next request will pick up the cached result
+      generateDelegateBrief(
+        dashboard.tenant,
+        dashboard.summary,
+        dashboard.delegates,
+        dashboard.trackedCount,
+        dashboard.lastRefreshAt
+      ).catch((err) => {
+        console.error(`[API] Background brief generation failed for ${slug}:`, err);
+      });
+    }
+
+    return NextResponse.json({ ...dashboard, brief: brief || null }, {
       headers: {
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
       },

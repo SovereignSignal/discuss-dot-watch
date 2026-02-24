@@ -16,13 +16,13 @@ import {
   Activity,
   MessageSquare,
   ThumbsUp,
-  Calendar,
-  Eye,
-  Shield,
   Moon,
   Sun,
   FileText,
   Star,
+  Sparkles,
+  TrendingUp,
+  AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantBranding } from '@/types/delegates';
@@ -91,6 +91,7 @@ export default function TenantDashboardPage() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterTracked, setFilterTracked] = useState<'all' | 'tracked'>('all');
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'contributors'>('overview');
 
   const t = c(isDark);
   const { user } = useAuth();
@@ -417,265 +418,307 @@ export default function TenantDashboardPage() {
       )}
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '16px 12px' : '24px 24px' }}>
-        {/* Summary Cards */}
-        <SummaryCards summary={dashboard.summary} t={t} accent={bc?.accent} isMobile={isMobile} />
-
-        {/* Filters Bar */}
+        {/* Tab Control */}
         <div
           style={{
             display: 'flex',
-            gap: 10,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            marginBottom: 16,
+            borderRadius: 8,
+            border: `1px solid ${t.border}`,
+            overflow: 'hidden',
+            marginBottom: isMobile ? 16 : 24,
+            width: 'fit-content',
           }}
         >
-          {/* All / Tracked toggle (only shown if tracked members exist) */}
-          {hasTracked && (
+          {(['overview', 'contributors'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: isMobile ? '8px 16px' : '8px 20px',
+                fontSize: 13,
+                fontWeight: 500,
+                border: 'none',
+                cursor: 'pointer',
+                background: activeTab === tab ? (bc?.accent || t.fg) : 'transparent',
+                color: activeTab === tab ? (bc ? '#fff' : t.bg) : t.fgMuted,
+                transition: 'background 0.15s, color 0.15s',
+              }}
+            >
+              {tab === 'overview' ? 'Overview' : `Contributors (${dashboard.summary.totalDelegates})`}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'overview' ? (
+          <OverviewTab
+            dashboard={dashboard}
+            t={t}
+            bc={bc}
+            isMobile={isMobile}
+            onSelectDelegate={(username) => { setSelectedDelegate(username); setActiveTab('contributors'); }}
+            hasTracked={hasTracked}
+            trackedLabelPlural={trackedLabelPlural}
+          />
+        ) : (
+          <>
+            {/* Filters Bar */}
             <div
               style={{
                 display: 'flex',
-                borderRadius: 8,
-                border: `1px solid ${t.border}`,
-                overflow: 'hidden',
-                flexShrink: 0,
+                gap: 10,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                marginBottom: 16,
               }}
             >
-              {(['all', 'tracked'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setFilterTracked(mode)}
+              {/* All / Tracked toggle (only shown if tracked members exist) */}
+              {hasTracked && (
+                <div
                   style={{
-                    padding: '7px 14px',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    border: 'none',
-                    cursor: 'pointer',
-                    background: filterTracked === mode ? (bc?.accent || t.fg) : 'transparent',
-                    color: filterTracked === mode ? (bc ? '#fff' : t.bg) : t.fgMuted,
-                    transition: 'background 0.15s, color 0.15s',
+                    display: 'flex',
+                    borderRadius: 8,
+                    border: `1px solid ${t.border}`,
+                    overflow: 'hidden',
+                    flexShrink: 0,
                   }}
                 >
-                  {mode === 'all' ? 'All Contributors' : trackedLabelPlural}
-                </button>
-              ))}
-            </div>
-          )}
+                  {(['all', 'tracked'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setFilterTracked(mode)}
+                      style={{
+                        padding: '7px 14px',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: filterTracked === mode ? (bc?.accent || t.fg) : 'transparent',
+                        color: filterTracked === mode ? (bc ? '#fff' : t.bg) : t.fgMuted,
+                        transition: 'background 0.15s, color 0.15s',
+                      }}
+                    >
+                      {mode === 'all' ? 'All Contributors' : trackedLabelPlural}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-          <div
-            style={{
-              position: 'relative',
-              flex: isMobile ? '1 1 100%' : '1 1 220px',
-              maxWidth: isMobile ? undefined : 320,
-            }}
-          >
-            <Search
-              size={14}
-              style={{
-                position: 'absolute',
-                left: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: t.fgDim,
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Search contributors..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px 8px 32px',
-                borderRadius: 8,
-                border: `1px solid ${t.border}`,
-                background: t.bgInput,
-                color: t.fg,
-                fontSize: 13,
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              border: `1px solid ${t.border}`,
-              background: t.bgInput,
-              color: t.fg,
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-
-          {programs.length > 0 && (
-            <select
-              value={filterProgram}
-              onChange={(e) => setFilterProgram(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: `1px solid ${t.border}`,
-                background: t.bgInput,
-                color: t.fg,
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              <option value="all">All Programs</option>
-              {programs.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {roles.length > 0 && (
-            <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: `1px solid ${t.border}`,
-                background: t.bgInput,
-                color: t.fg,
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              <option value="all">All Roles</option>
-              {roles.map((r) => (
-                <option key={r} value={r}>
-                  {dashboardGetRoleLabel(r)}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {!isMobile && (
-            <span style={{ fontSize: 12, color: t.fgDim, marginLeft: 'auto' }}>
-              {filteredDelegates.length} contributor{filteredDelegates.length !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-
-        {/* Delegate Table / Cards */}
-        {isMobile ? (
-          /* Mobile: Card layout */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filteredDelegates.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: t.fgDim }}>
-                No contributors found.
-              </div>
-            ) : (
-              filteredDelegates.map((d) => (
-                <MobileDelegateCard
-                  key={d.username}
-                  delegate={d}
-                  isSelected={selectedDelegate === d.username}
-                  onSelect={() =>
-                    setSelectedDelegate(
-                      selectedDelegate === d.username ? null : d.username
-                    )
-                  }
-                  t={t}
-                  accentHover={bc?.accentHover}
-                  accentBg={bc?.accentBg}
-                  showUsername={duplicateNames.has(d.displayName.toLowerCase())}
-                />
-              ))
-            )}
-          </div>
-        ) : (
-          /* Desktop: Table layout */
-          <div
-            style={{
-              border: `1px solid ${t.border}`,
-              borderRadius: 12,
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ overflowX: 'auto' }}>
-              <table
+              <div
                 style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: 13,
+                  position: 'relative',
+                  flex: isMobile ? '1 1 100%' : '1 1 220px',
+                  maxWidth: isMobile ? undefined : 320,
                 }}
               >
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${t.border}` }}>
-                    <SortHeader
-                      label="Contributor"
-                      field="displayName"
-                      current={sortField}
-                      dir={sortDir}
-                      onSort={handleSort}
-                      t={t}
-                      accent={bc?.accent}
-                      sticky
-                    />
-                    <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
-                      Role
-                    </th>
-                    <SortHeader label="Posts" field="postCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                    <SortHeader label="Topics" field="topicCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                    <SortHeader label="Likes" field="likesReceived" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                    <SortHeader label="Days Active" field="daysVisited" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                    <SortHeader label="Rationales" field="rationaleCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                    <SortHeader label="Vote Rate" field="voteRate" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                    <SortHeader label="Last Seen" field="lastSeenAt" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
-                    <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
-                      Programs
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDelegates.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={10}
-                        style={{
-                          padding: 40,
-                          textAlign: 'center',
-                          color: t.fgDim,
-                        }}
-                      >
-                        No contributors found.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredDelegates.map((d) => (
-                      <DelegateTableRow
-                        key={d.username}
-                        delegate={d}
-                        forumUrl={dashboard.tenant.forumUrl}
-                        isSelected={selectedDelegate === d.username}
-                        onSelect={() =>
-                          setSelectedDelegate(
-                            selectedDelegate === d.username ? null : d.username
-                          )
-                        }
-                        t={t}
-                        accentHover={bc?.accentHover}
-                        accentBg={bc?.accentBg}
-                        showUsername={duplicateNames.has(d.displayName.toLowerCase())}
-                      />
-                    ))
-                  )}
-                </tbody>
-              </table>
+                <Search
+                  size={14}
+                  style={{
+                    position: 'absolute',
+                    left: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: t.fgDim,
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Search contributors..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px 8px 32px',
+                    borderRadius: 8,
+                    border: `1px solid ${t.border}`,
+                    background: t.bgInput,
+                    color: t.fg,
+                    fontSize: 13,
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: `1px solid ${t.border}`,
+                  background: t.bgInput,
+                  color: t.fg,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+
+              {programs.length > 0 && (
+                <select
+                  value={filterProgram}
+                  onChange={(e) => setFilterProgram(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: `1px solid ${t.border}`,
+                    background: t.bgInput,
+                    color: t.fg,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="all">All Programs</option>
+                  {programs.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {roles.length > 0 && (
+                <select
+                  value={filterRole}
+                  onChange={(e) => setFilterRole(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: `1px solid ${t.border}`,
+                    background: t.bgInput,
+                    color: t.fg,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="all">All Roles</option>
+                  {roles.map((r) => (
+                    <option key={r} value={r}>
+                      {dashboardGetRoleLabel(r)}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {!isMobile && (
+                <span style={{ fontSize: 12, color: t.fgDim, marginLeft: 'auto' }}>
+                  {filteredDelegates.length} contributor{filteredDelegates.length !== 1 ? 's' : ''}
+                </span>
+              )}
             </div>
-          </div>
+
+            {/* Delegate Table / Cards */}
+            {isMobile ? (
+              /* Mobile: Card layout */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {filteredDelegates.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: t.fgDim }}>
+                    No contributors found.
+                  </div>
+                ) : (
+                  filteredDelegates.map((d) => (
+                    <MobileDelegateCard
+                      key={d.username}
+                      delegate={d}
+                      isSelected={selectedDelegate === d.username}
+                      onSelect={() =>
+                        setSelectedDelegate(
+                          selectedDelegate === d.username ? null : d.username
+                        )
+                      }
+                      t={t}
+                      accentHover={bc?.accentHover}
+                      accentBg={bc?.accentBg}
+                      showUsername={duplicateNames.has(d.displayName.toLowerCase())}
+                    />
+                  ))
+                )}
+              </div>
+            ) : (
+              /* Desktop: Table layout */
+              <div
+                style={{
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ overflowX: 'auto' }}>
+                  <table
+                    style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      fontSize: 13,
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+                        <SortHeader
+                          label="Contributor"
+                          field="displayName"
+                          current={sortField}
+                          dir={sortDir}
+                          onSort={handleSort}
+                          t={t}
+                          accent={bc?.accent}
+                          sticky
+                        />
+                        <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
+                          Role
+                        </th>
+                        <SortHeader label="Posts" field="postCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                        <SortHeader label="Topics" field="topicCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                        <SortHeader label="Likes" field="likesReceived" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                        <SortHeader label="Days Active" field="daysVisited" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                        <SortHeader label="Rationales" field="rationaleCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                        <SortHeader label="Vote Rate" field="voteRate" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                        <SortHeader label="Last Seen" field="lastSeenAt" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
+                        <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
+                          Programs
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDelegates.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={10}
+                            style={{
+                              padding: 40,
+                              textAlign: 'center',
+                              color: t.fgDim,
+                            }}
+                          >
+                            No contributors found.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredDelegates.map((d) => (
+                          <DelegateTableRow
+                            key={d.username}
+                            delegate={d}
+                            forumUrl={dashboard.tenant.forumUrl}
+                            isSelected={selectedDelegate === d.username}
+                            onSelect={() =>
+                              setSelectedDelegate(
+                                selectedDelegate === d.username ? null : d.username
+                              )
+                            }
+                            t={t}
+                            accentHover={bc?.accentHover}
+                            accentBg={bc?.accentBg}
+                            showUsername={duplicateNames.has(d.displayName.toLowerCase())}
+                          />
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Data attribution */}
@@ -755,56 +798,419 @@ export default function TenantDashboardPage() {
 // Sub-components
 // ============================================================
 
-function SummaryCards({ summary, t, accent, isMobile }: { summary: DashboardSummary; t: ReturnType<typeof c>; accent?: string; isMobile?: boolean }) {
-  const dist = summary.activityDistribution;
+// ============================================================
+// Overview Tab
+// ============================================================
+
+function OverviewTab({
+  dashboard,
+  t,
+  bc,
+  isMobile,
+  onSelectDelegate,
+  hasTracked,
+  trackedLabelPlural,
+}: {
+  dashboard: DelegateDashboard;
+  t: ReturnType<typeof c>;
+  bc: ReturnType<typeof brandedColors>;
+  isMobile: boolean;
+  onSelectDelegate: (username: string) => void;
+  hasTracked: boolean;
+  trackedLabelPlural: string;
+}) {
+  const summary = dashboard.summary;
+  const delegates = dashboard.delegates;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 16 : 24 }}>
+      {/* AI Brief */}
+      <AIBriefCard brief={dashboard.brief} t={t} bc={bc} isMobile={isMobile} />
+
+      {/* Key Stats Row */}
+      <KeyStatsRow summary={summary} t={t} accent={bc?.accent} isMobile={isMobile} />
+
+      {/* Activity Distribution Bar */}
+      <ActivityBar distribution={summary.activityDistribution} total={summary.totalDelegates} t={t} isMobile={isMobile} />
+
+      {/* Top Contributors */}
+      <TopContributorsList
+        delegates={delegates}
+        t={t}
+        bc={bc}
+        isMobile={isMobile}
+        onSelect={onSelectDelegate}
+      />
+
+      {/* Highlights */}
+      <HighlightsList
+        summary={summary}
+        delegates={delegates}
+        hasTracked={hasTracked}
+        trackedLabelPlural={trackedLabelPlural}
+        t={t}
+        isMobile={isMobile}
+      />
+    </div>
+  );
+}
+
+function AIBriefCard({
+  brief,
+  t,
+  bc,
+  isMobile,
+}: {
+  brief?: string | null;
+  t: ReturnType<typeof c>;
+  bc: ReturnType<typeof brandedColors>;
+  isMobile: boolean;
+}) {
+  return (
+    <div
+      style={{
+        padding: isMobile ? '16px' : '20px 24px',
+        borderRadius: 12,
+        border: `1px solid ${bc?.accentBorder || t.border}`,
+        background: bc?.accentBg || t.bgCard,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <Sparkles size={15} color={bc?.accent || t.fgMuted} />
+        <span style={{ fontSize: 13, fontWeight: 600 }}>AI Brief</span>
+      </div>
+      {brief ? (
+        <div style={{ fontSize: 14, lineHeight: 1.7, color: t.fgMuted, whiteSpace: 'pre-line' }}>
+          {brief}
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, color: t.fgDim, fontStyle: 'italic' }}>
+          AI brief is being generated and will appear on next page load.
+        </div>
+      )}
+      <div style={{ fontSize: 10, color: t.fgDim, marginTop: 10 }}>
+        Generated by AI — based on community contributor data
+      </div>
+    </div>
+  );
+}
+
+function KeyStatsRow({
+  summary,
+  t,
+  accent,
+  isMobile,
+}: {
+  summary: DashboardSummary;
+  t: ReturnType<typeof c>;
+  accent?: string;
+  isMobile: boolean;
+}) {
+  const healthScore = summary.totalDelegates > 0
+    ? Math.round((summary.delegatesSeenLast30Days / summary.totalDelegates) * 100)
+    : 0;
+
   const cards = [
     { label: 'Total Contributors', value: summary.totalDelegates, icon: Users },
-    { label: 'Highly Active (50+)', value: dist?.highlyActive ?? 0, icon: Activity },
-    { label: 'Active (11-50)', value: dist?.active ?? 0, icon: MessageSquare },
-    { label: 'Dormant (0 posts)', value: dist?.dormant ?? 0, icon: Eye },
-    { label: 'Median Posts', value: summary.medianPostCount ?? 0, icon: FileText },
-    { label: 'Avg Posts', value: summary.avgPostCount, icon: MessageSquare },
-    { label: 'Avg Likes Received', value: summary.avgLikesReceived, icon: ThumbsUp },
-    {
-      label: 'Avg Vote Rate',
-      value: summary.avgVoteRate != null ? `${summary.avgVoteRate}%` : '—',
-      icon: Shield,
-    },
+    { label: 'Active (30d)', value: summary.delegatesPostedLast30Days, icon: Activity },
+    { label: 'Median Posts', value: summary.medianPostCount ?? 0, icon: MessageSquare },
+    { label: 'Health Score', value: `${healthScore}%`, icon: TrendingUp },
   ];
 
   return (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))',
-        gap: isMobile ? 8 : 10,
-        marginBottom: isMobile ? 16 : 24,
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        gap: isMobile ? 8 : 12,
       }}
     >
       {cards.map((card) => (
         <div
           key={card.label}
           style={{
-            padding: isMobile ? '10px 12px' : '14px 16px',
-            borderRadius: 10,
+            padding: isMobile ? '14px 14px' : '18px 20px',
+            borderRadius: 12,
             border: `1px solid ${t.border}`,
             background: t.bgCard,
           }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <card.icon size={14} color={accent || t.fgDim} />
+            <span style={{ fontSize: 12, color: t.fgDim }}>{card.label}</span>
+          </div>
+          <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 700 }}>{card.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActivityBar({
+  distribution,
+  total,
+  t,
+  isMobile,
+}: {
+  distribution: DashboardSummary['activityDistribution'];
+  total: number;
+  t: ReturnType<typeof c>;
+  isMobile: boolean;
+}) {
+  if (!distribution || total === 0) return null;
+
+  const tiers = [
+    { label: 'Highly Active', count: distribution.highlyActive, color: '#10b981' },
+    { label: 'Active', count: distribution.active, color: '#3b82f6' },
+    { label: 'Low Activity', count: distribution.lowActivity, color: '#f59e0b' },
+    { label: 'Minimal', count: distribution.minimal, color: '#f97316' },
+    { label: 'Dormant', count: distribution.dormant, color: '#ef4444' },
+  ];
+
+  return (
+    <div
+      style={{
+        padding: isMobile ? '14px 14px' : '18px 20px',
+        borderRadius: 12,
+        border: `1px solid ${t.border}`,
+        background: t.bgCard,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Activity Distribution</div>
+
+      {/* Stacked bar */}
+      <div
+        style={{
+          display: 'flex',
+          height: 28,
+          borderRadius: 6,
+          overflow: 'hidden',
+          marginBottom: 12,
+        }}
+      >
+        {tiers.map((tier) => {
+          const pct = (tier.count / total) * 100;
+          if (pct === 0) return null;
+          return (
+            <div
+              key={tier.label}
+              title={`${tier.label}: ${tier.count} (${Math.round(pct)}%)`}
+              style={{
+                width: `${pct}%`,
+                background: tier.color,
+                minWidth: pct > 0 ? 2 : 0,
+                transition: 'width 0.3s',
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '6px 12px' : '6px 20px' }}>
+        {tiers.map((tier) => (
+          <div key={tier.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: tier.color, flexShrink: 0 }} />
+            <span style={{ color: t.fgMuted }}>{tier.label}</span>
+            <span style={{ color: t.fgDim, fontWeight: 500 }}>{tier.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TopContributorsList({
+  delegates,
+  t,
+  bc,
+  isMobile,
+  onSelect,
+}: {
+  delegates: DelegateRow[];
+  t: ReturnType<typeof c>;
+  bc: ReturnType<typeof brandedColors>;
+  isMobile: boolean;
+  onSelect: (username: string) => void;
+}) {
+  const top5 = useMemo(
+    () => [...delegates].sort((a, b) => b.postCount - a.postCount).slice(0, 5),
+    [delegates]
+  );
+
+  if (top5.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        padding: isMobile ? '14px 14px' : '18px 20px',
+        borderRadius: 12,
+        border: `1px solid ${t.border}`,
+        background: t.bgCard,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Top Contributors</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {top5.map((d, i) => (
           <div
+            key={d.username}
+            onClick={() => onSelect(d.username)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(d.username); } }}
+            tabIndex={0}
+            role="button"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              marginBottom: isMobile ? 4 : 6,
+              gap: 10,
+              padding: '8px 10px',
+              borderRadius: 8,
+              cursor: 'pointer',
+              transition: 'background 0.1s',
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = bc?.accentHover || t.bgSubtle; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
-            <card.icon size={13} color={accent || t.fgDim} />
-            <span style={{ fontSize: 11, color: t.fgDim }}>{card.label}</span>
+            <span style={{ fontSize: 12, color: t.fgDim, width: 18, textAlign: 'center', fontWeight: 600 }}>
+              {i + 1}
+            </span>
+            {d.avatarUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={d.avatarUrl} alt="" width={28} height={28} style={{ borderRadius: '50%', flexShrink: 0 }} />
+            ) : (
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: t.bgActive,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                {d.displayName?.[0] || '?'}
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {d.displayName}
+              </div>
+              <div style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{d.postCount.toLocaleString()} posts</div>
+              {d.postCountPercentile != null && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: '1px 6px',
+                    borderRadius: 9999,
+                    background: '#10b98115',
+                    border: '1px solid #10b98133',
+                    color: '#10b981',
+                  }}
+                >
+                  top {100 - d.postCountPercentile}%
+                </span>
+              )}
+            </div>
+            <ChevronRight size={14} color={t.fgDim} style={{ flexShrink: 0 }} />
           </div>
-          <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>{card.value}</div>
-        </div>
-      ))}
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HighlightsList({
+  summary,
+  delegates,
+  hasTracked,
+  trackedLabelPlural,
+  t,
+  isMobile,
+}: {
+  summary: DashboardSummary;
+  delegates: DelegateRow[];
+  hasTracked: boolean;
+  trackedLabelPlural: string;
+  t: ReturnType<typeof c>;
+  isMobile: boolean;
+}) {
+  const highlights: Array<{ icon: typeof AlertTriangle; text: string; color: string }> = [];
+
+  // Tracked members not posting
+  if (hasTracked) {
+    const tracked = delegates.filter(d => d.isTracked);
+    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    const dormantTracked = tracked.filter(d => {
+      if (!d.lastPostedAt) return true;
+      return Date.now() - new Date(d.lastPostedAt).getTime() > THIRTY_DAYS;
+    });
+    if (dormantTracked.length > 0) {
+      highlights.push({
+        icon: AlertTriangle,
+        text: `${dormantTracked.length} ${trackedLabelPlural.toLowerCase()} haven't posted in 30+ days`,
+        color: '#f59e0b',
+      });
+    }
+  }
+
+  // Top 10% contributors
+  const topTenPercent = delegates.filter(d => d.postCountPercentile != null && d.postCountPercentile >= 90);
+  if (topTenPercent.length > 0) {
+    highlights.push({
+      icon: TrendingUp,
+      text: `${topTenPercent.length} contributor${topTenPercent.length !== 1 ? 's' : ''} in the top 10% of forum-wide engagement`,
+      color: '#10b981',
+    });
+  }
+
+  // Rationale authors
+  if (hasTracked) {
+    const withRationales = delegates.filter(d => d.isTracked && d.rationaleCount > 0);
+    if (withRationales.length > 0) {
+      highlights.push({
+        icon: FileText,
+        text: `${withRationales.length} ${trackedLabelPlural.toLowerCase()} have published rationales`,
+        color: '#3b82f6',
+      });
+    }
+  }
+
+  // Highly active count
+  const highlyActive = summary.activityDistribution?.highlyActive ?? 0;
+  if (highlyActive > 0) {
+    highlights.push({
+      icon: Activity,
+      text: `${highlyActive} highly active contributor${highlyActive !== 1 ? 's' : ''} with 50+ posts`,
+      color: '#10b981',
+    });
+  }
+
+  if (highlights.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        padding: isMobile ? '14px 14px' : '18px 20px',
+        borderRadius: 12,
+        border: `1px solid ${t.border}`,
+        background: t.bgCard,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Highlights</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {highlights.map((h, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: t.fgMuted }}>
+            <h.icon size={15} color={h.color} style={{ flexShrink: 0, marginTop: 2 }} />
+            <span>{h.text}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

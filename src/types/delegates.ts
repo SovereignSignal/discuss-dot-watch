@@ -223,6 +223,7 @@ export interface DelegateDashboard {
   trackedCount: number;
   lastRefreshAt: string | null;
   capabilities: TenantCapabilities;
+  brief?: string | null;
 }
 
 export interface DashboardSummary {
