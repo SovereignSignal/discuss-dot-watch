@@ -5,16 +5,18 @@
  * verifyAdminAuth — checks CRON_SECRET first (machine-to-machine), then Privy + admin allowlist.
  */
 
-import { timingSafeEqual } from 'crypto';
+import { timingSafeEqual, createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { PrivyClient } from '@privy-io/node';
 import { isAdminEmail, isAdminDid } from './admin';
 import { getDb, isDatabaseConfigured } from './db';
 
-/** Constant-time string comparison to prevent timing attacks */
+/** Constant-time string comparison to prevent timing attacks.
+ *  Hashes both inputs to fixed-length values to avoid leaking length information. */
 function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  const hashA = createHash('sha256').update(a).digest();
+  const hashB = createHash('sha256').update(b).digest();
+  return timingSafeEqual(hashA, hashB) && a.length === b.length;
 }
 
 // Lazy singleton — avoids constructing when env vars are missing (dev mode)

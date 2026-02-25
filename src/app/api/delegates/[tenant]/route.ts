@@ -14,7 +14,7 @@ export async function GET(
   try {
     const { tenant: slug } = await params;
 
-    if (!slug || typeof slug !== 'string') {
+    if (!slug || typeof slug !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(slug)) {
       return NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 });
     }
 

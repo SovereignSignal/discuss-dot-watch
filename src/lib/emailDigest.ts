@@ -4,6 +4,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { escapeHtml } from './sanitize';
 
 export interface TopicSummary {
   title: string;
@@ -143,7 +144,7 @@ Just respond with the sentence, no quotes or explanation.`
  * Format digest content into HTML email (monochrome design)
  */
 export function formatDigestEmail(digest: DigestContent, userName?: string): string {
-  const greeting = userName ? `Hi ${userName}` : 'Hi there';
+  const greeting = userName ? `Hi ${escapeHtml(userName)}` : 'Hi there';
   const periodLabel = digest.period === 'daily' ? 'Daily' : 'Weekly';
   
   const formatTopics = (topics: TopicSummary[], title: string, emoji: string) => {
@@ -153,19 +154,19 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
       <tr>
         <td style="padding: 16px; margin-bottom: 8px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
           <div style="margin-bottom: 6px;">
-            <span style="color: #18181b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">${t.protocol}</span>
+            <span style="color: #18181b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">${escapeHtml(t.protocol)}</span>
           </div>
           <div style="font-weight: 600; font-size: 15px; margin-bottom: 8px;">
-            <a href="${t.url}" style="color: #18181b; text-decoration: none;" target="_blank">
-              ${t.title}
+            <a href="${escapeHtml(t.url)}" style="color: #18181b; text-decoration: none;" target="_blank">
+              ${escapeHtml(t.title)}
             </a>
           </div>
           <div style="font-size: 13px; color: #52525b; margin-bottom: 10px; line-height: 1.5;">
-            ${t.summary}
+            ${escapeHtml(t.summary)}
           </div>
           ${t.matchedKeywords && t.matchedKeywords.length > 0 ? `
           <div style="font-size: 11px; color: #92400e; background: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; display: inline-block;">
-            Matched: ${t.matchedKeywords.join(', ')}
+            Matched: ${t.matchedKeywords.map(k => escapeHtml(k)).join(', ')}
           </div>
           ` : ''}
           <div style="font-size: 12px; color: #71717a;">
@@ -226,7 +227,7 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
           <div style="color: #a1a1aa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Replies</div>
         </td>
         <td style="text-align: center; padding: 0 8px;">
-          <div style="font-size: 14px; font-weight: 600; color: #ffffff;">${digest.stats.mostActiveProtocol}</div>
+          <div style="font-size: 14px; font-weight: 600; color: #ffffff;">${escapeHtml(digest.stats.mostActiveProtocol)}</div>
           <div style="color: #a1a1aa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Most Active</div>
         </td>
       </tr>
@@ -256,15 +257,15 @@ export function formatDigestEmail(digest: DigestContent, userName?: string): str
         <tr>
           <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
             <div style="margin-bottom: 4px;">
-              <span style="color: #3f3f46; font-size: 11px; font-weight: 600; text-transform: uppercase;">${t.protocol}</span>
+              <span style="color: #3f3f46; font-size: 11px; font-weight: 600; text-transform: uppercase;">${escapeHtml(t.protocol)}</span>
             </div>
             <div style="font-weight: 500; margin-bottom: 4px; font-size: 14px;">
-              <a href="${t.url}" style="color: #18181b; text-decoration: none;" target="_blank">
-                ${t.title}
+              <a href="${escapeHtml(t.url)}" style="color: #18181b; text-decoration: none;" target="_blank">
+                ${escapeHtml(t.title)}
               </a>
             </div>
             <div style="font-size: 13px; color: #52525b;">
-              ${t.summary}
+              ${escapeHtml(t.summary)}
             </div>
           </td>
         </tr>

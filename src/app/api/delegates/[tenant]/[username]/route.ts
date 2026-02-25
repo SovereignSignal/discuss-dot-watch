@@ -12,6 +12,13 @@ export async function GET(
   try {
     const { tenant: slug, username } = await params;
 
+    if (!slug || !/^[a-zA-Z0-9_-]{1,100}$/.test(slug)) {
+      return NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 });
+    }
+    if (!username || !/^[a-zA-Z0-9._-]{1,60}$/.test(username)) {
+      return NextResponse.json({ error: 'Invalid username' }, { status: 400 });
+    }
+
     const tenant = await getTenantBySlug(slug);
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });

@@ -507,7 +507,7 @@ interface TenantConfig {
   trackedMemberLabel?: string;       // e.g. "Delegate", "Steward" — tenant-configurable
   trackedMemberLabelPlural?: string; // e.g. "Delegates", defaults to label + "s"
   branding?: TenantBranding;
-  refreshIntervalHours?: number;     // Default: 12
+  refreshIntervalHours?: number;     // Default: 4
   maxContributors?: number;          // Default: 200 — max directory contributors to sync
 }
 
@@ -990,7 +990,7 @@ const RESERVED_SLUGS = new Set([
 
 Features:
 - Dynamic metadata via `generateMetadata` (DB lookup for tenant name, falls back to capitalized slug)
-- Stale data banner when last refresh > 24 hours ago
+- Stale data banner when last refresh > 8 hours ago
 - Accessible detail panel: Escape key, scroll lock, focus management, ARIA attributes
 - Admin breadcrumb navigation (shown when authenticated admin)
 - Theme toggle with `themechange` event dispatch
@@ -1014,7 +1014,7 @@ The `lib/externalSources.ts` registry defines 20+ configured sources with their 
 | Endpoint | Schedule | Purpose |
 |----------|----------|---------|
 | `/api/cron/digest` | Daily 8am UTC | Send email digests to subscribers |
-| `/api/cron/delegates` | Per-tenant interval (default 12h) | Refresh delegate stats from Discourse |
+| `/api/cron/delegates` | Per-tenant interval (default 4h) | Refresh delegate stats from Discourse |
 | `/api/cron/grants-brief` | Daily | Generate and email grants & funding brief |
 
 All cron endpoints are protected by `CRON_SECRET` (constant-time comparison via `timingSafeEqual`). In development mode, `/api/cron/delegates` allows unauthenticated access when `CRON_SECRET` is not set.

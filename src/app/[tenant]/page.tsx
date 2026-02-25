@@ -41,11 +41,15 @@ const RESERVED_SLUGS = new Set([
 function brandedColors(branding?: TenantBranding) {
   const accent = branding?.accentColor;
   if (!accent) return null;
-  // Parse hex to r,g,b for opacity variants
-  const hex = accent.replace('#', '');
+  // Parse hex to r,g,b for opacity variants (supports both #RGB and #RRGGBB)
+  let hex = accent.replace('#', '');
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
   return {
     accent,
     accentBg: `rgba(${r},${g},${b},0.07)`,
@@ -955,7 +959,7 @@ function KeyStatsRow({
   const cards = [
     { label: 'Total Contributors', value: summary.totalDelegates, icon: Users },
     { label: 'Active This Month', value: monthlyActive, icon: Activity },
-    { label: 'Posts This Month', value: hasMonthly ? (summary.monthlyPostTotal ?? 0) : (summary.medianPostCount ?? 0), icon: MessageSquare },
+    { label: hasMonthly ? 'Posts This Month' : 'Median Posts', value: hasMonthly ? (summary.monthlyPostTotal ?? 0) : (summary.medianPostCount ?? 0), icon: MessageSquare },
     { label: 'Active Rate', value: `${activeRate}%`, icon: TrendingUp },
   ];
 
@@ -2250,15 +2254,20 @@ function StatBox({
 // Utilities
 // ============================================================
 
-/** Extract plain text from HTML using the browser's native parser */
+/** Extract plain text from HTML safely using regex stripping (avoids innerHTML XSS) */
 function extractText(html: string, maxLen: number = 120): string {
-  if (typeof document !== 'undefined') {
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    const text = div.textContent || div.innerText || '';
-    return text.trim().slice(0, maxLen);
-  }
-  return html.replace(/<[^>]+>/g, '').trim().slice(0, maxLen);
+  const text = html
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.slice(0, maxLen);
 }
 
 // ============================================================

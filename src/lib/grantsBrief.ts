@@ -9,6 +9,7 @@ import { getAllCachedForums } from './forumCache';
 import { FORUM_CATEGORIES } from './forumPresets';
 import { EXTERNAL_SOURCES } from './externalSources';
 import { generateTopicInsight } from './emailDigest';
+import { escapeHtml } from './sanitize';
 import { DiscussionTopic } from '@/types';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -269,16 +270,16 @@ export function formatGrantsBriefEmail(brief: GrantsBriefContent): string {
     <tr>
       <td style="padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
         <div style="margin-bottom: 6px;">
-          <span style="color: #18181b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">${t.protocol}</span>
+          <span style="color: #18181b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">${escapeHtml(t.protocol)}</span>
         </div>
         <div style="font-weight: 600; font-size: 15px; margin-bottom: 8px;">
-          <a href="${t.url}" style="color: #18181b; text-decoration: none;" target="_blank">${t.title}</a>
+          <a href="${escapeHtml(t.url)}" style="color: #18181b; text-decoration: none;" target="_blank">${escapeHtml(t.title)}</a>
         </div>
         <div style="font-size: 13px; color: #52525b; margin-bottom: 10px; line-height: 1.5;">
-          ${t.insight || 'Active discussion.'}
+          ${escapeHtml(t.insight || 'Active discussion.')}
         </div>
         <div style="font-size: 11px; color: #92400e; background: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; display: inline-block;">
-          Matched: ${t.matchedKeywords.join(', ')}
+          Matched: ${t.matchedKeywords.map(k => escapeHtml(k)).join(', ')}
         </div>
         <div style="font-size: 12px; color: #71717a;">
           ${t.replies} replies &middot; ${t.views.toLocaleString()} views &middot; ${t.likes} likes
@@ -321,7 +322,7 @@ export function formatGrantsBriefEmail(brief: GrantsBriefContent): string {
   <!-- Executive Summary -->
   <div style="margin-bottom: 28px; padding: 20px; background: #18181b; border-radius: 12px; color: #fafafa;">
     <p style="margin: 0; font-size: 14px; line-height: 1.7;">
-      ${brief.executiveSummary}
+      ${escapeHtml(brief.executiveSummary)}
     </p>
     <div style="margin-top: 16px; font-size: 12px; color: #a1a1aa;">
       ${brief.stats.newCount} new &middot; ${brief.stats.activeCount} active &middot; ${brief.stats.forumCount} forums with activity
