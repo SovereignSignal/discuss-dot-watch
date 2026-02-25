@@ -13,7 +13,7 @@ This document provides essential context for AI assistants working with this cod
 
 ### Key Features
 - Multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Hacker News)
-- 100+ forums monitored across crypto, AI, and open source
+- 165+ forums monitored across crypto, AI, and open source
 - AI-powered email digests (Claude Sonnet + Resend)
 - Inline discussion reader (split-panel view to read Discourse posts without leaving the app)
 - On-site AI Briefs view (browsable AI digest within the app)
@@ -78,9 +78,12 @@ src/
 │   │   │   └── route.ts          # Validates if a URL is a Discourse forum
 │   │   ├── digest/
 │   │   │   └── route.ts          # AI digest generation and retrieval
+│   │   ├── briefs/
+│   │   │   └── route.ts          # Zero-cost discovery endpoint (trending + new topics from cache)
 │   │   ├── cron/
 │   │   │   ├── delegates/route.ts # Cron-triggered delegate data refresh
-│   │   │   └── digest/route.ts   # Cron-triggered digest email sending
+│   │   │   ├── digest/route.ts   # Cron-triggered digest email sending
+│   │   │   └── grants-brief/route.ts # Cron-triggered grants & funding brief email
 │   │   ├── delegates/
 │   │   │   ├── [tenant]/
 │   │   │   │   ├── route.ts      # Delegate dashboard data for a tenant
@@ -95,7 +98,6 @@ src/
 │   │   │   ├── route.ts          # User profile endpoint
 │   │   │   ├── alerts/route.ts   # Synced keyword alerts
 │   │   │   ├── bookmarks/route.ts # Synced bookmarks
-│   │   │   ├── digest-preferences/route.ts # Email digest settings
 │   │   │   ├── forums/route.ts   # Synced forum configurations
 │   │   │   ├── preferences/route.ts # User preferences
 │   │   │   └── read-state/route.ts  # Synced read/unread state
@@ -175,6 +177,7 @@ src/
 │   ├── backfill.ts               # Database backfill utilities
 │   ├── db.ts                     # PostgreSQL database client and queries (dynamic schema)
 │   ├── delegates/                # Delegate monitoring subsystem
+│   │   ├── brief.ts              # AI brief generation for delegate dashboards (Haiku 4.5, Redis-cached)
 │   │   ├── contributorSync.ts    # Forum-wide contributor sync from Discourse directory
 │   │   ├── db.ts                 # Delegate-specific DB queries
 │   │   ├── discourseClient.ts    # Discourse API client for delegate data
@@ -188,7 +191,8 @@ src/
 │   ├── externalSources.ts        # External source registry (EA Forum, GitHub, Snapshot, HN)
 │   ├── fetchWithRetry.ts         # Fetch with exponential backoff retry
 │   ├── forumCache.ts             # Server-side forum cache (Redis + memory + Postgres)
-│   ├── forumPresets.ts           # 100+ pre-configured forum presets by category
+│   ├── forumPresets.ts           # 165+ pre-configured forum presets by category
+│   ├── grantsBrief.ts            # Grants & funding brief generation (filters cached data, AI summary, email)
 │   ├── githubDiscussionsClient.ts # GitHub Discussions GraphQL client
 │   ├── logoUtils.ts              # Protocol logo URL utilities
 │   ├── privy.ts                  # Privy REST API client (fetchPrivyUsers)
@@ -298,13 +302,14 @@ Requires admin auth (`x-admin-email` header) or `CRON_SECRET` bearer token.
 | `/api/user/alerts` | GET/POST | Sync keyword alerts |
 | `/api/user/bookmarks` | GET/POST | Sync bookmarks |
 | `/api/user/read-state` | GET/POST | Sync read/unread state |
-| `/api/user/preferences` | GET/POST | Sync user preferences |
-| `/api/user/digest-preferences` | GET/POST | Email digest settings |
+| `/api/user/preferences` | GET/POST | Sync user preferences (includes digest settings) |
 | `/api/admin` | GET | Admin dashboard data |
 | `/api/backfill` | POST | Database backfill |
+| `/api/briefs` | GET | Zero-cost discovery endpoint (trending + new topics from forum cache) |
 | `/api/cache` | GET | Cache status and stats |
 | `/api/cron/delegates` | GET | Cron-triggered delegate data refresh for all active tenants |
 | `/api/cron/digest` | GET | Cron-triggered digest email sending |
+| `/api/cron/grants-brief` | GET | Cron-triggered grants & funding brief email |
 | `/api/db` | GET | Database connection status |
 | `/api/delegates/[tenant]` | GET | Delegate dashboard data for a tenant (`?filter=tracked` for tracked-only) |
 | `/api/delegates/[tenant]/[username]` | GET | Individual delegate detail |
@@ -552,6 +557,11 @@ interface Delegate {
   directoryDaysVisited?: number;
   directoryPostsRead?: number;
   directoryTopicsEntered?: number;
+  // Monthly directory stats (from /directory_items.json?period=monthly)
+  directoryPostCountMonth?: number;
+  directoryTopicCountMonth?: number;
+  directoryLikesReceivedMonth?: number;
+  directoryDaysVisitedMonth?: number;
   // Percentile rankings (computed during sync, against total forum population)
   postCountPercentile?: number;
   likesReceivedPercentile?: number;
@@ -571,6 +581,10 @@ interface DelegateRow {
   postCount: number;
   likesReceived: number;
   daysVisited: number;
+  // Monthly stats (from directory monthly period)
+  postCountMonth?: number;
+  likesReceivedMonth?: number;
+  daysVisitedMonth?: number;
   // Percentile rankings
   postCountPercentile?: number;
   likesReceivedPercentile?: number;
@@ -597,6 +611,7 @@ interface DelegateDashboard {
   };
   delegates: DelegateRow[];
   summary: DashboardSummary;
+  brief?: string;                        // AI-generated activity snapshot (Haiku 4.5, Redis-cached)
   trackedCount: number;                // Number of tracked members (for toggle UI)
   lastRefreshAt: string | null;
   capabilities: TenantCapabilities;
@@ -634,7 +649,7 @@ validateDiscourseUrl(url: string): Promise<{ valid: boolean; name?: string; erro
 
 ## Forum Presets System
 
-The application includes 100+ pre-configured Discourse forums organized by category and tier in `lib/forumPresets.ts`:
+The application includes 165+ pre-configured forums (Discourse, GitHub Discussions, EA Forum, Snapshot, HN) organized by category and tier in `lib/forumPresets.ts`:
 
 ### Categories
 
@@ -936,12 +951,14 @@ The system has two layers:
 
 ### Key Files
 
+- `src/lib/delegates/brief.ts` -- AI brief generation for dashboards (Haiku 4.5, Redis-cached per refresh cycle)
 - `src/lib/delegates/contributorSync.ts` -- Forum-wide contributor sync from Discourse directory
 - `src/lib/delegates/db.ts` -- DB queries (CRUD, dashboard assembly, schema migrations)
 - `src/lib/delegates/discourseClient.ts` -- Discourse API client (user stats, posts, rationales, directory items, capability detection)
 - `src/lib/delegates/encryption.ts` -- AES-256-GCM encryption for API keys
 - `src/lib/delegates/refreshEngine.ts` -- Two-phase refresh orchestration
 - `src/lib/delegates/index.ts` -- Barrel export (includes `fetchDirectoryItems`, `syncContributorsFromDirectory`)
+- `src/lib/grantsBrief.ts` -- Grants & funding brief: filters cached forums for grants keywords, generates AI summary, formats email
 - `src/types/delegates.ts` -- All delegate-related TypeScript types
 - `src/app/[tenant]/` -- Public dashboard pages
 - `src/app/api/delegates/` -- API routes for tenant/delegate management
@@ -998,8 +1015,9 @@ The `lib/externalSources.ts` registry defines 20+ configured sources with their 
 |----------|----------|---------|
 | `/api/cron/digest` | Daily 8am UTC | Send email digests to subscribers |
 | `/api/cron/delegates` | Per-tenant interval (default 12h) | Refresh delegate stats from Discourse |
+| `/api/cron/grants-brief` | Daily | Generate and email grants & funding brief |
 
-Both endpoints are protected by `CRON_SECRET` (constant-time comparison via `timingSafeEqual`). In development mode, `/api/cron/delegates` allows unauthenticated access when `CRON_SECRET` is not set.
+All cron endpoints are protected by `CRON_SECRET` (constant-time comparison via `timingSafeEqual`). In development mode, `/api/cron/delegates` allows unauthenticated access when `CRON_SECRET` is not set.
 
 ## RSS/Atom Feeds
 
