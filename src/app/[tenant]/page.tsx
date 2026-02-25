@@ -827,38 +827,70 @@ function OverviewTab({
       {/* Activity Snapshot */}
       <AIBriefCard brief={dashboard.brief} t={t} bc={bc} isMobile={isMobile} />
 
-      {/* Key Stats Row */}
-      <KeyStatsRow summary={summary} t={t} accent={bc?.accent} isMobile={isMobile} />
+      {isMobile ? (
+        <>
+          <KeyStatsRow summary={summary} t={t} accent={bc?.accent} isMobile={isMobile} />
+          <ActivityBar
+            distribution={summary.hasMonthlyData && summary.monthlyActivityDistribution ? summary.monthlyActivityDistribution : summary.activityDistribution}
+            total={summary.totalDelegates}
+            t={t}
+            isMobile={isMobile}
+            isMonthly={!!summary.hasMonthlyData}
+          />
+          <TopContributorsList
+            delegates={delegates}
+            t={t}
+            bc={bc}
+            isMobile={isMobile}
+            onSelect={onSelectDelegate}
+            hasMonthlyData={!!summary.hasMonthlyData}
+          />
+          <HighlightsList
+            summary={summary}
+            delegates={delegates}
+            hasTracked={hasTracked}
+            trackedLabelPlural={trackedLabelPlural}
+            t={t}
+            isMobile={isMobile}
+            hasMonthlyData={!!summary.hasMonthlyData}
+          />
+        </>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '55% 45%', gap: 24 }}>
+          {/* Left column: Metrics & visualization */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <KeyStatsRow summary={summary} t={t} accent={bc?.accent} isMobile={isMobile} />
+            <ActivityBar
+              distribution={summary.hasMonthlyData && summary.monthlyActivityDistribution ? summary.monthlyActivityDistribution : summary.activityDistribution}
+              total={summary.totalDelegates}
+              t={t}
+              isMobile={isMobile}
+              isMonthly={!!summary.hasMonthlyData}
+            />
+          </div>
 
-      {/* Activity Distribution Bar */}
-      <ActivityBar
-        distribution={summary.hasMonthlyData && summary.monthlyActivityDistribution ? summary.monthlyActivityDistribution : summary.activityDistribution}
-        total={summary.totalDelegates}
-        t={t}
-        isMobile={isMobile}
-        isMonthly={!!summary.hasMonthlyData}
-      />
-
-      {/* Recently Active / Top Contributors */}
-      <TopContributorsList
-        delegates={delegates}
-        t={t}
-        bc={bc}
-        isMobile={isMobile}
-        onSelect={onSelectDelegate}
-        hasMonthlyData={!!summary.hasMonthlyData}
-      />
-
-      {/* Highlights */}
-      <HighlightsList
-        summary={summary}
-        delegates={delegates}
-        hasTracked={hasTracked}
-        trackedLabelPlural={trackedLabelPlural}
-        t={t}
-        isMobile={isMobile}
-        hasMonthlyData={!!summary.hasMonthlyData}
-      />
+          {/* Right column: People & insights */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <TopContributorsList
+              delegates={delegates}
+              t={t}
+              bc={bc}
+              isMobile={isMobile}
+              onSelect={onSelectDelegate}
+              hasMonthlyData={!!summary.hasMonthlyData}
+            />
+            <HighlightsList
+              summary={summary}
+              delegates={delegates}
+              hasTracked={hasTracked}
+              trackedLabelPlural={trackedLabelPlural}
+              t={t}
+              isMobile={isMobile}
+              hasMonthlyData={!!summary.hasMonthlyData}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -931,7 +963,7 @@ function KeyStatsRow({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(2, 1fr)',
         gap: isMobile ? 8 : 12,
       }}
     >
