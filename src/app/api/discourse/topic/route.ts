@@ -68,7 +68,12 @@ export async function GET(request: NextRequest) {
   }
 
   // Outgoing rate limit per domain
-  const parsedUrl = new URL(forumUrl);
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(forumUrl);
+  } catch {
+    return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+  }
   const outgoingLimit = checkOutgoingRateLimit(parsedUrl.hostname);
   if (!outgoingLimit.allowed) {
     return NextResponse.json(
@@ -140,7 +145,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Topic API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch topic' },
+      { error: 'Failed to fetch topic from forum' },
       { status: 500 }
     );
   }

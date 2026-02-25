@@ -34,6 +34,9 @@ function buildUrlCategoryMap(): Map<string, string> {
   return map;
 }
 
+// Pre-compute at module level — FORUM_CATEGORIES and EXTERNAL_SOURCES are static
+const urlCategoryMap = buildUrlCategoryMap();
+
 interface BriefsTopic extends DiscussionTopic {
   isFollowing: boolean;
   category: string;
@@ -51,8 +54,6 @@ export async function GET(request: NextRequest) {
       .map(u => u.trim().replace(/\/$/, '').toLowerCase())
       .filter(Boolean)
   );
-
-  const urlCategoryMap = buildUrlCategoryMap();
   const allCached = getAllCachedForums();
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;

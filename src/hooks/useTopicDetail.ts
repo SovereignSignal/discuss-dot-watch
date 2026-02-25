@@ -15,30 +15,30 @@ export function useTopicDetail(forumUrl: string | null, topicId: number | null) 
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setIsLoading(true);
     setError(null);
 
-    fetch(`/api/discourse/topic?forumUrl=${encodeURIComponent(forumUrl)}&topicId=${topicId}`)
+    fetch(
+      `/api/discourse/topic?forumUrl=${encodeURIComponent(forumUrl)}&topicId=${topicId}`,
+      { signal: controller.signal }
+    )
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((data) => {
-        if (!cancelled) {
-          setTopicDetail(data.topic);
-          setIsLoading(false);
-        }
+        setTopicDetail(data.topic);
+        setIsLoading(false);
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(err.message);
-          setIsLoading(false);
-        }
+        if (err.name === 'AbortError') return;
+        setError(err.message);
+        setIsLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [forumUrl, topicId]);
 

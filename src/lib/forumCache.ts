@@ -635,18 +635,25 @@ async function refreshExternalSources(): Promise<void> {
  * Refresh cache for all forums (or specific tiers)
  */
 export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void> {
+  // Fast local check (avoids async Redis call when same process is already refreshing)
   if (isRefreshing) {
-    console.log('[ForumCache] Refresh already in progress, skipping');
+    console.log('[ForumCache] Refresh already in progress (local), skipping');
     return;
   }
-  
-  // Try to acquire distributed lock (for multi-instance deployments)
+
+  // Distributed lock for multi-instance deployments (authoritative)
   const hasLock = await acquireRefreshLock(300);
   if (!hasLock) {
-    console.log('[ForumCache] Another instance is refreshing, skipping');
+    console.log('[ForumCache] Another instance is refreshing (distributed lock), skipping');
     return;
   }
-  
+
+  // Re-check local flag after acquiring lock to handle TOCTOU race
+  if (isRefreshing) {
+    console.log('[ForumCache] Refresh started by another call while acquiring lock, skipping');
+    return;
+  }
+
   isRefreshing = true;
   lastRefreshStart = Date.now();
   

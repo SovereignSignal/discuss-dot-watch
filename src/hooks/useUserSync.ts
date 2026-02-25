@@ -122,7 +122,7 @@ export function useUserSync(): UseUserSyncReturn {
     try {
       const authHeaders = await getAuthHeaders();
       await fetch('/api/user/forums', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ forums }),
       });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Bookmark } from '@/types';
 import { getBookmarks, saveBookmarks as saveBookmarksToStorage } from '@/lib/storage';
 
@@ -104,9 +104,14 @@ export function useBookmarks() {
     });
   }, [persistBookmarks]);
 
+  const bookmarkedRefIds = useMemo(
+    () => new Set(bookmarks.map(b => b.topicRefId)),
+    [bookmarks]
+  );
+
   const isBookmarked = useCallback((topicRefId: string) => {
-    return bookmarks.some(b => b.topicRefId === topicRefId);
-  }, [bookmarks]);
+    return bookmarkedRefIds.has(topicRefId);
+  }, [bookmarkedRefIds]);
 
   const importBookmarks = useCallback((newBookmarks: Bookmark[], replace = false) => {
     setBookmarks(prev => {

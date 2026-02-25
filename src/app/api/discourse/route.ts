@@ -255,7 +255,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Discourse API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch topics' },
+      { error: 'Failed to fetch topics from forum' },
       { status: 500 }
     );
   }

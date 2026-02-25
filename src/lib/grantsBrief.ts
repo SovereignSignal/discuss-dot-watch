@@ -154,10 +154,12 @@ Respond with just the summary, no preamble.`,
   }
 }
 
+// Pre-compute at module level — FORUM_CATEGORIES and EXTERNAL_SOURCES are static
+const urlCategoryMap = buildUrlCategoryMap();
+
 // ── Main generation function ───────────────────────────────────────
 
 export async function generateGrantsBrief(): Promise<GrantsBriefContent | null> {
-  const urlCategoryMap = buildUrlCategoryMap();
   const allCached = getAllCachedForums();
 
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
