@@ -369,9 +369,9 @@ export default function LandingPage() {
             </div>
             <p className="text-sm" style={{ color: isDark ? '#52525b' : '#9ca3af' }}>
               Part of the{' '}
-              <a 
-                href="https://sovereignsignal.substack.com" 
-                target="_blank" 
+              <a
+                href="https://sovereignsignal.substack.com"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-2 hover:opacity-80"
               >
@@ -379,6 +379,11 @@ export default function LandingPage() {
               </a>
               {' '}ecosystem
             </p>
+          </div>
+          <div className="flex items-center justify-center gap-4 mt-4 text-xs" style={{ color: isDark ? '#52525b' : '#9ca3af' }}>
+            <Link href="/terms" className="hover:underline underline-offset-2">Terms</Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:underline underline-offset-2">Privacy</Link>
           </div>
         </div>
       </footer>
