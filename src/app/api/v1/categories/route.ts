@@ -5,6 +5,9 @@
 
 import { NextResponse } from 'next/server';
 import { FORUM_CATEGORIES } from '@/lib/forumPresets';
+import { withCors, corsOptions } from '@/lib/cors';
+
+export function OPTIONS() { return corsOptions(); }
 
 export async function GET() {
   const categories = FORUM_CATEGORIES.map(c => ({
@@ -26,7 +29,7 @@ export async function GET() {
     oss: categories.filter(c => c.id.startsWith('oss-')),
   };
 
-  return NextResponse.json({
+  return withCors(NextResponse.json({
     data: categories,
     meta: {
       totalCategories: categories.length,
@@ -37,5 +40,5 @@ export async function GET() {
         oss: verticals.oss.reduce((sum, c) => sum + c.forumCount, 0),
       },
     },
-  });
+  }));
 }

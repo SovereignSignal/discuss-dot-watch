@@ -165,21 +165,22 @@ export async function PUT(request: NextRequest) {
 
     const userId = users[0].id;
 
-    // Delete all existing bookmarks
-    await sql`DELETE FROM bookmarks WHERE user_id = ${userId}`;
-
-    // Insert all bookmarks
+    // Delete and re-insert all bookmarks in a transaction
     let count = 0;
-    for (const bookmark of bookmarks) {
-      if (bookmark.topicRefId && bookmark.topicTitle && bookmark.topicUrl && bookmark.protocol) {
-        await sql`
-          INSERT INTO bookmarks (user_id, topic_ref_id, topic_title, topic_url, protocol)
-          VALUES (${userId}, ${bookmark.topicRefId}, ${bookmark.topicTitle}, ${bookmark.topicUrl}, ${bookmark.protocol})
-          ON CONFLICT (user_id, topic_ref_id) DO NOTHING
-        `;
-        count++;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await sql.begin(async (tx: any) => {
+      await tx`DELETE FROM bookmarks WHERE user_id = ${userId}`;
+      for (const bookmark of bookmarks) {
+        if (bookmark.topicRefId && bookmark.topicTitle && bookmark.topicUrl && bookmark.protocol) {
+          await tx`
+            INSERT INTO bookmarks (user_id, topic_ref_id, topic_title, topic_url, protocol)
+            VALUES (${userId}, ${bookmark.topicRefId}, ${bookmark.topicTitle}, ${bookmark.topicUrl}, ${bookmark.protocol})
+            ON CONFLICT (user_id, topic_ref_id) DO NOTHING
+          `;
+          count++;
+        }
       }
-    }
+    });
 
     return NextResponse.json({ success: true, count });
   } catch (error) {

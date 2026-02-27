@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCacheStats, getForumHealthFromCache, refreshCache } from '@/lib/forumCache';
+import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 
 /**
- * GET /api/cache - Get cache statistics
+ * GET /api/cache - Get cache statistics (admin only)
  * ?details=true - Include per-forum health status
  */
 export async function GET(request: NextRequest) {
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const stats = getCacheStats();
   const showDetails = request.nextUrl.searchParams.get('details') === 'true';
 
@@ -28,10 +34,14 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/cache - Manually trigger cache refresh (admin only in future)
+ * POST /api/cache - Manually trigger cache refresh (admin only)
  */
-export async function POST() {
-  // In production, you'd want to protect this with auth
+export async function POST(request: NextRequest) {
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     // Don't await - let it run in background
     refreshCache([1, 2, 3]).catch(err => {

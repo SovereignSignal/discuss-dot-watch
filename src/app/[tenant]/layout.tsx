@@ -38,7 +38,22 @@ export async function generateMetadata({
   const description = branding?.heroSubtitle
     || `Delegate activity monitoring for ${displayName} governance forum.`;
 
-  return { title, description };
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: `https://discuss.watch/${slug}`,
+      siteName: 'discuss.watch',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary',
+      title,
+      description,
+    },
+  };
 }
 
 export default function TenantLayout({

@@ -222,25 +222,26 @@ export async function PUT(request: NextRequest) {
 
     const userId = users[0].id;
 
-    // Delete all existing alerts
-    await sql`DELETE FROM keyword_alerts WHERE user_id = ${userId}`;
-
-    // Insert all alerts
-    const insertedAlerts = [];
-    for (const alert of alerts) {
-      const sanitizedKeyword = alert.keyword.trim().slice(0, 100);
-      if (sanitizedKeyword) {
-        const result = await sql`
-          INSERT INTO keyword_alerts (user_id, keyword, is_enabled)
-          VALUES (${userId}, ${sanitizedKeyword}, ${alert.isEnabled ?? true})
-          ON CONFLICT (user_id, LOWER(keyword)) DO NOTHING
-          RETURNING id, keyword, is_enabled, created_at
-        ` as Alert[];
-        if (result && result.length > 0) {
-          insertedAlerts.push(result[0]);
+    // Delete and re-insert all alerts in a transaction
+    const insertedAlerts: Alert[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await sql.begin(async (tx: any) => {
+      await tx`DELETE FROM keyword_alerts WHERE user_id = ${userId}`;
+      for (const alert of alerts) {
+        const sanitizedKeyword = alert.keyword.trim().slice(0, 100);
+        if (sanitizedKeyword) {
+          const result = await tx`
+            INSERT INTO keyword_alerts (user_id, keyword, is_enabled)
+            VALUES (${userId}, ${sanitizedKeyword}, ${alert.isEnabled ?? true})
+            ON CONFLICT (user_id, LOWER(keyword)) DO NOTHING
+            RETURNING id, keyword, is_enabled, created_at
+          ` as Alert[];
+          if (result && result.length > 0) {
+            insertedAlerts.push(result[0]);
+          }
         }
       }
-    }
+    });
 
     return NextResponse.json({ success: true, count: insertedAlerts.length });
   } catch (error) {

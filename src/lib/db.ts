@@ -128,7 +128,8 @@ export async function initializeSchema() {
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
       theme TEXT DEFAULT 'dark',
       onboarding_completed BOOLEAN DEFAULT false,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )
   `;
   await db`
@@ -194,6 +195,9 @@ export async function initializeSchema() {
       UNIQUE(user_id, topic_ref_id)
     )
   `;
+
+  // Forward-compatible migration: add updated_at to user_preferences if missing
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()`;
 
   // Create indexes for common queries
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;

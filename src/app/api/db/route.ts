@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  initializeSchema, 
-  getDbStats, 
+import {
+  initializeSchema,
+  getDbStats,
   isDatabaseConfigured,
   getRecentTopics,
   searchTopics,
 } from '@/lib/db';
 import { getCacheStats } from '@/lib/redis';
+import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 
 /**
- * GET /api/db - Get database and cache stats
+ * GET /api/db - Get database and cache stats (admin only)
  */
 export async function GET(request: NextRequest) {
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get('action');
   
@@ -93,9 +99,14 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/db - Initialize database schema
+ * POST /api/db - Initialize database schema (admin only)
  */
 export async function POST(request: NextRequest) {
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   if (!isDatabaseConfigured()) {
     return NextResponse.json(
       { error: 'DATABASE_URL environment variable is not set' },

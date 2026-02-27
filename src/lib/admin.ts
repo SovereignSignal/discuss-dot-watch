@@ -4,11 +4,10 @@
  * Controls who can access admin features
  */
 
-// Admin emails - add your email here
-const ADMIN_EMAILS = [
-  'sov@sovereignsignal.com',
-  // Add more admin emails as needed
-];
+// Admin emails — read from ADMIN_EMAILS env var (comma-separated), falling back to hardcoded default
+const ADMIN_EMAILS: string[] = process.env.ADMIN_EMAILS
+  ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()).filter(Boolean)
+  : ['sov@sovereignsignal.com'];
 
 // Admin Privy DIDs (optional, for wallet-based auth)
 const ADMIN_DIDS: string[] = [

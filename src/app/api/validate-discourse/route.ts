@@ -7,7 +7,7 @@ async function tryFetch(url: string, timeout = 8000): Promise<Response | null> {
     const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; GovWatch/1.0)',
+        'User-Agent': 'discuss.watch/1.0 (forum validator; https://discuss.watch)',
       },
       signal: AbortSignal.timeout(timeout),
     });

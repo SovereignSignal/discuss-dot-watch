@@ -6,10 +6,23 @@ import { DataSyncProvider } from "@/components/DataSyncProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://discuss.watch'),
   title: "discuss.watch – Unified Forum Feed",
   description: "All your forums, one feed. Aggregate discussions from crypto, AI, and open source communities.",
   icons: {
     icon: "/icon.svg",
+  },
+  openGraph: {
+    title: "discuss.watch – Unified Forum Feed",
+    description: "All your forums, one feed. Aggregate discussions from crypto, AI, and open source communities.",
+    url: "https://discuss.watch",
+    siteName: "discuss.watch",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "discuss.watch – Unified Forum Feed",
+    description: "All your forums, one feed. Aggregate discussions from crypto, AI, and open source communities.",
   },
 };
 

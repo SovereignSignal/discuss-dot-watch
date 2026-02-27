@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server';
 import { FORUM_CATEGORIES, ALL_FORUM_PRESETS, ForumPreset } from '@/lib/forumPresets';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
+import { withCors, corsOptions } from '@/lib/cors';
 
 interface SearchResult {
   id: number;
@@ -103,15 +104,17 @@ async function searchForum(forum: ForumPreset, query: string, limit: number): Pr
   }
 }
 
+export function OPTIONS() { return corsOptions(); }
+
 export async function GET(request: Request) {
   // Rate limit: 15 requests per minute per IP
   const ip = getRateLimitKey(request);
   const rateLimit = checkRateLimit(`v1:search:${ip}`, { windowMs: 60000, maxRequests: 15 });
   if (!rateLimit.allowed) {
-    return NextResponse.json(
+    return withCors(NextResponse.json(
       { error: 'Rate limit exceeded. Please try again later.' },
       { status: 429, headers: { 'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000).toString() } },
-    );
+    ));
   }
 
   const { searchParams } = new URL(request.url);
@@ -122,10 +125,10 @@ export async function GET(request: Request) {
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '10'), 25);
 
   if (!query || query.trim().length < 2) {
-    return NextResponse.json(
+    return withCors(NextResponse.json(
       { error: 'Query parameter "q" is required and must be at least 2 characters' },
       { status: 400 }
-    );
+    ));
   }
 
   // Determine which forums to search
@@ -147,10 +150,10 @@ export async function GET(request: Request) {
   }
 
   if (forums.length === 0) {
-    return NextResponse.json({
+    return withCors(NextResponse.json({
       data: [],
       meta: { total: 0, query, error: 'No matching forums found' },
-    });
+    }));
   }
 
   // Limit concurrent searches
@@ -168,7 +171,7 @@ export async function GET(request: Request) {
   // Simple approach: sort by likes as a proxy for quality
   discussions.sort((a, b) => b.likes - a.likes);
 
-  return NextResponse.json({
+  return withCors(NextResponse.json({
     data: discussions,
     meta: {
       total: discussions.length,
@@ -176,5 +179,5 @@ export async function GET(request: Request) {
       forums: selectedForums.length,
       forumNames: selectedForums.map(f => f.name),
     },
-  });
+  }));
 }

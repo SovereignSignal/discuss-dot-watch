@@ -5,6 +5,9 @@
 
 import { NextResponse } from 'next/server';
 import { FORUM_CATEGORIES, ALL_FORUM_PRESETS } from '@/lib/forumPresets';
+import { withCors, corsOptions } from '@/lib/cors';
+
+export function OPTIONS() { return corsOptions(); }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -27,7 +30,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({
+  return withCors(NextResponse.json({
     data: forums.map(f => ({
       name: f.name,
       url: f.url,
@@ -45,5 +48,5 @@ export async function GET(request: Request) {
         forumCount: c.forums.length,
       })),
     },
-  });
+  }));
 }

@@ -86,18 +86,22 @@ export async function PUT(request: NextRequest) {
 
     const userId = users[0].id;
 
-    // Insert all read states
+    // Batch insert all read states in a transaction
+    const validIds = topicRefIds.filter(Boolean);
     let count = 0;
-    for (const topicRefId of topicRefIds) {
-      if (topicRefId) {
-        await sql`
-          INSERT INTO read_state (user_id, topic_ref_id)
-          VALUES (${userId}, ${topicRefId})
-          ON CONFLICT (user_id, topic_ref_id)
-          DO UPDATE SET read_at = NOW()
-        `;
-        count++;
-      }
+    if (validIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await sql.begin(async (tx: any) => {
+        for (const topicRefId of validIds) {
+          await tx`
+            INSERT INTO read_state (user_id, topic_ref_id)
+            VALUES (${userId}, ${topicRefId})
+            ON CONFLICT (user_id, topic_ref_id)
+            DO UPDATE SET read_at = NOW()
+          `;
+          count++;
+        }
+      });
     }
 
     return NextResponse.json({ success: true, count });

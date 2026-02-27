@@ -4,10 +4,4 @@
 User-agent: *
 Allow: /
 
-# API Documentation for AI agents
-# Human-readable: /api/v1
-# Machine-readable: /api/v1/openapi.json
-# LLM instructions: /llms.txt
-# AI plugin manifest: /.well-known/ai-plugin.json
-
 Sitemap: https://discuss.watch/sitemap.xml

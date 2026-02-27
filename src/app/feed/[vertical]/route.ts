@@ -1,63 +1,52 @@
 /**
- * RSS/Atom feeds for discussions
- * 
+ * RSS/Atom feeds for discussions (served from cache — no upstream fetches)
+ *
  * GET /feed/all.xml     - All discussions
  * GET /feed/crypto.xml  - Crypto vertical
- * GET /feed/ai.xml      - AI vertical  
+ * GET /feed/ai.xml      - AI vertical
  * GET /feed/oss.xml     - OSS vertical
  */
 
 import { NextResponse } from 'next/server';
 import { FORUM_CATEGORIES, ALL_FORUM_PRESETS, ForumPreset } from '@/lib/forumPresets';
+import { getAllCachedForums } from '@/lib/forumCache';
 
-interface DiscoursePost {
-  id: number;
+interface FeedItem {
   title: string;
-  slug: string;
-  created_at: string;
-  bumped_at?: string;
-  posts_count: number;
+  url: string;
+  forum: string;
+  createdAt: string;
+  updatedAt: string;
+  replies: number;
   views: number;
-  like_count: number;
 }
 
-async function fetchForumDiscussions(forum: ForumPreset, limit: number = 10): Promise<any[]> {
-  try {
-    const baseUrl = forum.url.replace(/\/$/, '');
-    const response = await fetch(`${baseUrl}/latest.json?per_page=${limit}`, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'discuss.watch/1.0',
-      },
-      next: { revalidate: 600 }, // Cache for 10 minutes
-    });
+function getItemsFromCache(forumUrls: Set<string>): FeedItem[] {
+  const cachedForums = getAllCachedForums();
+  const items: FeedItem[] = [];
 
-    if (!response.ok) return [];
+  for (const cached of cachedForums) {
+    const normalizedUrl = cached.url.replace(/\/$/, '').toLowerCase();
+    if (!forumUrls.has(normalizedUrl)) continue;
 
-    const data = await response.json();
-    const topics = data.topic_list?.topics ?? [];
-
-    return topics
-      .filter((t: any) => t.visible !== false && !t.archived)
-      .slice(0, limit)
-      .map((topic: DiscoursePost) => ({
-        id: topic.id,
+    for (const topic of cached.topics) {
+      items.push({
         title: topic.title,
-        url: `${baseUrl}/t/${topic.slug}/${topic.id}`,
-        forum: forum.name,
-        forumUrl: forum.url,
-        createdAt: topic.created_at,
-        updatedAt: topic.bumped_at || topic.created_at,
-        replies: topic.posts_count - 1,
-        views: topic.views,
-      }));
-  } catch {
-    return [];
+        url: `${cached.url.replace(/\/$/, '')}/t/${topic.slug}/${topic.id}`,
+        forum: topic.protocol || cached.url,
+        createdAt: topic.createdAt,
+        updatedAt: topic.bumpedAt || topic.createdAt,
+        replies: topic.replyCount || (topic.postsCount > 0 ? topic.postsCount - 1 : 0),
+        views: topic.views || 0,
+      });
+    }
   }
+
+  return items;
 }
 
-function generateAtomFeed(items: any[], title: string, feedUrl: string): string {
-  const updated = items.length > 0 
+function generateAtomFeed(items: FeedItem[], title: string, feedUrl: string): string {
+  const updated = items.length > 0
     ? new Date(Math.max(...items.map(i => new Date(i.updatedAt).getTime()))).toISOString()
     : new Date().toISOString();
 
@@ -94,7 +83,7 @@ export async function GET(
 ) {
   const { vertical } = await params;
   const verticalName = vertical.replace('.xml', '').replace('.atom', '');
-  
+
   let forums: ForumPreset[] = [];
   let title = 'discuss.watch';
 
@@ -126,8 +115,7 @@ export async function GET(
         .slice(0, 8);
       title = 'discuss.watch - Open Source';
       break;
-    default:
-      // Try to match a category ID
+    default: {
       const category = FORUM_CATEGORIES.find(c => c.id === verticalName);
       if (category) {
         forums = category.forums.slice(0, 10);
@@ -135,19 +123,17 @@ export async function GET(
       } else {
         return new NextResponse('Feed not found', { status: 404 });
       }
+    }
   }
 
   if (forums.length === 0) {
     return new NextResponse('No forums found', { status: 404 });
   }
 
-  // Fetch discussions in parallel
-  const results = await Promise.all(
-    forums.map(forum => fetchForumDiscussions(forum, 5))
-  );
+  // Build set of forum URLs to match against cache
+  const forumUrls = new Set(forums.map(f => f.url.replace(/\/$/, '').toLowerCase()));
 
-  const items = results
-    .flat()
+  const items = getItemsFromCache(forumUrls)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 50);
 

@@ -303,9 +303,14 @@ async function generateDigestContent(period: 'daily' | 'weekly'): Promise<Digest
   }, insightCache);
 }
 
-// GET - Preview digest (generates content, doesn't send)
+// GET - Preview digest (admin only — triggers Claude API calls)
 // ?privyDid=xxx for personalized preview
 export async function GET(request: NextRequest) {
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const period = (searchParams.get('period') as 'daily' | 'weekly') || 'weekly';
   const format = searchParams.get('format') || 'json';

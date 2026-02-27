@@ -7,11 +7,14 @@
  */
 
 import { NextResponse } from 'next/server';
+import { withCors, corsOptions } from '@/lib/cors';
+
+export function OPTIONS() { return corsOptions(); }
 
 export async function GET() {
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch').replace(/\/+$/, '');
 
-  return NextResponse.json({
+  return withCors(NextResponse.json({
     name: 'discuss-watch',
     version: '1.0.0',
     description: 'Unified forum feed for crypto, AI, and open source communities',
@@ -138,5 +141,5 @@ export async function GET() {
         request: `GET ${baseUrl}/api/v1/search?q=grants&category=crypto`,
       },
     },
-  });
+  }));
 }
