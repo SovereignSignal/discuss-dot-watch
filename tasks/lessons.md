@@ -75,6 +75,48 @@ nixPkgs = ["nodejs_22"]
 
 ---
 
+### Railway Middleware www Redirect Breaks Healthchecks
+**Date:** February 27, 2026
+**Issue:** Deploy failed with "Deployment failed during network process" / "1/1 replicas never became healthy!" after adding a catch-all non-www → www redirect in Next.js middleware.
+**Root Cause:** Railway healthchecks use **internal hostnames** (not `localhost`, not your public domain). A catch-all `!host.startsWith('www.')` redirect was redirecting healthcheck requests to `www.{internal-hostname}`, which doesn't resolve — causing a 4.5-minute timeout and deploy failure.
+
+**Bad:**
+```typescript
+// Catches Railway internal healthcheck traffic and breaks deploys
+if (!isDev && !host.startsWith('www.')) {
+  redirect to www.${host}  // www.internal-hostname doesn't exist!
+}
+```
+
+**Good:**
+```typescript
+// Only redirect the exact bare production domain
+if (host === 'discuss.watch') {
+  redirect to www.discuss.watch
+}
+```
+
+**Pattern:** Never use catch-all hostname redirects on Railway. Only redirect specific known domains. Railway's internal infrastructure uses non-standard hostnames for healthchecks, routing, and service discovery.
+
+---
+
+### Railway CDN Strips next.config.ts Response Headers
+**Date:** February 27, 2026
+**Issue:** Security headers set via `next.config.ts` `headers()` config worked locally but were invisible on production.
+**Root Cause:** Railway's Fastly CDN edge strips custom response headers set by Next.js `headers()` config.
+
+**Solution:** Set headers in middleware instead — middleware headers survive the CDN:
+```typescript
+const response = NextResponse.next();
+response.headers.set('X-Frame-Options', 'DENY');
+// ... these survive Railway's CDN
+return response;
+```
+
+**Pattern:** On Railway, always use middleware (not `next.config.ts`) for custom response headers.
+
+---
+
 ### Environment Variables for Client Components
 **Pattern:** Use `NEXT_PUBLIC_` prefix for env vars needed in client components.
 
