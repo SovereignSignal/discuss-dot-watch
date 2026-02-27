@@ -11,12 +11,11 @@ const securityHeaders: Record<string, string> = {
 
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host') ?? '';
-  const isDev = host.startsWith('localhost') || host.startsWith('127.0.0.1');
 
-  // Redirect non-www to www (production only)
-  if (!isDev && !host.startsWith('www.')) {
+  // Redirect bare domain to www (only for the exact production domain)
+  if (host === 'discuss.watch') {
     const url = request.nextUrl.clone();
-    url.host = `www.${host}`;
+    url.host = 'www.discuss.watch';
     return NextResponse.redirect(url, 301);
   }
 
