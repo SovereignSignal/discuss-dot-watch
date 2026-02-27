@@ -100,6 +100,26 @@ if (host === 'discuss.watch') {
 
 ---
 
+### Next.js notFound() Returns HTTP 200 in Async Server Components
+**Date:** February 27, 2026
+**Issue:** `notFound()` called in async server component `page.tsx` renders the correct "Page not found" content but returns HTTP 200 instead of 404.
+**Root Cause:** Next.js RSC streaming commits the HTTP 200 status in the initial response shell before async server components resolve. When `notFound()` is called after an `await`, the status is already sent — the 404 error is only communicated via RSC flight data (`E{"digest":"NEXT_HTTP_ERROR_FALLBACK;404"}`), which the client handles for rendering but can't change the HTTP status.
+
+**Solution:** Validate in middleware (runs before any response) and rewrite invalid paths to `/_not-found`:
+```typescript
+// In middleware.ts — runs before streaming starts
+const slug = segments[0];
+if (!VALID_SLUG.test(slug) || slug.length > 64) {
+  const url = request.nextUrl.clone();
+  url.pathname = '/_not-found';
+  return NextResponse.rewrite(url); // Returns proper HTTP 404
+}
+```
+
+**Pattern:** For HTTP status codes that depend on async validation, use middleware or `generateStaticParams` + `dynamicParams: false` — never rely on `notFound()` in async server components for correct HTTP status.
+
+---
+
 ### Railway CDN Strips next.config.ts Response Headers
 **Date:** February 27, 2026
 **Issue:** Security headers set via `next.config.ts` `headers()` config worked locally but were invisible on production.
