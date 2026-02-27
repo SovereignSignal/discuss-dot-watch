@@ -9,6 +9,22 @@ const securityHeaders: Record<string, string> = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
+// Slug format for [tenant] dynamic route
+const VALID_SLUG = /^[a-z0-9][a-z0-9-]*$/;
+
+// Routes that have their own static pages (not caught by [tenant])
+const STATIC_ROUTES = new Set([
+  'admin', 'api', 'app', 'feed', 'privacy', 'terms',
+  'sitemap.xml', 'robots.txt', 'icon.svg',
+]);
+
+function addSecurityHeaders(response: NextResponse) {
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host') ?? '';
 
@@ -19,14 +35,22 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  const response = NextResponse.next();
-
-  // Set security headers on all responses
-  for (const [key, value] of Object.entries(securityHeaders)) {
-    response.headers.set(key, value);
+  // Validate [tenant] slug format before rendering starts.
+  // notFound() in async server components can't set HTTP 404 because
+  // Next.js streaming commits the 200 status before they resolve.
+  const pathname = request.nextUrl.pathname;
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length >= 1 && !STATIC_ROUTES.has(segments[0])) {
+    const slug = segments[0];
+    if (!VALID_SLUG.test(slug) || slug.length > 64) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/_not-found';
+      return addSecurityHeaders(NextResponse.rewrite(url));
+    }
   }
 
-  return response;
+  const response = NextResponse.next();
+  return addSecurityHeaders(response);
 }
 
 export const config = {
