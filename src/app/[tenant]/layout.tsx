@@ -2,41 +2,38 @@ import type { Metadata } from 'next';
 import type { TenantBranding } from '@/types/delegates';
 import { notFound } from 'next/navigation';
 
-// Dynamic metadata: tries to fetch tenant name + branding, 404s if tenant doesn't exist
+const VALID_SLUG = /^[a-z0-9][a-z0-9-]*$/;
+
+async function lookupTenant(slug: string) {
+  if (!VALID_SLUG.test(slug) || slug.length > 64) return { valid: false as const };
+  try {
+    const { getTenantBySlug } = await import('@/lib/delegates/db');
+    const tenant = await getTenantBySlug(slug);
+    return { valid: true as const, tenant };
+  } catch {
+    // DB unavailable — let client-side handle it
+    return { valid: true as const, tenant: null, dbDown: true };
+  }
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ tenant: string }>;
 }): Promise<Metadata> {
   const { tenant: slug } = await params;
-
-  // Invalid slug format — no tenant can match
-  const isValidSlug = /^[a-z0-9][a-z0-9-]*$/.test(slug) && slug.length <= 64;
-  if (!isValidSlug) {
-    notFound();
-  }
+  const result = await lookupTenant(slug);
 
   let tenantName: string | null = null;
   let branding: TenantBranding | undefined;
-  let dbReachable = true;
-  try {
-    const { getTenantBySlug } = await import('@/lib/delegates/db');
-    const tenant = await getTenantBySlug(slug);
-    if (tenant) {
-      tenantName = tenant.name;
-      branding = tenant.config.branding;
-    }
-  } catch {
-    // DB unavailable — fall through to client-side handling
-    dbReachable = false;
+
+  if (result.valid && result.tenant) {
+    tenantName = result.tenant.name;
+    branding = result.tenant.config.branding;
   }
 
-  // Tenant doesn't exist and DB confirmed it — 404
-  if (dbReachable && !tenantName) {
-    notFound();
-  }
-
-  const displayName = tenantName || slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  const displayName = tenantName
+    || (VALID_SLUG.test(slug) ? slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'discuss.watch');
 
   const title = branding?.heroTitle
     ? `${displayName} — Community Dashboard`
@@ -63,10 +60,21 @@ export async function generateMetadata({
   };
 }
 
-export default function TenantLayout({
+export default async function TenantLayout({
+  params,
   children,
 }: {
+  params: Promise<{ tenant: string }>;
   children: React.ReactNode;
 }) {
+  const { tenant: slug } = await params;
+  const result = await lookupTenant(slug);
+
+  // Invalid slug format — no tenant can match
+  if (!result.valid) notFound();
+
+  // DB confirmed tenant doesn't exist (skip if DB is unreachable)
+  if (!result.dbDown && !result.tenant) notFound();
+
   return children;
 }
