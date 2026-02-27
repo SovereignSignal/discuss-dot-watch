@@ -1,20 +1,6 @@
 import type { Metadata } from 'next';
 import type { TenantBranding } from '@/types/delegates';
-import { notFound } from 'next/navigation';
-
-const VALID_SLUG = /^[a-z0-9][a-z0-9-]*$/;
-
-async function lookupTenant(slug: string) {
-  if (!VALID_SLUG.test(slug) || slug.length > 64) return { valid: false as const };
-  try {
-    const { getTenantBySlug } = await import('@/lib/delegates/db');
-    const tenant = await getTenantBySlug(slug);
-    return { valid: true as const, tenant };
-  } catch {
-    // DB unavailable — let client-side handle it
-    return { valid: true as const, tenant: null, dbDown: true };
-  }
-}
+import { lookupTenant, VALID_SLUG } from './tenantLookup';
 
 export async function generateMetadata({
   params,
@@ -60,21 +46,10 @@ export async function generateMetadata({
   };
 }
 
-export default async function TenantLayout({
-  params,
+export default function TenantLayout({
   children,
 }: {
-  params: Promise<{ tenant: string }>;
   children: React.ReactNode;
 }) {
-  const { tenant: slug } = await params;
-  const result = await lookupTenant(slug);
-
-  // Invalid slug format — no tenant can match
-  if (!result.valid) notFound();
-
-  // DB confirmed tenant doesn't exist (skip if DB is unreachable)
-  if (!result.dbDown && !result.tenant) notFound();
-
   return children;
 }
