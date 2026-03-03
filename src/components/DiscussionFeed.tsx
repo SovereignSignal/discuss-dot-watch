@@ -21,7 +21,33 @@ function resolveCategory(cat?: string): string | null {
   return null;
 }
 
-interface DiscussionFeedProps {
+interface ServerModeProps {
+  serverMode: true;
+  serverTotal: number;
+  serverHasMore: boolean;
+  onLoadMore: () => void;
+  onFiltersChange: (filters: {
+    dateRange: DateRangeFilter;
+    dateMode: DateFilterMode;
+    sort: SortOption;
+    category: string | null;
+    forum: string | null;
+  }) => void;
+  cachedForumCount?: number;
+  allForumsList?: Array<{ value: string; label: string; category?: string }>;
+}
+
+interface ClientModeProps {
+  serverMode?: false;
+  serverTotal?: never;
+  serverHasMore?: never;
+  onLoadMore?: never;
+  onFiltersChange?: never;
+  cachedForumCount?: never;
+  allForumsList?: never;
+}
+
+type DiscussionFeedProps = {
   discussions: DiscussionTopic[];
   isLoading: boolean;
   lastUpdated: Date | null;
@@ -43,15 +69,17 @@ interface DiscussionFeedProps {
   selectedTopicRefId?: string | null;
   isDark?: boolean;
   totalForumCount?: number;
-}
+} & (ServerModeProps | ClientModeProps);
 
-export function DiscussionFeed({
-  discussions, isLoading, lastUpdated, onRefresh,
-  alerts, searchQuery, enabledForumIds, forumStates, forums,
-  isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
-  unreadCount, onRemoveForum, activeKeywordFilter,
-  onSelectTopic, selectedTopicRefId, isDark = true, totalForumCount,
-}: DiscussionFeedProps) {
+export function DiscussionFeed(props: DiscussionFeedProps) {
+  const {
+    discussions, isLoading, lastUpdated, onRefresh,
+    alerts, searchQuery, enabledForumIds, forumStates, forums,
+    isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
+    unreadCount, onRemoveForum, activeKeywordFilter,
+    onSelectTopic, selectedTopicRefId, isDark = true, totalForumCount,
+  } = props;
+  const isServerMode = props.serverMode === true;
   const [displayCount, setDisplayCount] = useState(20);
   const [dateRange, setDateRange] = useState<DateRangeFilter>('week');
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('created');
@@ -111,7 +139,25 @@ export function DiscussionFeed({
     return map;
   }, [forums]);
 
+  // Notify parent of filter changes in server mode
+  useEffect(() => {
+    if (isServerMode && props.onFiltersChange) {
+      props.onFiltersChange({
+        dateRange,
+        dateMode: dateFilterMode,
+        sort: sortBy,
+        category: selectedCategory,
+        forum: selectedForumId,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, dateFilterMode, sortBy, selectedCategory, selectedForumId, isServerMode]);
+
+  // In server mode: topics are already filtered/sorted by the server
+  // In client mode: filter and sort locally
   const filteredAndSortedDiscussions = useMemo(() => {
+    if (isServerMode) return discussions;
+
     const filtered = discussions.filter((topic) => {
       // Keyword filter
       if (activeKeywordFilter) {
@@ -162,10 +208,14 @@ export function DiscussionFeed({
         default: return new Date(b.bumpedAt).getTime() - new Date(a.bumpedAt).getTime();
       }
     });
-  }, [discussions, searchQuery, dateRange, dateFilterMode, selectedForumId, selectedCategory, forums, forumCategoryMap, sortBy, activeKeywordFilter, alerts]);
+  }, [discussions, searchQuery, dateRange, dateFilterMode, selectedForumId, selectedCategory, forums, forumCategoryMap, sortBy, activeKeywordFilter, alerts, isServerMode]);
 
-  const displayedDiscussions = filteredAndSortedDiscussions.slice(0, displayCount);
-  const hasMore = displayCount < filteredAndSortedDiscussions.length;
+  const displayedDiscussions = isServerMode
+    ? filteredAndSortedDiscussions
+    : filteredAndSortedDiscussions.slice(0, displayCount);
+  const hasMore = isServerMode
+    ? (props.serverHasMore ?? false)
+    : displayCount < filteredAndSortedDiscussions.length;
 
   // Compute filtered unread count when category/forum filters are active
   const filteredUnreadCount = useMemo(() => {
@@ -185,10 +235,14 @@ export function DiscussionFeed({
                 : 'All Discussions'}
             </h1>
             <p className="mt-0.5 text-sm" style={{ color: t.fgMuted }}>
-              {filteredUnreadCount > 0 ? `${filteredUnreadCount} unread across ` : ''}
-              {selectedCategory
-                ? new Set(filteredAndSortedDiscussions.map(d => d.protocol)).size
-                : (totalForumCount || forums.filter(f => f.isEnabled).length)} forums
+              {isServerMode && props.serverTotal != null
+                ? `${props.serverTotal.toLocaleString()} discussions across ${props.cachedForumCount ?? 0} forums`
+                : <>
+                    {filteredUnreadCount > 0 ? `${filteredUnreadCount} unread across ` : ''}
+                    {selectedCategory
+                      ? new Set(filteredAndSortedDiscussions.map(d => d.protocol)).size
+                      : (totalForumCount || forums.filter(f => f.isEnabled).length)} forums
+                  </>}
               {lastUpdated && ` · Updated ${format(lastUpdated, 'h:mm a')}`}
             </p>
           </div>
@@ -221,10 +275,11 @@ export function DiscussionFeed({
         selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory}
         forums={forums.filter((f) => f.isEnabled)}
         sortBy={sortBy} onSortChange={setSortBy} isDark={isDark}
+        allForumsList={isServerMode ? props.allForumsList : undefined}
       />
 
       {/* Loading progress */}
-      {isLoading && forumStates.length > 0 && (
+      {isLoading && !isServerMode && forumStates.length > 0 && (
         <div className="px-5 py-1.5 border-b text-xs" style={{ borderColor: t.border, color: t.fgMuted }}>
           Loading: {forumStates.filter(s => s.status === 'success' || s.status === 'error').length}/{forumStates.length}
           {forumStates.filter(s => s.status === 'error').length > 0 && (
@@ -243,10 +298,12 @@ export function DiscussionFeed({
             <MessageSquare className="h-8 w-8 mb-4" style={{ color: t.fgMuted }} />
             <h3 className="font-semibold" style={{ color: t.fg }}>No discussions found</h3>
             <p className="mt-1 text-sm" style={{ color: t.fgMuted }}>
-              {forums.length === 0 ? 'Add forums in Communities to get started' :
-               enabledForumIds.length === 0 ? 'Enable forums to see discussions' :
-               searchQuery ? 'Try a different search term' :
-               'Try adjusting your filters'}
+              {isServerMode
+                ? (searchQuery ? 'Try a different search term' : 'No discussions match your filters')
+                : (forums.length === 0 ? 'Add forums in Communities to get started' :
+                   enabledForumIds.length === 0 ? 'Enable forums to see discussions' :
+                   searchQuery ? 'Try a different search term' :
+                   'Try adjusting your filters')}
             </p>
           </div>
         ) : (
@@ -268,10 +325,18 @@ export function DiscussionFeed({
             ))}
             {hasMore && (
               <div className="py-3 flex justify-center">
-                <button onClick={() => setDisplayCount(prev => prev + 20)}
+                <button onClick={() => {
+                  if (isServerMode && props.onLoadMore) {
+                    props.onLoadMore();
+                  } else {
+                    setDisplayCount(prev => prev + 20);
+                  }
+                }}
                   className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                   style={{ backgroundColor: t.bgSubtle, color: t.fgSecondary }}>
-                  Load more ({filteredAndSortedDiscussions.length - displayCount} remaining)
+                  {isServerMode
+                    ? `Load more (${(props.serverTotal ?? 0) - discussions.length} remaining)`
+                    : `Load more (${filteredAndSortedDiscussions.length - displayCount} remaining)`}
                 </button>
               </div>
             )}

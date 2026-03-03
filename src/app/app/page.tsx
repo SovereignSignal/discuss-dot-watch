@@ -24,13 +24,22 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useToast } from '@/hooks/useToast';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { StorageError } from '@/lib/storage';
-import { ForumPreset, getTotalForumCount } from '@/lib/forumPresets';
-import { DiscussionTopic } from '@/types';
+import { ForumPreset, getTotalForumCount, FORUM_CATEGORIES } from '@/lib/forumPresets';
+import { DiscussionTopic, DateRangeFilter, DateFilterMode, SortOption } from '@/types';
+import { useAllDiscussions } from '@/hooks/useAllDiscussions';
 import { c } from '@/lib/theme';
 import { DiscussionReader } from '@/components/DiscussionReader';
 import { DigestView } from '@/components/DigestView';
 import { SavedView } from '@/components/SavedView';
 import { SettingsView } from '@/components/SettingsView';
+
+const ALL_FORUMS_LIST = FORUM_CATEGORIES.flatMap(cat =>
+  cat.forums.map(f => ({
+    value: f.url.replace(/\/$/, '').toLowerCase(),
+    label: f.name,
+    category: cat.id,
+  }))
+).sort((a, b) => a.label.localeCompare(b.label));
 
 export default function AppPage() {
   const [activeView, setActiveView] = useState<'feed' | 'briefs' | 'projects' | 'saved' | 'settings'>('feed');
@@ -71,6 +80,47 @@ export default function AppPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const isDark = theme === 'dark';
   const t = c(isDark);
+
+  // --- "All Forums" server-side mode ---
+  const [allFilters, setAllFilters] = useState({
+    dateRange: 'week' as DateRangeFilter,
+    dateMode: 'created' as DateFilterMode,
+    sort: 'recent' as SortOption,
+    category: null as string | null,
+    forum: null as string | null,
+  });
+
+  const allDiscussionsFilters = useMemo(() => ({
+    searchQuery: debouncedSearchQuery,
+    category: allFilters.category,
+    dateRange: allFilters.dateRange,
+    dateMode: allFilters.dateMode,
+    sort: allFilters.sort,
+    keyword: activeKeywordFilter === 'all' ? null : activeKeywordFilter,
+    forum: allFilters.forum,
+  }), [debouncedSearchQuery, allFilters, activeKeywordFilter]);
+
+  const {
+    discussions: allDiscussions,
+    isLoading: allIsLoading,
+    meta: allMeta,
+    error: allError,
+    loadMore: allLoadMore,
+    refresh: allRefresh,
+    hasMore: allHasMore,
+  } = useAllDiscussions(filterMode === 'all', allDiscussionsFilters, enabledForumUrls);
+
+  const allForumsList = ALL_FORUMS_LIST;
+
+  const handleAllFiltersChange = useCallback((filters: {
+    dateRange: DateRangeFilter;
+    dateMode: DateFilterMode;
+    sort: SortOption;
+    category: string | null;
+    forum: string | null;
+  }) => {
+    setAllFilters(filters);
+  }, []);
 
   const handleToggleBookmark = useCallback((topic: DiscussionTopic) => {
     if (isBookmarked(topic.refId)) {
@@ -155,6 +205,10 @@ export default function AppPage() {
       showError(error);
     }
   }, [error, warning, showError]);
+
+  useEffect(() => {
+    if (allError) showError(allError);
+  }, [allError, showError]);
 
   const hasAttemptedFetch = useRef(false);
   useEffect(() => {
@@ -283,29 +337,59 @@ export default function AppPage() {
             <main id="main-content" className="flex-1 flex overflow-hidden">
               {activeView === 'feed' && (
                 <>
-                  <DiscussionFeed
-                    discussions={discussions}
-                    isLoading={isLoading}
-                    lastUpdated={lastUpdated}
-                    onRefresh={refresh}
-                    alerts={alerts}
-                    searchQuery={debouncedSearchQuery}
-                    enabledForumIds={enabledForums.map((f) => f.id)}
-                    forumStates={forumStates}
-                    forums={enabledForums}
-                    isBookmarked={isBookmarked}
-                    isRead={isRead}
-                    onToggleBookmark={handleToggleBookmark}
-                    onMarkAsRead={markAsRead}
-                    onMarkAllAsRead={handleMarkAllAsRead}
-                    unreadCount={unreadCount}
-                    onRemoveForum={handleRemoveForum}
-                    activeKeywordFilter={activeKeywordFilter}
-                    onSelectTopic={handleSelectTopic}
-                    selectedTopicRefId={selectedTopic?.refId || null}
-                    isDark={isDark}
-                    totalForumCount={filterMode === 'all' ? forums.length : undefined}
-                  />
+                  {filterMode === 'all' ? (
+                    <DiscussionFeed
+                      discussions={allDiscussions}
+                      isLoading={allIsLoading}
+                      lastUpdated={null}
+                      onRefresh={allRefresh}
+                      alerts={alerts}
+                      searchQuery={debouncedSearchQuery}
+                      enabledForumIds={[]}
+                      forumStates={[]}
+                      forums={enabledForums}
+                      isBookmarked={isBookmarked}
+                      isRead={isRead}
+                      onToggleBookmark={handleToggleBookmark}
+                      onMarkAsRead={markAsRead}
+                      onMarkAllAsRead={handleMarkAllAsRead}
+                      unreadCount={0}
+                      activeKeywordFilter={activeKeywordFilter}
+                      onSelectTopic={handleSelectTopic}
+                      selectedTopicRefId={selectedTopic?.refId || null}
+                      isDark={isDark}
+                      serverMode
+                      serverTotal={allMeta?.total ?? 0}
+                      serverHasMore={allHasMore}
+                      onLoadMore={allLoadMore}
+                      onFiltersChange={handleAllFiltersChange}
+                      cachedForumCount={allMeta?.cachedForumCount}
+                      allForumsList={allForumsList}
+                    />
+                  ) : (
+                    <DiscussionFeed
+                      discussions={discussions}
+                      isLoading={isLoading}
+                      lastUpdated={lastUpdated}
+                      onRefresh={refresh}
+                      alerts={alerts}
+                      searchQuery={debouncedSearchQuery}
+                      enabledForumIds={enabledForums.map((f) => f.id)}
+                      forumStates={forumStates}
+                      forums={enabledForums}
+                      isBookmarked={isBookmarked}
+                      isRead={isRead}
+                      onToggleBookmark={handleToggleBookmark}
+                      onMarkAsRead={markAsRead}
+                      onMarkAllAsRead={handleMarkAllAsRead}
+                      unreadCount={unreadCount}
+                      onRemoveForum={handleRemoveForum}
+                      activeKeywordFilter={activeKeywordFilter}
+                      onSelectTopic={handleSelectTopic}
+                      selectedTopicRefId={selectedTopic?.refId || null}
+                      isDark={isDark}
+                    />
+                  )}
 
                   {/* Desktop: Inline reader replaces RightSidebar */}
                   {selectedTopic ? (

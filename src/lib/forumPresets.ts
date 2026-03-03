@@ -1364,6 +1364,38 @@ export function getTotalForumCount(): number {
 /**
  * Search forums by name, description, or token
  */
+/**
+ * Build lookup: normalized URL → category id (crypto, ai, oss)
+ * Includes external sources keyed as `external:{sourceId}`
+ */
+export function buildUrlCategoryMap(externalSources: Array<{ id: string; category: string; enabled: boolean }>): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const cat of FORUM_CATEGORIES) {
+    for (const forum of cat.forums) {
+      map.set(forum.url.replace(/\/$/, '').toLowerCase(), cat.id);
+    }
+  }
+  for (const src of externalSources) {
+    if (src.enabled) {
+      map.set(`external:${src.id}`, src.category);
+    }
+  }
+  return map;
+}
+
+/**
+ * Build lookup: normalized URL → forum display name
+ */
+export function buildUrlForumNameMap(): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const cat of FORUM_CATEGORIES) {
+    for (const forum of cat.forums) {
+      map.set(forum.url.replace(/\/$/, '').toLowerCase(), forum.name);
+    }
+  }
+  return map;
+}
+
 export function searchForums(query: string): ForumPreset[] {
   const lowerQuery = query.toLowerCase().replace(/^\$/, '');
   return ALL_FORUM_PRESETS.filter(

@@ -4,6 +4,12 @@ import { ArrowUpDown } from 'lucide-react';
 import { DateRangeFilter, DateFilterMode, SortOption, Forum } from '@/types';
 import { c } from '@/lib/theme';
 
+interface ForumOption {
+  value: string;
+  label: string;
+  category?: string;
+}
+
 interface FeedFiltersProps {
   dateRange: DateRangeFilter;
   onDateRangeChange: (range: DateRangeFilter) => void;
@@ -17,6 +23,8 @@ interface FeedFiltersProps {
   sortBy: SortOption;
   onSortChange: (sort: SortOption) => void;
   isDark?: boolean;
+  /** When provided (server mode), use this list for the forum dropdown instead of user's enabled forums */
+  allForumsList?: ForumOption[];
 }
 
 const DATE_RANGE_OPTIONS: { value: DateRangeFilter; label: string }[] = [
@@ -54,19 +62,30 @@ export function FeedFilters({
   selectedForumId, onForumFilterChange,
   selectedCategory, onCategoryChange,
   forums, sortBy, onSortChange,
-  isDark = true,
+  isDark = true, allForumsList,
 }: FeedFiltersProps) {
   const t = c(isDark);
 
+  const useServerForums = !!allForumsList;
+
   // Filter forums by selected category for the dropdown
-  const filteredForums = selectedCategory
-    ? forums.filter(f => resolveCategory(f.category) === selectedCategory)
-    : forums;
+  const filteredForums = useServerForums
+    ? (selectedCategory
+      ? allForumsList.filter(f => f.category === selectedCategory)
+      : allForumsList)
+    : (selectedCategory
+      ? forums.filter(f => resolveCategory(f.category) === selectedCategory)
+      : forums);
 
   // Count forums per category
+  const countSource = useServerForums ? allForumsList : forums;
   const categoryCounts = CATEGORY_OPTIONS.map(opt => ({
     ...opt,
-    count: opt.value === null ? forums.length : forums.filter(f => resolveCategory(f.category) === opt.value).length,
+    count: opt.value === null
+      ? countSource.length
+      : useServerForums
+        ? (countSource as ForumOption[]).filter(f => f.category === opt.value).length
+        : (countSource as Forum[]).filter(f => resolveCategory(f.category) === opt.value).length,
   }));
 
   return (
@@ -126,9 +145,13 @@ export function FeedFilters({
           className="px-2 py-1 rounded-md font-medium transition-colors cursor-pointer"
           style={{ backgroundColor: selectedForumId ? t.bgActive : t.bgInput, color: t.fgSecondary, border: 'none', fontSize: '13px' }}>
           <option value="">{selectedCategory ? `All ${selectedCategory}` : 'All forums'}</option>
-          {filteredForums.map((forum) => (
-            <option key={forum.id} value={forum.id}>{forum.name}</option>
-          ))}
+          {useServerForums
+            ? (filteredForums as ForumOption[]).map((f) => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))
+            : (filteredForums as Forum[]).map((forum) => (
+                <option key={forum.id} value={forum.id}>{forum.name}</option>
+              ))}
         </select>
       )}
 

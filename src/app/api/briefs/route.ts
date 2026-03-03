@@ -11,31 +11,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllCachedForums } from '@/lib/forumCache';
-import { FORUM_CATEGORIES } from '@/lib/forumPresets';
+import { buildUrlCategoryMap } from '@/lib/forumPresets';
 import { EXTERNAL_SOURCES } from '@/lib/externalSources';
 import { DiscussionTopic } from '@/types';
 
-// Build lookup: normalized URL → category id
-function buildUrlCategoryMap(): Map<string, string> {
-  const map = new Map<string, string>();
-
-  for (const cat of FORUM_CATEGORIES) {
-    for (const forum of cat.forums) {
-      map.set(forum.url.replace(/\/$/, '').toLowerCase(), cat.id);
-    }
-  }
-
-  for (const src of EXTERNAL_SOURCES) {
-    if (src.enabled) {
-      map.set(`external:${src.id}`, src.category);
-    }
-  }
-
-  return map;
-}
-
 // Pre-compute at module level — FORUM_CATEGORIES and EXTERNAL_SOURCES are static
-const urlCategoryMap = buildUrlCategoryMap();
+const urlCategoryMap = buildUrlCategoryMap(EXTERNAL_SOURCES);
 
 interface BriefsTopic extends DiscussionTopic {
   isFollowing: boolean;
