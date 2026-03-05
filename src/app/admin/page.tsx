@@ -437,6 +437,12 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
   const [editApiUsername, setEditApiUsername] = useState('');
   const [editShowKey, setEditShowKey] = useState(false);
 
+  // Tenant admin management state
+  const [tenantAdminsByTenant, setTenantAdminsByTenant] = useState<Record<string, { id: number; privyDid: string; email?: string; createdAt: string }[]>>({});
+  const [tenantInvitesByTenant, setTenantInvitesByTenant] = useState<Record<string, { id: number; token: string; claimedBy: string | null; createdAt: string; expiresAt: string; claimedAt: string | null }[]>>({});
+  const [addAdminEmail, setAddAdminEmail] = useState('');
+  const [showAdminPanel, setShowAdminPanel] = useState<string | null>(null);
+
   // Branding editor state
   const [editingBranding, setEditingBranding] = useState<string | null>(null);
   const [brandAccent, setBrandAccent] = useState('');
@@ -1022,6 +1028,151 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
       setActionLoading(null);
     }
   };
+
+  // --- Tenant Admin Management ---
+
+  const fetchTenantAdmins = useCallback(async (slug: string) => {
+    try {
+      const authHeaders = await getAuthHeaders();
+      const [adminsRes, invitesRes] = await Promise.all([
+        fetch('/api/delegates/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({ action: 'list-tenant-admins', tenantSlug: slug }),
+        }),
+        fetch('/api/delegates/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({ action: 'list-tenant-invites', tenantSlug: slug }),
+        }),
+      ]);
+      if (adminsRes.ok) {
+        const data = await adminsRes.json();
+        setTenantAdminsByTenant(prev => ({ ...prev, [slug]: data.admins || [] }));
+      }
+      if (invitesRes.ok) {
+        const data = await invitesRes.json();
+        setTenantInvitesByTenant(prev => ({ ...prev, [slug]: data.invites || [] }));
+      }
+    } catch (err) {
+      console.error('[Admin] Failed to fetch tenant admins:', err);
+    }
+  }, [getAuthHeaders]);
+
+  const handleAddTenantAdmin = async (tenantSlug: string) => {
+    if (!addAdminEmail.trim()) return;
+    setActionLoading(`add-admin-${tenantSlug}`);
+    setFormError(null);
+    try {
+      const authHeaders = await getAuthHeaders();
+      // Look up the user's Privy DID by email from the users table via admin endpoint
+      const lookupRes = await fetch(`/api/admin?action=users`, { headers: authHeaders });
+      if (!lookupRes.ok) throw new Error('Failed to look up users');
+      const lookupData = await lookupRes.json();
+      const matchedUser = (lookupData.users || []).find((u: User) =>
+        u.email?.toLowerCase() === addAdminEmail.trim().toLowerCase()
+      );
+      if (!matchedUser) {
+        setFormError(`No user found with email: ${addAdminEmail.trim()}`);
+        return;
+      }
+
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ action: 'add-tenant-admin', tenantSlug, privyDid: matchedUser.privy_did }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to add admin');
+      }
+      setAddAdminEmail('');
+      setFormSuccess('Admin added');
+      setTimeout(() => setFormSuccess(null), 3000);
+      await fetchTenantAdmins(tenantSlug);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to add admin');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRemoveTenantAdmin = async (tenantSlug: string, privyDid: string) => {
+    setActionLoading(`remove-admin-${privyDid}`);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ action: 'remove-tenant-admin', tenantSlug, privyDid }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to remove admin');
+      }
+      await fetchTenantAdmins(tenantSlug);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to remove admin');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCreateInvite = async (tenantSlug: string) => {
+    setActionLoading(`create-invite-${tenantSlug}`);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ action: 'create-tenant-invite', tenantSlug }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to create invite');
+      }
+      const data = await res.json();
+      // Copy invite URL to clipboard
+      if (data.inviteUrl) {
+        await navigator.clipboard.writeText(data.inviteUrl);
+        setFormSuccess('Invite link copied to clipboard');
+        setTimeout(() => setFormSuccess(null), 4000);
+      }
+      await fetchTenantAdmins(tenantSlug);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to create invite');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRevokeInvite = async (tenantSlug: string, inviteId: number) => {
+    setActionLoading(`revoke-invite-${inviteId}`);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch('/api/delegates/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ action: 'revoke-tenant-invite', inviteId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to revoke invite');
+      }
+      await fetchTenantAdmins(tenantSlug);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to revoke invite');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Fetch tenant admins when panel is opened
+  useEffect(() => {
+    if (showAdminPanel) {
+      fetchTenantAdmins(showAdminPanel);
+    }
+  }, [showAdminPanel, fetchTenantAdmins]);
 
   // Pre-fill the add form from a preset
   const prefillFromPreset = (preset: ForumPreset) => {
@@ -1924,6 +2075,137 @@ function ForumAnalyticsSection({ getAuthHeaders, isDark = true }: { getAuthHeade
                         )}
                       </button>
                     )}
+
+                    {/* Tenant Admins */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium flex items-center gap-1.5" style={{ color: textMuted }}>
+                          <Users className="w-3 h-3" />
+                          Tenant Admins
+                          {(tenantAdminsByTenant[tenant.slug] || []).length > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: btnBg, color: textDim }}>
+                              {(tenantAdminsByTenant[tenant.slug] || []).length}
+                            </span>
+                          )}
+                        </p>
+                        <button onClick={() => setShowAdminPanel(showAdminPanel === tenant.slug ? null : tenant.slug)}
+                          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-opacity"
+                          style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+                          {showAdminPanel === tenant.slug ? <X className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}
+                          {showAdminPanel === tenant.slug ? 'Close' : 'Manage'}
+                        </button>
+                      </div>
+
+                      {showAdminPanel === tenant.slug && (
+                        <div className="rounded-lg p-3 mb-2 space-y-3" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }}>
+                          {/* Add by email */}
+                          <div>
+                            <label className="block text-[11px] mb-1" style={{ color: textDim }}>Add admin by email (must be an existing user)</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="email"
+                                value={addAdminEmail}
+                                onChange={e => setAddAdminEmail(e.target.value)}
+                                placeholder="user@example.com"
+                                className="flex-1 px-2 py-1.5 text-xs rounded-lg"
+                                style={{ backgroundColor: isDark ? '#0a0a0a' : '#ffffff', border: `1px solid ${cardBorder}`, color: textPrimary }}
+                                onKeyDown={e => { if (e.key === 'Enter') handleAddTenantAdmin(tenant.slug); }}
+                              />
+                              <button onClick={() => handleAddTenantAdmin(tenant.slug)}
+                                disabled={actionLoading === `add-admin-${tenant.slug}` || !addAdminEmail.trim()}
+                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                                style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+                                {actionLoading === `add-admin-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                                Add
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Generate invite link */}
+                          <div>
+                            <label className="block text-[11px] mb-1" style={{ color: textDim }}>Or generate a one-time invite link (expires in 7 days)</label>
+                            <button onClick={() => handleCreateInvite(tenant.slug)}
+                              disabled={actionLoading === `create-invite-${tenant.slug}`}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity disabled:opacity-40"
+                              style={{ backgroundColor: btnBg, border: `1px solid ${btnBorder}`, color: textPrimary }}>
+                              {actionLoading === `create-invite-${tenant.slug}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Globe className="w-3 h-3" />}
+                              Generate Invite Link
+                            </button>
+                          </div>
+
+                          {/* Current admins list */}
+                          {(tenantAdminsByTenant[tenant.slug] || []).length > 0 && (
+                            <div>
+                              <p className="text-[11px] mb-1.5" style={{ color: textDim }}>Current admins</p>
+                              <div className="space-y-1">
+                                {(tenantAdminsByTenant[tenant.slug] || []).map(admin => (
+                                  <div key={admin.privyDid} className="flex items-center justify-between px-2 py-1.5 rounded-md text-xs"
+                                    style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="truncate" style={{ color: textSecondary }}>
+                                        {admin.email || admin.privyDid}
+                                      </span>
+                                      <span style={{ color: textDim }}>
+                                        {new Date(admin.createdAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <button onClick={() => handleRemoveTenantAdmin(tenant.slug, admin.privyDid)}
+                                      disabled={actionLoading === `remove-admin-${admin.privyDid}`}
+                                      className="p-1 rounded transition-opacity hover:opacity-70 disabled:opacity-40 flex-shrink-0"
+                                      title="Remove admin">
+                                      {actionLoading === `remove-admin-${admin.privyDid}` ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: textDim }} /> : <Trash2 className="w-3 h-3" style={{ color: '#ef4444' }} />}
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Pending invites */}
+                          {(tenantInvitesByTenant[tenant.slug] || []).filter(i => !i.claimedBy).length > 0 && (
+                            <div>
+                              <p className="text-[11px] mb-1.5" style={{ color: textDim }}>Pending invites</p>
+                              <div className="space-y-1">
+                                {(tenantInvitesByTenant[tenant.slug] || []).filter(i => !i.claimedBy).map(invite => {
+                                  const isExpired = new Date(invite.expiresAt) < new Date();
+                                  return (
+                                    <div key={invite.id} className="flex items-center justify-between px-2 py-1.5 rounded-md text-xs"
+                                      style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="font-mono truncate" style={{ color: isExpired ? '#ef4444' : textSecondary }}>
+                                          ...{invite.token.slice(-8)}
+                                        </span>
+                                        <span style={{ color: textDim }}>
+                                          {isExpired ? 'Expired' : `Expires ${new Date(invite.expiresAt).toLocaleDateString()}`}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        <button onClick={async () => {
+                                          const url = `${window.location.origin}/invite/${invite.token}`;
+                                          await navigator.clipboard.writeText(url);
+                                          setFormSuccess('Link copied');
+                                          setTimeout(() => setFormSuccess(null), 2000);
+                                        }}
+                                          className="p-1 rounded transition-opacity hover:opacity-70"
+                                          title="Copy link">
+                                          <Globe className="w-3 h-3" style={{ color: textMuted }} />
+                                        </button>
+                                        <button onClick={() => handleRevokeInvite(tenant.slug, invite.id)}
+                                          disabled={actionLoading === `revoke-invite-${invite.id}`}
+                                          className="p-1 rounded transition-opacity hover:opacity-70 disabled:opacity-40"
+                                          title="Revoke invite">
+                                          {actionLoading === `revoke-invite-${invite.id}` ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: textDim }} /> : <Trash2 className="w-3 h-3" style={{ color: '#ef4444' }} />}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 pt-1">

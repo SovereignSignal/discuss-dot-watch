@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAuth, isAuthError } from '@/lib/auth';
+import { verifyTenantAdmin, isAuthError } from '@/lib/auth';
 import { getTenantBySlug, searchUsers } from '@/lib/delegates';
 import { decrypt, isEncryptionConfigured } from '@/lib/delegates/encryption';
 import { sanitizeInput } from '@/lib/sanitize';
@@ -46,17 +46,24 @@ function resolveAvatarUrl(forumUrl: string, tpl: string): string {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
+  const tenantSlug = request.nextUrl.searchParams.get('tenantSlug');
+
+  if (!tenantSlug) {
+    return NextResponse.json(
+      { error: 'Missing required params: tenantSlug' },
+      { status: 400 }
+    );
+  }
+
+  const auth = await verifyTenantAdmin(request, tenantSlug);
   if (isAuthError(auth)) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-
-  const tenantSlug = request.nextUrl.searchParams.get('tenantSlug');
   const rawTerm = request.nextUrl.searchParams.get('term');
 
-  if (!tenantSlug || !rawTerm) {
+  if (!rawTerm) {
     return NextResponse.json(
-      { error: 'Missing required params: tenantSlug, term' },
+      { error: 'Missing required params: term' },
       { status: 400 }
     );
   }

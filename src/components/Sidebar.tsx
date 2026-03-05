@@ -2,8 +2,7 @@
 
 import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper } from 'lucide-react';
 import { UserButton } from './UserButton';
-import { useAuth } from './AuthProvider';
-import { isAdminEmail } from '@/lib/admin';
+import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { c } from '@/lib/theme';
 
 interface SidebarProps {
@@ -19,8 +18,7 @@ interface SidebarProps {
 export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedCount = 0, isMobileOpen, onMobileToggle }: SidebarProps) {
   const isDark = theme === 'dark';
   const t = c(isDark);
-  const { user } = useAuth();
-  const userIsAdmin = isAdminEmail(user?.email);
+  const { isSuperAdmin } = useTenantRoles();
   
   const navItems = [
     { id: 'feed' as const, label: 'Feed', icon: LayoutGrid },
@@ -119,7 +117,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedC
         </nav>
 
         {/* Admin */}
-        {userIsAdmin && (
+        {isSuperAdmin && (
           <div className="px-2 pb-2">
             <a href="/admin"
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors"

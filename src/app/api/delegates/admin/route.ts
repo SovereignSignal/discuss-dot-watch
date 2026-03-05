@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAuth, isAuthError } from '@/lib/auth';
+import { verifyAdminAuth, verifyTenantAdmin, isAuthError } from '@/lib/auth';
 import {
   initializeDelegateSchema,
   createTenant,
@@ -28,27 +28,45 @@ import {
   detectCapabilities,
   lookupUsername,
   syncContributorsFromDirectory,
+  addTenantAdmin,
+  removeTenantAdmin,
+  getTenantAdmins,
+  createTenantInvite,
+  getTenantInvites,
+  revokeTenantInvite,
 } from '@/lib/delegates';
 import { decrypt } from '@/lib/delegates/encryption';
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (isAuthError(auth)) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  const tenantSlug = request.nextUrl.searchParams.get('tenant');
 
-  try {
-    // If ?tenant=slug is provided, return delegates for that tenant
-    const tenantSlug = request.nextUrl.searchParams.get('tenant');
-    if (tenantSlug) {
+  if (tenantSlug) {
+    // Tenant-scoped: tenant admins can view their own delegates
+    const auth = await verifyTenantAdmin(request, tenantSlug);
+    if (isAuthError(auth)) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    try {
       const tenant = await getTenantBySlug(tenantSlug);
       if (!tenant) {
         return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
       }
       const delegates = await getDelegatesByTenant(tenant.id);
       return NextResponse.json({ delegates });
+    } catch (err) {
+      console.error('[Admin] Error listing delegates:', err);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
+  }
 
+  // List all tenants: super admin only
+  const auth = await verifyAdminAuth(request);
+  if (isAuthError(auth)) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  try {
     const tenants = await getAllTenants();
     // Strip encrypted API keys from response
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -60,16 +78,50 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** Actions that require super admin (platform-level operations). */
+const SUPER_ADMIN_ACTIONS = new Set([
+  'init-schema', 'create-tenant', 'update-tenant', 'delete-tenant', 'detect-capabilities',
+  'add-tenant-admin', 'remove-tenant-admin', 'list-tenant-admins', 'create-tenant-invite',
+  'list-tenant-invites', 'revoke-tenant-invite',
+]);
+
+/** Actions scoped to a tenant (tenant admins can perform these on their own tenant). */
+const TENANT_SCOPED_ACTIONS = new Set([
+  'upsert-delegate', 'bulk-upsert-delegates', 'delete-delegate',
+]);
+
 export async function POST(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
-  if (isAuthError(auth)) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const { action } = body;
+
+  // Route auth based on action type
+  let actingUserId = 'unknown';
+  if (TENANT_SCOPED_ACTIONS.has(action as string)) {
+    const tenantSlug = body.tenantSlug as string;
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Missing tenantSlug' }, { status: 400 });
+    }
+    const auth = await verifyTenantAdmin(request, tenantSlug);
+    if (isAuthError(auth)) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+    actingUserId = auth.userId;
+  } else {
+    // Super admin actions (including unknown actions — will 400 in switch)
+    const auth = await verifyAdminAuth(request);
+    if (isAuthError(auth)) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+    actingUserId = auth.userId;
   }
 
   try {
-    const body = await request.json();
-    const { action } = body;
-
     switch (action) {
       case 'init-schema': {
         await initializeDelegateSchema();
@@ -329,6 +381,104 @@ export async function POST(request: NextRequest) {
         await updateTenantCapabilities(tenant.id, capabilities);
 
         return NextResponse.json({ success: true, capabilities });
+      }
+
+      // --- Tenant admin management (super admin only) ---
+
+      case 'add-tenant-admin': {
+        const { tenantSlug, privyDid } = body;
+        if (!tenantSlug || !privyDid) {
+          return NextResponse.json(
+            { error: 'Missing required fields: tenantSlug, privyDid' },
+            { status: 400 }
+          );
+        }
+
+        const tenant = await getTenantBySlug(tenantSlug as string);
+        if (!tenant) {
+          return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        const admin = await addTenantAdmin(tenant.id, privyDid as string, actingUserId);
+        return NextResponse.json({ success: true, admin });
+      }
+
+      case 'remove-tenant-admin': {
+        const { tenantSlug, privyDid } = body;
+        if (!tenantSlug || !privyDid) {
+          return NextResponse.json(
+            { error: 'Missing required fields: tenantSlug, privyDid' },
+            { status: 400 }
+          );
+        }
+
+        const tenant = await getTenantBySlug(tenantSlug as string);
+        if (!tenant) {
+          return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        const removed = await removeTenantAdmin(tenant.id, privyDid as string);
+        return NextResponse.json({ success: removed });
+      }
+
+      case 'list-tenant-admins': {
+        const { tenantSlug } = body;
+        if (!tenantSlug) {
+          return NextResponse.json({ error: 'Missing tenantSlug' }, { status: 400 });
+        }
+
+        const tenant = await getTenantBySlug(tenantSlug as string);
+        if (!tenant) {
+          return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        const admins = await getTenantAdmins(tenant.id);
+        return NextResponse.json({ admins });
+      }
+
+      case 'create-tenant-invite': {
+        const { tenantSlug, expiresInDays } = body;
+        if (!tenantSlug) {
+          return NextResponse.json({ error: 'Missing tenantSlug' }, { status: 400 });
+        }
+
+        const tenant = await getTenantBySlug(tenantSlug as string);
+        if (!tenant) {
+          return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        const invite = await createTenantInvite(
+          tenant.id,
+          actingUserId,
+          typeof expiresInDays === 'number' ? expiresInDays : 7,
+        );
+        const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/invite/${invite.token}`;
+        return NextResponse.json({ success: true, invite, inviteUrl });
+      }
+
+      case 'list-tenant-invites': {
+        const { tenantSlug } = body;
+        if (!tenantSlug) {
+          return NextResponse.json({ error: 'Missing tenantSlug' }, { status: 400 });
+        }
+
+        const tenant = await getTenantBySlug(tenantSlug as string);
+        if (!tenant) {
+          return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        const invites = await getTenantInvites(tenant.id);
+        return NextResponse.json({ invites });
+      }
+
+      case 'revoke-tenant-invite': {
+        const { inviteId } = body;
+        if (!inviteId) {
+          return NextResponse.json({ error: 'Missing inviteId' }, { status: 400 });
+        }
+
+        const revoked = await revokeTenantInvite(inviteId as number);
+        return NextResponse.json({ success: revoked });
       }
 
       default:

@@ -28,8 +28,7 @@ import Link from 'next/link';
 import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantBranding } from '@/types/delegates';
 import { DELEGATE_ROLES } from '@/types/delegates';
 import { c } from '@/lib/theme';
-import { useAuth } from '@/components/AuthProvider';
-import { isAdminEmail } from '@/lib/admin';
+import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { formatDistanceToNow } from 'date-fns';
 
 const RESERVED_SLUGS = new Set([
@@ -98,8 +97,7 @@ export default function TenantDashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'contributors'>('overview');
 
   const t = c(isDark);
-  const { user } = useAuth();
-  const userIsAdmin = isAdminEmail(user?.email);
+  const { isSuperAdmin } = useTenantRoles();
   const branding = dashboard?.tenant.branding;
   const bc = brandedColors(branding);
   const trackedLabel = dashboard?.tenant.trackedMemberLabel || 'Tracked Member';
@@ -333,7 +331,7 @@ export default function TenantDashboardPage() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
-          {userIsAdmin && (
+          {isSuperAdmin && (
             <Link
               href="/admin"
               style={{ color: t.fgDim, textDecoration: 'none', fontSize: 12 }}

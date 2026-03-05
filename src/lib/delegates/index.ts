@@ -18,4 +18,15 @@ export {
   getLatestSnapshots,
   getSnapshotHistory,
   getDashboardData,
+  addTenantAdmin,
+  removeTenantAdmin,
+  getTenantAdmins,
+  isTenantAdmin,
+  getTenantAdminSlugs,
+  createTenantInvite,
+  claimTenantInvite,
+  getTenantInvites,
+  revokeTenantInvite,
+  getTenantInviteByToken,
 } from './db';
+export type { TenantAdmin, TenantInvite } from './db';

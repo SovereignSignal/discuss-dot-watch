@@ -113,6 +113,31 @@ export async function initializeDelegateSchema() {
   // auto-synced contributors won't be flipped to tracked on subsequent runs.
   await db`UPDATE delegates SET is_tracked = true WHERE is_tracked = false AND directory_post_count IS NULL`;
 
+  // Tenant admin roles
+  await db`
+    CREATE TABLE IF NOT EXISTS tenant_admins (
+      id SERIAL PRIMARY KEY,
+      tenant_id INTEGER NOT NULL REFERENCES delegate_tenants(id) ON DELETE CASCADE,
+      privy_did TEXT NOT NULL,
+      granted_by TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(tenant_id, privy_did)
+    )
+  `;
+
+  await db`
+    CREATE TABLE IF NOT EXISTS tenant_invites (
+      id SERIAL PRIMARY KEY,
+      tenant_id INTEGER NOT NULL REFERENCES delegate_tenants(id) ON DELETE CASCADE,
+      token TEXT UNIQUE NOT NULL,
+      created_by TEXT NOT NULL,
+      claimed_by TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      claimed_at TIMESTAMPTZ
+    )
+  `;
+
   // Indexes
   await db`CREATE INDEX IF NOT EXISTS idx_delegate_tenants_slug ON delegate_tenants(slug)`;
   await db`CREATE INDEX IF NOT EXISTS idx_delegates_tenant_id ON delegates(tenant_id)`;
@@ -121,6 +146,8 @@ export async function initializeDelegateSchema() {
   await db`CREATE INDEX IF NOT EXISTS idx_delegate_snapshots_tenant ON delegate_snapshots(tenant_id)`;
   await db`CREATE INDEX IF NOT EXISTS idx_delegate_snapshots_captured ON delegate_snapshots(captured_at DESC)`;
   await db`CREATE INDEX IF NOT EXISTS idx_delegate_snapshots_delegate_captured ON delegate_snapshots(delegate_id, captured_at DESC)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_tenant_admins_privy_did ON tenant_admins(privy_did)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_tenant_invites_token ON tenant_invites(token)`;
 
   console.log('[Delegates DB] Schema initialized');
 }
@@ -428,6 +455,189 @@ export async function getSnapshotHistory(
     LIMIT ${limit}
   `;
   return rows.map(mapSnapshotRow);
+}
+
+// --- Tenant Admin CRUD ---
+
+export interface TenantAdmin {
+  id: number;
+  tenantId: number;
+  privyDid: string;
+  grantedBy: string;
+  createdAt: string;
+  email?: string; // Joined from users table when available
+}
+
+export interface TenantInvite {
+  id: number;
+  tenantId: number;
+  token: string;
+  createdBy: string;
+  claimedBy: string | null;
+  createdAt: string;
+  expiresAt: string;
+  claimedAt: string | null;
+  tenantSlug?: string;
+  tenantName?: string;
+}
+
+export async function addTenantAdmin(tenantId: number, privyDid: string, grantedBy: string): Promise<TenantAdmin> {
+  const db = getDb();
+  const [row] = await db`
+    INSERT INTO tenant_admins (tenant_id, privy_did, granted_by)
+    VALUES (${tenantId}, ${privyDid}, ${grantedBy})
+    ON CONFLICT (tenant_id, privy_did) DO NOTHING
+    RETURNING *
+  `;
+  if (!row) {
+    // Already exists — fetch it
+    const [existing] = await db`
+      SELECT * FROM tenant_admins WHERE tenant_id = ${tenantId} AND privy_did = ${privyDid}
+    `;
+    return mapTenantAdminRow(existing);
+  }
+  return mapTenantAdminRow(row);
+}
+
+export async function removeTenantAdmin(tenantId: number, privyDid: string): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db`
+    DELETE FROM tenant_admins WHERE tenant_id = ${tenantId} AND privy_did = ${privyDid} RETURNING id
+  `;
+  return !!row;
+}
+
+export async function getTenantAdmins(tenantId: number): Promise<TenantAdmin[]> {
+  const db = getDb();
+  const rows = await db`
+    SELECT ta.*, u.email
+    FROM tenant_admins ta
+    LEFT JOIN users u ON u.privy_did = ta.privy_did
+    WHERE ta.tenant_id = ${tenantId}
+    ORDER BY ta.created_at
+  `;
+  return rows.map(mapTenantAdminRow);
+}
+
+export async function isTenantAdmin(privyDid: string, tenantSlug: string): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db`
+    SELECT ta.id FROM tenant_admins ta
+    JOIN delegate_tenants dt ON dt.id = ta.tenant_id
+    WHERE ta.privy_did = ${privyDid} AND dt.slug = ${tenantSlug} AND dt.is_active = true
+  `;
+  return !!row;
+}
+
+export async function getTenantAdminSlugs(privyDid: string): Promise<string[]> {
+  const db = getDb();
+  const rows = await db`
+    SELECT dt.slug FROM tenant_admins ta
+    JOIN delegate_tenants dt ON dt.id = ta.tenant_id
+    WHERE ta.privy_did = ${privyDid} AND dt.is_active = true
+  `;
+  return rows.map(r => r.slug as string);
+}
+
+export async function createTenantInvite(
+  tenantId: number,
+  createdBy: string,
+  expiresInDays = 7,
+): Promise<TenantInvite> {
+  const { randomBytes } = await import('crypto');
+  const token = randomBytes(24).toString('base64url');
+  const db = getDb();
+  const [row] = await db`
+    INSERT INTO tenant_invites (tenant_id, token, created_by, expires_at)
+    VALUES (${tenantId}, ${token}, ${createdBy}, NOW() + ${expiresInDays + ' days'})
+    RETURNING *
+  `;
+  return mapTenantInviteRow(row);
+}
+
+export async function claimTenantInvite(token: string, privyDid: string): Promise<{ success: boolean; error?: string; tenantSlug?: string }> {
+  const db = getDb();
+
+  const [invite] = await db`
+    SELECT ti.*, dt.slug as tenant_slug, dt.is_active as tenant_active
+    FROM tenant_invites ti
+    JOIN delegate_tenants dt ON dt.id = ti.tenant_id
+    WHERE ti.token = ${token}
+  `;
+
+  if (!invite) return { success: false, error: 'Invite not found' };
+  if (invite.claimed_by) return { success: false, error: 'Invite already claimed' };
+  if (new Date(invite.expires_at as string) < new Date()) return { success: false, error: 'Invite expired' };
+  if (!invite.tenant_active) return { success: false, error: 'Tenant is inactive' };
+
+  // Claim the invite and add as admin in a transaction
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await db.begin(async (tx: any) => {
+    await tx`
+      UPDATE tenant_invites SET claimed_by = ${privyDid}, claimed_at = NOW()
+      WHERE id = ${invite.id}
+    `;
+    await tx`
+      INSERT INTO tenant_admins (tenant_id, privy_did, granted_by)
+      VALUES (${invite.tenant_id}, ${privyDid}, ${invite.created_by})
+      ON CONFLICT (tenant_id, privy_did) DO NOTHING
+    `;
+  });
+
+  return { success: true, tenantSlug: invite.tenant_slug as string };
+}
+
+export async function getTenantInvites(tenantId: number): Promise<TenantInvite[]> {
+  const db = getDb();
+  const rows = await db`
+    SELECT * FROM tenant_invites
+    WHERE tenant_id = ${tenantId}
+    ORDER BY created_at DESC
+  `;
+  return rows.map(mapTenantInviteRow);
+}
+
+export async function revokeTenantInvite(inviteId: number): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db`
+    DELETE FROM tenant_invites WHERE id = ${inviteId} AND claimed_by IS NULL RETURNING id
+  `;
+  return !!row;
+}
+
+export async function getTenantInviteByToken(token: string): Promise<TenantInvite | null> {
+  const db = getDb();
+  const [row] = await db`
+    SELECT ti.*, dt.slug as tenant_slug, dt.name as tenant_name
+    FROM tenant_invites ti
+    JOIN delegate_tenants dt ON dt.id = ti.tenant_id
+    WHERE ti.token = ${token}
+  `;
+  return row ? { ...mapTenantInviteRow(row), tenantSlug: row.tenant_slug as string, tenantName: row.tenant_name as string } : null;
+}
+
+function mapTenantAdminRow(row: Record<string, unknown>): TenantAdmin {
+  return {
+    id: row.id as number,
+    tenantId: row.tenant_id as number,
+    privyDid: row.privy_did as string,
+    grantedBy: row.granted_by as string,
+    createdAt: (row.created_at as Date).toISOString(),
+    email: row.email as string | undefined,
+  };
+}
+
+function mapTenantInviteRow(row: Record<string, unknown>): TenantInvite {
+  return {
+    id: row.id as number,
+    tenantId: row.tenant_id as number,
+    token: row.token as string,
+    createdBy: row.created_by as string,
+    claimedBy: row.claimed_by as string | null,
+    createdAt: (row.created_at as Date).toISOString(),
+    expiresAt: (row.expires_at as Date).toISOString(),
+    claimedAt: row.claimed_at ? (row.claimed_at as Date).toISOString() : null,
+  };
 }
 
 // --- Dashboard assembly ---

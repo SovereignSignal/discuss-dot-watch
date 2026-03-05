@@ -36,6 +36,7 @@ function getPrivyClient(): PrivyClient | null {
 
 export interface AuthResult {
   userId: string; // Privy DID (e.g. "did:privy:xxx")
+  isSuperAdmin?: boolean;
 }
 
 export interface AuthError {
@@ -134,6 +135,85 @@ export function isAuthError(
   result: AuthResult | AuthError,
 ): result is AuthError {
   return 'error' in result;
+}
+
+/**
+ * Check if a Privy DID belongs to a super admin.
+ * Looks up email from DB, then checks email + DID allowlists.
+ */
+export async function checkIsSuperAdmin(privyDid: string): Promise<boolean> {
+  if (isAdminDid(privyDid)) return true;
+
+  if (isDatabaseConfigured()) {
+    try {
+      const db = getDb();
+      const users = await db`SELECT email FROM users WHERE privy_did = ${privyDid}`;
+      if (users.length > 0 && isAdminEmail(users[0].email)) {
+        return true;
+      }
+    } catch {
+      // DB lookup failed
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Verify tenant-scoped admin access. Checks in order:
+ * 1. CRON_SECRET → super admin
+ * 2. Privy token → super admin (email/DID allowlist)
+ * 3. Privy token → tenant_admins table for the given slug
+ * 4. Otherwise → 403
+ */
+export async function verifyTenantAdmin(
+  request: NextRequest,
+  tenantSlug: string,
+): Promise<AuthResult | AuthError> {
+  const token = extractBearerToken(request);
+
+  // 1. CRON_SECRET check
+  const cronSecret = process.env.CRON_SECRET;
+  if (token && cronSecret && safeCompare(token, cronSecret)) {
+    return { userId: 'cron', isSuperAdmin: true };
+  }
+
+  // 2 & 3. Privy token verification
+  if (!token) {
+    return { error: 'Missing Authorization header', status: 401 };
+  }
+
+  const privy = getPrivyClient();
+  if (!privy) {
+    return { error: 'Auth not configured', status: 503 };
+  }
+
+  let userId: string;
+  try {
+    const claims = await privy.utils().auth().verifyAccessToken(token);
+    userId = claims.user_id;
+  } catch {
+    return { error: 'Invalid or expired token', status: 401 };
+  }
+
+  // Check super admin first
+  if (await checkIsSuperAdmin(userId)) {
+    return { userId, isSuperAdmin: true };
+  }
+
+  // Check tenant-scoped admin
+  if (isDatabaseConfigured()) {
+    try {
+      const { isTenantAdmin } = await import('./delegates/db');
+      if (await isTenantAdmin(userId, tenantSlug)) {
+        return { userId, isSuperAdmin: false };
+      }
+    } catch {
+      // DB lookup failed
+    }
+  }
+
+  return { error: 'Unauthorized', status: 403 };
 }
 
 /**
