@@ -452,7 +452,8 @@ export async function POST(request: NextRequest) {
           actingUserId,
           typeof expiresInDays === 'number' ? expiresInDays : 7,
         );
-        const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/invite/${invite.token}`;
+        const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch').replace(/\/$/, '');
+        const inviteUrl = `${baseUrl}/invite/${invite.token}`;
         return NextResponse.json({ success: true, invite, inviteUrl });
       }
 
