@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN), 165+ forums, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmarking, read/unread tracking, dark/light theme, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN), 165+ forums, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmarking, read/unread tracking, dark/light theme, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration, embeddable governance widgets, MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -42,7 +42,7 @@ src/
 ├── components/             # React components (see individual files for props)
 ├── hooks/                  # Custom React hooks (state, localStorage, data fetching)
 ├── lib/                    # Utility libraries
-│   ├── delegates/          # Forum analytics subsystem (index, brief, contributorSync, db, discourseClient, encryption, refreshEngine)
+│   ├── delegates/          # Forum analytics subsystem (index, brief, contributorSync, db, discourseClient, encryption, proposalTracker, refreshEngine, snapshotClient)
 │   ├── db.ts               # PostgreSQL client, queries, and core schema (initializeSchema())
 │   ├── auth.ts             # Server-side auth (verifyAuth, verifyAdminAuth, verifyTenantAdmin, checkIsSuperAdmin)
 │   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
@@ -126,6 +126,9 @@ npm run lint     # Run ESLint
 |-------|--------|------|---------|
 | `/api/delegates/[tenant]` | GET | Public | Dashboard data (`?filter=tracked` for tracked-only) |
 | `/api/delegates/[tenant]/[username]` | GET | Public | Individual contributor detail |
+| `/api/delegates/[tenant]/proposals` | GET | Public | Governance proposals parsed from forum categories |
+| `/api/delegates/[tenant]/snapshot` | GET | Public | Snapshot voting data for tenant's configured space |
+| `/api/delegates/[tenant]/embed` | GET | Public (CORS) | Lightweight governance metrics JSON for embedding |
 | `/api/delegates/[tenant]/refresh` | POST | `verifyTenantAdmin` | Trigger data refresh |
 | `/api/delegates/admin` | GET | `verifyAdminAuth` or `verifyTenantAdmin` | List all tenants (super) or tenant delegates (scoped) |
 | `/api/delegates/admin` | POST | `verifyAdminAuth` or `verifyTenantAdmin` | Tenant/delegate management (see actions below) |
@@ -165,6 +168,10 @@ Types are defined in `src/types/index.ts` and `src/types/delegates.ts`. Key type
 
 For delegate types see `types/delegates.ts`: `TenantConfig`, `TenantCapabilities`, `Delegate`, `DelegateRow`, `DelegateDashboard`, `TenantBranding`, `DirectoryItem`.
 
+For governance proposal types see `types/delegates.ts`: `GovernanceProposal`, `ProposalStatus` (`'open' | 'voting' | 'closed' | 'implemented'`), `ProposalTimeline`.
+
+For Snapshot voting types see `types/delegates.ts`: `SnapshotProposalSummary`, `TenantSnapshotData`, `GovernanceScore`.
+
 For tenant admin types see `lib/delegates/db.ts`: `TenantAdmin`, `TenantInvite` (exported via `lib/delegates/index.ts`).
 
 ## Styling Conventions
@@ -199,7 +206,13 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 
 **Invite system:** `tenant_invites` table stores one-time invite tokens. Flow: super admin calls `create-tenant-invite` action -> gets invite URL (`/invite/[token]`) -> recipient opens link -> logs in via Privy -> auto-added as tenant admin via `claimTenantInvite()`. Page: `src/app/invite/[token]/page.tsx`, API: `/api/delegates/invite/[token]`.
 
-**Key files:** `src/lib/delegates/` (index, brief, contributorSync, db, discourseClient, encryption, refreshEngine), `src/types/delegates.ts`, `src/app/[tenant]/`, `src/app/invite/[token]/`, `src/app/api/delegates/`.
+**Governance proposals:** `proposalTracker.ts` parses Discourse forum categories for governance proposals. Supports three modes: (1) explicit category IDs via `TenantConfig.proposalCategoryIds`, (2) tag-based via `proposalTags`, (3) fallback keyword search. Infers proposal status (`open`, `voting`, `closed`, `implemented`) from topic tags, titles, and Discourse open/closed state. Dashboard tab: `ProposalsView.tsx`.
+
+**Snapshot voting:** `snapshotClient.ts` (in delegates/) fetches per-tenant Snapshot space data when `TenantConfig.snapshotSpace` is set. Cross-references voter addresses with delegate wallet addresses. `computeGovernanceScores()` produces a 0-100 score combining forum activity (60%) and voting participation (40%). Dashboard shows `SnapshotSummaryCard` in the Overview tab.
+
+**Embeddable widget:** `/api/delegates/[tenant]/embed` returns CORS-enabled JSON with governance metrics. `/<tenant>/embed` renders an iframe-friendly HTML widget page (dark theme, stats grid, active proposals).
+
+**Key files:** `src/lib/delegates/` (index, brief, contributorSync, db, discourseClient, encryption, proposalTracker, refreshEngine, snapshotClient), `src/types/delegates.ts`, `src/app/[tenant]/` (DashboardClient, ProposalsView, embed/), `src/app/invite/[token]/`, `src/app/api/delegates/`.
 
 **Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — fetches current user's admin roles from `/api/user/tenant-roles`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
 

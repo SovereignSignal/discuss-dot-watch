@@ -2,6 +2,8 @@ export { encrypt, decrypt, isEncryptionConfigured } from './encryption';
 export { detectCapabilities, lookupUsername, searchUsers, getUserStats, getUserPosts, searchRationales, fetchDirectoryItems } from './discourseClient';
 export { syncContributorsFromDirectory } from './contributorSync';
 export { refreshTenant } from './refreshEngine';
+export { fetchProposals } from './proposalTracker';
+export { fetchTenantSnapshotData, fetchVoterParticipation, computeGovernanceScores } from './snapshotClient';
 export {
   initializeDelegateSchema,
   createTenant,

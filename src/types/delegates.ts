@@ -44,6 +44,10 @@ export interface TenantConfig {
   refreshIntervalHours?: number;     // Default: 12
   // Contributor sync
   maxContributors?: number;          // Default: 200
+  // Governance
+  proposalCategoryIds?: number[];    // Discourse category IDs containing proposals
+  proposalTags?: string[];           // Tags that indicate governance proposals
+  snapshotSpace?: string;            // Snapshot space ID e.g. "decentraland.eth"
 }
 
 export interface TenantCapabilities {
@@ -323,4 +327,94 @@ export interface UserSearchResult {
   username: string;
   name: string | null;
   avatarUrl: string;
+}
+
+// --- Governance Proposals (from Discourse forum categories) ---
+
+export type ProposalStatus = 'open' | 'voting' | 'closed' | 'implemented';
+
+export interface GovernanceProposal {
+  id: number;
+  topicId: number;
+  title: string;
+  slug: string;
+  categoryId: number;
+  categoryName: string;
+  status: ProposalStatus;
+  author: string;
+  authorAvatarUrl?: string;
+  createdAt: string;
+  lastActivityAt: string;
+  replyCount: number;
+  likeCount: number;
+  views: number;
+  excerpt: string;
+  tags: string[];
+  forumUrl: string;
+}
+
+export interface ProposalTimeline {
+  proposals: GovernanceProposal[];
+  summary: {
+    total: number;
+    open: number;
+    voting: number;
+    closed: number;
+    implemented: number;
+    avgReplies: number;
+    avgParticipation: number;
+    recentActivityCount: number; // proposals with activity in last 7 days
+  };
+}
+
+// --- Snapshot Voting (per-tenant) ---
+
+export interface SnapshotProposalSummary {
+  id: string;
+  title: string;
+  state: 'active' | 'closed' | 'pending';
+  author: string;
+  start: string;  // ISO date
+  end: string;     // ISO date
+  votes: number;
+  scoresTotal: number;
+  choices: string[];
+  scores: number[];
+  link: string;
+}
+
+export interface SnapshotVoterRecord {
+  voter: string;
+  choice: string;
+  vp: number;
+  reason: string;
+  created: string;
+}
+
+export interface TenantSnapshotData {
+  space: string;
+  proposals: SnapshotProposalSummary[];
+  totalProposals: number;
+  activeProposals: number;
+  totalVotes: number;
+  avgVoterParticipation: number;
+  fetchedAt: string;
+}
+
+// --- Governance Score ---
+
+export interface GovernanceScore {
+  username: string;
+  forumScore: number;      // 0-100 based on forum activity
+  votingScore: number;     // 0-100 based on Snapshot participation
+  combinedScore: number;   // Weighted average
+  breakdown: {
+    postCount: number;
+    topicCount: number;
+    likesReceived: number;
+    daysVisited: number;
+    proposalsVoted: number;
+    proposalsTotal: number;
+    voteRate: number;
+  };
 }

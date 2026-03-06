@@ -23,11 +23,13 @@ import {
   Sparkles,
   TrendingUp,
   AlertTriangle,
+  Vote,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantBranding } from '@/types/delegates';
+import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantBranding, TenantSnapshotData } from '@/types/delegates';
 import { DELEGATE_ROLES } from '@/types/delegates';
 import { c } from '@/lib/theme';
+import ProposalsView from './ProposalsView';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -94,7 +96,8 @@ export default function TenantDashboardPage() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterTracked, setFilterTracked] = useState<'all' | 'tracked'>('all');
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contributors'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'contributors' | 'proposals'>('overview');
+  const [snapshotData, setSnapshotData] = useState<TenantSnapshotData | null>(null);
 
   const t = c(isDark);
   const { isSuperAdmin } = useTenantRoles();
@@ -162,6 +165,22 @@ export default function TenantDashboardPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [slug, filterTracked]);
+
+  // Fetch Snapshot data (if tenant has a configured space)
+  useEffect(() => {
+    if (!slug || RESERVED_SLUGS.has(slug)) return;
+    let cancelled = false;
+    fetch(`/api/delegates/${slug}/snapshot`)
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled && data) setSnapshotData(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [slug]);
 
   // Detect duplicate display names for disambiguation
   const duplicateNames = useMemo(() => {
@@ -432,7 +451,7 @@ export default function TenantDashboardPage() {
             width: 'fit-content',
           }}
         >
-          {(['overview', 'contributors'] as const).map((tab) => (
+          {(['overview', 'proposals', 'contributors'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -447,7 +466,7 @@ export default function TenantDashboardPage() {
                 transition: 'background 0.15s, color 0.15s',
               }}
             >
-              {tab === 'overview' ? 'Overview' : `Contributors (${dashboard.summary.totalDelegates})`}
+              {tab === 'overview' ? 'Overview' : tab === 'proposals' ? 'Proposals' : `Contributors (${dashboard.summary.totalDelegates})`}
             </button>
           ))}
         </div>
@@ -461,6 +480,15 @@ export default function TenantDashboardPage() {
             onSelectDelegate={(username) => { setSelectedDelegate(username); setActiveTab('contributors'); }}
             hasTracked={hasTracked}
             trackedLabelPlural={trackedLabelPlural}
+            snapshotData={snapshotData}
+          />
+        ) : activeTab === 'proposals' ? (
+          <ProposalsView
+            slug={slug}
+            t={t}
+            bc={bc}
+            isMobile={isMobile}
+            forumUrl={dashboard.tenant.forumUrl}
           />
         ) : (
           <>
@@ -813,6 +841,7 @@ function OverviewTab({
   onSelectDelegate,
   hasTracked,
   trackedLabelPlural,
+  snapshotData,
 }: {
   dashboard: DelegateDashboard;
   t: ReturnType<typeof c>;
@@ -821,6 +850,7 @@ function OverviewTab({
   onSelectDelegate: (username: string) => void;
   hasTracked: boolean;
   trackedLabelPlural: string;
+  snapshotData?: TenantSnapshotData | null;
 }) {
   const summary = dashboard.summary;
   const delegates = dashboard.delegates;
@@ -857,6 +887,9 @@ function OverviewTab({
             isMobile={isMobile}
             hasMonthlyData={!!summary.hasMonthlyData}
           />
+          {snapshotData && (
+            <SnapshotSummaryCard data={snapshotData} t={t} bc={bc} isMobile={isMobile} />
+          )}
         </>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '55% 45%', gap: 24 }}>
@@ -891,7 +924,114 @@ function OverviewTab({
               isMobile={isMobile}
               hasMonthlyData={!!summary.hasMonthlyData}
             />
+            {snapshotData && (
+              <SnapshotSummaryCard data={snapshotData} t={t} bc={bc} isMobile={isMobile} />
+            )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SnapshotSummaryCard({
+  data,
+  t,
+  bc,
+  isMobile,
+}: {
+  data: TenantSnapshotData;
+  t: ReturnType<typeof c>;
+  bc: ReturnType<typeof brandedColors>;
+  isMobile: boolean;
+}) {
+  const accent = bc?.accent || '#3b82f6';
+  const activeProposals = data.proposals.filter((p) => p.state === 'active');
+
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        border: `1px solid ${t.border}`,
+        background: t.bgCard,
+        padding: isMobile ? 14 : 18,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <Vote size={16} style={{ color: accent }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: t.fg }}>Snapshot Voting</span>
+        <span style={{
+          fontSize: 10,
+          padding: '2px 6px',
+          borderRadius: 4,
+          background: `${accent}18`,
+          color: accent,
+          border: `1px solid ${accent}33`,
+        }}>
+          {data.space}
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr 1fr',
+          gap: 8,
+          marginBottom: activeProposals.length > 0 ? 12 : 0,
+        }}
+      >
+        <div style={{ padding: 8, borderRadius: 8, background: t.bgSubtle }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: accent }}>{data.totalProposals}</div>
+          <div style={{ fontSize: 10, color: t.fgMuted }}>Proposals</div>
+        </div>
+        <div style={{ padding: 8, borderRadius: 8, background: t.bgSubtle }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#22c55e' }}>{data.activeProposals}</div>
+          <div style={{ fontSize: 10, color: t.fgMuted }}>Active</div>
+        </div>
+        <div style={{ padding: 8, borderRadius: 8, background: t.bgSubtle }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: t.fgSecondary }}>{data.avgVoterParticipation}</div>
+          <div style={{ fontSize: 10, color: t.fgMuted }}>Avg Voters</div>
+        </div>
+      </div>
+
+      {activeProposals.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {activeProposals.slice(0, 3).map((p) => (
+            <a
+              key={p.id}
+              href={p.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 8px',
+                borderRadius: 6,
+                background: t.bgSubtle,
+                textDecoration: 'none',
+                color: t.fg,
+                fontSize: 12,
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = t.bgActive; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = t.bgSubtle; }}
+            >
+              <span style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: '#22c55e',
+                flexShrink: 0,
+              }} />
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.title}
+              </span>
+              <span style={{ color: t.fgDim, fontSize: 11, flexShrink: 0 }}>
+                {p.votes} votes
+              </span>
+            </a>
+          ))}
         </div>
       )}
     </div>

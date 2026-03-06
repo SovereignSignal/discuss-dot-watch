@@ -26,6 +26,9 @@
 - ✅ Forum-wide contributor analytics (directory sync, percentile rankings, two-phase refresh)
 - ✅ Multi-tenant admin roles (tenant_admins table, invite system, verifyTenantAdmin auth, useTenantRoles hook)
 - ✅ Persistent forum health monitoring with consecutive failure tracking
+- ✅ Governance proposal tracking (parse Discourse categories, status inference, timeline view)
+- ✅ Per-tenant Snapshot voting integration (proposals, voter participation, governance scores)
+- ✅ Embeddable governance widget (iframe page + CORS JSON API)
 
 ---
 
@@ -108,6 +111,37 @@
 - [x] `useTenantRoles` client hook (resolves `isSuperAdmin`, `tenantSlugs`, `canAdminTenant`)
 - [x] Invite creation, claiming, listing, and revocation APIs
 - [x] Dashboard admin controls scoped to tenant admins (not just super admin)
+
+---
+
+## Phase 1.7: Governance Analytics
+**Status:** ✅ Completed
+**Completed:** Mar 2026
+
+### Proposal Tracking
+- [x] `proposalTracker.ts` — parse Discourse categories for governance proposals
+- [x] Status inference engine (open/voting/closed/implemented) from tags, titles, Discourse state
+- [x] Three fetch modes: category IDs, tag search, fallback keyword search
+- [x] `ProposalsView.tsx` — proposal list with status filters, expandable cards, timeline
+- [x] `/api/delegates/[tenant]/proposals` GET endpoint
+
+### Snapshot Voting Integration
+- [x] `snapshotClient.ts` (delegates) — per-tenant Snapshot space data fetching
+- [x] `TenantConfig.snapshotSpace` — configurable Snapshot space per tenant
+- [x] Voter participation mapping (cross-reference wallet addresses)
+- [x] `computeGovernanceScores()` — combined forum + voting score (0-100)
+- [x] `SnapshotSummaryCard` in Overview tab with active proposal links
+- [x] `/api/delegates/[tenant]/snapshot` GET endpoint
+
+### Embeddable Widget
+- [x] `/api/delegates/[tenant]/embed` — CORS-enabled JSON metrics for external dApps
+- [x] `/[tenant]/embed` — iframe-friendly governance widget page
+- [x] `OPTIONS` preflight handler for cross-origin embedding
+
+### Dashboard Integration
+- [x] "Proposals" tab added to tenant dashboard alongside Overview and Contributors
+- [x] Snapshot data auto-fetched and displayed in Overview tab
+- [x] New types: `GovernanceProposal`, `ProposalTimeline`, `TenantSnapshotData`, `GovernanceScore`
 
 ---
 
@@ -216,7 +250,8 @@
 ## Future Considerations
 
 ### On-chain Integration
-- ~~Snapshot voting data~~ ✅ Implemented via `lib/snapshotClient.ts`
+- ~~Snapshot voting data~~ ✅ Implemented via `lib/snapshotClient.ts` (feed) + `lib/delegates/snapshotClient.ts` (per-tenant)
+- ~~Per-tenant governance scores~~ ✅ Forum activity + Snapshot voting cross-referenced
 - Tally governance data
 - Complement forum discussions with execution layer
 

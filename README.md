@@ -36,6 +36,9 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 - **Mobile Responsive** — Optimized for mobile with hamburger nav
 - **Server-Side Cache** — Redis + Postgres for fast loading
 - **Forum Analytics Dashboards** — Multi-tenant contributor analytics at `discuss.watch/<slug>`
+- **Governance Proposal Tracking** — Parse forum categories for proposals with status tracking (open/voting/closed/implemented)
+- **Snapshot Voting Integration** — Per-tenant Snapshot space data with governance scores
+- **Embeddable Governance Widget** — Iframe-friendly widget and CORS-enabled JSON API for external dApps
 - **Public API** — REST API at `/api/v1/` for integrations
 - **MCP Endpoint** — Machine-consumable protocol endpoint for AI integrations
 - **RSS/Atom Feeds** — Syndication feeds by vertical
@@ -141,7 +144,7 @@ src/
 ├── components/             # React components
 ├── hooks/                  # Custom hooks (state, localStorage, data fetching)
 ├── lib/
-│   ├── delegates/          # Forum analytics subsystem
+│   ├── delegates/          # Forum analytics subsystem (+ proposalTracker, snapshotClient)
 │   ├── db.ts               # PostgreSQL client and queries
 │   ├── auth.ts             # Server-side auth middleware
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres)
@@ -193,6 +196,9 @@ docs/
 |-------|--------|---------|
 | `/api/delegates/[tenant]` | GET | Dashboard data (`?filter=tracked` for tracked-only) |
 | `/api/delegates/[tenant]/[username]` | GET | Individual contributor detail |
+| `/api/delegates/[tenant]/proposals` | GET | Governance proposals from forum categories |
+| `/api/delegates/[tenant]/snapshot` | GET | Snapshot voting data for tenant's space |
+| `/api/delegates/[tenant]/embed` | GET | CORS-enabled governance metrics for embedding |
 | `/api/delegates/[tenant]/refresh` | POST | Trigger data refresh (tenant admin) |
 | `/api/delegates/admin` | GET/POST | Tenant and delegate management (admin) |
 | `/api/delegates/admin/search` | GET | Search forum users for a tenant |
@@ -251,10 +257,13 @@ The base layer shows **forum-wide contributor analytics** — top contributors, 
 - Optional tracked member overlay with configurable role labels
 - Historical snapshots for trending over time
 - Configurable focus category and rationale detection per tenant
+- **Governance proposal tracking** — parse forum categories for proposals with status (open/voting/closed/implemented)
+- **Snapshot voting integration** — per-tenant Snapshot space data, voter participation, governance scores
+- **Embeddable governance widget** — iframe-friendly page at `/<slug>/embed` + JSON API at `/api/delegates/<slug>/embed`
 - API keys encrypted at rest (AES-256-GCM)
 - Tenant admin roles with invite system for delegated management
 
-**Data sources:** Forum activity from Discourse REST API. Identity and role data from admin-provided records.
+**Data sources:** Forum activity from Discourse REST API. Snapshot voting from Snapshot GraphQL API. Identity and role data from admin-provided records.
 
 See `src/lib/delegates/` for implementation and `src/types/delegates.ts` for types.
 
