@@ -31,26 +31,33 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 
 ```text
 src/
+├── middleware.ts            # Security headers, bare domain redirect, [tenant] slug validation
 ├── app/                    # Next.js App Router
-│   ├── api/                # API routes (discourse, digest, briefs, delegates, user, admin, v1, mcp, cron)
-│   ├── [tenant]/           # Multi-tenant delegate analytics dashboards
+│   ├── api/                # API routes (discourse, digest, briefs, delegates, user, admin, v1, mcp, cron, health, discussions)
+│   ├── [tenant]/           # Multi-tenant forum analytics dashboards
 │   ├── admin/              # Admin dashboard
 │   ├── app/                # Main app page (client-side, authenticated)
+│   ├── invite/[token]/     # Tenant admin invite claim page
 │   └── feed/               # RSS/Atom feed generator
 ├── components/             # React components (see individual files for props)
 ├── hooks/                  # Custom React hooks (state, localStorage, data fetching)
 ├── lib/                    # Utility libraries
-│   ├── delegates/          # Delegate monitoring subsystem (brief, contributorSync, db, discourseClient, encryption, refreshEngine)
-│   ├── db.ts               # PostgreSQL client and queries (dynamic schema)
+│   ├── delegates/          # Forum analytics subsystem (index, brief, contributorSync, db, discourseClient, encryption, refreshEngine)
+│   ├── db.ts               # PostgreSQL client, queries, and core schema (initializeSchema())
+│   ├── auth.ts             # Server-side auth (verifyAuth, verifyAdminAuth, verifyTenantAdmin, checkIsSuperAdmin)
+│   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres)
-│   ├── forumPresets.ts     # 165+ pre-configured forum presets by category
+│   ├── forumPresets.ts     # 160+ pre-configured forum presets by category
 │   ├── externalSources.ts  # External source registry (EA Forum, GitHub, Snapshot, HN)
 │   ├── theme.ts            # c() theme utility for consistent color tokens
-│   ├── auth.ts             # Server-side auth middleware (verifyAuth, verifyAdminAuth)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
-│   └── url.ts              # URL validation, normalization, and SSRF protection
+│   ├── url.ts              # URL validation, normalization, and SSRF protection
+│   ├── grantsBrief.ts      # Grants & funding brief generation
+│   ├── emailDigest.ts      # AI email digest generation
+│   ├── emailService.ts     # Resend email delivery
+│   └── cors.ts             # CORS headers utility
 └── types/
-    ├── delegates.ts        # Delegate monitoring types
+    ├── delegates.ts        # Forum analytics / delegate monitoring types
     └── index.ts            # Core TypeScript interfaces and types
 ```
 
@@ -69,9 +76,13 @@ npm run lint     # Run ESLint
 1. **Forum Cache** (`lib/forumCache.ts`) — Background refresh fetches all preset forums every 15 min, stores in Redis + memory + Postgres
 2. **External Sources** (`lib/externalSources.ts`) — Fetches from EA Forum, GitHub Discussions, Snapshot, HN via dedicated clients
 3. **API Routes** — Serve cached data, proxy individual topic requests
-4. **Auth Layer** (`lib/auth.ts`) — `verifyAuth()` for user routes, `verifyAdminAuth()` for admin/cron routes
+4. **Auth Layer** (`lib/auth.ts`) — Three levels of auth:
+   - `verifyAuth()` — Privy token verification for user routes
+   - `verifyAdminAuth()` — CRON_SECRET or Privy + admin allowlist for platform-wide admin routes
+   - `verifyTenantAdmin()` — CRON_SECRET or super admin or tenant-scoped admin (via `tenant_admins` table) for per-tenant operations
 5. **Custom Hooks** — Client-side state management, data fetching, localStorage persistence
 6. **Server Sync** (`/api/user/*`) — Optional authenticated sync of user data to Postgres via Privy
+7. **Middleware** (`middleware.ts`) — Security headers, bare domain redirect (`discuss.watch` -> `www.discuss.watch`), [tenant] slug validation with `/_not-found` rewrite for invalid slugs
 
 ### State Management
 - No external state library — custom hooks with `useState` + `useEffect`
@@ -80,29 +91,57 @@ npm run lint     # Run ESLint
 
 ## API Routes
 
+### Core Data
 | Route | Method | Purpose |
 |-------|--------|---------|
 | `/api/discourse` | GET | Fetch topics from a Discourse forum (with cache) |
 | `/api/discourse/topic` | GET | Fetch individual topic posts for inline reader |
-| `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
-| `/api/digest` | GET/POST | AI digest retrieval / generation (admin) |
+| `/api/discussions` | GET | Paginated discussions from ALL cached forums (server-side filtering, search, sort) |
 | `/api/briefs` | GET | Zero-cost discovery (trending + new from cache) |
 | `/api/external-sources` | GET | Fetch from non-Discourse sources |
+| `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
+| `/api/digest` | GET/POST | AI digest retrieval / generation (admin) |
+
+### User Data (requires Privy auth via `verifyAuth`)
+| Route | Method | Purpose |
+|-------|--------|---------|
 | `/api/user` | GET | User profile |
 | `/api/user/forums` | GET/POST | Sync forum configurations |
 | `/api/user/alerts` | GET/POST | Sync keyword alerts |
 | `/api/user/bookmarks` | GET/POST | Sync bookmarks |
 | `/api/user/read-state` | GET/POST | Sync read/unread state |
 | `/api/user/preferences` | GET/POST | Sync user preferences |
+| `/api/user/tenant-roles` | GET | Current user's tenant admin roles (`isSuperAdmin`, `tenantSlugs`) |
+
+### Admin (requires `verifyAdminAuth`)
+| Route | Method | Purpose |
+|-------|--------|---------|
 | `/api/admin` | GET | Admin dashboard data |
 | `/api/cache` | GET | Cache status and stats |
-| `/api/delegates/[tenant]` | GET | Delegate dashboard data (`?filter=tracked` for tracked-only) |
-| `/api/delegates/[tenant]/[username]` | GET | Individual delegate detail |
-| `/api/delegates/[tenant]/refresh` | POST | Trigger delegate data refresh (admin) |
-| `/api/delegates/admin` | GET/POST | Tenant management (admin) |
-| `/api/delegates/admin/search` | GET | Search forum users for a tenant (admin) |
+| `/api/db` | GET | Database and cache stats |
+| `/api/backfill` | GET/POST | Backfill status and control |
+
+### Forum Analytics / Delegates
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/api/delegates/[tenant]` | GET | Public | Dashboard data (`?filter=tracked` for tracked-only) |
+| `/api/delegates/[tenant]/[username]` | GET | Public | Individual contributor detail |
+| `/api/delegates/[tenant]/refresh` | POST | `verifyTenantAdmin` | Trigger data refresh |
+| `/api/delegates/admin` | GET | `verifyAdminAuth` or `verifyTenantAdmin` | List all tenants (super) or tenant delegates (scoped) |
+| `/api/delegates/admin` | POST | `verifyAdminAuth` or `verifyTenantAdmin` | Tenant/delegate management (see actions below) |
+| `/api/delegates/admin/search` | GET | `verifyTenantAdmin` | Search forum users for a tenant |
+| `/api/delegates/invite/[token]` | GET | Public | Preview invite link |
+| `/api/delegates/invite/[token]` | POST | `verifyAuth` | Claim invite (auto-adds as tenant admin) |
+
+**Delegates admin POST actions:**
+- Super admin only: `init-schema`, `create-tenant`, `update-tenant`, `delete-tenant`, `detect-capabilities`, `add-tenant-admin`, `remove-tenant-admin`, `list-tenant-admins`, `create-tenant-invite`, `list-tenant-invites`, `revoke-tenant-invite`
+- Tenant-scoped (tenant admins can perform on their own tenant): `upsert-delegate`, `bulk-upsert-delegates`, `delete-delegate`
+
+### Infrastructure
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/health` | GET | Unauthenticated health check (DB + Redis status) |
 | `/api/cron/delegates` | GET | Cron: delegate data refresh |
-| `/api/cron/digest` | GET | Cron: digest email sending |
 | `/api/cron/grants-brief` | GET | Cron: grants & funding brief email |
 | `/api/v1/*` | GET | Public API v1 (forums, discussions, categories, search) |
 | `/api/mcp` | GET | MCP tool definitions |
@@ -117,14 +156,16 @@ Types are defined in `src/types/index.ts` and `src/types/delegates.ts`. Key type
 - **`Forum`**: Forum config with `id`, `cname`, `name`, `sourceType`, `discourseForum.url`, `isEnabled`
 - **`DiscussionTopic`**: Transformed topic with `refId` (protocol-id), `excerpt`, optional `sourceType`/`externalUrl`
 - **`DiscussionPost`**: Individual post within a topic (used by inline reader)
-- **`TopicDetail`**: Full topic with posts array
+- **`TopicDetail`**: Full topic with posts array, `participantCount`
 - **`KeywordAlert`**: Keyword alert with `id`, `keyword`, `isEnabled`
 - **`Bookmark`**: Saved discussion with `topicRefId`, `topicUrl`, `protocol`
 - **`DateRangeFilter`**: `'all' | 'today' | 'week' | 'month'`
+- **`DateFilterMode`**: `'created' | 'activity'`
 - **`SortOption`**: `'recent' | 'replies' | 'views' | 'likes'`
-- **`DigestPreferences`**: Email digest config with frequency, content toggles, forums, keywords
 
-For delegate types see `types/delegates.ts`: `TenantConfig`, `TenantCapabilities`, `Delegate`, `DelegateRow`, `DelegateDashboard`.
+For delegate types see `types/delegates.ts`: `TenantConfig`, `TenantCapabilities`, `Delegate`, `DelegateRow`, `DelegateDashboard`, `TenantBranding`, `DirectoryItem`.
+
+For tenant admin types see `lib/delegates/db.ts`: `TenantAdmin`, `TenantInvite` (exported via `lib/delegates/index.ts`).
 
 ## Styling Conventions
 
@@ -152,9 +193,15 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 1. **Forum-wide contributor analytics** (base) — auto-synced from Discourse `/directory_items.json`, percentile rankings, zero config needed
 2. **Tracked members** (optional overlay) — admin-curated roster with deeper per-user stats (snapshots, rationale detection, recent posts). Label is tenant-configurable ("Delegate", "Steward", etc.)
 
-**Architecture:** Tenants (`delegate_tenants`) → Delegates (`delegates`, `is_tracked` flag) → Snapshots (`delegate_snapshots`). API keys encrypted with AES-256-GCM. Two-phase refresh: (1) directory sync for all contributors, (2) per-user detailed stats for tracked members only.
+**Architecture:** Tenants (`delegate_tenants`) -> Delegates (`delegates`, `is_tracked` flag) -> Snapshots (`delegate_snapshots`). API keys encrypted with AES-256-GCM. Two-phase refresh: (1) directory sync for all contributors, (2) per-user detailed stats for tracked members only.
 
-Key files: `src/lib/delegates/` (brief, contributorSync, db, discourseClient, encryption, refreshEngine), `src/types/delegates.ts`, `src/app/[tenant]/`, `src/app/api/delegates/`.
+**Tenant admin roles:** `tenant_admins` table maps Privy DIDs to specific tenants. Super admins (platform-level via `lib/admin.ts` allowlist) can manage all tenants. Tenant admins can manage delegates, trigger refresh, and search users for their own tenant only. Auth is enforced by `verifyTenantAdmin()` in `lib/auth.ts`.
+
+**Invite system:** `tenant_invites` table stores one-time invite tokens. Flow: super admin calls `create-tenant-invite` action -> gets invite URL (`/invite/[token]`) -> recipient opens link -> logs in via Privy -> auto-added as tenant admin via `claimTenantInvite()`. Page: `src/app/invite/[token]/page.tsx`, API: `/api/delegates/invite/[token]`.
+
+**Key files:** `src/lib/delegates/` (index, brief, contributorSync, db, discourseClient, encryption, refreshEngine), `src/types/delegates.ts`, `src/app/[tenant]/`, `src/app/invite/[token]/`, `src/app/api/delegates/`.
+
+**Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — fetches current user's admin roles from `/api/user/tenant-roles`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
 
 Tenant dashboard uses reserved slugs: `terms, about, privacy, contact, pricing, help, docs, blog, login, signup, settings`.
 
@@ -212,6 +259,9 @@ Desktop: 480px panel on right replacing sidebar. Mobile: full-screen overlay wit
 ### Sidebar Views
 `'feed' | 'briefs' | 'projects' | 'saved' | 'settings'`
 
+### Middleware 404 Handling for [tenant]
+`notFound()` in async server components returns HTTP 200 (not 404) because Next.js RSC streaming commits the status before async code resolves. Fix: `middleware.ts` validates the slug format and rewrites to `/_not-found` for invalid slugs, ensuring a proper 404 status code.
+
 ### Discourse Tags
 Tags in raw API response can be strings OR objects — handle both.
 
@@ -248,16 +298,18 @@ The app functions without these in development (gracefully degrades).
 
 ## Database Schema
 
-- **Core**: `src/lib/schema.sql` — users, preferences, forums, alerts, bookmarks, read_state
-- **Delegates**: `src/lib/delegates/schema.sql` — tenants, delegates, snapshots
-- Both use `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for forward-compatible migrations.
+- **Core**: `src/lib/db.ts` (in `initializeSchema()`) — forums, topics, topic_snapshots, backfill_jobs, users, user_preferences, keyword_alerts, bookmarks, user_forums, user_forums_data, custom_forums, read_state
+- **Delegates**: `src/lib/delegates/db.ts` (in `initializeDelegateSchema()`) — delegate_tenants, delegates, delegate_snapshots, tenant_admins, tenant_invites
+- Reference DDL: `src/lib/delegates/schema.sql` (base tables only; `tenant_admins` and `tenant_invites` are defined in code)
+- All schemas use `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for forward-compatible migrations. Schema runs on first API call, not as a separate migration step.
 
 ## Cron Jobs
 
-All protected by `CRON_SECRET` (constant-time comparison).
+All protected by `CRON_SECRET` (constant-time comparison via `validateCronSecret()` in `lib/auth.ts`).
 
 | Endpoint | Schedule | Purpose |
 |----------|----------|---------|
-| `/api/cron/digest` | Daily 8am UTC | Send email digests |
-| `/api/cron/delegates` | Per-tenant (default 4h) | Refresh delegate stats |
+| `/api/cron/delegates` | Per-tenant (default 4h) | Refresh delegate/contributor stats |
 | `/api/cron/grants-brief` | Daily | Grants & funding brief email |
+
+Note: Digest sending is handled via `/api/digest` (POST, admin-only), not a separate cron route.

@@ -6,23 +6,26 @@
 
 ---
 
-## Current State (Feb 2026)
+## Current State (Mar 2026)
 
-- ✅ 100+ Discourse forums monitored (crypto, AI, OSS)
+- ✅ 160+ Discourse forums + 60+ external sources monitored (crypto, AI, OSS)
 - ✅ Keyword alerts and filtering
 - ✅ Email digests with AI summaries (Claude Sonnet)
+- ✅ Daily Grants & Funding email brief
 - ✅ Activity badges (Hot, Active, NEW)
 - ✅ Delegate thread filtering
 - ✅ Privy authentication
 - ✅ Light/dark theme support
 - ✅ Inline discussion reader (split-panel, reads posts without leaving app)
-- ✅ On-site AI Briefs view (browsable digest within app)
+- ✅ On-site AI Briefs view (zero-cost discovery, trending + new from cache)
 - ✅ Discussion excerpts in feed cards
 - ✅ Server-side forum cache (Redis + Postgres + memory)
 - ✅ Command menu (Cmd+K) for quick navigation
 - ✅ Public API v1 for external consumers
-- ✅ Personalized email digests per user
+- ✅ Server-side "All Forums" mode with paginated API
 - ✅ Forum-wide contributor analytics (directory sync, percentile rankings, two-phase refresh)
+- ✅ Multi-tenant admin roles (tenant_admins table, invite system, verifyTenantAdmin auth, useTenantRoles hook)
+- ✅ Persistent forum health monitoring with consecutive failure tracking
 
 ---
 
@@ -94,6 +97,20 @@
 
 ---
 
+## Phase 1.6: Tenant Admin Roles
+**Status:** ✅ Completed
+**Completed:** Mar 2026
+
+### Multi-Tenant Admin System
+- [x] `tenant_admins` table mapping Privy DIDs to tenant-scoped admin access
+- [x] `tenant_invites` table with one-time invite tokens (expiry, claim tracking)
+- [x] `verifyTenantAdmin()` server-side auth (checks super admin or tenant-scoped role)
+- [x] `useTenantRoles` client hook (resolves `isSuperAdmin`, `tenantSlugs`, `canAdminTenant`)
+- [x] Invite creation, claiming, listing, and revocation APIs
+- [x] Dashboard admin controls scoped to tenant admins (not just super admin)
+
+---
+
 ## Phase 2: GitHub Discussions Integration
 **Status:** ✅ Completed
 **Completed:** Feb 2026
@@ -103,7 +120,7 @@
 - [x] Discussion fetching and normalization to `DiscussionTopic` type
 - [x] Rate limiting and caching
 - [x] Unified feed display (Discourse + GitHub via external sources)
-- [x] Full preset coverage (38 GitHub sources configured)
+- [x] Full preset coverage (46 GitHub sources configured)
 
 ### GitHub Presets — OSS (28 repos)
 - [x] Deno, Bun, Fresh
@@ -135,7 +152,7 @@
 
 ## Phase 3: Commonwealth Integration
 **Status:** Planned
-**Target:** Mar 2026
+**Target:** Q2 2026
 
 ### Core Integration
 - [ ] Commonwealth API connector
@@ -237,4 +254,4 @@
 
 ---
 
-*Last updated: 2026-02-21*
+*Last updated: 2026-03-06*

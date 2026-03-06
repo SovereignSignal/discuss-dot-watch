@@ -1,7 +1,7 @@
 ---
 name: discuss-watch
 version: 1.0.0
-description: Unified forum feed for crypto, AI, and open source communities. 100+ Discourse forums aggregated.
+description: Unified forum feed for crypto, AI, and open source communities. 160+ Discourse forums aggregated.
 homepage: https://discuss.watch
 api_base: https://discuss.watch/api/v1
 ---
@@ -12,7 +12,7 @@ Unified forum feed for crypto, AI, and open source communities.
 
 ## What You Can Do
 
-- **Search** discussions across 100+ forums
+- **Search** discussions across 160+ forums
 - **Monitor** activity in specific communities or verticals
 - **Track** trending/hot discussions
 - **Subscribe** to RSS feeds for updates

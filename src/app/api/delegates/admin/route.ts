@@ -1,14 +1,14 @@
 /**
- * POST /api/delegates/admin — Admin operations for delegate monitoring
- * 
- * Actions:
- *   - create-tenant: Create a new tenant
- *   - upsert-delegate: Add or update a delegate
- *   - bulk-upsert-delegates: Add/update multiple delegates
- *   - detect-capabilities: Test API key permissions
- *   - init-schema: Initialize delegate DB tables
- * 
- * Requires CRON_SECRET bearer token or admin email header.
+ * GET  /api/delegates/admin — List tenants (super admin) or tenant delegates (tenant admin with ?tenant=slug)
+ * POST /api/delegates/admin — Admin operations for forum analytics
+ *
+ * Super admin actions (verifyAdminAuth):
+ *   - init-schema, create-tenant, update-tenant, delete-tenant, detect-capabilities
+ *   - add-tenant-admin, remove-tenant-admin, list-tenant-admins
+ *   - create-tenant-invite, list-tenant-invites, revoke-tenant-invite
+ *
+ * Tenant-scoped actions (verifyTenantAdmin — tenant admins can manage their own tenant):
+ *   - upsert-delegate, bulk-upsert-delegates, delete-delegate
  */
 
 import { NextRequest, NextResponse } from 'next/server';

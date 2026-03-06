@@ -1,5 +1,6 @@
--- Delegate Monitoring Schema
--- Multi-tenant delegate activity tracking for Discourse forums
+-- Forum Analytics Schema
+-- Multi-tenant contributor analytics and delegate monitoring for Discourse forums
+-- NOTE: Authoritative schema is in db.ts (initializeDelegateSchema). This file is a reference.
 
 -- Tenants table - each DAO/community that uses delegate monitoring
 CREATE TABLE IF NOT EXISTS delegate_tenants (
@@ -85,3 +86,31 @@ CREATE TRIGGER update_delegates_updated_at
   BEFORE UPDATE ON delegates
   FOR EACH ROW
   EXECUTE FUNCTION update_delegates_updated_at();
+
+-- Tenant admin roles - maps Privy DIDs to tenant-scoped admin access
+CREATE TABLE IF NOT EXISTS tenant_admins (
+  id SERIAL PRIMARY KEY,
+  tenant_id INTEGER NOT NULL REFERENCES delegate_tenants(id) ON DELETE CASCADE,
+  privy_did TEXT NOT NULL,                         -- Privy DID of the admin user
+  granted_by TEXT NOT NULL,                        -- Privy DID of the granting super admin
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(tenant_id, privy_did)
+);
+
+-- Tenant invite links - one-time tokens for onboarding new tenant admins
+CREATE TABLE IF NOT EXISTS tenant_invites (
+  id SERIAL PRIMARY KEY,
+  tenant_id INTEGER NOT NULL REFERENCES delegate_tenants(id) ON DELETE CASCADE,
+  token TEXT UNIQUE NOT NULL,                      -- Random invite token
+  created_by TEXT NOT NULL,                        -- Privy DID of the creator
+  claimed_by TEXT,                                 -- Privy DID of the claimer (null until claimed)
+  claimed_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_admins_privy_did ON tenant_admins(privy_did);
+CREATE INDEX IF NOT EXISTS idx_tenant_invites_token ON tenant_invites(token);
+
+-- Additional columns added via ALTER TABLE in initializeDelegateSchema():
+-- delegates: is_tracked, avatar_template, role, directory_*, percentile_*, monthly_* columns

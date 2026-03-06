@@ -1,4 +1,4 @@
-# Forum Monitor: Complete Target List
+# discuss.watch: Complete Target List
 
 All monitorable community platforms across crypto, AI, and OSS.
 
