@@ -24,6 +24,7 @@ import {
   TrendingUp,
   AlertTriangle,
   Vote,
+  CheckCircle2,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantBranding, TenantSnapshotData } from '@/types/delegates';
@@ -1313,8 +1314,11 @@ function TopContributorsList({
                 </div>
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
                   {d.displayName}
+                  {d.verifiedStatus && (
+                    <CheckCircle2 size={11} style={{ color: '#22c55e', flexShrink: 0 }} />
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</div>
               </div>
@@ -1647,6 +1651,16 @@ function DelegateTableRow({
                   style={{ color: '#f59e0b', flexShrink: 0 }}
                 />
               )}
+              {d.verifiedStatus && (
+                <span style={{
+                  fontSize: 9, padding: '1px 6px', borderRadius: 9999,
+                  background: '#22c55e15', border: '1px solid #22c55e33',
+                  color: '#22c55e', whiteSpace: 'nowrap', flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
+                }}>
+                  <CheckCircle2 size={9} /> Verified
+                </span>
+              )}
               {(() => {
                 const tier = getActivityTier(d.postCount);
                 return (
@@ -1848,6 +1862,16 @@ function MobileDelegateCard({
             )}
             {d.isTracked && (
               <Star size={11} fill="currentColor" style={{ color: '#f59e0b', flexShrink: 0 }} />
+            )}
+            {d.verifiedStatus && (
+              <span style={{
+                fontSize: 9, padding: '1px 6px', borderRadius: 9999,
+                background: '#22c55e15', border: '1px solid #22c55e33',
+                color: '#22c55e', whiteSpace: 'nowrap', flexShrink: 0,
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+              }}>
+                <CheckCircle2 size={9} /> Verified
+              </span>
             )}
             {(() => {
               const tier = getActivityTier(d.postCount);
