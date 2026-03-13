@@ -10,10 +10,10 @@ import {
   ChevronRight,
   CheckCircle2,
 } from 'lucide-react';
-import type { DelegateRow, GovernanceScore } from '@/types/delegates';
+import type { DelegateRow, GovernanceScore, DashboardPeriod } from '@/types/delegates';
 import type { c } from '@/lib/theme';
 import type { SortField, SortDir, BrandedColorsResult } from './dashboardUtils';
-import { getActivityTier, dashboardGetRoleColor, dashboardGetRoleLabel } from './dashboardUtils';
+import { getActivityTier, dashboardGetRoleColor, dashboardGetRoleLabel, getPostCountForPeriod, getTopicCountForPeriod, getLikesForPeriod, getDaysVisitedForPeriod } from './dashboardUtils';
 import { GovScorePill } from './OverviewTab';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -123,6 +123,7 @@ export function DelegateTableRow({
   accentBg,
   showUsername,
   govScore,
+  period = 'all',
 }: {
   delegate: DelegateRow;
   forumUrl: string;
@@ -133,6 +134,7 @@ export function DelegateTableRow({
   accentBg?: string;
   showUsername?: boolean;
   govScore?: GovernanceScore;
+  period?: DashboardPeriod;
 }) {
   const seenAgo = d.lastSeenAt
     ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
@@ -231,7 +233,8 @@ export function DelegateTableRow({
                 </span>
               )}
               {(() => {
-                const tier = getActivityTier(d.postCount);
+                const periodPosts = getPostCountForPeriod(d, period);
+                const tier = getActivityTier(periodPosts, period);
                 return (
                   <span
                     style={{
@@ -304,12 +307,12 @@ export function DelegateTableRow({
         )}
       </td>
       <td style={{ padding: '10px 16px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: t.fg }}>
-        {d.postCount.toLocaleString()}
-        {d.postCountPercentile != null && <PercentilePill percentile={d.postCountPercentile} t={t} />}
+        {getPostCountForPeriod(d, period).toLocaleString()}
+        {period === 'all' && d.postCountPercentile != null && <PercentilePill percentile={d.postCountPercentile} t={t} />}
       </td>
-      <NumCell value={d.topicCount} t={t} />
-      <NumCell value={d.likesReceived} t={t} />
-      <NumCell value={d.daysVisited} t={t} />
+      <NumCell value={getTopicCountForPeriod(d, period)} t={t} />
+      <NumCell value={getLikesForPeriod(d, period)} t={t} />
+      <NumCell value={getDaysVisitedForPeriod(d, period)} t={t} />
       <NumCell value={d.rationaleCount} t={t} highlight={d.rationaleCount === 0} />
       <td
         style={{
@@ -367,6 +370,7 @@ export function MobileDelegateCard({
   accentBg,
   showUsername,
   govScore,
+  period = 'all',
 }: {
   delegate: DelegateRow;
   isSelected: boolean;
@@ -376,6 +380,7 @@ export function MobileDelegateCard({
   accentBg?: string;
   showUsername?: boolean;
   govScore?: GovernanceScore;
+  period?: DashboardPeriod;
 }) {
   const seenAgo = d.lastSeenAt
     ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
@@ -458,7 +463,8 @@ export function MobileDelegateCard({
               </span>
             )}
             {(() => {
-              const tier = getActivityTier(d.postCount);
+              const periodPosts = getPostCountForPeriod(d, period);
+              const tier = getActivityTier(periodPosts, period);
               return (
                 <span
                   style={{
@@ -525,12 +531,12 @@ export function MobileDelegateCard({
           color: t.fgMuted,
         }}
       >
-        <span><MessageSquare size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />{d.postCount}
-          {d.postCountPercentile != null && d.postCountPercentile >= 75 && (
+        <span><MessageSquare size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />{getPostCountForPeriod(d, period)}
+          {period === 'all' && d.postCountPercentile != null && d.postCountPercentile >= 75 && (
             <PercentilePill percentile={d.postCountPercentile} t={t} />
           )}
         </span>
-        <span><ThumbsUp size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />{d.likesReceived}</span>
+        <span><ThumbsUp size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />{getLikesForPeriod(d, period)}</span>
         <span style={{ color: t.fgDim }}>Seen {seenAgo}</span>
       </div>
     </div>

@@ -14,9 +14,10 @@ import {
   CheckCircle2,
   Target,
 } from 'lucide-react';
-import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantSnapshotData, GovernanceScore } from '@/types/delegates';
+import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantSnapshotData, GovernanceScore, DashboardPeriod } from '@/types/delegates';
 import type { c } from '@/lib/theme';
 import type { BrandedColorsResult } from './dashboardUtils';
+import { getPostCountForPeriod } from './dashboardUtils';
 import { formatDistanceToNow } from 'date-fns';
 
 interface OverviewTabProps {
@@ -29,6 +30,7 @@ interface OverviewTabProps {
   trackedLabelPlural: string;
   snapshotData?: TenantSnapshotData | null;
   governanceScores?: GovernanceScore[];
+  period?: DashboardPeriod;
 }
 
 export default function OverviewTab({
@@ -41,6 +43,7 @@ export default function OverviewTab({
   trackedLabelPlural,
   snapshotData,
   governanceScores,
+  period = 'year',
 }: OverviewTabProps) {
   const summary = dashboard.summary;
   const delegates = dashboard.delegates;
@@ -51,22 +54,69 @@ export default function OverviewTab({
     return Math.round(sum / governanceScores.length);
   }, [governanceScores]);
 
+  // Compute period-aware activity distribution client-side
+  const periodDistribution = useMemo(() => {
+    if (period === 'all') return summary.activityDistribution;
+    // Compute from raw delegates using period post counts
+    const thresholds = period === 'week'
+      ? { high: 10, active: 3, low: 1, minimal: 0 }
+      : period === 'month'
+        ? { high: 20, active: 5, low: 2, minimal: 1 }
+        : { high: 50, active: 11, low: 2, minimal: 1 }; // year
+
+    return {
+      highlyActive: delegates.filter(d => getPostCountForPeriod(d, period) >= thresholds.high).length,
+      active: delegates.filter(d => {
+        const pc = getPostCountForPeriod(d, period);
+        return pc >= thresholds.active && pc < thresholds.high;
+      }).length,
+      lowActivity: delegates.filter(d => {
+        const pc = getPostCountForPeriod(d, period);
+        return pc >= thresholds.low && pc < thresholds.active;
+      }).length,
+      minimal: period === 'week'
+        ? 0 // week has no minimal tier
+        : delegates.filter(d => getPostCountForPeriod(d, period) === thresholds.minimal).length,
+      dormant: delegates.filter(d => getPostCountForPeriod(d, period) === 0).length,
+    };
+  }, [delegates, period, summary.activityDistribution]);
+
+  const periodLabel = period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : period === 'year' ? 'This Year' : '';
+
+  // Period-aware post total + active count for KeyStatsRow
+  const periodPostTotal = useMemo(() => {
+    return delegates.reduce((s, d) => s + getPostCountForPeriod(d, period), 0);
+  }, [delegates, period]);
+
+  const periodActiveContributors = useMemo(() => {
+    return delegates.filter(d => getPostCountForPeriod(d, period) > 0).length;
+  }, [delegates, period]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 16 : 24 }}>
       {/* AI Brief */}
       <AIBriefCard brief={dashboard.brief} t={t} bc={bc} isMobile={isMobile} />
 
       {/* Key Metrics */}
-      <KeyStatsRow summary={summary} t={t} accent={bc?.accent} isMobile={isMobile} avgGovScore={avgGovScore} />
+      <KeyStatsRow
+        summary={summary}
+        t={t}
+        accent={bc?.accent}
+        isMobile={isMobile}
+        avgGovScore={avgGovScore}
+        period={period}
+        periodPostTotal={periodPostTotal}
+        periodActiveContributors={periodActiveContributors}
+      />
 
       {isMobile ? (
         <>
           <ActivityBar
-            distribution={summary.hasMonthlyData && summary.monthlyActivityDistribution ? summary.monthlyActivityDistribution : summary.activityDistribution}
+            distribution={periodDistribution}
             total={summary.totalDelegates}
             t={t}
             isMobile={isMobile}
-            isMonthly={!!summary.hasMonthlyData}
+            periodLabel={period !== 'all' ? periodLabel : undefined}
           />
           <ParticipationFunnel
             delegates={delegates}
@@ -82,7 +132,7 @@ export default function OverviewTab({
             bc={bc}
             isMobile={isMobile}
             onSelect={onSelectDelegate}
-            hasMonthlyData={!!summary.hasMonthlyData}
+            period={period}
           />
           <AttentionNeededCard
             delegates={delegates}
@@ -102,11 +152,11 @@ export default function OverviewTab({
           {/* Left column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <ActivityBar
-              distribution={summary.hasMonthlyData && summary.monthlyActivityDistribution ? summary.monthlyActivityDistribution : summary.activityDistribution}
+              distribution={periodDistribution}
               total={summary.totalDelegates}
               t={t}
               isMobile={isMobile}
-              isMonthly={!!summary.hasMonthlyData}
+              periodLabel={period !== 'all' ? periodLabel : undefined}
             />
             <ParticipationFunnel
               delegates={delegates}
@@ -126,7 +176,7 @@ export default function OverviewTab({
               bc={bc}
               isMobile={isMobile}
               onSelect={onSelectDelegate}
-              hasMonthlyData={!!summary.hasMonthlyData}
+              period={period}
             />
             <AttentionNeededCard
               delegates={delegates}
@@ -317,25 +367,45 @@ function KeyStatsRow({
   accent,
   isMobile,
   avgGovScore,
+  period = 'year',
+  periodPostTotal = 0,
+  periodActiveContributors = 0,
 }: {
   summary: DashboardSummary;
   t: ReturnType<typeof c>;
   accent?: string;
   isMobile: boolean;
   avgGovScore: number | null;
+  period?: DashboardPeriod;
+  periodPostTotal?: number;
+  periodActiveContributors?: number;
 }) {
-  const hasMonthly = summary.hasMonthlyData;
-  const monthlyActive = hasMonthly ? (summary.monthlyActiveContributors ?? 0) : summary.delegatesPostedLast30Days;
+  const periodLabels: Record<DashboardPeriod, string> = {
+    week: 'This Week',
+    month: 'This Month',
+    year: 'This Year',
+    all: '',
+  };
+
+  const activeLabel = period === 'all' ? 'Active (30d)' : `Active ${periodLabels[period]}`;
+  const activeCount = period === 'all'
+    ? (summary.hasMonthlyData ? (summary.monthlyActiveContributors ?? 0) : summary.delegatesPostedLast30Days)
+    : periodActiveContributors;
   const activeRate = summary.totalDelegates > 0
-    ? Math.round((monthlyActive / summary.totalDelegates) * 100)
+    ? Math.round((activeCount / summary.totalDelegates) * 100)
     : 0;
+
+  const postsLabel = period === 'all'
+    ? (avgGovScore != null ? 'Avg Gov Score' : 'Median Posts')
+    : (avgGovScore != null ? 'Avg Gov Score' : `Posts ${periodLabels[period]}`);
+  const postsValue = avgGovScore != null
+    ? avgGovScore
+    : (period === 'all' ? (summary.medianPostCount ?? 0) : periodPostTotal);
 
   const cards = [
     { label: 'Total Contributors', value: summary.totalDelegates, icon: Users },
-    { label: 'Active This Month', value: monthlyActive, icon: Activity },
-    { label: avgGovScore != null ? 'Avg Gov Score' : (hasMonthly ? 'Posts This Month' : 'Median Posts'),
-      value: avgGovScore != null ? avgGovScore : (hasMonthly ? (summary.monthlyPostTotal ?? 0) : (summary.medianPostCount ?? 0)),
-      icon: avgGovScore != null ? Target : MessageSquare },
+    { label: activeLabel, value: activeCount, icon: Activity },
+    { label: postsLabel, value: postsValue, icon: avgGovScore != null ? Target : MessageSquare },
     { label: 'Active Rate', value: `${activeRate}%`, icon: TrendingUp },
   ];
 
@@ -373,13 +443,13 @@ function ActivityBar({
   total,
   t,
   isMobile,
-  isMonthly,
+  periodLabel,
 }: {
   distribution: DashboardSummary['activityDistribution'];
   total: number;
   t: ReturnType<typeof c>;
   isMobile: boolean;
-  isMonthly?: boolean;
+  periodLabel?: string;
 }) {
   if (!distribution || total === 0) return null;
 
@@ -401,7 +471,7 @@ function ActivityBar({
       }}
     >
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-        Activity Distribution{isMonthly ? ' (Last 30 Days)' : ''}
+        Activity Distribution{periodLabel ? ` (${periodLabel})` : ''}
       </div>
 
       {/* Stacked bar */}
@@ -518,7 +588,7 @@ function GovernanceLeaderboard({
   bc,
   isMobile,
   onSelect,
-  hasMonthlyData,
+  period = 'year',
 }: {
   delegates: DelegateRow[];
   governanceScores?: GovernanceScore[];
@@ -526,7 +596,7 @@ function GovernanceLeaderboard({
   bc: BrandedColorsResult | null;
   isMobile: boolean;
   onSelect: (username: string) => void;
-  hasMonthlyData?: boolean;
+  period?: DashboardPeriod;
 }) {
   const scoreMap = useMemo(() => {
     if (!governanceScores) return null;
@@ -534,6 +604,8 @@ function GovernanceLeaderboard({
     for (const s of governanceScores) m.set(s.username, s);
     return m;
   }, [governanceScores]);
+
+  const isPeriodFiltered = period !== 'all';
 
   const top5 = useMemo(() => {
     // If governance scores available, sort by combined score
@@ -546,18 +618,22 @@ function GovernanceLeaderboard({
         })
         .slice(0, 5);
     }
-    // Fallback: monthly or all-time posts
-    if (hasMonthlyData) {
-      return [...delegates]
-        .filter((d) => (d.postCountMonth ?? 0) > 0)
-        .sort((a, b) => (b.postCountMonth ?? 0) - (a.postCountMonth ?? 0))
-        .slice(0, 5);
-    }
-    return [...delegates].sort((a, b) => b.postCount - a.postCount).slice(0, 5);
-  }, [delegates, hasMonthlyData, scoreMap]);
+    // Sort by period-aware post count
+    return [...delegates]
+      .filter((d) => getPostCountForPeriod(d, period) > 0)
+      .sort((a, b) => getPostCountForPeriod(b, period) - getPostCountForPeriod(a, period))
+      .slice(0, 5);
+  }, [delegates, period, scoreMap]);
+
+  const periodLabels: Record<DashboardPeriod, string> = {
+    week: 'this week',
+    month: 'this month',
+    year: 'this year',
+    all: '',
+  };
 
   if (top5.length === 0) {
-    if (hasMonthlyData) {
+    if (isPeriodFiltered) {
       return (
         <div
           style={{
@@ -567,8 +643,8 @@ function GovernanceLeaderboard({
             background: t.bgCard,
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Recently Active</div>
-          <div style={{ fontSize: 13, color: t.fgDim }}>No contributors posted in the last 30 days.</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Top Contributors</div>
+          <div style={{ fontSize: 13, color: t.fgDim }}>No contributors posted {periodLabels[period]}.</div>
         </div>
       );
     }
@@ -576,7 +652,7 @@ function GovernanceLeaderboard({
   }
 
   const useGovScore = scoreMap && scoreMap.size > 0;
-  const title = useGovScore ? 'Governance Leaderboard' : (hasMonthlyData ? 'Recently Active' : 'Top Contributors');
+  const title = useGovScore ? 'Governance Leaderboard' : (isPeriodFiltered ? 'Top Contributors' : 'Top Contributors');
 
   return (
     <div
@@ -591,7 +667,7 @@ function GovernanceLeaderboard({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {top5.map((d, i) => {
           const score = scoreMap?.get(d.username);
-          const postDisplay = hasMonthlyData ? (d.postCountMonth ?? 0) : d.postCount;
+          const postDisplay = getPostCountForPeriod(d, period);
           return (
             <div
               key={d.username}
@@ -653,9 +729,9 @@ function GovernanceLeaderboard({
                   <>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>
                       {postDisplay.toLocaleString()} post{postDisplay !== 1 ? 's' : ''}
-                      {hasMonthlyData && <span style={{ fontSize: 10, color: t.fgDim, fontWeight: 400 }}> this month</span>}
+                      {isPeriodFiltered && <span style={{ fontSize: 10, color: t.fgDim, fontWeight: 400 }}> {periodLabels[period]}</span>}
                     </div>
-                    {!hasMonthlyData && d.postCountPercentile != null && (
+                    {period === 'all' && d.postCountPercentile != null && (
                       <span
                         style={{
                           fontSize: 10,

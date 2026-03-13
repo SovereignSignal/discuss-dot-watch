@@ -107,6 +107,16 @@ export async function initializeDelegateSchema() {
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_topic_count_month INTEGER`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_likes_received_month INTEGER`;
   await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_days_visited_month INTEGER`;
+  // Weekly directory stats (period=weekly)
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_post_count_week INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_topic_count_week INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_likes_received_week INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_days_visited_week INTEGER`;
+  // Yearly directory stats (period=yearly)
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_post_count_year INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_topic_count_year INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_likes_received_year INTEGER`;
+  await db`ALTER TABLE delegates ADD COLUMN IF NOT EXISTS directory_days_visited_year INTEGER`;
 
   // Backfill: pre-existing delegates (before directory sync feature) should be marked as tracked.
   // Only affects rows with no directory data (directory_post_count IS NULL), so
@@ -293,6 +303,14 @@ export async function upsertDelegate(tenantId: number, delegate: {
   directoryTopicCountMonth?: number | null;
   directoryLikesReceivedMonth?: number | null;
   directoryDaysVisitedMonth?: number | null;
+  directoryPostCountWeek?: number | null;
+  directoryTopicCountWeek?: number | null;
+  directoryLikesReceivedWeek?: number | null;
+  directoryDaysVisitedWeek?: number | null;
+  directoryPostCountYear?: number | null;
+  directoryTopicCountYear?: number | null;
+  directoryLikesReceivedYear?: number | null;
+  directoryDaysVisitedYear?: number | null;
 }): Promise<Delegate> {
   await ensureSchema();
   const db = getDb();
@@ -308,7 +326,11 @@ export async function upsertDelegate(tenantId: number, delegate: {
       post_count_percentile, likes_received_percentile, days_visited_percentile,
       topics_entered_percentile,
       directory_post_count_month, directory_topic_count_month,
-      directory_likes_received_month, directory_days_visited_month
+      directory_likes_received_month, directory_days_visited_month,
+      directory_post_count_week, directory_topic_count_week,
+      directory_likes_received_week, directory_days_visited_week,
+      directory_post_count_year, directory_topic_count_year,
+      directory_likes_received_year, directory_days_visited_year
     ) VALUES (
       ${tenantId},
       ${delegate.username},
@@ -339,7 +361,15 @@ export async function upsertDelegate(tenantId: number, delegate: {
       ${delegate.directoryPostCountMonth ?? null},
       ${delegate.directoryTopicCountMonth ?? null},
       ${delegate.directoryLikesReceivedMonth ?? null},
-      ${delegate.directoryDaysVisitedMonth ?? null}
+      ${delegate.directoryDaysVisitedMonth ?? null},
+      ${delegate.directoryPostCountWeek ?? null},
+      ${delegate.directoryTopicCountWeek ?? null},
+      ${delegate.directoryLikesReceivedWeek ?? null},
+      ${delegate.directoryDaysVisitedWeek ?? null},
+      ${delegate.directoryPostCountYear ?? null},
+      ${delegate.directoryTopicCountYear ?? null},
+      ${delegate.directoryLikesReceivedYear ?? null},
+      ${delegate.directoryDaysVisitedYear ?? null}
     )
     ON CONFLICT (tenant_id, username) DO UPDATE SET
       display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), delegates.display_name),
@@ -370,6 +400,14 @@ export async function upsertDelegate(tenantId: number, delegate: {
       directory_topic_count_month = EXCLUDED.directory_topic_count_month,
       directory_likes_received_month = EXCLUDED.directory_likes_received_month,
       directory_days_visited_month = EXCLUDED.directory_days_visited_month,
+      directory_post_count_week = EXCLUDED.directory_post_count_week,
+      directory_topic_count_week = EXCLUDED.directory_topic_count_week,
+      directory_likes_received_week = EXCLUDED.directory_likes_received_week,
+      directory_days_visited_week = EXCLUDED.directory_days_visited_week,
+      directory_post_count_year = EXCLUDED.directory_post_count_year,
+      directory_topic_count_year = EXCLUDED.directory_topic_count_year,
+      directory_likes_received_year = EXCLUDED.directory_likes_received_year,
+      directory_days_visited_year = EXCLUDED.directory_days_visited_year,
       updated_at = NOW()
     RETURNING *
   `;
@@ -693,6 +731,15 @@ export async function getDashboardData(slug: string, opts?: { trackedOnly?: bool
       postCountMonth: d.directoryPostCountMonth ?? undefined,
       likesReceivedMonth: d.directoryLikesReceivedMonth ?? undefined,
       daysVisitedMonth: d.directoryDaysVisitedMonth ?? undefined,
+      topicCountMonth: d.directoryTopicCountMonth ?? undefined,
+      postCountWeek: d.directoryPostCountWeek ?? undefined,
+      topicCountWeek: d.directoryTopicCountWeek ?? undefined,
+      likesReceivedWeek: d.directoryLikesReceivedWeek ?? undefined,
+      daysVisitedWeek: d.directoryDaysVisitedWeek ?? undefined,
+      postCountYear: d.directoryPostCountYear ?? undefined,
+      topicCountYear: d.directoryTopicCountYear ?? undefined,
+      likesReceivedYear: d.directoryLikesReceivedYear ?? undefined,
+      daysVisitedYear: d.directoryDaysVisitedYear ?? undefined,
       postCountPercentile: d.postCountPercentile ?? undefined,
       likesReceivedPercentile: d.likesReceivedPercentile ?? undefined,
       daysVisitedPercentile: d.daysVisitedPercentile ?? undefined,
@@ -812,6 +859,26 @@ function computeSummary(delegates: DelegateRow[]): DashboardSummary {
     };
   }
 
+  // Weekly aggregates (from directory?period=weekly)
+  const hasWeeklyData = delegates.some((d) => d.postCountWeek != null);
+  let weeklyPostTotal: number | undefined;
+  let weeklyActiveContributors: number | undefined;
+
+  if (hasWeeklyData) {
+    weeklyPostTotal = delegates.reduce((s, d) => s + (d.postCountWeek ?? 0), 0);
+    weeklyActiveContributors = delegates.filter((d) => (d.postCountWeek ?? 0) > 0).length;
+  }
+
+  // Yearly aggregates (from directory?period=yearly)
+  const hasYearlyData = delegates.some((d) => d.postCountYear != null);
+  let yearlyPostTotal: number | undefined;
+  let yearlyActiveContributors: number | undefined;
+
+  if (hasYearlyData) {
+    yearlyPostTotal = delegates.reduce((s, d) => s + (d.postCountYear ?? 0), 0);
+    yearlyActiveContributors = delegates.filter((d) => (d.postCountYear ?? 0) > 0).length;
+  }
+
   return {
     totalDelegates: total,
     activeDelegates: active.length,
@@ -832,6 +899,12 @@ function computeSummary(delegates: DelegateRow[]): DashboardSummary {
     monthlyPostTotal,
     monthlyActiveContributors,
     monthlyActivityDistribution,
+    hasWeeklyData,
+    weeklyPostTotal,
+    weeklyActiveContributors,
+    hasYearlyData,
+    yearlyPostTotal,
+    yearlyActiveContributors,
   };
 }
 
@@ -893,6 +966,14 @@ function mapDelegateRow(row: Record<string, unknown>): Delegate {
     directoryTopicCountMonth: row.directory_topic_count_month as number | undefined,
     directoryLikesReceivedMonth: row.directory_likes_received_month as number | undefined,
     directoryDaysVisitedMonth: row.directory_days_visited_month as number | undefined,
+    directoryPostCountWeek: row.directory_post_count_week as number | undefined,
+    directoryTopicCountWeek: row.directory_topic_count_week as number | undefined,
+    directoryLikesReceivedWeek: row.directory_likes_received_week as number | undefined,
+    directoryDaysVisitedWeek: row.directory_days_visited_week as number | undefined,
+    directoryPostCountYear: row.directory_post_count_year as number | undefined,
+    directoryTopicCountYear: row.directory_topic_count_year as number | undefined,
+    directoryLikesReceivedYear: row.directory_likes_received_year as number | undefined,
+    directoryDaysVisitedYear: row.directory_days_visited_year as number | undefined,
     notes: row.notes as string | undefined,
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString(),

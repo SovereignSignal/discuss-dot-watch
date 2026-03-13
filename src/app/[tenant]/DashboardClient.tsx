@@ -10,13 +10,13 @@ import {
   Sun,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { DelegateDashboard, TenantSnapshotData, GovernanceScore } from '@/types/delegates';
+import type { DelegateDashboard, TenantSnapshotData, GovernanceScore, DashboardPeriod } from '@/types/delegates';
 import { c } from '@/lib/theme';
 import ProposalsView from './ProposalsView';
 import OverviewTab from './OverviewTab';
 import { SortHeader, DelegateTableRow, MobileDelegateCard } from './ContributorsTable';
 import DelegateDetailPanel from './DelegateDetailPanel';
-import { brandedColors, dashboardGetRoleLabel } from './dashboardUtils';
+import { brandedColors, dashboardGetRoleLabel, getPostCountForPeriod, getTopicCountForPeriod, getLikesForPeriod, getDaysVisitedForPeriod } from './dashboardUtils';
 import type { SortField, SortDir, FilterProgram, FilterRole, FilterStatus } from './dashboardUtils';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { formatDistanceToNow } from 'date-fns';
@@ -48,6 +48,7 @@ export default function TenantDashboardPage() {
   const [filterTracked, setFilterTracked] = useState<'all' | 'tracked'>('all');
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contributors' | 'proposals'>('overview');
+  const [period, setPeriod] = useState<DashboardPeriod>('year');
   const [snapshotData, setSnapshotData] = useState<TenantSnapshotData | null>(null);
   const [governanceScores, setGovernanceScores] = useState<GovernanceScore[]>([]);
 
@@ -208,16 +209,16 @@ export default function TenantDashboardPage() {
           cmp = a.displayName.localeCompare(b.displayName);
           break;
         case 'postCount':
-          cmp = a.postCount - b.postCount;
+          cmp = getPostCountForPeriod(a, period) - getPostCountForPeriod(b, period);
           break;
         case 'topicCount':
-          cmp = a.topicCount - b.topicCount;
+          cmp = getTopicCountForPeriod(a, period) - getTopicCountForPeriod(b, period);
           break;
         case 'likesReceived':
-          cmp = a.likesReceived - b.likesReceived;
+          cmp = getLikesForPeriod(a, period) - getLikesForPeriod(b, period);
           break;
         case 'daysVisited':
-          cmp = a.daysVisited - b.daysVisited;
+          cmp = getDaysVisitedForPeriod(a, period) - getDaysVisitedForPeriod(b, period);
           break;
         case 'rationaleCount':
           cmp = a.rationaleCount - b.rationaleCount;
@@ -242,7 +243,7 @@ export default function TenantDashboardPage() {
     });
 
     return list;
-  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, sortField, sortDir, govScoreMap]);
+  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, sortField, sortDir, govScoreMap, period]);
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -434,6 +435,44 @@ export default function TenantDashboardPage() {
           ))}
         </div>
 
+        {/* Period Selector (Overview + Contributors) */}
+        {activeTab !== 'proposals' && (
+          <div
+            style={{
+              display: 'flex',
+              borderRadius: 8,
+              border: `1px solid ${t.border}`,
+              overflow: 'hidden',
+              marginBottom: isMobile ? 16 : 24,
+              width: 'fit-content',
+            }}
+          >
+            {([
+              { key: 'week' as DashboardPeriod, label: 'This Week' },
+              { key: 'month' as DashboardPeriod, label: 'This Month' },
+              { key: 'year' as DashboardPeriod, label: 'This Year' },
+              { key: 'all' as DashboardPeriod, label: 'All Time' },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setPeriod(key)}
+                style={{
+                  padding: isMobile ? '6px 12px' : '6px 16px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: period === key ? (bc?.accent || t.fg) : 'transparent',
+                  color: period === key ? (bc ? '#fff' : t.bg) : t.fgMuted,
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {activeTab === 'overview' ? (
           <OverviewTab
             dashboard={dashboard}
@@ -445,6 +484,7 @@ export default function TenantDashboardPage() {
             trackedLabelPlural={trackedLabelPlural}
             snapshotData={snapshotData}
             governanceScores={governanceScores}
+            period={period}
           />
         ) : activeTab === 'proposals' ? (
           <ProposalsView
@@ -626,6 +666,7 @@ export default function TenantDashboardPage() {
                       accentBg={bc?.accentBg}
                       showUsername={duplicateNames.has(d.displayName.toLowerCase())}
                       govScore={govScoreMap.get(d.username)}
+                      period={period}
                     />
                   ))
                 )}
@@ -705,6 +746,7 @@ export default function TenantDashboardPage() {
                             accentBg={bc?.accentBg}
                             showUsername={duplicateNames.has(d.displayName.toLowerCase())}
                             govScore={govScoreMap.get(d.username)}
+                            period={period}
                           />
                         ))
                       )}

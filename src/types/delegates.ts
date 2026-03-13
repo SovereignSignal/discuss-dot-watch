@@ -61,6 +61,10 @@ export interface TenantCapabilities {
   testedAt?: string;
 }
 
+// --- Dashboard Period Filter ---
+
+export type DashboardPeriod = 'week' | 'month' | 'year' | 'all';
+
 // --- Directory Item (from Discourse /directory_items.json) ---
 
 export interface DirectoryItem {
@@ -109,6 +113,16 @@ export interface Delegate {
   directoryTopicCountMonth?: number;
   directoryLikesReceivedMonth?: number;
   directoryDaysVisitedMonth?: number;
+  // Weekly directory stats (from /directory_items.json?period=weekly)
+  directoryPostCountWeek?: number;
+  directoryTopicCountWeek?: number;
+  directoryLikesReceivedWeek?: number;
+  directoryDaysVisitedWeek?: number;
+  // Yearly directory stats (from /directory_items.json?period=yearly)
+  directoryPostCountYear?: number;
+  directoryTopicCountYear?: number;
+  directoryLikesReceivedYear?: number;
+  directoryDaysVisitedYear?: number;
   // Percentile rankings (computed during sync)
   postCountPercentile?: number;
   likesReceivedPercentile?: number;
@@ -195,6 +209,17 @@ export interface DelegateRow {
   postCountMonth?: number;
   likesReceivedMonth?: number;
   daysVisitedMonth?: number;
+  topicCountMonth?: number;
+  // Weekly stats (from directory?period=weekly)
+  postCountWeek?: number;
+  topicCountWeek?: number;
+  likesReceivedWeek?: number;
+  daysVisitedWeek?: number;
+  // Yearly stats (from directory?period=yearly)
+  postCountYear?: number;
+  topicCountYear?: number;
+  likesReceivedYear?: number;
+  daysVisitedYear?: number;
   // Percentile rankings
   postCountPercentile?: number;
   likesReceivedPercentile?: number;
@@ -273,6 +298,14 @@ export interface DashboardSummary {
     dormant: number;         // 0 posts
   };
   hasMonthlyData?: boolean;
+  // Weekly aggregates (from directory?period=weekly)
+  weeklyPostTotal?: number;
+  weeklyActiveContributors?: number;
+  hasWeeklyData?: boolean;
+  // Yearly aggregates (from directory?period=yearly)
+  yearlyPostTotal?: number;
+  yearlyActiveContributors?: number;
+  hasYearlyData?: boolean;
 }
 
 // --- API request/response types ---

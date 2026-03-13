@@ -75,6 +75,32 @@ export async function syncContributorsFromDirectory(
     console.error(`[ContributorSync] Monthly fetch failed (non-fatal):`, err);
   }
 
+  // Fetch weekly directory data (non-fatal)
+  let weeklyMap: Map<string, DirectoryItem> | null = null;
+  try {
+    const weeklyResult = await fetchPages(config, 'weekly', maxContributors);
+    weeklyMap = new Map<string, DirectoryItem>();
+    for (const item of weeklyResult.items) {
+      weeklyMap.set(item.username, item);
+    }
+    console.log(`[ContributorSync] Fetched ${weeklyResult.items.length} weekly contributors`);
+  } catch (err) {
+    console.error(`[ContributorSync] Weekly fetch failed (non-fatal):`, err);
+  }
+
+  // Fetch yearly directory data (non-fatal)
+  let yearlyMap: Map<string, DirectoryItem> | null = null;
+  try {
+    const yearlyResult = await fetchPages(config, 'yearly', maxContributors);
+    yearlyMap = new Map<string, DirectoryItem>();
+    for (const item of yearlyResult.items) {
+      yearlyMap.set(item.username, item);
+    }
+    console.log(`[ContributorSync] Fetched ${yearlyResult.items.length} yearly contributors`);
+  } catch (err) {
+    console.error(`[ContributorSync] Yearly fetch failed (non-fatal):`, err);
+  }
+
   // Compute percentiles for all-time data
   const percentiles = computePercentiles(contributors, totalForum);
 
@@ -83,6 +109,8 @@ export async function syncContributorsFromDirectory(
   for (const item of contributors) {
     const pct = percentiles.get(item.username);
     const monthly = monthlyMap?.get(item.username);
+    const weekly = weeklyMap?.get(item.username);
+    const yearly = yearlyMap?.get(item.username);
     try {
       await upsertDelegate(tenantId, {
         username: item.username,
@@ -105,6 +133,16 @@ export async function syncContributorsFromDirectory(
         directoryTopicCountMonth: monthly?.topicCount ?? null,
         directoryLikesReceivedMonth: monthly?.likesReceived ?? null,
         directoryDaysVisitedMonth: monthly?.daysVisited ?? null,
+        // Weekly stats
+        directoryPostCountWeek: weekly?.postCount ?? null,
+        directoryTopicCountWeek: weekly?.topicCount ?? null,
+        directoryLikesReceivedWeek: weekly?.likesReceived ?? null,
+        directoryDaysVisitedWeek: weekly?.daysVisited ?? null,
+        // Yearly stats
+        directoryPostCountYear: yearly?.postCount ?? null,
+        directoryTopicCountYear: yearly?.topicCount ?? null,
+        directoryLikesReceivedYear: yearly?.likesReceived ?? null,
+        directoryDaysVisitedYear: yearly?.daysVisited ?? null,
       });
       synced++;
     } catch (err) {

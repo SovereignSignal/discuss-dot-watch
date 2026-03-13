@@ -1,4 +1,4 @@
-import type { TenantBranding } from '@/types/delegates';
+import type { TenantBranding, DelegateRow, DashboardPeriod } from '@/types/delegates';
 import { DELEGATE_ROLES } from '@/types/delegates';
 
 // --- Sort / Filter types ---
@@ -53,12 +53,65 @@ export function brandedColors(branding?: TenantBranding): BrandedColorsResult | 
 
 // --- Activity Tier ---
 
-export function getActivityTier(postCount: number): { label: string; color: string } {
+export function getActivityTier(postCount: number, period?: DashboardPeriod): { label: string; color: string } {
+  // Scaled thresholds per period
+  if (period === 'week') {
+    if (postCount >= 10) return { label: 'Highly Active', color: '#10b981' };
+    if (postCount >= 3) return { label: 'Active', color: '#3b82f6' };
+    if (postCount >= 1) return { label: 'Low Activity', color: '#f59e0b' };
+    return { label: 'Dormant', color: '#ef4444' };
+  }
+  if (period === 'month') {
+    if (postCount >= 20) return { label: 'Highly Active', color: '#10b981' };
+    if (postCount >= 5) return { label: 'Active', color: '#3b82f6' };
+    if (postCount >= 2) return { label: 'Low Activity', color: '#f59e0b' };
+    if (postCount >= 1) return { label: 'Minimal', color: '#f97316' };
+    return { label: 'Dormant', color: '#ef4444' };
+  }
+  // year + all use the same thresholds
   if (postCount >= 50) return { label: 'Highly Active', color: '#10b981' };
   if (postCount >= 11) return { label: 'Active', color: '#3b82f6' };
   if (postCount >= 2) return { label: 'Low Activity', color: '#f59e0b' };
   if (postCount >= 1) return { label: 'Minimal', color: '#f97316' };
   return { label: 'Dormant', color: '#ef4444' };
+}
+
+// --- Period-aware stat accessors ---
+
+export function getPostCountForPeriod(d: DelegateRow, period: DashboardPeriod): number {
+  switch (period) {
+    case 'week': return d.postCountWeek ?? 0;
+    case 'month': return d.postCountMonth ?? 0;
+    case 'year': return d.postCountYear ?? 0;
+    case 'all': return d.postCount;
+  }
+}
+
+export function getTopicCountForPeriod(d: DelegateRow, period: DashboardPeriod): number {
+  switch (period) {
+    case 'week': return d.topicCountWeek ?? 0;
+    case 'month': return d.topicCountMonth ?? 0;
+    case 'year': return d.topicCountYear ?? 0;
+    case 'all': return d.topicCount;
+  }
+}
+
+export function getLikesForPeriod(d: DelegateRow, period: DashboardPeriod): number {
+  switch (period) {
+    case 'week': return d.likesReceivedWeek ?? 0;
+    case 'month': return d.likesReceivedMonth ?? 0;
+    case 'year': return d.likesReceivedYear ?? 0;
+    case 'all': return d.likesReceived;
+  }
+}
+
+export function getDaysVisitedForPeriod(d: DelegateRow, period: DashboardPeriod): number {
+  switch (period) {
+    case 'week': return d.daysVisitedWeek ?? 0;
+    case 'month': return d.daysVisitedMonth ?? 0;
+    case 'year': return d.daysVisitedYear ?? 0;
+    case 'all': return d.daysVisited;
+  }
 }
 
 // --- Role helpers ---
