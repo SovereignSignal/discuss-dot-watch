@@ -4,8 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDashboardData } from '@/lib/delegates';
+import { getDashboardData, fetchTenantSnapshotData, fetchVoterParticipation, computeGovernanceScores } from '@/lib/delegates';
 import { generateDelegateBrief, getCachedBrief } from '@/lib/delegates/brief';
+import type { GovernanceScore } from '@/types/delegates';
 
 export async function GET(
   request: NextRequest,
@@ -43,7 +44,25 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({ ...dashboard, brief: brief || null }, {
+    // Compute governance scores (best-effort — don't block on failure)
+    let governanceScores: GovernanceScore[] = [];
+    try {
+      const snapshotData = await fetchTenantSnapshotData(slug);
+      if (snapshotData && snapshotData.totalProposals > 0) {
+        const voterParticipation = await fetchVoterParticipation(
+          snapshotData.space,
+        );
+        governanceScores = computeGovernanceScores(
+          dashboard.delegates,
+          voterParticipation,
+          snapshotData.totalProposals,
+        );
+      }
+    } catch (err) {
+      console.error(`[API] Governance score computation failed for ${slug}:`, err);
+    }
+
+    return NextResponse.json({ ...dashboard, brief: brief || null, governanceScores }, {
       headers: {
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
       },

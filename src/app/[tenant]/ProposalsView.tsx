@@ -13,8 +13,9 @@ import {
   CheckCircle2,
   XCircle,
   Circle,
+  Users,
 } from 'lucide-react';
-import type { GovernanceProposal, ProposalStatus, ProposalTimeline, TenantBranding } from '@/types/delegates';
+import type { GovernanceProposal, ProposalStatus, ProposalTimeline, TenantBranding, SnapshotProposalSummary, DelegateRow } from '@/types/delegates';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ThemeColors {
@@ -59,36 +60,54 @@ const STATUS_CONFIG: Record<ProposalStatus, { label: string; color: string; icon
 
 type StatusFilter = 'all' | ProposalStatus;
 
+interface SnapshotDataWithVotes {
+  proposals: SnapshotProposalSummary[];
+  delegateVotes?: Record<string, string[]>;
+}
+
 export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: ProposalsViewProps) {
   const [timeline, setTimeline] = useState<ProposalTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [snapshotWithVotes, setSnapshotWithVotes] = useState<SnapshotDataWithVotes | null>(null);
+  const [delegates, setDelegates] = useState<DelegateRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
 
-    fetch(`/api/delegates/${encodeURIComponent(slug)}/proposals`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: ProposalTimeline) => {
-        if (!cancelled) {
-          setTimeline(data);
-          setError(null);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err.message);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    // Fetch forum proposals and snapshot votes in parallel
+    Promise.allSettled([
+      fetch(`/api/delegates/${encodeURIComponent(slug)}/proposals`)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        }),
+      fetch(`/api/delegates/${encodeURIComponent(slug)}/snapshot?include=votes`)
+        .then((res) => res.ok ? res.json() : null),
+      fetch(`/api/delegates/${encodeURIComponent(slug)}`)
+        .then((res) => res.ok ? res.json() : null),
+    ]).then(([proposalsResult, snapshotResult, dashboardResult]) => {
+      if (cancelled) return;
+
+      if (proposalsResult.status === 'fulfilled') {
+        setTimeline(proposalsResult.value);
+      } else {
+        setError(proposalsResult.reason?.message || 'Failed to load');
+      }
+
+      if (snapshotResult.status === 'fulfilled' && snapshotResult.value) {
+        setSnapshotWithVotes(snapshotResult.value);
+      }
+
+      if (dashboardResult.status === 'fulfilled' && dashboardResult.value?.delegates) {
+        setDelegates(dashboardResult.value.delegates);
+      }
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => { cancelled = true; };
   }, [slug]);
@@ -123,6 +142,14 @@ export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: Propo
 
   const accent = bc?.accent || '#3b82f6';
 
+  // Build wallet -> delegate mapping for vote participation display
+  const walletToDelegate = new Map<string, DelegateRow>();
+  for (const d of delegates) {
+    if (d.walletAddress && d.isTracked) {
+      walletToDelegate.set(d.walletAddress.toLowerCase(), d);
+    }
+  }
+
   return (
     <div>
       {/* Summary Cards */}
@@ -140,7 +167,47 @@ export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: Propo
         <SummaryCard label="Recent Activity" value={timeline.summary.recentActivityCount} color={accent} t={t} />
       </div>
 
+      {/* Snapshot Voting Section (if data available) */}
+      {snapshotWithVotes && snapshotWithVotes.proposals.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Vote size={16} style={{ color: accent }} />
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Snapshot Proposals</span>
+            {walletToDelegate.size > 0 && (
+              <span style={{ fontSize: 11, color: t.fgDim }}>
+                ({walletToDelegate.size} tracked delegate{walletToDelegate.size !== 1 ? 's' : ''} with wallets)
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {snapshotWithVotes.proposals.slice(0, 10).map((sp) => {
+              const voterAddresses = snapshotWithVotes.delegateVotes?.[sp.id] || [];
+              const votedDelegates = voterAddresses
+                .map(addr => walletToDelegate.get(addr))
+                .filter((d): d is DelegateRow => !!d);
+              const nonVotedDelegates = Array.from(walletToDelegate.values())
+                .filter(d => !voterAddresses.includes(d.walletAddress!.toLowerCase()));
+
+              return (
+                <SnapshotProposalCard
+                  key={sp.id}
+                  proposal={sp}
+                  votedDelegates={votedDelegates}
+                  nonVotedDelegates={nonVotedDelegates}
+                  hasWalletData={walletToDelegate.size > 0}
+                  t={t}
+                  accent={accent}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Status Filter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>Forum Proposals</span>
+      </div>
       <div
         style={{
           display: 'flex',
@@ -190,6 +257,112 @@ export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: Propo
       {filtered.length === 0 && (
         <div style={{ padding: 24, textAlign: 'center', color: t.fgMuted, fontSize: 13 }}>
           No {statusFilter} proposals found.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SnapshotProposalCard({
+  proposal: sp,
+  votedDelegates,
+  nonVotedDelegates,
+  hasWalletData,
+  t,
+  accent,
+}: {
+  proposal: SnapshotProposalSummary;
+  votedDelegates: DelegateRow[];
+  nonVotedDelegates: DelegateRow[];
+  hasWalletData: boolean;
+  t: ThemeColors;
+  accent: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isActive = sp.state === 'active';
+  const stateColor = isActive ? '#22c55e' : sp.state === 'pending' ? '#f59e0b' : t.fgDim;
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${t.border}`,
+        borderRadius: 10,
+        background: t.bgCard,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        onClick={() => hasWalletData && setExpanded(!expanded)}
+        style={{
+          padding: '10px 14px',
+          cursor: hasWalletData ? 'pointer' : 'default',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          transition: 'background 0.15s',
+        }}
+        onMouseEnter={(e) => { if (hasWalletData) e.currentTarget.style.background = t.bgCardHover; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = t.bgCard; }}
+      >
+        <span style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: stateColor,
+          flexShrink: 0,
+        }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {sp.title}
+          </div>
+          <div style={{ fontSize: 11, color: t.fgDim, marginTop: 2 }}>
+            {sp.votes} votes &middot; {sp.state}
+          </div>
+        </div>
+        {hasWalletData && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <Users size={12} style={{ color: t.fgDim }} />
+            <span style={{ fontSize: 11, color: votedDelegates.length > 0 ? '#10b981' : '#f59e0b' }}>
+              {votedDelegates.length}/{votedDelegates.length + nonVotedDelegates.length}
+            </span>
+          </div>
+        )}
+        <a
+          href={sp.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{ color: accent, flexShrink: 0 }}
+        >
+          <ExternalLink size={12} />
+        </a>
+        {hasWalletData && (
+          expanded ? <ChevronUp size={14} style={{ color: t.fgDim, flexShrink: 0 }} />
+            : <ChevronDown size={14} style={{ color: t.fgDim, flexShrink: 0 }} />
+        )}
+      </div>
+
+      {expanded && hasWalletData && (
+        <div style={{ padding: '0 14px 12px', borderTop: `1px solid ${t.borderSubtle}` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: t.fgDim, margin: '10px 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Delegate Participation
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {votedDelegates.map(d => (
+              <div key={d.username} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <CheckCircle2 size={12} style={{ color: '#10b981', flexShrink: 0 }} />
+                <span style={{ color: t.fg }}>{d.displayName}</span>
+                <span style={{ color: t.fgDim, fontSize: 10 }}>voted</span>
+              </div>
+            ))}
+            {nonVotedDelegates.map(d => (
+              <div key={d.username} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <XCircle size={12} style={{ color: '#ef4444', flexShrink: 0 }} />
+                <span style={{ color: t.fgMuted }}>{d.displayName}</span>
+                <span style={{ color: t.fgDim, fontSize: 10 }}>did not vote</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -267,13 +440,11 @@ function ProposalCard({
         onMouseEnter={(e) => { e.currentTarget.style.background = t.bgCardHover; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = t.bgCard; }}
       >
-        {/* Status indicator */}
         <StatusIcon
           size={16}
           style={{ color: statusCfg.color, flexShrink: 0, marginTop: 2 }}
         />
 
-        {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span
@@ -313,7 +484,6 @@ function ProposalCard({
             {proposal.title}
           </h3>
 
-          {/* Meta row */}
           <div
             style={{
               display: 'flex',
@@ -345,7 +515,6 @@ function ProposalCard({
           </div>
         </div>
 
-        {/* Expand toggle */}
         {expanded ? (
           <ChevronUp size={16} style={{ color: t.fgDim, flexShrink: 0, marginTop: 2 }} />
         ) : (
@@ -353,7 +522,6 @@ function ProposalCard({
         )}
       </div>
 
-      {/* Expanded details */}
       {expanded && (
         <div
           style={{

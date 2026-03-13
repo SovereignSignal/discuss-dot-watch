@@ -237,6 +237,7 @@ export interface DelegateDashboard {
   lastRefreshAt: string | null;
   capabilities: TenantCapabilities;
   brief?: string | null;
+  governanceScores?: GovernanceScore[];
 }
 
 export interface DashboardSummary {

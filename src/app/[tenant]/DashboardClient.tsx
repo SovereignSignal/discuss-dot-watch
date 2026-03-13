@@ -1,36 +1,23 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import {
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   Search,
   RefreshCw,
   ExternalLink,
-  ChevronRight,
-  X,
-  ArrowLeft,
-  Users,
-  Activity,
-  MessageSquare,
-  ThumbsUp,
   Moon,
   Sun,
-  FileText,
-  Star,
-  Sparkles,
-  TrendingUp,
-  AlertTriangle,
-  Vote,
-  CheckCircle2,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantBranding, TenantSnapshotData } from '@/types/delegates';
-import { DELEGATE_ROLES } from '@/types/delegates';
+import type { DelegateDashboard, TenantSnapshotData, GovernanceScore } from '@/types/delegates';
 import { c } from '@/lib/theme';
 import ProposalsView from './ProposalsView';
+import OverviewTab from './OverviewTab';
+import { SortHeader, DelegateTableRow, MobileDelegateCard } from './ContributorsTable';
+import DelegateDetailPanel from './DelegateDetailPanel';
+import { brandedColors, dashboardGetRoleLabel } from './dashboardUtils';
+import type { SortField, SortDir, FilterProgram, FilterRole, FilterStatus } from './dashboardUtils';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -38,43 +25,6 @@ const RESERVED_SLUGS = new Set([
   'terms', 'about', 'privacy', 'contact', 'pricing',
   'help', 'docs', 'blog', 'login', 'signup', 'settings',
 ]);
-
-/** Derive accent-based color tokens from branding. Returns null if no accent. */
-function brandedColors(branding?: TenantBranding) {
-  const accent = branding?.accentColor;
-  if (!accent) return null;
-  // Parse hex to r,g,b for opacity variants (supports both #RGB and #RRGGBB)
-  let hex = accent.replace('#', '');
-  if (hex.length === 3) {
-    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-  }
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
-  return {
-    accent,
-    accentBg: `rgba(${r},${g},${b},0.07)`,
-    accentBorder: `rgba(${r},${g},${b},0.19)`,
-    accentHover: `rgba(${r},${g},${b},0.12)`,
-    accentBadgeBg: `rgba(${r},${g},${b},0.12)`,
-    accentBadgeBorder: `rgba(${r},${g},${b},0.25)`,
-  };
-}
-
-type SortField =
-  | 'displayName'
-  | 'postCount'
-  | 'topicCount'
-  | 'likesReceived'
-  | 'daysVisited'
-  | 'rationaleCount'
-  | 'voteRate'
-  | 'lastSeenAt';
-type SortDir = 'asc' | 'desc';
-type FilterProgram = 'all' | string;
-type FilterRole = 'all' | string;
-type FilterStatus = 'all' | 'active' | 'inactive';
 
 export default function TenantDashboardPage() {
   const params = useParams();
@@ -99,6 +49,7 @@ export default function TenantDashboardPage() {
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contributors' | 'proposals'>('overview');
   const [snapshotData, setSnapshotData] = useState<TenantSnapshotData | null>(null);
+  const [governanceScores, setGovernanceScores] = useState<GovernanceScore[]>([]);
 
   const t = c(isDark);
   const { isSuperAdmin } = useTenantRoles();
@@ -118,7 +69,7 @@ export default function TenantDashboardPage() {
     return () => mql.removeEventListener('change', handler);
   }, []);
 
-  // Theme — apply saved preference to DOM on mount
+  // Theme
   useEffect(() => {
     const saved = localStorage.getItem('discuss-watch-theme') as 'dark' | 'light' | null;
     if (saved) {
@@ -154,9 +105,12 @@ export default function TenantDashboardPage() {
         if (!res.ok) throw new Error(res.status === 404 ? 'not_found' : 'fetch_error');
         return res.json();
       })
-      .then((data: DelegateDashboard) => {
+      .then((data) => {
         if (!cancelled) {
           setDashboard(data);
+          if (data.governanceScores) {
+            setGovernanceScores(data.governanceScores);
+          }
           setError(null);
         }
       })
@@ -167,7 +121,7 @@ export default function TenantDashboardPage() {
     return () => { cancelled = true; };
   }, [slug, filterTracked]);
 
-  // Fetch Snapshot data (if tenant has a configured space)
+  // Fetch Snapshot data
   useEffect(() => {
     if (!slug || RESERVED_SLUGS.has(slug)) return;
     let cancelled = false;
@@ -183,7 +137,14 @@ export default function TenantDashboardPage() {
     return () => { cancelled = true; };
   }, [slug]);
 
-  // Detect duplicate display names for disambiguation
+  // Governance scores map for table/detail
+  const govScoreMap = useMemo(() => {
+    const m = new Map<string, GovernanceScore>();
+    for (const s of governanceScores) m.set(s.username, s);
+    return m;
+  }, [governanceScores]);
+
+  // Detect duplicate display names
   const duplicateNames = useMemo(() => {
     if (!dashboard) return new Set<string>();
     const counts = new Map<string, number>();
@@ -217,7 +178,6 @@ export default function TenantDashboardPage() {
     if (!dashboard) return [];
     let list = [...dashboard.delegates];
 
-    // Search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter(
@@ -227,24 +187,20 @@ export default function TenantDashboardPage() {
       );
     }
 
-    // Program filter
     if (filterProgram !== 'all') {
       list = list.filter((d) => d.programs.includes(filterProgram));
     }
 
-    // Role filter
     if (filterRole !== 'all') {
       list = list.filter((d) => d.role === filterRole);
     }
 
-    // Status filter
     if (filterStatus === 'active') {
       list = list.filter((d) => d.isActive);
     } else if (filterStatus === 'inactive') {
       list = list.filter((d) => !d.isActive);
     }
 
-    // Sort
     list.sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
@@ -275,12 +231,18 @@ export default function TenantDashboardPage() {
           cmp = at - bt;
           break;
         }
+        case 'governanceScore': {
+          const sa = govScoreMap.get(a.username)?.combinedScore ?? -1;
+          const sb = govScoreMap.get(b.username)?.combinedScore ?? -1;
+          cmp = sa - sb;
+          break;
+        }
       }
       return sortDir === 'desc' ? -cmp : cmp;
     });
 
     return list;
-  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, sortField, sortDir]);
+  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, sortField, sortDir, govScoreMap]);
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -419,7 +381,7 @@ export default function TenantDashboardPage() {
         );
       })()}
 
-      {/* Hero section (only when branding has a title) */}
+      {/* Hero section */}
       {branding?.heroTitle && (
         <div
           style={{
@@ -482,6 +444,7 @@ export default function TenantDashboardPage() {
             hasTracked={hasTracked}
             trackedLabelPlural={trackedLabelPlural}
             snapshotData={snapshotData}
+            governanceScores={governanceScores}
           />
         ) : activeTab === 'proposals' ? (
           <ProposalsView
@@ -503,7 +466,6 @@ export default function TenantDashboardPage() {
                 marginBottom: 16,
               }}
             >
-              {/* All / Tracked toggle (only shown if tracked members exist) */}
               {hasTracked && (
                 <div
                   style={{
@@ -643,7 +605,6 @@ export default function TenantDashboardPage() {
 
             {/* Delegate Table / Cards */}
             {isMobile ? (
-              /* Mobile: Card layout */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {filteredDelegates.length === 0 ? (
                   <div style={{ padding: 40, textAlign: 'center', color: t.fgDim }}>
@@ -664,12 +625,12 @@ export default function TenantDashboardPage() {
                       accentHover={bc?.accentHover}
                       accentBg={bc?.accentBg}
                       showUsername={duplicateNames.has(d.displayName.toLowerCase())}
+                      govScore={govScoreMap.get(d.username)}
                     />
                   ))
                 )}
               </div>
             ) : (
-              /* Desktop: Table layout */
               <div
                 style={{
                   border: `1px solid ${t.border}`,
@@ -700,6 +661,7 @@ export default function TenantDashboardPage() {
                         <th style={{ padding: '10px 16px', textAlign: 'left', color: t.fgDim, fontWeight: 500, fontSize: 12 }}>
                           Role
                         </th>
+                        <SortHeader label="Gov Score" field="governanceScore" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
                         <SortHeader label="Posts" field="postCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
                         <SortHeader label="Topics" field="topicCount" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
                         <SortHeader label="Likes" field="likesReceived" current={sortField} dir={sortDir} onSort={handleSort} t={t} accent={bc?.accent} />
@@ -716,7 +678,7 @@ export default function TenantDashboardPage() {
                       {filteredDelegates.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={10}
+                            colSpan={11}
                             style={{
                               padding: 40,
                               textAlign: 'center',
@@ -742,6 +704,7 @@ export default function TenantDashboardPage() {
                             accentHover={bc?.accentHover}
                             accentBg={bc?.accentBg}
                             showUsername={duplicateNames.has(d.displayName.toLowerCase())}
+                            govScore={govScoreMap.get(d.username)}
                           />
                         ))
                       )}
@@ -809,7 +772,7 @@ export default function TenantDashboardPage() {
         </footer>
       </div>
 
-      {/* Detail Panel (slide-in) */}
+      {/* Detail Panel */}
       {detail && (
         <DelegateDetailPanel
           delegate={detail}
@@ -820,1648 +783,11 @@ export default function TenantDashboardPage() {
           accent={bc?.accent}
           accentBorder={bc?.accentBorder}
           isMobile={isMobile}
+          govScore={govScoreMap.get(detail.username)}
         />
       )}
     </div>
   );
-}
-
-// ============================================================
-// Sub-components
-// ============================================================
-
-// ============================================================
-// Overview Tab
-// ============================================================
-
-function OverviewTab({
-  dashboard,
-  t,
-  bc,
-  isMobile,
-  onSelectDelegate,
-  hasTracked,
-  trackedLabelPlural,
-  snapshotData,
-}: {
-  dashboard: DelegateDashboard;
-  t: ReturnType<typeof c>;
-  bc: ReturnType<typeof brandedColors>;
-  isMobile: boolean;
-  onSelectDelegate: (username: string) => void;
-  hasTracked: boolean;
-  trackedLabelPlural: string;
-  snapshotData?: TenantSnapshotData | null;
-}) {
-  const summary = dashboard.summary;
-  const delegates = dashboard.delegates;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 16 : 24 }}>
-      {/* Activity Snapshot */}
-      <AIBriefCard brief={dashboard.brief} t={t} bc={bc} isMobile={isMobile} />
-
-      {isMobile ? (
-        <>
-          <KeyStatsRow summary={summary} t={t} accent={bc?.accent} isMobile={isMobile} />
-          <ActivityBar
-            distribution={summary.hasMonthlyData && summary.monthlyActivityDistribution ? summary.monthlyActivityDistribution : summary.activityDistribution}
-            total={summary.totalDelegates}
-            t={t}
-            isMobile={isMobile}
-            isMonthly={!!summary.hasMonthlyData}
-          />
-          <TopContributorsList
-            delegates={delegates}
-            t={t}
-            bc={bc}
-            isMobile={isMobile}
-            onSelect={onSelectDelegate}
-            hasMonthlyData={!!summary.hasMonthlyData}
-          />
-          <HighlightsList
-            summary={summary}
-            delegates={delegates}
-            hasTracked={hasTracked}
-            trackedLabelPlural={trackedLabelPlural}
-            t={t}
-            isMobile={isMobile}
-            hasMonthlyData={!!summary.hasMonthlyData}
-          />
-          {snapshotData && (
-            <SnapshotSummaryCard data={snapshotData} t={t} bc={bc} isMobile={isMobile} />
-          )}
-        </>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '55% 45%', gap: 24 }}>
-          {/* Left column: Metrics & visualization */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <KeyStatsRow summary={summary} t={t} accent={bc?.accent} isMobile={isMobile} />
-            <ActivityBar
-              distribution={summary.hasMonthlyData && summary.monthlyActivityDistribution ? summary.monthlyActivityDistribution : summary.activityDistribution}
-              total={summary.totalDelegates}
-              t={t}
-              isMobile={isMobile}
-              isMonthly={!!summary.hasMonthlyData}
-            />
-          </div>
-
-          {/* Right column: People & insights */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <TopContributorsList
-              delegates={delegates}
-              t={t}
-              bc={bc}
-              isMobile={isMobile}
-              onSelect={onSelectDelegate}
-              hasMonthlyData={!!summary.hasMonthlyData}
-            />
-            <HighlightsList
-              summary={summary}
-              delegates={delegates}
-              hasTracked={hasTracked}
-              trackedLabelPlural={trackedLabelPlural}
-              t={t}
-              isMobile={isMobile}
-              hasMonthlyData={!!summary.hasMonthlyData}
-            />
-            {snapshotData && (
-              <SnapshotSummaryCard data={snapshotData} t={t} bc={bc} isMobile={isMobile} />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SnapshotSummaryCard({
-  data,
-  t,
-  bc,
-  isMobile,
-}: {
-  data: TenantSnapshotData;
-  t: ReturnType<typeof c>;
-  bc: ReturnType<typeof brandedColors>;
-  isMobile: boolean;
-}) {
-  const accent = bc?.accent || '#3b82f6';
-  const activeProposals = data.proposals.filter((p) => p.state === 'active');
-
-  return (
-    <div
-      style={{
-        borderRadius: 12,
-        border: `1px solid ${t.border}`,
-        background: t.bgCard,
-        padding: isMobile ? 14 : 18,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <Vote size={16} style={{ color: accent }} />
-        <span style={{ fontSize: 13, fontWeight: 600, color: t.fg }}>Snapshot Voting</span>
-        <span style={{
-          fontSize: 10,
-          padding: '2px 6px',
-          borderRadius: 4,
-          background: `${accent}18`,
-          color: accent,
-          border: `1px solid ${accent}33`,
-        }}>
-          {data.space}
-        </span>
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
-          gap: 8,
-          marginBottom: activeProposals.length > 0 ? 12 : 0,
-        }}
-      >
-        <div style={{ padding: 8, borderRadius: 8, background: t.bgSubtle }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: accent }}>{data.totalProposals}</div>
-          <div style={{ fontSize: 10, color: t.fgMuted }}>Proposals</div>
-        </div>
-        <div style={{ padding: 8, borderRadius: 8, background: t.bgSubtle }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#22c55e' }}>{data.activeProposals}</div>
-          <div style={{ fontSize: 10, color: t.fgMuted }}>Active</div>
-        </div>
-        <div style={{ padding: 8, borderRadius: 8, background: t.bgSubtle }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: t.fgSecondary }}>{data.avgVoterParticipation}</div>
-          <div style={{ fontSize: 10, color: t.fgMuted }}>Avg Voters</div>
-        </div>
-      </div>
-
-      {activeProposals.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {activeProposals.slice(0, 3).map((p) => (
-            <a
-              key={p.id}
-              href={p.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 8px',
-                borderRadius: 6,
-                background: t.bgSubtle,
-                textDecoration: 'none',
-                color: t.fg,
-                fontSize: 12,
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = t.bgActive; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = t.bgSubtle; }}
-            >
-              <span style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#22c55e',
-                flexShrink: 0,
-              }} />
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.title}
-              </span>
-              <span style={{ color: t.fgDim, fontSize: 11, flexShrink: 0 }}>
-                {p.votes} votes
-              </span>
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AIBriefCard({
-  brief,
-  t,
-  bc,
-  isMobile,
-}: {
-  brief?: string | null;
-  t: ReturnType<typeof c>;
-  bc: ReturnType<typeof brandedColors>;
-  isMobile: boolean;
-}) {
-  return (
-    <div
-      style={{
-        padding: isMobile ? '16px' : '20px 24px',
-        borderRadius: 12,
-        border: `1px solid ${bc?.accentBorder || t.border}`,
-        background: bc?.accentBg || t.bgCard,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <Sparkles size={15} color={bc?.accent || t.fgMuted} />
-        <span style={{ fontSize: 13, fontWeight: 600 }}>Activity Snapshot</span>
-      </div>
-      {brief ? (
-        <div style={{ fontSize: 14, lineHeight: 1.7, color: t.fgMuted, whiteSpace: 'pre-line' }}>
-          {brief}
-        </div>
-      ) : (
-        <div style={{ fontSize: 13, color: t.fgDim, fontStyle: 'italic' }}>
-          Activity snapshot is being generated and will appear on next page load.
-        </div>
-      )}
-      <div style={{ fontSize: 10, color: t.fgDim, marginTop: 10 }}>
-        AI-generated snapshot based on forum directory data
-      </div>
-    </div>
-  );
-}
-
-function KeyStatsRow({
-  summary,
-  t,
-  accent,
-  isMobile,
-}: {
-  summary: DashboardSummary;
-  t: ReturnType<typeof c>;
-  accent?: string;
-  isMobile: boolean;
-}) {
-  const hasMonthly = summary.hasMonthlyData;
-  const monthlyActive = hasMonthly ? (summary.monthlyActiveContributors ?? 0) : summary.delegatesPostedLast30Days;
-  const activeRate = summary.totalDelegates > 0
-    ? Math.round((monthlyActive / summary.totalDelegates) * 100)
-    : 0;
-
-  const cards = [
-    { label: 'Total Contributors', value: summary.totalDelegates, icon: Users },
-    { label: 'Active This Month', value: monthlyActive, icon: Activity },
-    { label: hasMonthly ? 'Posts This Month' : 'Median Posts', value: hasMonthly ? (summary.monthlyPostTotal ?? 0) : (summary.medianPostCount ?? 0), icon: MessageSquare },
-    { label: 'Active Rate', value: `${activeRate}%`, icon: TrendingUp },
-  ];
-
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: isMobile ? 8 : 12,
-      }}
-    >
-      {cards.map((card) => (
-        <div
-          key={card.label}
-          style={{
-            padding: isMobile ? '14px 14px' : '18px 20px',
-            borderRadius: 12,
-            border: `1px solid ${t.border}`,
-            background: t.bgCard,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <card.icon size={14} color={accent || t.fgDim} />
-            <span style={{ fontSize: 12, color: t.fgDim }}>{card.label}</span>
-          </div>
-          <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 700 }}>{card.value}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ActivityBar({
-  distribution,
-  total,
-  t,
-  isMobile,
-  isMonthly,
-}: {
-  distribution: DashboardSummary['activityDistribution'];
-  total: number;
-  t: ReturnType<typeof c>;
-  isMobile: boolean;
-  isMonthly?: boolean;
-}) {
-  if (!distribution || total === 0) return null;
-
-  const tiers = [
-    { label: 'Highly Active', count: distribution.highlyActive, color: '#10b981' },
-    { label: 'Active', count: distribution.active, color: '#3b82f6' },
-    { label: 'Low Activity', count: distribution.lowActivity, color: '#f59e0b' },
-    { label: 'Minimal', count: distribution.minimal, color: '#f97316' },
-    { label: 'Dormant', count: distribution.dormant, color: '#ef4444' },
-  ];
-
-  return (
-    <div
-      style={{
-        padding: isMobile ? '14px 14px' : '18px 20px',
-        borderRadius: 12,
-        border: `1px solid ${t.border}`,
-        background: t.bgCard,
-      }}
-    >
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-        Activity Distribution{isMonthly ? ' (Last 30 Days)' : ''}
-      </div>
-
-      {/* Stacked bar */}
-      <div
-        style={{
-          display: 'flex',
-          height: 28,
-          borderRadius: 6,
-          overflow: 'hidden',
-          marginBottom: 12,
-        }}
-      >
-        {tiers.map((tier) => {
-          const pct = (tier.count / total) * 100;
-          if (pct === 0) return null;
-          return (
-            <div
-              key={tier.label}
-              title={`${tier.label}: ${tier.count} (${Math.round(pct)}%)`}
-              style={{
-                width: `${pct}%`,
-                background: tier.color,
-                minWidth: pct > 0 ? 2 : 0,
-                transition: 'width 0.3s',
-              }}
-            />
-          );
-        })}
-      </div>
-
-      {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '6px 12px' : '6px 20px' }}>
-        {tiers.map((tier) => (
-          <div key={tier.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: tier.color, flexShrink: 0 }} />
-            <span style={{ color: t.fgMuted }}>{tier.label}</span>
-            <span style={{ color: t.fgDim, fontWeight: 500 }}>{tier.count}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TopContributorsList({
-  delegates,
-  t,
-  bc,
-  isMobile,
-  onSelect,
-  hasMonthlyData,
-}: {
-  delegates: DelegateRow[];
-  t: ReturnType<typeof c>;
-  bc: ReturnType<typeof brandedColors>;
-  isMobile: boolean;
-  onSelect: (username: string) => void;
-  hasMonthlyData?: boolean;
-}) {
-  const top5 = useMemo(() => {
-    if (hasMonthlyData) {
-      // Show recently active contributors sorted by monthly posts
-      return [...delegates]
-        .filter((d) => (d.postCountMonth ?? 0) > 0)
-        .sort((a, b) => (b.postCountMonth ?? 0) - (a.postCountMonth ?? 0))
-        .slice(0, 5);
-    }
-    return [...delegates].sort((a, b) => b.postCount - a.postCount).slice(0, 5);
-  }, [delegates, hasMonthlyData]);
-
-  if (top5.length === 0) {
-    if (hasMonthlyData) {
-      return (
-        <div
-          style={{
-            padding: isMobile ? '14px 14px' : '18px 20px',
-            borderRadius: 12,
-            border: `1px solid ${t.border}`,
-            background: t.bgCard,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Recently Active</div>
-          <div style={{ fontSize: 13, color: t.fgDim }}>No contributors posted in the last 30 days.</div>
-        </div>
-      );
-    }
-    return null;
-  }
-
-  return (
-    <div
-      style={{
-        padding: isMobile ? '14px 14px' : '18px 20px',
-        borderRadius: 12,
-        border: `1px solid ${t.border}`,
-        background: t.bgCard,
-      }}
-    >
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-        {hasMonthlyData ? 'Recently Active' : 'Top Contributors'}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {top5.map((d, i) => {
-          const postDisplay = hasMonthlyData ? (d.postCountMonth ?? 0) : d.postCount;
-          return (
-            <div
-              key={d.username}
-              onClick={() => onSelect(d.username)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(d.username); } }}
-              tabIndex={0}
-              role="button"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '8px 10px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                transition: 'background 0.1s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = bc?.accentHover || t.bgSubtle; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              <span style={{ fontSize: 12, color: t.fgDim, width: 18, textAlign: 'center', fontWeight: 600 }}>
-                {i + 1}
-              </span>
-              {d.avatarUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={d.avatarUrl} alt="" width={28} height={28} style={{ borderRadius: '50%', flexShrink: 0 }} />
-              ) : (
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: t.bgActive,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    flexShrink: 0,
-                  }}
-                >
-                  {d.displayName?.[0] || '?'}
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {d.displayName}
-                  {d.verifiedStatus && (
-                    <CheckCircle2 size={11} style={{ color: '#22c55e', flexShrink: 0 }} />
-                  )}
-                </div>
-                <div style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</div>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>
-                  {postDisplay.toLocaleString()} post{postDisplay !== 1 ? 's' : ''}
-                  {hasMonthlyData && <span style={{ fontSize: 10, color: t.fgDim, fontWeight: 400 }}> this month</span>}
-                </div>
-                {!hasMonthlyData && d.postCountPercentile != null && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      padding: '1px 6px',
-                      borderRadius: 9999,
-                      background: '#10b98115',
-                      border: '1px solid #10b98133',
-                      color: '#10b981',
-                    }}
-                  >
-                    top {100 - d.postCountPercentile}%
-                  </span>
-                )}
-              </div>
-              <ChevronRight size={14} color={t.fgDim} style={{ flexShrink: 0 }} />
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function HighlightsList({
-  summary,
-  delegates,
-  hasTracked,
-  trackedLabelPlural,
-  t,
-  isMobile,
-  hasMonthlyData,
-}: {
-  summary: DashboardSummary;
-  delegates: DelegateRow[];
-  hasTracked: boolean;
-  trackedLabelPlural: string;
-  t: ReturnType<typeof c>;
-  isMobile: boolean;
-  hasMonthlyData?: boolean;
-}) {
-  const highlights: Array<{ icon: typeof AlertTriangle; text: string; color: string }> = [];
-
-  if (hasMonthlyData) {
-    // Monthly-focused highlights
-    const monthlyActive = summary.monthlyActiveContributors ?? 0;
-    if (monthlyActive > 0) {
-      highlights.push({
-        icon: Activity,
-        text: `${monthlyActive} contributor${monthlyActive !== 1 ? 's' : ''} posted this month`,
-        color: '#10b981',
-      });
-    }
-
-    const withMonthlyLikes = delegates.filter(d => (d.likesReceivedMonth ?? 0) > 0).length;
-    if (withMonthlyLikes > 0) {
-      highlights.push({
-        icon: ThumbsUp,
-        text: `${withMonthlyLikes} contributor${withMonthlyLikes !== 1 ? 's' : ''} received likes this month`,
-        color: '#3b82f6',
-      });
-    }
-
-    // Tracked members not posting this month
-    if (hasTracked) {
-      const tracked = delegates.filter(d => d.isTracked);
-      const dormantTracked = tracked.filter(d => (d.postCountMonth ?? 0) === 0);
-      if (dormantTracked.length > 0) {
-        highlights.push({
-          icon: AlertTriangle,
-          text: `${dormantTracked.length} ${trackedLabelPlural.toLowerCase()} haven't posted this month`,
-          color: '#f59e0b',
-        });
-      }
-    }
-  } else {
-    // All-time fallback highlights
-    // Tracked members not posting
-    if (hasTracked) {
-      const tracked = delegates.filter(d => d.isTracked);
-      const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
-      const dormantTracked = tracked.filter(d => {
-        if (!d.lastPostedAt) return true;
-        return Date.now() - new Date(d.lastPostedAt).getTime() > THIRTY_DAYS;
-      });
-      if (dormantTracked.length > 0) {
-        highlights.push({
-          icon: AlertTriangle,
-          text: `${dormantTracked.length} ${trackedLabelPlural.toLowerCase()} haven't posted in 30+ days`,
-          color: '#f59e0b',
-        });
-      }
-    }
-
-    // Top 10% contributors
-    const topTenPercent = delegates.filter(d => d.postCountPercentile != null && d.postCountPercentile >= 90);
-    if (topTenPercent.length > 0) {
-      highlights.push({
-        icon: TrendingUp,
-        text: `${topTenPercent.length} contributor${topTenPercent.length !== 1 ? 's' : ''} in the top 10% of forum-wide engagement`,
-        color: '#10b981',
-      });
-    }
-
-    // Rationale authors
-    if (hasTracked) {
-      const withRationales = delegates.filter(d => d.isTracked && d.rationaleCount > 0);
-      if (withRationales.length > 0) {
-        highlights.push({
-          icon: FileText,
-          text: `${withRationales.length} ${trackedLabelPlural.toLowerCase()} have published rationales`,
-          color: '#3b82f6',
-        });
-      }
-    }
-
-    // Highly active count
-    const highlyActive = summary.activityDistribution?.highlyActive ?? 0;
-    if (highlyActive > 0) {
-      highlights.push({
-        icon: Activity,
-        text: `${highlyActive} highly active contributor${highlyActive !== 1 ? 's' : ''} with 50+ posts`,
-        color: '#10b981',
-      });
-    }
-  }
-
-  if (highlights.length === 0) return null;
-
-  return (
-    <div
-      style={{
-        padding: isMobile ? '14px 14px' : '18px 20px',
-        borderRadius: 12,
-        border: `1px solid ${t.border}`,
-        background: t.bgCard,
-      }}
-    >
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Highlights</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {highlights.map((h, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: t.fgMuted }}>
-            <h.icon size={15} color={h.color} style={{ flexShrink: 0, marginTop: 2 }} />
-            <span>{h.text}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SortHeader({
-  label,
-  field,
-  current,
-  dir,
-  onSort,
-  t,
-  accent,
-  sticky,
-}: {
-  label: string;
-  field: SortField;
-  current: SortField;
-  dir: SortDir;
-  onSort: (f: SortField) => void;
-  t: ReturnType<typeof c>;
-  accent?: string;
-  sticky?: boolean;
-}) {
-  const isActive = current === field;
-  const activeColor = accent || t.fg;
-  return (
-    <th
-      style={{
-        padding: 0,
-        position: sticky ? 'sticky' : undefined,
-        left: sticky ? 0 : undefined,
-        background: sticky ? t.bg : undefined,
-        zIndex: sticky ? 2 : undefined,
-      }}
-    >
-      <button
-        onClick={() => onSort(field)}
-        aria-sort={isActive ? (dir === 'desc' ? 'descending' : 'ascending') : undefined}
-        style={{
-          all: 'unset',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          width: '100%',
-          padding: '10px 16px',
-          textAlign: field === 'displayName' ? 'left' : 'right',
-          justifyContent: field === 'displayName' ? 'flex-start' : 'flex-end',
-          color: isActive ? activeColor : t.fgDim,
-          fontWeight: 500,
-          fontSize: 12,
-          cursor: 'pointer',
-          userSelect: 'none',
-          whiteSpace: 'nowrap',
-          boxSizing: 'border-box',
-        }}
-      >
-        {label}
-        {isActive ? (
-          dir === 'desc' ? (
-            <ArrowDown size={12} />
-          ) : (
-            <ArrowUp size={12} />
-          )
-        ) : (
-          <ArrowUpDown size={11} color={t.fgDim} style={{ opacity: 0.5 }} />
-        )}
-      </button>
-    </th>
-  );
-}
-
-function DelegateTableRow({
-  delegate: d,
-  forumUrl,
-  isSelected,
-  onSelect,
-  t,
-  accentHover,
-  accentBg,
-  showUsername,
-}: {
-  delegate: DelegateRow;
-  forumUrl: string;
-  isSelected: boolean;
-  onSelect: () => void;
-  t: ReturnType<typeof c>;
-  accentHover?: string;
-  accentBg?: string;
-  showUsername?: boolean;
-}) {
-  const seenAgo = d.lastSeenAt
-    ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
-    : '—';
-
-  // Inactive warning: not seen in 30+ days
-  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-  const stale = d.lastSeenAt
-    ? Date.now() - new Date(d.lastSeenAt).getTime() > THIRTY_DAYS_MS
-    : false;
-
-  return (
-    <tr
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      tabIndex={0}
-      aria-selected={isSelected}
-      style={{
-        borderBottom: `1px solid ${t.border}`,
-        cursor: 'pointer',
-        background: isSelected ? (accentBg || t.bgActive) : 'transparent',
-        transition: 'background 0.1s',
-        outline: 'none',
-      }}
-      onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.background = accentHover || t.bgSubtle;
-      }}
-      onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.background = 'transparent';
-      }}
-    >
-      {/* Contributor name cell */}
-      <td
-        style={{
-          padding: '10px 16px',
-          whiteSpace: 'nowrap',
-          position: 'sticky',
-          left: 0,
-          background: isSelected ? (accentBg || t.bgActive) : t.bg,
-          zIndex: 1,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {d.avatarUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={d.avatarUrl}
-              alt=""
-              width={28}
-              height={28}
-              style={{ borderRadius: '50%', flexShrink: 0 }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: t.bgActive,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                fontWeight: 600,
-                flexShrink: 0,
-              }}
-            >
-              {d.displayName?.[0] || '?'}
-            </div>
-          )}
-          <div>
-            <div style={{ fontWeight: 500, fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-              <span>{d.displayName}</span>
-              {showUsername && (
-                <span style={{ fontSize: 11, color: t.fgDim, fontWeight: 400 }}>@{d.username}</span>
-              )}
-              {d.isTracked && (
-                <Star
-                  size={11}
-                  fill="currentColor"
-                  style={{ color: '#f59e0b', flexShrink: 0 }}
-                />
-              )}
-              {d.verifiedStatus && (
-                <span style={{
-                  fontSize: 9, padding: '1px 6px', borderRadius: 9999,
-                  background: '#22c55e15', border: '1px solid #22c55e33',
-                  color: '#22c55e', whiteSpace: 'nowrap', flexShrink: 0,
-                  display: 'inline-flex', alignItems: 'center', gap: 3,
-                }}>
-                  <CheckCircle2 size={9} /> Verified
-                </span>
-              )}
-              {(() => {
-                const tier = getActivityTier(d.postCount);
-                return (
-                  <span
-                    style={{
-                      fontSize: 9,
-                      padding: '1px 6px',
-                      borderRadius: 9999,
-                      background: `${tier.color}15`,
-                      border: `1px solid ${tier.color}33`,
-                      color: tier.color,
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {tier.label}
-                  </span>
-                );
-              })()}
-              {!d.isActive && (
-                <span
-                  style={{
-                    fontSize: 9,
-                    color: '#f59e0b',
-                    background: 'rgba(245,158,11,0.1)',
-                    padding: '1px 6px',
-                    borderRadius: 9999,
-                    flexShrink: 0,
-                  }}
-                >
-                  Inactive
-                </span>
-              )}
-            </div>
-            <a
-              href={`${forumUrl}/u/${d.username}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              style={{ fontSize: 11, color: t.fgDim, textDecoration: 'none' }}
-            >
-              {showUsername ? 'View profile' : `@${d.username}`}
-            </a>
-          </div>
-        </div>
-      </td>
-      <td style={{ padding: '10px 16px' }}>
-        {d.role ? (
-          <span
-            style={{
-              fontSize: 10,
-              padding: '2px 8px',
-              borderRadius: 9999,
-              background: `${dashboardGetRoleColor(d.role)}15`,
-              border: `1px solid ${dashboardGetRoleColor(d.role)}33`,
-              color: dashboardGetRoleColor(d.role),
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {dashboardGetRoleLabel(d.role)}
-          </span>
-        ) : (
-          <span style={{ color: t.fgDim, fontSize: 12 }}>—</span>
-        )}
-      </td>
-      <NumCell value={d.postCount} t={t} />
-      <NumCell value={d.topicCount} t={t} />
-      <NumCell value={d.likesReceived} t={t} />
-      <NumCell value={d.daysVisited} t={t} />
-      <NumCell value={d.rationaleCount} t={t} highlight={d.rationaleCount === 0} />
-      <td
-        style={{
-          padding: '10px 16px',
-          textAlign: 'right',
-          color: d.voteRate != null ? t.fg : t.fgDim,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {d.voteRate != null ? `${d.voteRate}%` : '—'}
-      </td>
-      <td
-        style={{
-          padding: '10px 16px',
-          textAlign: 'right',
-          color: stale ? '#f59e0b' : t.fgMuted,
-          fontSize: 12,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {seenAgo}
-      </td>
-      <td style={{ padding: '10px 16px' }}>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {d.programs.map((p) => (
-            <span
-              key={p}
-              style={{
-                fontSize: 10,
-                padding: '1px 7px',
-                borderRadius: 9999,
-                background: t.bgBadge,
-                border: `1px solid ${t.border}`,
-                color: t.fgMuted,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {p}
-            </span>
-          ))}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function MobileDelegateCard({
-  delegate: d,
-  isSelected,
-  onSelect,
-  t,
-  accentHover,
-  accentBg,
-  showUsername,
-}: {
-  delegate: DelegateRow;
-  isSelected: boolean;
-  onSelect: () => void;
-  t: ReturnType<typeof c>;
-  accentHover?: string;
-  accentBg?: string;
-  showUsername?: boolean;
-}) {
-  const seenAgo = d.lastSeenAt
-    ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
-    : '—';
-
-  return (
-    <div
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      tabIndex={0}
-      role="button"
-      aria-pressed={isSelected}
-      style={{
-        padding: '12px 14px',
-        borderRadius: 10,
-        border: `1px solid ${isSelected ? (accentBg ? t.borderActive : t.borderActive) : t.border}`,
-        background: isSelected ? (accentBg || t.bgActive) : t.bgCard,
-        cursor: 'pointer',
-        transition: 'background 0.1s',
-      }}
-      onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.background = accentHover || t.bgCardHover;
-      }}
-      onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.background = t.bgCard;
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {d.avatarUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={d.avatarUrl}
-            alt=""
-            width={32}
-            height={32}
-            style={{ borderRadius: '50%', flexShrink: 0 }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: t.bgActive,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 13,
-              fontWeight: 600,
-              flexShrink: 0,
-            }}
-          >
-            {d.displayName?.[0] || '?'}
-          </div>
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 500, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {d.displayName}
-            </span>
-            {showUsername && (
-              <span style={{ fontSize: 11, color: t.fgDim }}>@{d.username}</span>
-            )}
-            {d.isTracked && (
-              <Star size={11} fill="currentColor" style={{ color: '#f59e0b', flexShrink: 0 }} />
-            )}
-            {d.verifiedStatus && (
-              <span style={{
-                fontSize: 9, padding: '1px 6px', borderRadius: 9999,
-                background: '#22c55e15', border: '1px solid #22c55e33',
-                color: '#22c55e', whiteSpace: 'nowrap', flexShrink: 0,
-                display: 'inline-flex', alignItems: 'center', gap: 3,
-              }}>
-                <CheckCircle2 size={9} /> Verified
-              </span>
-            )}
-            {(() => {
-              const tier = getActivityTier(d.postCount);
-              return (
-                <span
-                  style={{
-                    fontSize: 9,
-                    padding: '1px 6px',
-                    borderRadius: 9999,
-                    background: `${tier.color}15`,
-                    border: `1px solid ${tier.color}33`,
-                    color: tier.color,
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                  }}
-                >
-                  {tier.label}
-                </span>
-              );
-            })()}
-            {!d.isActive && (
-              <span
-                style={{
-                  fontSize: 9,
-                  color: '#f59e0b',
-                  background: 'rgba(245,158,11,0.1)',
-                  padding: '1px 6px',
-                  borderRadius: 9999,
-                  flexShrink: 0,
-                }}
-              >
-                Inactive
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 11, color: t.fgDim }}>
-            {showUsername ? 'View profile' : `@${d.username}`}
-          </div>
-        </div>
-        {d.role && (
-          <span
-            style={{
-              fontSize: 10,
-              padding: '2px 8px',
-              borderRadius: 9999,
-              background: `${dashboardGetRoleColor(d.role)}15`,
-              border: `1px solid ${dashboardGetRoleColor(d.role)}33`,
-              color: dashboardGetRoleColor(d.role),
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            {dashboardGetRoleLabel(d.role)}
-          </span>
-        )}
-        <ChevronRight size={14} color={t.fgDim} style={{ flexShrink: 0 }} />
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          gap: 16,
-          marginTop: 8,
-          paddingTop: 8,
-          borderTop: `1px solid ${t.border}`,
-          fontSize: 12,
-          color: t.fgMuted,
-        }}
-      >
-        <span><MessageSquare size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />{d.postCount}</span>
-        <span><ThumbsUp size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />{d.likesReceived}</span>
-        <span style={{ color: t.fgDim }}>Seen {seenAgo}</span>
-      </div>
-    </div>
-  );
-}
-
-function NumCell({
-  value,
-  t,
-  highlight,
-}: {
-  value: number;
-  t: ReturnType<typeof c>;
-  highlight?: boolean;
-}) {
-  return (
-    <td
-      style={{
-        padding: '10px 16px',
-        textAlign: 'right',
-        fontVariantNumeric: 'tabular-nums',
-        color: highlight ? '#f59e0b' : t.fg,
-      }}
-    >
-      {value.toLocaleString()}
-    </td>
-  );
-}
-
-// ============================================================
-// Detail Panel
-// ============================================================
-
-function DelegateDetailPanel({
-  delegate: d,
-  forumUrl,
-  tenantSlug,
-  onClose,
-  t,
-  accent,
-  accentBorder,
-  isMobile,
-}: {
-  delegate: DelegateRow;
-  forumUrl: string;
-  tenantSlug: string;
-  onClose: () => void;
-  t: ReturnType<typeof c>;
-  accent?: string;
-  accentBorder?: string;
-  isMobile?: boolean;
-}) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const previousActiveElement = useRef<HTMLElement | null>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  const [detail, setDetail] = useState<{
-    recentPosts: Array<{
-      topicTitle: string;
-      topicId: number;
-      topicSlug: string;
-      createdAt: string;
-      content: string;
-      likeCount: number;
-    }>;
-    snapshotHistory: Array<{
-      capturedAt: string;
-      postCount: number;
-      rationaleCount: number;
-    }>;
-  } | null>(null);
-  const [detailLoading, setDetailLoading] = useState(true);
-
-  // Accessibility: Escape key, focus trap, scroll lock, focus management
-  useEffect(() => {
-    previousActiveElement.current = document.activeElement as HTMLElement;
-
-    const panel = panelRef.current;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCloseRef.current();
-        return;
-      }
-
-      // Focus trap: cycle Tab within the panel
-      if (e.key === 'Tab' && panel) {
-        const focusable = panel.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    // Focus close button on open
-    const closeBtn = panel?.querySelector<HTMLButtonElement>('[data-close-button]');
-    closeBtn?.focus();
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = originalOverflow;
-      previousActiveElement.current?.focus();
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/delegates/${tenantSlug}/${d.username}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && !cancelled) {
-          setDetail({
-            recentPosts: data.recentPosts || [],
-            snapshotHistory: data.snapshotHistory || [],
-          });
-        }
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setDetailLoading(false); });
-    return () => { cancelled = true; };
-  }, [tenantSlug, d.username]);
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.4)',
-          zIndex: 40,
-        }}
-      />
-      {/* Panel */}
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${d.displayName} contributor details`}
-        style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: '100%',
-          maxWidth: isMobile ? undefined : 520,
-          background: t.bg,
-          borderLeft: isMobile ? undefined : `1px solid ${t.border}`,
-          zIndex: 50,
-          overflowY: 'auto',
-          boxShadow: isMobile ? undefined : '-4px 0 24px rgba(0,0,0,0.2)',
-        }}
-      >
-        {/* Panel Header */}
-        <div
-          style={{
-            padding: isMobile ? '12px 16px' : '16px 20px',
-            borderBottom: `2px solid ${accentBorder || t.border}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            position: 'sticky',
-            top: 0,
-            background: t.bg,
-            zIndex: 2,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {isMobile && (
-              <button
-                data-close-button
-                aria-label="Go back"
-                onClick={onClose}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: t.fgMuted,
-                  padding: 4,
-                  marginRight: 2,
-                }}
-              >
-                <ArrowLeft size={18} />
-              </button>
-            )}
-            {d.avatarUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={d.avatarUrl} alt="" width={36} height={36} style={{ borderRadius: '50%' }} />
-            ) : (
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  background: t.bgActive,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 16,
-                  fontWeight: 600,
-                }}
-              >
-                {d.displayName?.[0] || '?'}
-              </div>
-            )}
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>{d.displayName}</div>
-              <a
-                href={`${forumUrl}/u/${d.username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 12, color: t.fgDim, textDecoration: 'none' }}
-              >
-                @{d.username} <ExternalLink size={10} style={{ display: 'inline' }} />
-              </a>
-            </div>
-          </div>
-          {!isMobile && (
-            <button
-              data-close-button
-              aria-label="Close"
-              onClick={onClose}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: t.fgMuted,
-                padding: 4,
-              }}
-            >
-              <X size={18} />
-            </button>
-          )}
-        </div>
-
-        <div style={{ padding: 20 }}>
-          {/* Status + Role + Programs */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-            <Badge
-              label={d.isActive ? 'Active' : 'Inactive'}
-              color={d.isActive ? (accent || '#10b981') : '#f59e0b'}
-            />
-            {d.role && (
-              <Badge label={dashboardGetRoleLabel(d.role)} color={dashboardGetRoleColor(d.role)} />
-            )}
-            {d.programs.map((p) => (
-              <Badge key={p} label={p} color={t.fgDim} />
-            ))}
-            <Badge label={`Trust Level ${d.trustLevel}`} color={t.fgDim} />
-          </div>
-
-          {/* Stats Grid */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 10,
-              marginBottom: 20,
-            }}
-          >
-            <StatBox label="Posts" value={d.postCount} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} percentile={d.postCountPercentile} />
-            <StatBox label="Topics Created" value={d.topicCount} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} percentile={d.topicsEnteredPercentile} />
-            <StatBox label="Likes Received" value={d.likesReceived} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} percentile={d.likesReceivedPercentile} />
-            <StatBox label="Likes Given" value={d.likesGiven} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} />
-            <StatBox label="Days Visited" value={d.daysVisited} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} percentile={d.daysVisitedPercentile} />
-            <StatBox label="Posts Read" value={d.postsRead} source={d.dataSource.forumStats === 'directory' ? 'Directory' : 'Discourse API'} t={t} accentBorder={accentBorder} />
-            <StatBox label="Rationales" value={d.rationaleCount} source="Discourse Search API" t={t} accentBorder={accentBorder} />
-            <StatBox
-              label="Vote Rate"
-              value={d.voteRate != null ? `${d.voteRate}%` : '—'}
-              source="Manual entry"
-              t={t}
-              accentBorder={accentBorder}
-            />
-          </div>
-
-          {/* Wallet & Identity */}
-          {(d.walletAddress || d.kycStatus) && (
-            <div style={{ marginBottom: 20 }}>
-              <h3 style={{ fontSize: 12, fontWeight: 600, color: t.fgDim, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Identity
-              </h3>
-              <div
-                style={{
-                  padding: 12,
-                  borderRadius: 8,
-                  border: `1px solid ${t.border}`,
-                  background: t.bgSubtle,
-                  fontSize: 12,
-                }}
-              >
-                {d.walletAddress && (
-                  <div style={{ marginBottom: 4 }}>
-                    <span style={{ color: t.fgDim }}>Wallet: </span>
-                    <span style={{ fontFamily: 'var(--font-geist-mono)' }}>
-                      {d.walletAddress.slice(0, 6)}...{d.walletAddress.slice(-4)}
-                    </span>
-                  </div>
-                )}
-                {d.kycStatus && (
-                  <div>
-                    <span style={{ color: t.fgDim }}>KYC: </span>
-                    <span>{d.kycStatus}</span>
-                  </div>
-                )}
-              </div>
-              <div style={{ fontSize: 10, color: t.fgDim, marginTop: 4 }}>
-                Source: Admin-provided records
-              </div>
-            </div>
-          )}
-
-          {/* Timestamps */}
-          <div style={{ marginBottom: 20 }}>
-            <h3 style={{ fontSize: 12, fontWeight: 600, color: t.fgDim, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Activity Timeline
-            </h3>
-            <div style={{ fontSize: 12, lineHeight: 2, color: t.fgMuted }}>
-              <div>
-                <span style={{ color: t.fgDim }}>Last Seen:</span>{' '}
-                {d.lastSeenAt ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true }) : '—'}
-              </div>
-              <div>
-                <span style={{ color: t.fgDim }}>Last Posted:</span>{' '}
-                {d.lastPostedAt ? formatDistanceToNow(new Date(d.lastPostedAt), { addSuffix: true }) : '—'}
-              </div>
-              <div>
-                <span style={{ color: t.fgDim }}>Snapshot:</span>{' '}
-                {d.snapshotAt ? formatDistanceToNow(new Date(d.snapshotAt), { addSuffix: true }) : '—'}
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Posts */}
-          <div>
-            <h3 style={{ fontSize: 12, fontWeight: 600, color: t.fgDim, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Recent Posts
-            </h3>
-            {detailLoading ? (
-              <div style={{ color: t.fgDim, fontSize: 12 }}>Loading...</div>
-            ) : detail?.recentPosts && detail.recentPosts.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {detail.recentPosts.slice(0, 10).map((post, i) => (
-                  <a
-                    key={i}
-                    href={`${forumUrl}/t/${post.topicSlug}/${post.topicId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'block',
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      border: `1px solid ${t.border}`,
-                      background: t.bgSubtle,
-                      textDecoration: 'none',
-                      color: t.fg,
-                    }}
-                  >
-                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
-                      {post.topicTitle || 'Untitled'}
-                    </div>
-                    {post.content && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: t.fgDim,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          maxWidth: '100%',
-                        }}
-                      >
-                        {extractText(post.content, 120)}
-                      </div>
-                    )}
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: t.fgDim,
-                        marginTop: 4,
-                        display: 'flex',
-                        gap: 12,
-                      }}
-                    >
-                      <span>{post.createdAt ? formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }) : ''}</span>
-                      {post.likeCount > 0 && <span>{post.likeCount} likes</span>}
-                    </div>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div style={{ color: t.fgDim, fontSize: 12 }}>No recent posts available.</div>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function Badge({ label, color }: { label: string; color: string }) {
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        padding: '2px 10px',
-        borderRadius: 9999,
-        border: `1px solid ${color}33`,
-        background: `${color}15`,
-        color,
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function StatBox({
-  label,
-  value,
-  source,
-  t,
-  accentBorder,
-  percentile,
-}: {
-  label: string;
-  value: string | number;
-  source: string;
-  t: ReturnType<typeof c>;
-  accentBorder?: string;
-  percentile?: number;
-}) {
-  return (
-    <div
-      style={{
-        padding: '10px 12px',
-        borderRadius: 8,
-        border: `1px solid ${accentBorder || t.border}`,
-        background: t.bgSubtle,
-      }}
-    >
-      <div style={{ fontSize: 11, color: t.fgDim, marginBottom: 2 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>
-          {typeof value === 'number' ? value.toLocaleString() : value}
-        </span>
-        {percentile != null && (
-          <span style={{ fontSize: 11, color: t.fgDim, fontWeight: 400 }}>
-            top {100 - percentile}%
-          </span>
-        )}
-      </div>
-      <div style={{ fontSize: 9, color: t.fgDim, marginTop: 2 }}>{source}</div>
-    </div>
-  );
-}
-
-// ============================================================
-// Utilities
-// ============================================================
-
-/** Extract plain text from HTML safely using regex stripping (avoids innerHTML XSS) */
-function extractText(html: string, maxLen: number = 120): string {
-  const text = html
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text.slice(0, maxLen);
-}
-
-// ============================================================
-// Role helpers
-// ============================================================
-
-/** Compute activity tier from post count */
-function getActivityTier(postCount: number): { label: string; color: string } {
-  if (postCount >= 50) return { label: 'Highly Active', color: '#10b981' };
-  if (postCount >= 11) return { label: 'Active', color: '#3b82f6' };
-  if (postCount >= 2) return { label: 'Low Activity', color: '#f59e0b' };
-  if (postCount >= 1) return { label: 'Minimal', color: '#f97316' };
-  return { label: 'Dormant', color: '#ef4444' };
-}
-
-function dashboardGetRoleColor(role: string): string {
-  switch (role) {
-    case 'delegate': return '#6366f1';
-    case 'council_member': return '#8b5cf6';
-    case 'major_stakeholder': return '#f59e0b';
-    case 'contributor': return '#10b981';
-    case 'grantee': return '#06b6d4';
-    case 'core_team': return '#ec4899';
-    case 'advisor': return '#f97316';
-    default: return '#71717a';
-  }
-}
-
-function dashboardGetRoleLabel(role: string): string {
-  const found = DELEGATE_ROLES.find(r => r.id === role);
-  return found ? found.label : role;
 }
 
 // ============================================================
