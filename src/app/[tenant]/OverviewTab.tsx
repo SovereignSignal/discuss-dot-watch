@@ -297,14 +297,6 @@ function VerifiedDelegatesProgramCard({
     return { meetVoting, meetScore };
   }, [delegates, scoreMap]);
 
-  // At-risk: no posts in period or no rationales
-  const atRisk = useMemo(() => {
-    return delegates
-      .filter(d => getPostCountForPeriod(d, period) === 0 || d.rationaleCount === 0)
-      .sort((a, b) => getPostCountForPeriod(a, period) - getPostCountForPeriod(b, period))
-      .slice(0, 5);
-  }, [delegates, period]);
-
   const periodLabels: Record<DashboardPeriod, string> = {
     week: 'this week', month: 'this month', year: 'this year', all: '',
   };
@@ -374,7 +366,7 @@ function VerifiedDelegatesProgramCard({
 
       {/* Compliance Bar */}
       {governanceScores.length > 0 && (
-        <div style={{ marginBottom: atRisk.length > 0 ? 16 : 0 }}>
+        <div>
           <div style={{ fontSize: 12, fontWeight: 600, color: t.fgMuted, marginBottom: 8 }}>Compliance</div>
           <div style={{ display: 'flex', gap: isMobile ? 8 : 12 }}>
             <ComplianceBar
@@ -395,58 +387,6 @@ function VerifiedDelegatesProgramCard({
         </div>
       )}
 
-      {/* At-Risk Delegates */}
-      {atRisk.length > 0 && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <AlertTriangle size={13} style={{ color: '#f59e0b' }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b' }}>
-              At-Risk ({atRisk.length})
-            </span>
-            <span style={{ fontSize: 11, color: t.fgDim }}>
-              no posts {period !== 'all' ? periodLabels[period] : ''} or missing rationales
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {atRisk.map(d => (
-              <div
-                key={d.username}
-                onClick={() => onSelectDelegate(d.username)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectDelegate(d.username); } }}
-                tabIndex={0}
-                role="button"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '5px 8px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  transition: 'background 0.1s',
-                  fontSize: 12,
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                {d.avatarUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={d.avatarUrl} alt="" width={20} height={20} style={{ borderRadius: '50%', flexShrink: 0 }} />
-                ) : (
-                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.bgActive, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, flexShrink: 0 }}>
-                    {d.displayName?.[0] || '?'}
-                  </div>
-                )}
-                <span style={{ fontWeight: 500, color: t.fg, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {d.displayName}
-                </span>
-                <span style={{ color: t.fgDim, flexShrink: 0 }}>
-                  {getPostCountForPeriod(d, period)} posts, {d.rationaleCount} rationales
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
