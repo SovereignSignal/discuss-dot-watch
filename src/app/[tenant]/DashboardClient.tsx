@@ -47,7 +47,7 @@ export default function TenantDashboardPage() {
   const [filterProgram, setFilterProgram] = useState<FilterProgram>('all');
   const [filterRole, setFilterRole] = useState<FilterRole>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
-  const [filterTracked, setFilterTracked] = useState<'all' | 'tracked' | 'verified'>('all');
+  const [filterTracked, setFilterTracked] = useState<'all' | 'verified'>('all');
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contributors' | 'proposals'>('overview');
   const [period, setPeriod] = useState<DashboardPeriod>('year');
@@ -102,9 +102,6 @@ export default function TenantDashboardPage() {
     window.dispatchEvent(new Event('themechange'));
   };
 
-  // Server-side filter: only 'tracked' uses ?filter=tracked; 'verified' is client-side
-  const serverFilter = filterTracked === 'tracked' ? 'tracked' : 'all';
-
   // Fetch dashboard data
   useEffect(() => {
     if (!slug || RESERVED_SLUGS.has(slug)) {
@@ -115,9 +112,7 @@ export default function TenantDashboardPage() {
       return;
     }
     let cancelled = false;
-    const url = serverFilter === 'tracked'
-      ? `/api/delegates/${slug}?filter=tracked`
-      : `/api/delegates/${slug}`;
+    const url = `/api/delegates/${slug}`;
     fetch(url)
       .then((res) => {
         if (!res.ok) throw new Error(res.status === 404 ? 'not_found' : 'fetch_error');
@@ -137,7 +132,7 @@ export default function TenantDashboardPage() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [slug, serverFilter]);
+  }, [slug]);
 
   // Fetch Snapshot data
   useEffect(() => {
@@ -315,9 +310,7 @@ export default function TenantDashboardPage() {
 
   const handleAdminUpdate = useCallback(() => {
     // Re-fetch dashboard data
-    const url = serverFilter === 'tracked'
-      ? `/api/delegates/${slug}?filter=tracked`
-      : `/api/delegates/${slug}`;
+    const url = `/api/delegates/${slug}`;
     fetch(url)
       .then((res) => res.ok ? res.json() : null)
       .then((data) => {
@@ -332,7 +325,7 @@ export default function TenantDashboardPage() {
       .then((res) => res.ok ? res.json() : [])
       .then((data) => { if (Array.isArray(data)) setFeaturedThreads(data); })
       .catch(() => {});
-  }, [slug, serverFilter]);
+  }, [slug]);
 
   // --- Render ---
 
@@ -529,7 +522,7 @@ export default function TenantDashboardPage() {
         </div>
 
         {/* View Filter (Overview tab) */}
-        {activeTab === 'overview' && (hasTracked || hasVerified) && (
+        {activeTab === 'overview' && hasVerified && (
           <div
             style={{
               display: 'flex',
@@ -542,8 +535,7 @@ export default function TenantDashboardPage() {
           >
             {([
               { key: 'all' as const, label: 'All Contributors' },
-              ...(hasTracked ? [{ key: 'tracked' as const, label: trackedLabelPlural }] : []),
-              ...(hasVerified ? [{ key: 'verified' as const, label: 'Verified Delegates' }] : []),
+              { key: 'verified' as const, label: 'Verified Delegates' },
             ]).map(({ key, label }) => (
               <button
                 key={key}
@@ -640,7 +632,7 @@ export default function TenantDashboardPage() {
                 marginBottom: 16,
               }}
             >
-              {(hasTracked || hasVerified) && (
+              {hasVerified && (
                 <div
                   style={{
                     display: 'flex',
@@ -652,8 +644,7 @@ export default function TenantDashboardPage() {
                 >
                   {([
                     { key: 'all' as const, label: 'All Contributors' },
-                    ...(hasTracked ? [{ key: 'tracked' as const, label: trackedLabelPlural }] : []),
-                    ...(hasVerified ? [{ key: 'verified' as const, label: 'Verified Delegates' }] : []),
+                    { key: 'verified' as const, label: 'Verified Delegates' },
                   ]).map(({ key, label }) => (
                     <button
                       key={key}

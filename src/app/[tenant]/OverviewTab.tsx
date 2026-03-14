@@ -1236,11 +1236,14 @@ function DelegateActivityThreadsCard({
                     width={22}
                     height={22}
                     style={{
+                      width: 22,
+                      height: 22,
                       borderRadius: '50%',
                       border: `2px solid ${t.bgCard}`,
                       marginLeft: i > 0 ? -8 : 0,
                       position: 'relative',
                       zIndex: 5 - i,
+                      objectFit: 'cover',
                     }}
                   />
                 ) : (
