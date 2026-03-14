@@ -925,8 +925,6 @@ function GovernanceLeaderboard({
     return m;
   }, [governanceScores]);
 
-  const isPeriodFiltered = period !== 'all';
-
   const top5 = useMemo(() => {
     // If governance scores available, sort by combined score
     if (scoreMap && scoreMap.size > 0) {
@@ -938,41 +936,31 @@ function GovernanceLeaderboard({
         })
         .slice(0, 5);
     }
-    // Sort by period-aware post count
+    // Always rank by monthly (last 30 days) activity for relevance
     return [...delegates]
-      .filter((d) => getPostCountForPeriod(d, period) > 0)
-      .sort((a, b) => getPostCountForPeriod(b, period) - getPostCountForPeriod(a, period))
+      .filter((d) => (d.postCountMonth ?? 0) > 0)
+      .sort((a, b) => (b.postCountMonth ?? 0) - (a.postCountMonth ?? 0))
       .slice(0, 5);
-  }, [delegates, period, scoreMap]);
-
-  const periodLabels: Record<DashboardPeriod, string> = {
-    week: 'this week',
-    month: 'this month',
-    year: 'this year',
-    all: '',
-  };
+  }, [delegates, scoreMap]);
 
   if (top5.length === 0) {
-    if (isPeriodFiltered) {
-      return (
-        <div
-          style={{
-            padding: isMobile ? '14px 14px' : '18px 20px',
-            borderRadius: 12,
-            border: `1px solid ${t.border}`,
-            background: t.bgCard,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Top Contributors</div>
-          <div style={{ fontSize: 13, color: t.fgDim }}>No contributors posted {periodLabels[period]}.</div>
-        </div>
-      );
-    }
-    return null;
+    return (
+      <div
+        style={{
+          padding: isMobile ? '14px 14px' : '18px 20px',
+          borderRadius: 12,
+          border: `1px solid ${t.border}`,
+          background: t.bgCard,
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Most Active (30 Days)</div>
+        <div style={{ fontSize: 13, color: t.fgDim }}>No contributors posted this month.</div>
+      </div>
+    );
   }
 
   const useGovScore = scoreMap && scoreMap.size > 0;
-  const title = useGovScore ? 'Governance Leaderboard' : (isPeriodFiltered ? 'Top Contributors' : 'Top Contributors');
+  const title = useGovScore ? 'Governance Leaderboard' : 'Most Active (30 Days)';
 
   return (
     <div
@@ -987,7 +975,7 @@ function GovernanceLeaderboard({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {top5.map((d, i) => {
           const score = scoreMap?.get(d.username);
-          const postDisplay = getPostCountForPeriod(d, period);
+          const postDisplay = d.postCountMonth ?? 0;
           return (
             <div
               key={d.username}
@@ -1049,9 +1037,9 @@ function GovernanceLeaderboard({
                   <>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>
                       {postDisplay.toLocaleString()} post{postDisplay !== 1 ? 's' : ''}
-                      {isPeriodFiltered && <span style={{ fontSize: 10, color: t.fgDim, fontWeight: 400 }}> {periodLabels[period]}</span>}
+                      <span style={{ fontSize: 10, color: t.fgDim, fontWeight: 400 }}> this month</span>
                     </div>
-                    {period === 'all' && d.postCountPercentile != null && (
+                    {d.postCountPercentile != null && (
                       <span
                         style={{
                           fontSize: 10,
@@ -1219,8 +1207,8 @@ function AttentionNeededCard({
             </span>
             <span style={{ fontSize: 11, color: '#f59e0b', flexShrink: 0 }}>
               {d.lastPostedAt
-                ? `last seen ${formatDistanceToNow(new Date(d.lastPostedAt), { addSuffix: true })}`
-                : 'never posted'}
+                ? `${formatDistanceToNow(new Date(d.lastPostedAt), { addSuffix: true })}`
+                : 'no recent activity'}
             </span>
           </div>
         ))}
