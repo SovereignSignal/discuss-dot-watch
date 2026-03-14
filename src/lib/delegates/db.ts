@@ -772,6 +772,7 @@ export async function getDashboardData(slug: string, opts?: { trackedOnly?: bool
       branding: tenant.config.branding,
       trackedMemberLabel: tenant.config.trackedMemberLabel,
       trackedMemberLabelPlural: tenant.config.trackedMemberLabelPlural,
+      featuredTopicIds: tenant.config.featuredTopicIds,
     },
     delegates: delegateRows,
     summary,

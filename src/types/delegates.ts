@@ -48,6 +48,7 @@ export interface TenantConfig {
   proposalCategoryIds?: number[];    // Discourse category IDs containing proposals
   proposalTags?: string[];           // Tags that indicate governance proposals
   snapshotSpace?: string;            // Snapshot space ID e.g. "decentraland.eth"
+  featuredTopicIds?: number[];       // Admin-curated Discourse topic IDs to highlight
 }
 
 export interface TenantCapabilities {
@@ -255,6 +256,7 @@ export interface DelegateDashboard {
     branding?: TenantBranding;
     trackedMemberLabel?: string;
     trackedMemberLabelPlural?: string;
+    featuredTopicIds?: number[];
   };
   delegates: DelegateRow[];
   summary: DashboardSummary;
@@ -451,4 +453,40 @@ export interface GovernanceScore {
     proposalsTotal: number;
     voteRate: number;
   };
+}
+
+// --- Featured Threads (admin-curated) ---
+
+export interface FeaturedThread {
+  topicId: number;
+  title: string;
+  slug: string;
+  author: string;
+  authorAvatarUrl?: string;
+  excerpt: string;
+  replyCount: number;
+  views: number;
+  likeCount: number;
+  lastActivityAt: string;
+  createdAt: string;
+  categoryName?: string;
+  tags: string[];
+}
+
+// --- Delegate Activity Threads (auto-detected) ---
+
+export interface DelegateActivityThread {
+  topicId: number;
+  topicTitle: string;
+  topicSlug: string;
+  forumUrl: string;
+  participatingDelegates: Array<{
+    username: string;
+    displayName: string;
+    avatarUrl: string;
+    latestPostAt: string;
+    postCount: number;
+  }>;
+  totalDelegatePosts: number;
+  latestActivityAt: string;
 }

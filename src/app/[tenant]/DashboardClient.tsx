@@ -10,7 +10,7 @@ import {
   Sun,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { DelegateDashboard, TenantSnapshotData, GovernanceScore, DashboardPeriod } from '@/types/delegates';
+import type { DelegateDashboard, TenantSnapshotData, GovernanceScore, DashboardPeriod, FeaturedThread, DelegateActivityThread } from '@/types/delegates';
 import { c } from '@/lib/theme';
 import ProposalsView from './ProposalsView';
 import OverviewTab from './OverviewTab';
@@ -51,6 +51,8 @@ export default function TenantDashboardPage() {
   const [period, setPeriod] = useState<DashboardPeriod>('year');
   const [snapshotData, setSnapshotData] = useState<TenantSnapshotData | null>(null);
   const [governanceScores, setGovernanceScores] = useState<GovernanceScore[]>([]);
+  const [featuredThreads, setFeaturedThreads] = useState<FeaturedThread[]>([]);
+  const [delegateActivityThreads, setDelegateActivityThreads] = useState<DelegateActivityThread[]>([]);
 
   const t = c(isDark);
   const { isSuperAdmin } = useTenantRoles();
@@ -149,6 +151,38 @@ export default function TenantDashboardPage() {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [slug]);
+
+  // Fetch featured threads
+  useEffect(() => {
+    if (!slug || RESERVED_SLUGS.has(slug) || !dashboard?.tenant.featuredTopicIds?.length) return;
+    let cancelled = false;
+    fetch(`/api/delegates/${slug}/featured`)
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) setFeaturedThreads(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [slug, dashboard?.tenant.featuredTopicIds]);
+
+  // Fetch delegate activity threads
+  useEffect(() => {
+    if (!slug || RESERVED_SLUGS.has(slug) || !hasVerified) return;
+    let cancelled = false;
+    fetch(`/api/delegates/${slug}/activity-threads`)
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) setDelegateActivityThreads(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [slug, hasVerified]);
 
   // Governance scores map for table/detail
   const govScoreMap = useMemo(() => {
@@ -541,6 +575,8 @@ export default function TenantDashboardPage() {
             governanceScores={governanceScores}
             period={period}
             filterMode={filterTracked}
+            featuredThreads={featuredThreads}
+            delegateActivityThreads={delegateActivityThreads}
           />
         ) : activeTab === 'proposals' ? (
           <ProposalsView

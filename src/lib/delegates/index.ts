@@ -3,6 +3,8 @@ export { detectCapabilities, lookupUsername, searchUsers, getUserStats, getUserP
 export { syncContributorsFromDirectory } from './contributorSync';
 export { refreshTenant } from './refreshEngine';
 export { fetchProposals } from './proposalTracker';
+export { fetchFeaturedThreads } from './featuredThreads';
+export { getDelegateActivityThreads } from './activityThreads';
 export { fetchTenantSnapshotData, fetchVoterParticipation, computeGovernanceScores } from './snapshotClient';
 export {
   initializeDelegateSchema,

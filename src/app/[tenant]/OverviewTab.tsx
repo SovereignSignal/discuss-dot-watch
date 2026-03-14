@@ -13,8 +13,11 @@ import {
   Vote,
   CheckCircle2,
   Target,
+  Pin,
+  ExternalLink,
+  Eye,
 } from 'lucide-react';
-import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantSnapshotData, GovernanceScore, DashboardPeriod } from '@/types/delegates';
+import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantSnapshotData, GovernanceScore, DashboardPeriod, FeaturedThread, DelegateActivityThread } from '@/types/delegates';
 import type { c } from '@/lib/theme';
 import type { BrandedColorsResult } from './dashboardUtils';
 import { getPostCountForPeriod, getGcrTier } from './dashboardUtils';
@@ -33,6 +36,8 @@ interface OverviewTabProps {
   governanceScores?: GovernanceScore[];
   period?: DashboardPeriod;
   filterMode?: 'all' | 'tracked' | 'verified';
+  featuredThreads?: FeaturedThread[];
+  delegateActivityThreads?: DelegateActivityThread[];
 }
 
 export default function OverviewTab({
@@ -48,6 +53,8 @@ export default function OverviewTab({
   governanceScores,
   period = 'year',
   filterMode = 'all',
+  featuredThreads = [],
+  delegateActivityThreads = [],
 }: OverviewTabProps) {
   const summary = dashboard.summary;
   const delegates = filteredDelegates ?? dashboard.delegates;
@@ -120,8 +127,29 @@ export default function OverviewTab({
         />
       )}
 
+      {/* Delegate Activity Threads (verified view only) */}
+      {isVerifiedView && delegateActivityThreads.length > 0 && (
+        <DelegateActivityThreadsCard
+          threads={delegateActivityThreads}
+          t={t}
+          bc={bc}
+          isMobile={isMobile}
+        />
+      )}
+
       {/* AI Brief (hidden in verified view) */}
       {!isVerifiedView && <AIBriefCard brief={dashboard.brief} t={t} bc={bc} isMobile={isMobile} />}
+
+      {/* Featured Threads (hidden in verified view) */}
+      {!isVerifiedView && featuredThreads.length > 0 && (
+        <FeaturedThreadsCard
+          threads={featuredThreads}
+          forumUrl={dashboard.tenant.forumUrl}
+          t={t}
+          bc={bc}
+          isMobile={isMobile}
+        />
+      )}
 
       {/* Key Metrics */}
       <KeyStatsRow
@@ -1190,6 +1218,271 @@ function AttentionNeededCard({
                 : 'never posted'}
             </span>
           </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- Featured Threads Card ---
+
+function FeaturedThreadsCard({
+  threads,
+  forumUrl,
+  t,
+  bc,
+  isMobile,
+}: {
+  threads: FeaturedThread[];
+  forumUrl: string;
+  t: ReturnType<typeof c>;
+  bc: BrandedColorsResult | null;
+  isMobile: boolean;
+}) {
+  const accent = bc?.accent || '#3b82f6';
+  const display = threads.slice(0, 5);
+
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        border: `1px solid ${t.border}`,
+        background: t.bgCard,
+        padding: isMobile ? 14 : 18,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <Pin size={15} style={{ color: accent }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: t.fg }}>Featured Threads</span>
+        <span style={{
+          fontSize: 10,
+          padding: '2px 6px',
+          borderRadius: 4,
+          background: `${accent}18`,
+          color: accent,
+          border: `1px solid ${accent}33`,
+        }}>
+          {threads.length}
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {display.map((thread) => (
+          <a
+            key={thread.topicId}
+            href={`${forumUrl.replace(/\/$/, '')}/t/${thread.slug}/${thread.topicId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              gap: isMobile ? 8 : 10,
+              padding: '8px 10px',
+              borderRadius: 8,
+              textDecoration: 'none',
+              color: t.fg,
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = bc?.accentHover || t.bgSubtle; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            {thread.authorAvatarUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={thread.authorAvatarUrl}
+                alt=""
+                width={24}
+                height={24}
+                style={{ borderRadius: '50%', flexShrink: 0, marginTop: isMobile ? 2 : 0 }}
+              />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 13,
+                fontWeight: 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>
+                {thread.title}
+              </div>
+              {!isMobile && thread.excerpt && (
+                <div style={{
+                  fontSize: 11,
+                  color: t.fgDim,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  marginTop: 2,
+                }}>
+                  {thread.excerpt}
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 0, fontSize: 11, color: t.fgDim }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <MessageSquare size={11} />
+                {thread.replyCount}
+              </span>
+              {!isMobile && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <Eye size={11} />
+                  {thread.views}
+                </span>
+              )}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <ThumbsUp size={11} />
+                {thread.likeCount}
+              </span>
+              <ExternalLink size={11} style={{ color: t.fgDim }} />
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- Delegate Activity Threads Card ---
+
+function DelegateActivityThreadsCard({
+  threads,
+  t,
+  bc,
+  isMobile,
+}: {
+  threads: DelegateActivityThread[];
+  t: ReturnType<typeof c>;
+  bc: BrandedColorsResult | null;
+  isMobile: boolean;
+}) {
+  const accent = bc?.accent || '#3b82f6';
+
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        border: `1px solid ${t.border}`,
+        background: t.bgCard,
+        padding: isMobile ? 14 : 18,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <MessageSquare size={15} style={{ color: accent }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: t.fg }}>Active Delegate Discussions</span>
+        <span style={{
+          fontSize: 10,
+          padding: '2px 6px',
+          borderRadius: 4,
+          background: `${accent}18`,
+          color: accent,
+          border: `1px solid ${accent}33`,
+        }}>
+          {threads.length}
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {threads.map((thread) => (
+          <a
+            key={thread.topicId}
+            href={`${thread.forumUrl.replace(/\/$/, '')}/t/${thread.topicSlug}/${thread.topicId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              gap: 10,
+              padding: '8px 10px',
+              borderRadius: 8,
+              textDecoration: 'none',
+              color: t.fg,
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = bc?.accentHover || t.bgSubtle; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            {/* Stacked delegate avatars */}
+            <div style={{ display: 'flex', flexShrink: 0 }}>
+              {thread.participatingDelegates.slice(0, 5).map((d, i) => (
+                d.avatarUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    key={d.username}
+                    src={d.avatarUrl}
+                    alt={d.displayName}
+                    title={d.displayName}
+                    width={22}
+                    height={22}
+                    style={{
+                      borderRadius: '50%',
+                      border: `2px solid ${t.bgCard}`,
+                      marginLeft: i > 0 ? -8 : 0,
+                      position: 'relative',
+                      zIndex: 5 - i,
+                    }}
+                  />
+                ) : (
+                  <div
+                    key={d.username}
+                    title={d.displayName}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      background: t.bgActive,
+                      border: `2px solid ${t.bgCard}`,
+                      marginLeft: i > 0 ? -8 : 0,
+                      position: 'relative',
+                      zIndex: 5 - i,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 9,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {d.displayName?.[0] || '?'}
+                  </div>
+                )
+              ))}
+              {thread.participatingDelegates.length > 5 && (
+                <div
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    background: t.bgActive,
+                    border: `2px solid ${t.bgCard}`,
+                    marginLeft: -8,
+                    position: 'relative',
+                    zIndex: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 9,
+                    fontWeight: 600,
+                    color: t.fgDim,
+                  }}
+                >
+                  +{thread.participatingDelegates.length - 5}
+                </div>
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 13,
+                fontWeight: 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>
+                {thread.topicTitle}
+              </div>
+              <div style={{ fontSize: 11, color: t.fgDim, marginTop: 2 }}>
+                {thread.participatingDelegates.length} delegate{thread.participatingDelegates.length !== 1 ? 's' : ''} &middot; {thread.totalDelegatePosts} post{thread.totalDelegatePosts !== 1 ? 's' : ''} &middot; {formatDistanceToNow(new Date(thread.latestActivityAt), { addSuffix: true })}
+              </div>
+            </div>
+            <ExternalLink size={12} style={{ color: t.fgDim, flexShrink: 0 }} />
+          </a>
         ))}
       </div>
     </div>
