@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Moon,
   Sun,
+  Settings,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { DelegateDashboard, TenantSnapshotData, GovernanceScore, DashboardPeriod, FeaturedThread, DelegateActivityThread } from '@/types/delegates';
@@ -16,6 +17,7 @@ import ProposalsView from './ProposalsView';
 import OverviewTab from './OverviewTab';
 import { SortHeader, DelegateTableRow, MobileDelegateCard } from './ContributorsTable';
 import DelegateDetailPanel from './DelegateDetailPanel';
+import AdminPanel from './AdminPanel';
 import { brandedColors, dashboardGetRoleLabel, getPostCountForPeriod, getTopicCountForPeriod, getLikesForPeriod, getDaysVisitedForPeriod } from './dashboardUtils';
 import type { SortField, SortDir, FilterProgram, FilterRole, FilterStatus } from './dashboardUtils';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
@@ -53,9 +55,10 @@ export default function TenantDashboardPage() {
   const [governanceScores, setGovernanceScores] = useState<GovernanceScore[]>([]);
   const [featuredThreads, setFeaturedThreads] = useState<FeaturedThread[]>([]);
   const [delegateActivityThreads, setDelegateActivityThreads] = useState<DelegateActivityThread[]>([]);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
 
   const t = c(isDark);
-  const { isSuperAdmin } = useTenantRoles();
+  const { isSuperAdmin, canAdminTenant } = useTenantRoles();
   const branding = dashboard?.tenant.branding;
   const bc = brandedColors(branding);
   const trackedLabel = dashboard?.tenant.trackedMemberLabel || 'Tracked Member';
@@ -310,6 +313,27 @@ export default function TenantDashboardPage() {
 
   const closeDelegatePanel = useCallback(() => setSelectedDelegate(null), []);
 
+  const handleAdminUpdate = useCallback(() => {
+    // Re-fetch dashboard data
+    const url = serverFilter === 'tracked'
+      ? `/api/delegates/${slug}?filter=tracked`
+      : `/api/delegates/${slug}`;
+    fetch(url)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data) {
+          setDashboard(data);
+          if (data.governanceScores) setGovernanceScores(data.governanceScores);
+        }
+      })
+      .catch(() => {});
+    // Re-fetch featured threads
+    fetch(`/api/delegates/${slug}/featured`)
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => { if (Array.isArray(data)) setFeaturedThreads(data); })
+      .catch(() => {});
+  }, [slug, serverFilter]);
+
   // --- Render ---
 
   if (loading) {
@@ -365,6 +389,24 @@ export default function TenantDashboardPage() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
+          {canAdminTenant(slug) && (
+            <button
+              onClick={() => setAdminPanelOpen(true)}
+              aria-label="Admin settings"
+              style={{
+                background: 'none',
+                border: `1px solid ${t.border}`,
+                borderRadius: 6,
+                padding: '5px 7px',
+                cursor: 'pointer',
+                color: t.fgMuted,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <Settings size={14} />
+            </button>
+          )}
           {isSuperAdmin && (
             <Link
               href="/admin"
@@ -909,6 +951,20 @@ export default function TenantDashboardPage() {
           )}
         </footer>
       </div>
+
+      {/* Admin Panel */}
+      {adminPanelOpen && (
+        <AdminPanel
+          dashboard={dashboard}
+          slug={slug}
+          isDark={isDark}
+          isMobile={isMobile}
+          featuredThreads={featuredThreads}
+          onClose={() => setAdminPanelOpen(false)}
+          onUpdate={handleAdminUpdate}
+          t={t}
+        />
+      )}
 
       {/* Detail Panel */}
       {detail && (
