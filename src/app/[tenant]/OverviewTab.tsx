@@ -897,7 +897,9 @@ function GovernanceLeaderboard({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {top5.map((d, i) => {
           const score = scoreMap?.get(d.username);
-          const postDisplay = d.postCountMonth ?? 0;
+          const posts = d.postCountMonth ?? 0;
+          const topics = d.topicCountMonth ?? 0;
+          const replies = Math.max(0, posts - topics);
           return (
             <div
               key={d.username}
@@ -956,26 +958,11 @@ function GovernanceLeaderboard({
                     <GovScorePill score={score.combinedScore} />
                   </div>
                 ) : (
-                  <>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>
-                      {postDisplay.toLocaleString()} post{postDisplay !== 1 ? 's' : ''}
-                      <span style={{ fontSize: 10, color: t.fgDim, fontWeight: 400 }}> this month</span>
-                    </div>
-                    {d.postCountPercentile != null && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          padding: '1px 6px',
-                          borderRadius: 9999,
-                          background: '#10b98115',
-                          border: '1px solid #10b98133',
-                          color: '#10b981',
-                        }}
-                      >
-                        top {100 - d.postCountPercentile}%
-                      </span>
-                    )}
-                  </>
+                  <div style={{ fontSize: 12, color: t.fgDim, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                    {topics > 0 && <span><strong style={{ color: t.fg }}>{topics}</strong> topic{topics !== 1 ? 's' : ''}</span>}
+                    {replies > 0 && <span><strong style={{ color: t.fg }}>{replies}</strong> repl{replies !== 1 ? 'ies' : 'y'}</span>}
+                    {posts === 0 && <span style={{ color: t.fgDim }}>0 posts</span>}
+                  </div>
                 )}
               </div>
               <ChevronRight size={14} color={t.fgDim} style={{ flexShrink: 0 }} />
