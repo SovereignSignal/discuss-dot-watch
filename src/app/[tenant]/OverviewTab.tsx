@@ -1164,8 +1164,7 @@ function AttentionNeededCard({
         <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
         <span style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>Attention Needed</span>
         <span style={{ fontSize: 11, color: t.fgDim }}>
-          {dormantDelegates.length} dormant {hasTracked ? trackedLabelPlural.toLowerCase() : 'contributor'}
-          {dormantDelegates.length !== 1 ? 's' : ''}
+          {dormantDelegates.length} dormant {hasTracked ? trackedLabelPlural.toLowerCase() : (dormantDelegates.length !== 1 ? 'contributors' : 'contributor')}
         </span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
