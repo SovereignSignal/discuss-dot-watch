@@ -17,11 +17,12 @@ import {
 import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantSnapshotData, GovernanceScore, DashboardPeriod } from '@/types/delegates';
 import type { c } from '@/lib/theme';
 import type { BrandedColorsResult } from './dashboardUtils';
-import { getPostCountForPeriod } from './dashboardUtils';
+import { getPostCountForPeriod, getGcrTier } from './dashboardUtils';
 import { formatDistanceToNow } from 'date-fns';
 
 interface OverviewTabProps {
   dashboard: DelegateDashboard;
+  filteredDelegates?: DelegateRow[];
   t: ReturnType<typeof c>;
   bc: BrandedColorsResult | null;
   isMobile: boolean;
@@ -31,10 +32,12 @@ interface OverviewTabProps {
   snapshotData?: TenantSnapshotData | null;
   governanceScores?: GovernanceScore[];
   period?: DashboardPeriod;
+  filterMode?: 'all' | 'tracked' | 'verified';
 }
 
 export default function OverviewTab({
   dashboard,
+  filteredDelegates,
   t,
   bc,
   isMobile,
@@ -44,20 +47,30 @@ export default function OverviewTab({
   snapshotData,
   governanceScores,
   period = 'year',
+  filterMode = 'all',
 }: OverviewTabProps) {
   const summary = dashboard.summary;
-  const delegates = dashboard.delegates;
+  const delegates = filteredDelegates ?? dashboard.delegates;
+  const isVerifiedView = filterMode === 'verified';
+
+  // Scope governance scores to current view
+  const filteredGovScores = useMemo(() => {
+    if (!governanceScores || governanceScores.length === 0) return [];
+    if (!filteredDelegates) return governanceScores;
+    const usernames = new Set(delegates.map(d => d.username));
+    return governanceScores.filter(g => usernames.has(g.username));
+  }, [governanceScores, delegates, filteredDelegates]);
 
   const avgGovScore = useMemo(() => {
-    if (!governanceScores || governanceScores.length === 0) return null;
-    const sum = governanceScores.reduce((s, g) => s + g.combinedScore, 0);
-    return Math.round(sum / governanceScores.length);
-  }, [governanceScores]);
+    if (filteredGovScores.length === 0) return null;
+    const sum = filteredGovScores.reduce((s, g) => s + g.combinedScore, 0);
+    return Math.round(sum / filteredGovScores.length);
+  }, [filteredGovScores]);
 
   // Compute period-aware activity distribution client-side
   const periodDistribution = useMemo(() => {
-    if (period === 'all') return summary.activityDistribution;
-    // Compute from raw delegates using period post counts
+    if (period === 'all' && filterMode === 'all') return summary.activityDistribution;
+    // Compute from delegates using period post counts
     const thresholds = period === 'week'
       ? { high: 10, active: 3, low: 1, minimal: 0 }
       : period === 'month'
@@ -79,7 +92,7 @@ export default function OverviewTab({
         : delegates.filter(d => getPostCountForPeriod(d, period) === thresholds.minimal).length,
       dormant: delegates.filter(d => getPostCountForPeriod(d, period) === 0).length,
     };
-  }, [delegates, period, summary.activityDistribution]);
+  }, [delegates, period, summary.activityDistribution, filterMode]);
 
   const periodLabel = period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : period === 'year' ? 'This Year' : '';
 
@@ -94,8 +107,21 @@ export default function OverviewTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 16 : 24 }}>
-      {/* AI Brief */}
-      <AIBriefCard brief={dashboard.brief} t={t} bc={bc} isMobile={isMobile} />
+      {/* Verified Delegates Program Card */}
+      {isVerifiedView && (
+        <VerifiedDelegatesProgramCard
+          delegates={delegates}
+          governanceScores={filteredGovScores}
+          period={period}
+          t={t}
+          bc={bc}
+          isMobile={isMobile}
+          onSelectDelegate={onSelectDelegate}
+        />
+      )}
+
+      {/* AI Brief (hidden in verified view) */}
+      {!isVerifiedView && <AIBriefCard brief={dashboard.brief} t={t} bc={bc} isMobile={isMobile} />}
 
       {/* Key Metrics */}
       <KeyStatsRow
@@ -107,13 +133,14 @@ export default function OverviewTab({
         period={period}
         periodPostTotal={periodPostTotal}
         periodActiveContributors={periodActiveContributors}
+        totalOverride={filterMode !== 'all' ? delegates.length : undefined}
       />
 
       {isMobile ? (
         <>
           <ActivityBar
             distribution={periodDistribution}
-            total={summary.totalDelegates}
+            total={delegates.length}
             t={t}
             isMobile={isMobile}
             periodLabel={period !== 'all' ? periodLabel : undefined}
@@ -127,7 +154,7 @@ export default function OverviewTab({
           />
           <GovernanceLeaderboard
             delegates={delegates}
-            governanceScores={governanceScores}
+            governanceScores={filteredGovScores}
             t={t}
             bc={bc}
             isMobile={isMobile}
@@ -153,7 +180,7 @@ export default function OverviewTab({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <ActivityBar
               distribution={periodDistribution}
-              total={summary.totalDelegates}
+              total={delegates.length}
               t={t}
               isMobile={isMobile}
               periodLabel={period !== 'all' ? periodLabel : undefined}
@@ -171,7 +198,7 @@ export default function OverviewTab({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <GovernanceLeaderboard
               delegates={delegates}
-              governanceScores={governanceScores}
+              governanceScores={filteredGovScores}
               t={t}
               bc={bc}
               isMobile={isMobile}
@@ -200,6 +227,268 @@ export default function OverviewTab({
 // ============================================================
 // Sub-components
 // ============================================================
+
+function VerifiedDelegatesProgramCard({
+  delegates,
+  governanceScores,
+  period,
+  t,
+  bc,
+  isMobile,
+  onSelectDelegate,
+}: {
+  delegates: DelegateRow[];
+  governanceScores: GovernanceScore[];
+  period: DashboardPeriod;
+  t: ReturnType<typeof c>;
+  bc: BrandedColorsResult | null;
+  isMobile: boolean;
+  onSelectDelegate: (username: string) => void;
+}) {
+  const accent = bc?.accent || '#22c55e';
+  const totalVerified = delegates.length;
+
+  const scoreMap = useMemo(() => {
+    const m = new Map<string, GovernanceScore>();
+    for (const s of governanceScores) m.set(s.username, s);
+    return m;
+  }, [governanceScores]);
+
+  const activeThisPeriod = useMemo(
+    () => delegates.filter(d => getPostCountForPeriod(d, period) > 0).length,
+    [delegates, period]
+  );
+
+  const avgScore = useMemo(() => {
+    if (governanceScores.length === 0) return null;
+    return Math.round(governanceScores.reduce((s, g) => s + g.combinedScore, 0) / governanceScores.length);
+  }, [governanceScores]);
+
+  const rationaleRate = useMemo(() => {
+    if (totalVerified === 0) return 0;
+    return Math.round((delegates.filter(d => d.rationaleCount > 0).length / totalVerified) * 100);
+  }, [delegates, totalVerified]);
+
+  const avgForumScore = useMemo(() => {
+    if (governanceScores.length === 0) return null;
+    return Math.round(governanceScores.reduce((s, g) => s + g.forumScore, 0) / governanceScores.length);
+  }, [governanceScores]);
+
+  // Compliance: 80%+ voting and 60+ gov score
+  const compliance = useMemo(() => {
+    const meetVoting = delegates.filter(d => {
+      const gs = scoreMap.get(d.username);
+      return gs && gs.breakdown.voteRate >= 80;
+    }).length;
+    const meetScore = delegates.filter(d => {
+      const gs = scoreMap.get(d.username);
+      return gs && gs.combinedScore >= 60;
+    }).length;
+    return { meetVoting, meetScore };
+  }, [delegates, scoreMap]);
+
+  // At-risk: no posts in period or no rationales
+  const atRisk = useMemo(() => {
+    return delegates
+      .filter(d => getPostCountForPeriod(d, period) === 0 || d.rationaleCount === 0)
+      .sort((a, b) => getPostCountForPeriod(a, period) - getPostCountForPeriod(b, period))
+      .slice(0, 5);
+  }, [delegates, period]);
+
+  const periodLabels: Record<DashboardPeriod, string> = {
+    week: 'this week', month: 'this month', year: 'this year', all: '',
+  };
+
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        border: `1px solid ${accent}33`,
+        background: `${accent}08`,
+        padding: isMobile ? 14 : 20,
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <CheckCircle2 size={16} style={{ color: accent }} />
+        <span style={{ fontSize: 14, fontWeight: 700, color: t.fg }}>Verified Delegates</span>
+        <span style={{
+          fontSize: 11,
+          padding: '2px 8px',
+          borderRadius: 9999,
+          background: `${accent}18`,
+          color: accent,
+          border: `1px solid ${accent}33`,
+          fontWeight: 600,
+        }}>
+          {totalVerified} members
+        </span>
+      </div>
+
+      {/* Health Metrics Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr',
+        gap: isMobile ? 8 : 10,
+        marginBottom: 16,
+      }}>
+        <MetricBox
+          label={period === 'all' ? 'Active (30d)' : `Active ${periodLabels[period]}`}
+          value={`${totalVerified > 0 ? Math.round((activeThisPeriod / totalVerified) * 100) : 0}%`}
+          sub={`${activeThisPeriod} of ${totalVerified}`}
+          color={activeThisPeriod / totalVerified >= 0.8 ? '#10b981' : activeThisPeriod / totalVerified >= 0.5 ? '#f59e0b' : '#ef4444'}
+          t={t}
+        />
+        <MetricBox
+          label="Avg Gov Score"
+          value={avgScore != null ? String(avgScore) : '\u2014'}
+          sub={avgScore != null ? getGcrTier(avgScore).label : undefined}
+          color={avgScore != null ? getGcrTier(avgScore).color : t.fgDim}
+          t={t}
+        />
+        <MetricBox
+          label="Rationale Rate"
+          value={`${rationaleRate}%`}
+          sub="with rationales"
+          color={rationaleRate >= 80 ? '#10b981' : rationaleRate >= 50 ? '#f59e0b' : '#ef4444'}
+          t={t}
+        />
+        <MetricBox
+          label="Forum Engagement"
+          value={avgForumScore != null ? String(avgForumScore) : '\u2014'}
+          sub="avg forum score"
+          color={avgForumScore != null && avgForumScore >= 50 ? '#10b981' : '#f59e0b'}
+          t={t}
+        />
+      </div>
+
+      {/* Compliance Bar */}
+      {governanceScores.length > 0 && (
+        <div style={{ marginBottom: atRisk.length > 0 ? 16 : 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.fgMuted, marginBottom: 8 }}>Compliance</div>
+          <div style={{ display: 'flex', gap: isMobile ? 8 : 12 }}>
+            <ComplianceBar
+              label="80%+ Voting"
+              count={compliance.meetVoting}
+              total={totalVerified}
+              color="#10b981"
+              t={t}
+            />
+            <ComplianceBar
+              label="60+ Gov Score"
+              count={compliance.meetScore}
+              total={totalVerified}
+              color="#3b82f6"
+              t={t}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* At-Risk Delegates */}
+      {atRisk.length > 0 && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <AlertTriangle size={13} style={{ color: '#f59e0b' }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b' }}>
+              At-Risk ({atRisk.length})
+            </span>
+            <span style={{ fontSize: 11, color: t.fgDim }}>
+              no posts {period !== 'all' ? periodLabels[period] : ''} or missing rationales
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {atRisk.map(d => (
+              <div
+                key={d.username}
+                onClick={() => onSelectDelegate(d.username)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectDelegate(d.username); } }}
+                tabIndex={0}
+                role="button"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '5px 8px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  transition: 'background 0.1s',
+                  fontSize: 12,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                {d.avatarUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={d.avatarUrl} alt="" width={20} height={20} style={{ borderRadius: '50%', flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.bgActive, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, flexShrink: 0 }}>
+                    {d.displayName?.[0] || '?'}
+                  </div>
+                )}
+                <span style={{ fontWeight: 500, color: t.fg, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {d.displayName}
+                </span>
+                <span style={{ color: t.fgDim, flexShrink: 0 }}>
+                  {getPostCountForPeriod(d, period)} posts, {d.rationaleCount} rationales
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetricBox({
+  label,
+  value,
+  sub,
+  color,
+  t,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+  t: ReturnType<typeof c>;
+}) {
+  return (
+    <div style={{ padding: '10px 12px', borderRadius: 8, background: t.bgCard, border: `1px solid ${t.border}` }}>
+      <div style={{ fontSize: 10, color: t.fgDim, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: t.fgDim, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ComplianceBar({
+  label,
+  count,
+  total,
+  color,
+  t,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  color: string;
+  t: ReturnType<typeof c>;
+}) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+        <span style={{ color: t.fgMuted }}>{label}</span>
+        <span style={{ color, fontWeight: 600 }}>{count}/{total} ({pct}%)</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 3, background: t.bgSubtle, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.3s' }} />
+      </div>
+    </div>
+  );
+}
 
 function SnapshotSummaryCard({
   data,
@@ -370,6 +659,7 @@ function KeyStatsRow({
   period = 'year',
   periodPostTotal = 0,
   periodActiveContributors = 0,
+  totalOverride,
 }: {
   summary: DashboardSummary;
   t: ReturnType<typeof c>;
@@ -379,7 +669,9 @@ function KeyStatsRow({
   period?: DashboardPeriod;
   periodPostTotal?: number;
   periodActiveContributors?: number;
+  totalOverride?: number;
 }) {
+  const total = totalOverride ?? summary.totalDelegates;
   const periodLabels: Record<DashboardPeriod, string> = {
     week: 'This Week',
     month: 'This Month',
@@ -389,10 +681,10 @@ function KeyStatsRow({
 
   const activeLabel = period === 'all' ? 'Active (30d)' : `Active ${periodLabels[period]}`;
   const activeCount = period === 'all'
-    ? (summary.hasMonthlyData ? (summary.monthlyActiveContributors ?? 0) : summary.delegatesPostedLast30Days)
+    ? (totalOverride != null ? periodActiveContributors : (summary.hasMonthlyData ? (summary.monthlyActiveContributors ?? 0) : summary.delegatesPostedLast30Days))
     : periodActiveContributors;
-  const activeRate = summary.totalDelegates > 0
-    ? Math.round((activeCount / summary.totalDelegates) * 100)
+  const activeRate = total > 0
+    ? Math.round((activeCount / total) * 100)
     : 0;
 
   const postsLabel = period === 'all'
@@ -403,7 +695,7 @@ function KeyStatsRow({
     : (period === 'all' ? (summary.medianPostCount ?? 0) : periodPostTotal);
 
   const cards = [
-    { label: 'Total Contributors', value: summary.totalDelegates, icon: Users },
+    { label: totalOverride != null ? 'Members' : 'Total Contributors', value: total, icon: Users },
     { label: activeLabel, value: activeCount, icon: Activity },
     { label: postsLabel, value: postsValue, icon: avgGovScore != null ? Target : MessageSquare },
     { label: 'Active Rate', value: `${activeRate}%`, icon: TrendingUp },

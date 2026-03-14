@@ -45,7 +45,7 @@ export default function TenantDashboardPage() {
   const [filterProgram, setFilterProgram] = useState<FilterProgram>('all');
   const [filterRole, setFilterRole] = useState<FilterRole>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
-  const [filterTracked, setFilterTracked] = useState<'all' | 'tracked'>('all');
+  const [filterTracked, setFilterTracked] = useState<'all' | 'tracked' | 'verified'>('all');
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contributors' | 'proposals'>('overview');
   const [period, setPeriod] = useState<DashboardPeriod>('year');
@@ -59,6 +59,15 @@ export default function TenantDashboardPage() {
   const trackedLabel = dashboard?.tenant.trackedMemberLabel || 'Tracked Member';
   const trackedLabelPlural = dashboard?.tenant.trackedMemberLabelPlural || trackedLabel + 's';
   const hasTracked = (dashboard?.trackedCount ?? 0) > 0;
+  const hasVerified = useMemo(() => dashboard?.delegates.some(d => d.verifiedStatus) ?? false, [dashboard]);
+
+  // Delegates filtered by tracked/verified toggle (for overview stats), before search/role/status
+  const viewDelegates = useMemo(() => {
+    if (!dashboard) return [];
+    if (filterTracked === 'verified') return dashboard.delegates.filter(d => d.verifiedStatus);
+    // 'tracked' is already server-side filtered, 'all' shows everything
+    return dashboard.delegates;
+  }, [dashboard, filterTracked]);
 
   // Responsive breakpoint
   const [isMobile, setIsMobile] = useState(false);
@@ -88,6 +97,9 @@ export default function TenantDashboardPage() {
     window.dispatchEvent(new Event('themechange'));
   };
 
+  // Server-side filter: only 'tracked' uses ?filter=tracked; 'verified' is client-side
+  const serverFilter = filterTracked === 'tracked' ? 'tracked' : 'all';
+
   // Fetch dashboard data
   useEffect(() => {
     if (!slug || RESERVED_SLUGS.has(slug)) {
@@ -98,7 +110,7 @@ export default function TenantDashboardPage() {
       return;
     }
     let cancelled = false;
-    const url = filterTracked === 'tracked'
+    const url = serverFilter === 'tracked'
       ? `/api/delegates/${slug}?filter=tracked`
       : `/api/delegates/${slug}`;
     fetch(url)
@@ -120,7 +132,7 @@ export default function TenantDashboardPage() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [slug, filterTracked]);
+  }, [slug, serverFilter]);
 
   // Fetch Snapshot data
   useEffect(() => {
@@ -178,6 +190,11 @@ export default function TenantDashboardPage() {
   const filteredDelegates = useMemo(() => {
     if (!dashboard) return [];
     let list = [...dashboard.delegates];
+
+    // Client-side verified filter
+    if (filterTracked === 'verified') {
+      list = list.filter(d => d.verifiedStatus);
+    }
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -243,7 +260,7 @@ export default function TenantDashboardPage() {
     });
 
     return list;
-  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, sortField, sortDir, govScoreMap, period]);
+  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, filterTracked, sortField, sortDir, govScoreMap, period]);
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -435,6 +452,43 @@ export default function TenantDashboardPage() {
           ))}
         </div>
 
+        {/* View Filter (Overview tab) */}
+        {activeTab === 'overview' && (hasTracked || hasVerified) && (
+          <div
+            style={{
+              display: 'flex',
+              borderRadius: 8,
+              border: `1px solid ${t.border}`,
+              overflow: 'hidden',
+              marginBottom: isMobile ? 12 : 16,
+              width: 'fit-content',
+            }}
+          >
+            {([
+              { key: 'all' as const, label: 'All Contributors' },
+              ...(hasTracked ? [{ key: 'tracked' as const, label: trackedLabelPlural }] : []),
+              ...(hasVerified ? [{ key: 'verified' as const, label: 'Verified Delegates' }] : []),
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFilterTracked(key)}
+                style={{
+                  padding: isMobile ? '6px 12px' : '6px 16px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: filterTracked === key ? (bc?.accent || t.fg) : 'transparent',
+                  color: filterTracked === key ? (bc ? '#fff' : t.bg) : t.fgMuted,
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Period Selector (Overview + Contributors) */}
         {activeTab !== 'proposals' && (
           <div
@@ -476,6 +530,7 @@ export default function TenantDashboardPage() {
         {activeTab === 'overview' ? (
           <OverviewTab
             dashboard={dashboard}
+            filteredDelegates={viewDelegates}
             t={t}
             bc={bc}
             isMobile={isMobile}
@@ -485,6 +540,7 @@ export default function TenantDashboardPage() {
             snapshotData={snapshotData}
             governanceScores={governanceScores}
             period={period}
+            filterMode={filterTracked}
           />
         ) : activeTab === 'proposals' ? (
           <ProposalsView
@@ -506,7 +562,7 @@ export default function TenantDashboardPage() {
                 marginBottom: 16,
               }}
             >
-              {hasTracked && (
+              {(hasTracked || hasVerified) && (
                 <div
                   style={{
                     display: 'flex',
@@ -516,22 +572,26 @@ export default function TenantDashboardPage() {
                     flexShrink: 0,
                   }}
                 >
-                  {(['all', 'tracked'] as const).map((mode) => (
+                  {([
+                    { key: 'all' as const, label: 'All Contributors' },
+                    ...(hasTracked ? [{ key: 'tracked' as const, label: trackedLabelPlural }] : []),
+                    ...(hasVerified ? [{ key: 'verified' as const, label: 'Verified Delegates' }] : []),
+                  ]).map(({ key, label }) => (
                     <button
-                      key={mode}
-                      onClick={() => setFilterTracked(mode)}
+                      key={key}
+                      onClick={() => setFilterTracked(key)}
                       style={{
                         padding: '7px 14px',
                         fontSize: 12,
                         fontWeight: 500,
                         border: 'none',
                         cursor: 'pointer',
-                        background: filterTracked === mode ? (bc?.accent || t.fg) : 'transparent',
-                        color: filterTracked === mode ? (bc ? '#fff' : t.bg) : t.fgMuted,
+                        background: filterTracked === key ? (bc?.accent || t.fg) : 'transparent',
+                        color: filterTracked === key ? (bc ? '#fff' : t.bg) : t.fgMuted,
                         transition: 'background 0.15s, color 0.15s',
                       }}
                     >
-                      {mode === 'all' ? 'All Contributors' : trackedLabelPlural}
+                      {label}
                     </button>
                   ))}
                 </div>

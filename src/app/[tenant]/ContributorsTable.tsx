@@ -13,7 +13,7 @@ import {
 import type { DelegateRow, GovernanceScore, DashboardPeriod } from '@/types/delegates';
 import type { c } from '@/lib/theme';
 import type { SortField, SortDir, BrandedColorsResult } from './dashboardUtils';
-import { getActivityTier, dashboardGetRoleColor, dashboardGetRoleLabel, getPostCountForPeriod, getTopicCountForPeriod, getLikesForPeriod, getDaysVisitedForPeriod } from './dashboardUtils';
+import { getActivityTier, dashboardGetRoleColor, dashboardGetRoleLabel, getPostCountForPeriod, getTopicCountForPeriod, getLikesForPeriod, getDaysVisitedForPeriod, getGcrTier } from './dashboardUtils';
 import { GovScorePill } from './OverviewTab';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -222,16 +222,32 @@ export function DelegateTableRow({
                   style={{ color: '#f59e0b', flexShrink: 0 }}
                 />
               )}
-              {d.verifiedStatus && (
-                <span style={{
-                  fontSize: 9, padding: '1px 6px', borderRadius: 9999,
-                  background: '#22c55e15', border: '1px solid #22c55e33',
-                  color: '#22c55e', whiteSpace: 'nowrap', flexShrink: 0,
-                  display: 'inline-flex', alignItems: 'center', gap: 3,
-                }}>
-                  <CheckCircle2 size={9} /> Verified
-                </span>
-              )}
+              {d.verifiedStatus && (() => {
+                const gcrColor = govScore ? getGcrTier(govScore.combinedScore).color : '#22c55e';
+                return (
+                  <>
+                    <span style={{
+                      fontSize: 9, padding: '1px 6px', borderRadius: 9999,
+                      background: `${gcrColor}15`, border: `1px solid ${gcrColor}33`,
+                      color: gcrColor, whiteSpace: 'nowrap', flexShrink: 0,
+                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                    }}>
+                      <CheckCircle2 size={9} /> Verified Delegate
+                    </span>
+                    {govScore && (
+                      <span style={{
+                        fontSize: 9, padding: '1px 6px', borderRadius: 9999,
+                        background: `${getGcrTier(govScore.combinedScore).color}15`,
+                        border: `1px solid ${getGcrTier(govScore.combinedScore).color}33`,
+                        color: getGcrTier(govScore.combinedScore).color,
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                      }}>
+                        {getGcrTier(govScore.combinedScore).label}
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
               {(() => {
                 const periodPosts = getPostCountForPeriod(d, period);
                 const tier = getActivityTier(periodPosts, period);
@@ -452,16 +468,32 @@ export function MobileDelegateCard({
             {d.isTracked && (
               <Star size={11} fill="currentColor" style={{ color: '#f59e0b', flexShrink: 0 }} />
             )}
-            {d.verifiedStatus && (
-              <span style={{
-                fontSize: 9, padding: '1px 6px', borderRadius: 9999,
-                background: '#22c55e15', border: '1px solid #22c55e33',
-                color: '#22c55e', whiteSpace: 'nowrap', flexShrink: 0,
-                display: 'inline-flex', alignItems: 'center', gap: 3,
-              }}>
-                <CheckCircle2 size={9} /> Verified
-              </span>
-            )}
+            {d.verifiedStatus && (() => {
+              const gcrColor = govScore ? getGcrTier(govScore.combinedScore).color : '#22c55e';
+              return (
+                <>
+                  <span style={{
+                    fontSize: 9, padding: '1px 6px', borderRadius: 9999,
+                    background: `${gcrColor}15`, border: `1px solid ${gcrColor}33`,
+                    color: gcrColor, whiteSpace: 'nowrap', flexShrink: 0,
+                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                  }}>
+                    <CheckCircle2 size={9} /> Verified Delegate
+                  </span>
+                  {govScore && (
+                    <span style={{
+                      fontSize: 9, padding: '1px 6px', borderRadius: 9999,
+                      background: `${getGcrTier(govScore.combinedScore).color}15`,
+                      border: `1px solid ${getGcrTier(govScore.combinedScore).color}33`,
+                      color: getGcrTier(govScore.combinedScore).color,
+                      whiteSpace: 'nowrap', flexShrink: 0,
+                    }}>
+                      {getGcrTier(govScore.combinedScore).label}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
             {(() => {
               const periodPosts = getPostCountForPeriod(d, period);
               const tier = getActivityTier(periodPosts, period);

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import type { DelegateRow, GovernanceScore } from '@/types/delegates';
 import type { c } from '@/lib/theme';
-import { dashboardGetRoleColor, dashboardGetRoleLabel, extractText } from './dashboardUtils';
+import { dashboardGetRoleColor, dashboardGetRoleLabel, extractText, getGcrTier } from './dashboardUtils';
 import { GovScorePill } from './OverviewTab';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -244,6 +244,124 @@ export default function DelegateDetailPanel({
             ))}
             <Badge label={`Trust Level ${d.trustLevel}`} color={t.fgDim} />
           </div>
+
+          {/* Verified Delegate Program Banner */}
+          {d.verifiedStatus && (
+            <div style={{
+              marginBottom: 20,
+              padding: 14,
+              borderRadius: 8,
+              border: `1px solid ${accent ? `${accent}33` : '#22c55e33'}`,
+              background: accent ? `${accent}08` : '#22c55e08',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: govScore ? 10 : 0, flexWrap: 'wrap' }}>
+                <CheckCircle2 size={14} style={{ color: accent || '#22c55e' }} />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Verified Delegate</span>
+                {govScore && (
+                  <span style={{
+                    fontSize: 10,
+                    padding: '2px 8px',
+                    borderRadius: 9999,
+                    background: `${getGcrTier(govScore.combinedScore).color}15`,
+                    border: `1px solid ${getGcrTier(govScore.combinedScore).color}33`,
+                    color: getGcrTier(govScore.combinedScore).color,
+                    fontWeight: 600,
+                  }}>
+                    {getGcrTier(govScore.combinedScore).label}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11 }}>
+                <a
+                  href={`${forumUrl}/u/${d.username}/activity`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ color: accent || t.fgMuted, textDecoration: 'none' }}
+                >
+                  Forum Profile <ExternalLink size={9} style={{ display: 'inline', verticalAlign: '-1px' }} />
+                </a>
+                {d.walletAddress && (
+                  <a
+                    href={`https://gov.scroll.io/delegates/${d.walletAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ color: accent || t.fgMuted, textDecoration: 'none' }}
+                  >
+                    Agora Profile <ExternalLink size={9} style={{ display: 'inline', verticalAlign: '-1px' }} />
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* GCR Scorecard (verified delegates) */}
+          {d.verifiedStatus && govScore && (
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: 12, fontWeight: 600, color: t.fgDim, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                GCR Scorecard
+              </h3>
+              <div style={{
+                padding: 14,
+                borderRadius: 8,
+                border: `1px solid ${accentBorder || t.border}`,
+                background: t.bgSubtle,
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <GcrCriterionRow
+                    label="Voting Participation"
+                    weight={0.8}
+                    value={govScore.breakdown.voteRate}
+                    maxValue={100}
+                    format="pct"
+                    t={t}
+                    accent={accent}
+                  />
+                  <GcrCriterionRow
+                    label="Forum Engagement"
+                    weight={0.5}
+                    value={govScore.forumScore}
+                    maxValue={100}
+                    format="score"
+                    t={t}
+                    accent={accent}
+                  />
+                  <GcrCriterionRow
+                    label="Rationale Rate"
+                    weight={0.5}
+                    value={govScore.breakdown.proposalsTotal > 0
+                      ? Math.round((d.rationaleCount / govScore.breakdown.proposalsTotal) * 100)
+                      : 0}
+                    maxValue={100}
+                    format="pct"
+                    t={t}
+                    accent={accent}
+                  />
+                </div>
+                <div style={{
+                  marginTop: 12,
+                  paddingTop: 10,
+                  borderTop: `1px solid ${t.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>GCR Score</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <GovScorePill score={govScore.combinedScore} size="md" />
+                    <span style={{
+                      fontSize: 11,
+                      color: getGcrTier(govScore.combinedScore).color,
+                      fontWeight: 600,
+                    }}>
+                      {getGcrTier(govScore.combinedScore).label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Governance Score */}
           {govScore && (
@@ -605,6 +723,50 @@ function StatBox({
         )}
       </div>
       <div style={{ fontSize: 9, color: t.fgDim, marginTop: 2 }}>{source}</div>
+    </div>
+  );
+}
+
+// --- GCR Criterion Row ---
+
+function GcrCriterionRow({
+  label,
+  weight,
+  value,
+  maxValue,
+  format,
+  t,
+  accent,
+}: {
+  label: string;
+  weight: number;
+  value: number;
+  maxValue: number;
+  format: 'pct' | 'score';
+  t: ReturnType<typeof c>;
+  accent?: string;
+}) {
+  const pct = maxValue > 0 ? Math.min((value / maxValue) * 100, 100) : 0;
+  const barColor = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+        <span style={{ color: t.fgMuted }}>
+          {label} <span style={{ color: t.fgDim, fontSize: 10 }}>(w: {weight})</span>
+        </span>
+        <span style={{ fontWeight: 600, color: t.fg }}>
+          {format === 'pct' ? `${value}%` : value}
+        </span>
+      </div>
+      <div style={{ height: 5, borderRadius: 3, background: t.bgActive, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%',
+          width: `${pct}%`,
+          background: accent || barColor,
+          borderRadius: 3,
+          transition: 'width 0.3s',
+        }} />
+      </div>
     </div>
   );
 }

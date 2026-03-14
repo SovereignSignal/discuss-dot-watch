@@ -134,6 +134,16 @@ export function dashboardGetRoleLabel(role: string): string {
   return found ? found.label : role;
 }
 
+// --- GCR Tier ---
+
+export function getGcrTier(score: number): { label: string; tier: number; color: string } {
+  if (score >= 90) return { label: 'Tier 1', tier: 1, color: '#10b981' };
+  if (score >= 80) return { label: 'Tier 2', tier: 2, color: '#3b82f6' };
+  if (score >= 70) return { label: 'Tier 3', tier: 3, color: '#f59e0b' };
+  if (score >= 60) return { label: 'Tier 4', tier: 4, color: '#f97316' };
+  return { label: 'At Risk', tier: 5, color: '#ef4444' };
+}
+
 // --- HTML text extraction ---
 
 /** Extract plain text from HTML safely using regex stripping (avoids innerHTML XSS) */
