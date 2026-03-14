@@ -128,21 +128,21 @@ export async function syncContributorsFromDirectory(
         likesReceivedPercentile: pct?.likesReceived,
         daysVisitedPercentile: pct?.daysVisited,
         topicsEnteredPercentile: pct?.topicsEntered,
-        // Monthly stats (null if user had no monthly activity)
-        directoryPostCountMonth: monthly?.postCount ?? null,
-        directoryTopicCountMonth: monthly?.topicCount ?? null,
-        directoryLikesReceivedMonth: monthly?.likesReceived ?? null,
-        directoryDaysVisitedMonth: monthly?.daysVisited ?? null,
+        // Monthly stats (0 if user not in monthly directory — distinct from null/not-provided)
+        directoryPostCountMonth: monthly?.postCount ?? 0,
+        directoryTopicCountMonth: monthly?.topicCount ?? 0,
+        directoryLikesReceivedMonth: monthly?.likesReceived ?? 0,
+        directoryDaysVisitedMonth: monthly?.daysVisited ?? 0,
         // Weekly stats
-        directoryPostCountWeek: weekly?.postCount ?? null,
-        directoryTopicCountWeek: weekly?.topicCount ?? null,
-        directoryLikesReceivedWeek: weekly?.likesReceived ?? null,
-        directoryDaysVisitedWeek: weekly?.daysVisited ?? null,
+        directoryPostCountWeek: weekly?.postCount ?? 0,
+        directoryTopicCountWeek: weekly?.topicCount ?? 0,
+        directoryLikesReceivedWeek: weekly?.likesReceived ?? 0,
+        directoryDaysVisitedWeek: weekly?.daysVisited ?? 0,
         // Yearly stats
-        directoryPostCountYear: yearly?.postCount ?? null,
-        directoryTopicCountYear: yearly?.topicCount ?? null,
-        directoryLikesReceivedYear: yearly?.likesReceived ?? null,
-        directoryDaysVisitedYear: yearly?.daysVisited ?? null,
+        directoryPostCountYear: yearly?.postCount ?? 0,
+        directoryTopicCountYear: yearly?.topicCount ?? 0,
+        directoryLikesReceivedYear: yearly?.likesReceived ?? 0,
+        directoryDaysVisitedYear: yearly?.daysVisited ?? 0,
       });
       synced++;
     } catch (err) {

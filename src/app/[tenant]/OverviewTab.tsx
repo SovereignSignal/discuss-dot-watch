@@ -1104,7 +1104,13 @@ function AttentionNeededCard({
 
     if (hasMonthlyData) {
       dormant = candidates
-        .filter(d => (d.postCountMonth ?? 0) === 0)
+        .filter(d => {
+          // No monthly directory data AND no recent snapshot-based post activity
+          if ((d.postCountMonth ?? 0) > 0) return false;
+          // If snapshot data shows recent posting, not dormant
+          if (d.lastPostedAt && Date.now() - new Date(d.lastPostedAt).getTime() < THIRTY_DAYS_MS) return false;
+          return true;
+        })
         .map(d => ({
           ...d,
           daysSincePost: d.lastPostedAt
