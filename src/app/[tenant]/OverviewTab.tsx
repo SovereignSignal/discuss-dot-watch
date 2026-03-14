@@ -189,15 +189,6 @@ export default function OverviewTab({
             onSelect={onSelectDelegate}
             period={period}
           />
-          <AttentionNeededCard
-            delegates={delegates}
-            hasTracked={hasTracked}
-            trackedLabelPlural={trackedLabelPlural}
-            t={t}
-            isMobile={isMobile}
-            onSelect={onSelectDelegate}
-            hasMonthlyData={!!summary.hasMonthlyData}
-          />
           {snapshotData && (
             <SnapshotSummaryCard data={snapshotData} t={t} bc={bc} isMobile={isMobile} delegates={delegates} />
           )}
@@ -232,15 +223,6 @@ export default function OverviewTab({
               isMobile={isMobile}
               onSelect={onSelectDelegate}
               period={period}
-            />
-            <AttentionNeededCard
-              delegates={delegates}
-              hasTracked={hasTracked}
-              trackedLabelPlural={trackedLabelPlural}
-              t={t}
-              isMobile={isMobile}
-              onSelect={onSelectDelegate}
-              hasMonthlyData={!!summary.hasMonthlyData}
             />
             {snapshotData && (
               <SnapshotSummaryCard data={snapshotData} t={t} bc={bc} isMobile={isMobile} delegates={delegates} />
@@ -1060,158 +1042,6 @@ function GovernanceLeaderboard({
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-function AttentionNeededCard({
-  delegates,
-  hasTracked,
-  trackedLabelPlural,
-  t,
-  isMobile,
-  onSelect,
-  hasMonthlyData,
-}: {
-  delegates: DelegateRow[];
-  hasTracked: boolean;
-  trackedLabelPlural: string;
-  t: ReturnType<typeof c>;
-  isMobile: boolean;
-  onSelect: (username: string) => void;
-  hasMonthlyData?: boolean;
-}) {
-  const dormantDelegates = useMemo(() => {
-    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-    const candidates = hasTracked
-      ? delegates.filter(d => d.isTracked || d.verifiedStatus)
-      : delegates;
-
-    let dormant: Array<DelegateRow & { daysSincePost: number }>;
-
-    if (hasMonthlyData) {
-      dormant = candidates
-        .filter(d => {
-          // No monthly directory data AND no recent snapshot-based post activity
-          if ((d.postCountMonth ?? 0) > 0) return false;
-          // If snapshot data shows recent posting, not dormant
-          if (d.lastPostedAt && Date.now() - new Date(d.lastPostedAt).getTime() < THIRTY_DAYS_MS) return false;
-          return true;
-        })
-        .map(d => ({
-          ...d,
-          daysSincePost: d.lastPostedAt
-            ? Math.floor((Date.now() - new Date(d.lastPostedAt).getTime()) / (1000 * 60 * 60 * 24))
-            : 999,
-        }));
-    } else {
-      dormant = candidates
-        .filter(d => {
-          if (!d.lastPostedAt) return true;
-          return Date.now() - new Date(d.lastPostedAt).getTime() > THIRTY_DAYS_MS;
-        })
-        .map(d => ({
-          ...d,
-          daysSincePost: d.lastPostedAt
-            ? Math.floor((Date.now() - new Date(d.lastPostedAt).getTime()) / (1000 * 60 * 60 * 24))
-            : 999,
-        }));
-    }
-
-    return dormant.sort((a, b) => b.daysSincePost - a.daysSincePost).slice(0, 5);
-  }, [delegates, hasTracked, hasMonthlyData]);
-
-  if (dormantDelegates.length === 0) {
-    return (
-      <div
-        style={{
-          padding: isMobile ? '14px 14px' : '18px 20px',
-          borderRadius: 12,
-          border: '1px solid rgba(16,185,129,0.2)',
-          background: 'rgba(16,185,129,0.05)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CheckCircle2 size={16} style={{ color: '#10b981' }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>
-            All {hasTracked ? trackedLabelPlural.toLowerCase() : 'contributors'} active
-          </span>
-        </div>
-        <div style={{ fontSize: 12, color: t.fgMuted, marginTop: 6 }}>
-          Everyone has posted within the last 30 days.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        padding: isMobile ? '14px 14px' : '18px 20px',
-        borderRadius: 12,
-        border: `1px solid rgba(245,158,11,0.2)`,
-        background: 'rgba(245,158,11,0.04)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>Attention Needed</span>
-        <span style={{ fontSize: 11, color: t.fgDim }}>
-          {dormantDelegates.length} dormant {hasTracked ? trackedLabelPlural.toLowerCase() : (dormantDelegates.length !== 1 ? 'contributors' : 'contributor')}
-        </span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {dormantDelegates.map((d) => (
-          <div
-            key={d.username}
-            onClick={() => onSelect(d.username)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(d.username); } }}
-            tabIndex={0}
-            role="button"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 8px',
-              borderRadius: 6,
-              cursor: 'pointer',
-              transition: 'background 0.1s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            {d.avatarUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={d.avatarUrl} alt="" width={24} height={24} style={{ borderRadius: '50%', flexShrink: 0 }} />
-            ) : (
-              <div
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: t.bgActive,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  flexShrink: 0,
-                }}
-              >
-                {d.displayName?.[0] || '?'}
-              </div>
-            )}
-            <span style={{ fontSize: 12, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.fg }}>
-              {d.displayName}
-            </span>
-            <span style={{ fontSize: 11, color: '#f59e0b', flexShrink: 0 }}>
-              {d.lastPostedAt
-                ? `${formatDistanceToNow(new Date(d.lastPostedAt), { addSuffix: true })}`
-                : 'no recent activity'}
-            </span>
-          </div>
-        ))}
       </div>
     </div>
   );
