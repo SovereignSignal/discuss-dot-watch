@@ -18,7 +18,7 @@ import OverviewTab from './OverviewTab';
 import { SortHeader, DelegateTableRow, MobileDelegateCard } from './ContributorsTable';
 import DelegateDetailPanel from './DelegateDetailPanel';
 import AdminPanel from './AdminPanel';
-import { brandedColors, dashboardGetRoleLabel, getPostCountForPeriod, getTopicCountForPeriod, getLikesForPeriod, getDaysVisitedForPeriod } from './dashboardUtils';
+import { brandedColors, dashboardGetRoleLabel, getPostCountForPeriod, getTopicCountForPeriod, getLikesForPeriod, getDaysVisitedForPeriod, getGcrTier } from './dashboardUtils';
 import type { SortField, SortDir, FilterProgram, FilterRole, FilterStatus } from './dashboardUtils';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { formatDistanceToNow } from 'date-fns';
@@ -48,6 +48,8 @@ export default function TenantDashboardPage() {
   const [filterRole, setFilterRole] = useState<FilterRole>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterTracked, setFilterTracked] = useState<'all' | 'verified'>('all');
+  const [filterTier, setFilterTier] = useState<'all' | 1 | 2 | 3 | 4 | 5>('all');
+  const [filterWallet, setFilterWallet] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [selectedDelegate, setSelectedDelegate] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contributors' | 'proposals'>('overview');
   const [period, setPeriod] = useState<DashboardPeriod>('year');
@@ -248,6 +250,20 @@ export default function TenantDashboardPage() {
       list = list.filter((d) => !d.isActive);
     }
 
+    if (filterWallet === 'linked') {
+      list = list.filter((d) => !!d.walletAddress);
+    } else if (filterWallet === 'unlinked') {
+      list = list.filter((d) => !d.walletAddress);
+    }
+
+    if (filterTier !== 'all') {
+      list = list.filter((d) => {
+        const score = govScoreMap.get(d.username)?.combinedScore;
+        if (score == null) return false;
+        return getGcrTier(score).tier === filterTier;
+      });
+    }
+
     list.sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
@@ -289,7 +305,7 @@ export default function TenantDashboardPage() {
     });
 
     return list;
-  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, filterTracked, sortField, sortDir, govScoreMap, period]);
+  }, [dashboard, searchQuery, filterProgram, filterRole, filterStatus, filterTracked, filterTier, filterWallet, sortField, sortDir, govScoreMap, period]);
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -759,6 +775,49 @@ export default function TenantDashboardPage() {
                   ))}
                 </select>
               )}
+
+              {govScoreMap.size > 0 && (
+                <select
+                  value={filterTier}
+                  onChange={(e) => setFilterTier(e.target.value === 'all' ? 'all' : (Number(e.target.value) as 1 | 2 | 3 | 4 | 5))}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: `1px solid ${t.border}`,
+                    background: t.bgInput,
+                    color: t.fg,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                  aria-label="Filter by governance tier"
+                >
+                  <option value="all">All Tiers</option>
+                  <option value="1">Tier 1 (90+)</option>
+                  <option value="2">Tier 2 (80-89)</option>
+                  <option value="3">Tier 3 (70-79)</option>
+                  <option value="4">Tier 4 (60-69)</option>
+                  <option value="5">Tier 5 (&lt;60)</option>
+                </select>
+              )}
+
+              <select
+                value={filterWallet}
+                onChange={(e) => setFilterWallet(e.target.value as 'all' | 'linked' | 'unlinked')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: `1px solid ${t.border}`,
+                  background: t.bgInput,
+                  color: t.fg,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+                aria-label="Filter by wallet mapping"
+              >
+                <option value="all">Any Wallet</option>
+                <option value="linked">Wallet linked</option>
+                <option value="unlinked">No wallet</option>
+              </select>
 
               {!isMobile && (
                 <span style={{ fontSize: 12, color: t.fgDim, marginLeft: 'auto' }}>

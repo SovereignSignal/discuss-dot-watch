@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Newspaper, MessageSquare, Eye, ThumbsUp, TrendingUp, Sparkles, AlertCircle } from 'lucide-react';
-import { DiscussionTopic } from '@/types';
+import { useState, useEffect, useMemo } from 'react';
+import { Newspaper, MessageSquare, Eye, ThumbsUp, TrendingUp, Sparkles, AlertCircle, Target, Vote } from 'lucide-react';
+import { DiscussionTopic, KeywordAlert } from '@/types';
 import { c } from '@/lib/theme';
 
 type Category = 'all' | 'crypto' | 'ai' | 'oss';
@@ -23,6 +23,26 @@ interface DigestViewProps {
   onSelectTopic?: (topic: DiscussionTopic) => void;
   isDark?: boolean;
   forumUrls?: string[];
+  enabledAlerts?: KeywordAlert[];
+}
+
+const GOVERNANCE_TAG_KEYWORDS = ['governance', 'grant', 'grants', 'proposal', 'proposals', 'delegate', 'delegates', 'rfp', 'rfc', 'temp-check', 'temperature-check', 'snapshot-vote'];
+
+function topicTags(topic: DiscussionTopic): string[] {
+  const raw = (topic.tags || []) as Array<string | { name?: string; id?: string }>;
+  return raw.map((t) => (typeof t === 'string' ? t : t?.name || t?.id || '')).filter(Boolean).map((t) => t.toLowerCase());
+}
+
+function topicHasGovernanceTag(topic: DiscussionTopic): boolean {
+  const tags = topicTags(topic);
+  return tags.some((tag) => GOVERNANCE_TAG_KEYWORDS.some((kw) => tag.includes(kw)));
+}
+
+function topicMatchesKeyword(topic: DiscussionTopic, keyword: string): boolean {
+  const kw = keyword.toLowerCase();
+  if (!kw) return false;
+  const haystack = `${topic.title} ${topic.excerpt || ''}`.toLowerCase();
+  return haystack.includes(kw);
 }
 
 function TopicCard({
@@ -121,7 +141,7 @@ const CATEGORIES: { id: Category; label: string }[] = [
   { id: 'oss', label: 'OSS' },
 ];
 
-export function DigestView({ onSelectTopic, isDark = true, forumUrls }: DigestViewProps) {
+export function DigestView({ onSelectTopic, isDark = true, forumUrls, enabledAlerts = [] }: DigestViewProps) {
   const t = c(isDark);
   const [activeCategory, setActiveCategory] = useState<Category>('all');
   const [data, setData] = useState<BriefsResponse | null>(null);
@@ -177,6 +197,38 @@ export function DigestView({ onSelectTopic, isDark = true, forumUrls }: DigestVi
 
   const totalTopics = data ? data.hot.length + data.fresh.length : 0;
 
+  // Derive Keyword matches and Delegate Corner from the existing hot/fresh pool
+  const allTopics = useMemo(() => (data ? [...data.hot, ...data.fresh] : []), [data]);
+
+  const keywordMatches = useMemo(() => {
+    const active = enabledAlerts.filter((a) => a.isEnabled && a.keyword);
+    if (active.length === 0 || allTopics.length === 0) return [] as BriefsTopic[];
+    const seen = new Set<string>();
+    const out: BriefsTopic[] = [];
+    for (const topic of allTopics) {
+      if (seen.has(topic.refId)) continue;
+      if (active.some((a) => topicMatchesKeyword(topic, a.keyword))) {
+        out.push(topic);
+        seen.add(topic.refId);
+      }
+    }
+    return out.slice(0, 10);
+  }, [allTopics, enabledAlerts]);
+
+  const delegateCorner = useMemo(() => {
+    if (allTopics.length === 0) return [] as BriefsTopic[];
+    const seen = new Set(keywordMatches.map((t) => t.refId));
+    const out: BriefsTopic[] = [];
+    for (const topic of allTopics) {
+      if (seen.has(topic.refId)) continue;
+      if (topicHasGovernanceTag(topic)) {
+        out.push(topic);
+        seen.add(topic.refId);
+      }
+    }
+    return out.slice(0, 8);
+  }, [allTopics, keywordMatches]);
+
   return (
     <section className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-5 sm:px-6 py-6">
@@ -226,6 +278,30 @@ export function DigestView({ onSelectTopic, isDark = true, forumUrls }: DigestVi
                   No discussions found. The forum cache may still be warming up.
                 </p>
               </div>
+            )}
+
+            {/* Keyword matches (only when alerts are configured) */}
+            {keywordMatches.length > 0 && (
+              <>
+                <SectionHeader icon={Target} title="Keyword matches" count={keywordMatches.length} isDark={isDark} />
+                {keywordMatches.map((topic) => (
+                  <div key={`kw-${topic.refId}`} className="mb-2">
+                    <TopicCard topic={topic} onSelect={handleTopicSelect} isDark={isDark} />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Delegate Corner — governance/grants-tagged threads */}
+            {delegateCorner.length > 0 && (
+              <>
+                <SectionHeader icon={Vote} title="Delegate Corner" count={delegateCorner.length} isDark={isDark} />
+                {delegateCorner.map((topic) => (
+                  <div key={`dc-${topic.refId}`} className="mb-2">
+                    <TopicCard topic={topic} onSelect={handleTopicSelect} isDark={isDark} />
+                  </div>
+                ))}
+              </>
             )}
 
             {/* Trending */}

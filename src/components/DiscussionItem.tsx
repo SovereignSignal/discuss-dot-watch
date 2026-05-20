@@ -23,6 +23,7 @@ interface DiscussionItemProps {
   onToggleBookmark?: (topic: DiscussionTopic) => void;
   onMarkAsRead?: (refId: string) => void;
   onSelect?: (topic: DiscussionTopic) => void;
+  onTagClick?: (tag: string) => void;
   forumLogoUrl?: string;
   forumDisplayName?: string;
   dateFilterMode?: DateFilterMode;
@@ -78,7 +79,7 @@ function highlightKeywords(text: string, alerts: KeywordAlert[], isDark: boolean
 
 export function DiscussionItem({
   topic, alerts, isBookmarked, isRead = false, isSelected = false,
-  onToggleBookmark, onMarkAsRead, onSelect, forumLogoUrl, forumDisplayName, dateFilterMode, isDark = true,
+  onToggleBookmark, onMarkAsRead, onSelect, onTagClick, forumLogoUrl, forumDisplayName, dateFilterMode, isDark = true,
 }: DiscussionItemProps) {
   // External sources use different URL formats
   const topicUrl = topic.externalUrl
@@ -130,6 +131,20 @@ export function DiscussionItem({
               </span>
               {topic.tags.slice(0, 2).map((tag) => {
                 const tagName = typeof tag === 'string' ? tag : (tag as { name: string }).name;
+                if (!tagName) return null;
+                if (onTagClick) {
+                  return (
+                    <button
+                      key={tagName}
+                      onClick={(e) => { e.stopPropagation(); onTagClick(tagName); }}
+                      className="px-1.5 py-0.5 text-[11px] font-medium rounded flex-shrink-0 hover:opacity-100 transition-opacity"
+                      style={{ backgroundColor: t.bgBadge, color: t.fgDim, border: 'none', cursor: 'pointer' }}
+                      title={`Filter by tag: ${tagName}`}
+                    >
+                      {tagName}
+                    </button>
+                  );
+                }
                 return (
                   <span key={tagName} className="px-1.5 py-0.5 text-[11px] font-medium rounded flex-shrink-0"
                     style={{ backgroundColor: t.bgBadge, color: t.fgDim }}>

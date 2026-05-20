@@ -57,7 +57,7 @@ export default function AppPage() {
     () => enabledForums.map(f => f.discourseForum.url.replace(/\/$/, '')),
     [enabledForums]
   );
-  const { alerts, addAlert, removeAlert, toggleAlert, importAlerts } = useAlerts();
+  const { alerts, enabledAlerts, addAlert, removeAlert, toggleAlert, importAlerts } = useAlerts();
   const { bookmarks, addBookmark, removeBookmark, isBookmarked, importBookmarks } = useBookmarks();
   const { isRead, markAsRead, markMultipleAsRead, getUnreadCount } = useReadState();
   const { shouldShowOnboarding, completeOnboarding, resetOnboarding } = useOnboarding();
@@ -360,6 +360,7 @@ export default function AppPage() {
                       unreadCount={0}
                       activeKeywordFilter={activeKeywordFilter}
                       onSelectTopic={handleSelectTopic}
+                      onTagClick={setSearchQuery}
                       selectedTopicRefId={selectedTopic?.refId || null}
                       isDark={isDark}
                       serverMode
@@ -390,6 +391,7 @@ export default function AppPage() {
                       onRemoveForum={handleRemoveForum}
                       activeKeywordFilter={activeKeywordFilter}
                       onSelectTopic={handleSelectTopic}
+                      onTagClick={setSearchQuery}
                       selectedTopicRefId={selectedTopic?.refId || null}
                       isDark={isDark}
                     />
@@ -450,6 +452,7 @@ export default function AppPage() {
                     onSelectTopic={handleSelectTopic}
                     isDark={isDark}
                     forumUrls={enabledForumUrls}
+                    enabledAlerts={enabledAlerts}
                   />
                   {/* Reader panel for briefs */}
                   {selectedTopic && (

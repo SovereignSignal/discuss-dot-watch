@@ -66,6 +66,7 @@ type DiscussionFeedProps = {
   onRemoveForum?: (forumId: string) => void;
   activeKeywordFilter?: string | null;
   onSelectTopic?: (topic: DiscussionTopic) => void;
+  onTagClick?: (tag: string) => void;
   selectedTopicRefId?: string | null;
   isDark?: boolean;
   totalForumCount?: number;
@@ -77,7 +78,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
     alerts, searchQuery, enabledForumIds, forumStates, forums,
     isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
     unreadCount, onRemoveForum, activeKeywordFilter,
-    onSelectTopic, selectedTopicRefId, isDark = true, totalForumCount,
+    onSelectTopic, onTagClick, selectedTopicRefId, isDark = true, totalForumCount,
   } = props;
   const isServerMode = props.serverMode === true;
   const [displayCount, setDisplayCount] = useState(20);
@@ -317,6 +318,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
                 onToggleBookmark={onToggleBookmark}
                 onMarkAsRead={onMarkAsRead}
                 onSelect={onSelectTopic}
+                onTagClick={onTagClick}
                 forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
                 forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
                 dateFilterMode={dateFilterMode}
