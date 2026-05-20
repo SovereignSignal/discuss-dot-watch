@@ -55,9 +55,10 @@ export function CommandMenu({
 
     // Sort
     items.push(
-      { id: 'sort-recent', label: 'Sort by Recent', section: 'Sort', icon: <ArrowUpDown className="w-4 h-4" />, action: () => onSort('recent'), keywords: ['sort', 'recent', 'latest'] },
-      { id: 'sort-created', label: 'Sort by Created', section: 'Sort', icon: <ArrowUpDown className="w-4 h-4" />, action: () => onSort('created'), keywords: ['sort', 'created', 'new'] },
-      { id: 'sort-activity', label: 'Sort by Activity', section: 'Sort', icon: <ArrowUpDown className="w-4 h-4" />, action: () => onSort('activity'), keywords: ['sort', 'activity', 'hot'] },
+      { id: 'sort-recent', label: 'Sort by Recent', section: 'Sort', icon: <ArrowUpDown className="w-4 h-4" />, action: () => onSort('recent'), keywords: ['sort', 'recent', 'latest', 'new'] },
+      { id: 'sort-replies', label: 'Sort by Replies', section: 'Sort', icon: <ArrowUpDown className="w-4 h-4" />, action: () => onSort('replies'), keywords: ['sort', 'replies', 'active', 'hot'] },
+      { id: 'sort-views', label: 'Sort by Views', section: 'Sort', icon: <ArrowUpDown className="w-4 h-4" />, action: () => onSort('views'), keywords: ['sort', 'views', 'popular'] },
+      { id: 'sort-likes', label: 'Sort by Likes', section: 'Sort', icon: <ArrowUpDown className="w-4 h-4" />, action: () => onSort('likes'), keywords: ['sort', 'likes', 'liked'] },
     );
 
     // Actions

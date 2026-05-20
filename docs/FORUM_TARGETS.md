@@ -30,7 +30,6 @@ All monitorable community platforms across crypto, AI, and OSS.
 - Optimism (gov.optimism.io)
 - Arbitrum (forum.arbitrum.foundation)
 - Base (forum.base.org)
-- Scroll (forum.scroll.io)
 - zkSync Era (forum.zknation.io)
 - Starknet (community.starknet.io)
 - Polygon (forum.polygon.technology)

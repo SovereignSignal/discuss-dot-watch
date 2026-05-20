@@ -4,13 +4,9 @@ import { Keyboard } from 'lucide-react';
 import { c } from '@/lib/theme';
 
 const SHORTCUTS = [
-  { keys: ['j', '↓'], description: 'Next discussion' },
-  { keys: ['k', '↑'], description: 'Previous discussion' },
-  { keys: ['Enter'], description: 'Open discussion' },
-  { keys: ['b'], description: 'Toggle bookmark' },
-  { keys: ['r'], description: 'Mark as read' },
+  { keys: ['⌘', 'K'], description: 'Command menu' },
   { keys: ['/'], description: 'Focus search' },
-  { keys: ['Esc'], description: 'Clear focus' },
+  { keys: ['Esc'], description: 'Close panel' },
 ];
 
 export function KeyboardShortcuts({ isDark = true }: { isDark?: boolean }) {

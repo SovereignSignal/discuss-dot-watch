@@ -69,14 +69,6 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
       },
       {
-        name: 'Scroll',
-        url: 'https://forum.scroll.io/',
-        description: 'Scroll DAO with Governance Council',
-        token: 'SCR',
-        logoUrl: 'https://assets.coingecko.com/coins/images/40162/small/scroll.jpg',
-        tier: 1,
-      },
-      {
         name: 'Mantle',
         url: 'https://forum.mantle.xyz/',
         description: 'L2 with large treasury and Snapshot voting',

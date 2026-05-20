@@ -19,10 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 });
     }
 
-    const filter = request.nextUrl.searchParams.get('filter');
-    const trackedOnly = filter === 'tracked';
-
-    const dashboard = await getDashboardData(slug, { trackedOnly });
+    const dashboard = await getDashboardData(slug);
     if (!dashboard) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }

@@ -141,7 +141,7 @@ export function getGcrTier(score: number): { label: string; tier: number; color:
   if (score >= 80) return { label: 'Tier 2', tier: 2, color: '#3b82f6' };
   if (score >= 70) return { label: 'Tier 3', tier: 3, color: '#f59e0b' };
   if (score >= 60) return { label: 'Tier 4', tier: 4, color: '#f97316' };
-  return { label: 'At Risk', tier: 5, color: '#ef4444' };
+  return { label: 'Tier 5', tier: 5, color: '#ef4444' };
 }
 
 // --- HTML text extraction ---

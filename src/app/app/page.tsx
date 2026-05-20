@@ -188,10 +188,14 @@ export default function AppPage() {
   }, [importForums, importAlerts, importBookmarks]);
 
   const handleSelectTopic = useCallback((topic: DiscussionTopic) => {
-    setSelectedTopic(topic);
     if (!isRead(topic.refId)) {
       markAsRead(topic.refId);
     }
+    if (topic.sourceType && topic.sourceType !== 'discourse' && topic.externalUrl) {
+      window.open(topic.externalUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setSelectedTopic(topic);
   }, [isRead, markAsRead]);
 
   const handleCloseReader = useCallback(() => {

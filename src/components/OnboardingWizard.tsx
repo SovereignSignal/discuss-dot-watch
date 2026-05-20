@@ -20,7 +20,7 @@ const STEPS = [
 export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedForums, setSelectedForums] = useState<Set<string>>(new Set());
-  const [expandedCategory, setExpandedCategory] = useState<string | null>('defi-lending');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>('crypto');
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const t = c(isDark);

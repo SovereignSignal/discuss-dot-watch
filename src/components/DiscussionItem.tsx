@@ -6,7 +6,7 @@ import { DiscussionTopic, KeywordAlert, DateFilterMode } from '@/types';
 import { c } from '@/lib/theme';
 
 function isExternalSource(topic: DiscussionTopic): boolean {
-  return topic.sourceType === 'ea-forum' || topic.sourceType === 'lesswrong';
+  return !!topic.sourceType && topic.sourceType !== 'discourse';
 }
 
 function isValidImageUrl(url: string | undefined): boolean {

@@ -21,10 +21,10 @@ export interface DelegateTenant {
 }
 
 export interface TenantBranding {
-  accentColor?: string;      // e.g. "#FF684B" for Scroll
+  accentColor?: string;      // e.g. "#FF684B"
   bgColor?: string;          // Light-mode custom bg, e.g. "#FFF8F3"
   logoUrl?: string;          // Tenant logo URL
-  heroTitle?: string;        // e.g. "Welcome to Scroll Governance"
+  heroTitle?: string;        // e.g. "Welcome to <DAO> Governance"
   heroSubtitle?: string;     // Descriptive text below hero
   footerText?: string;       // Custom footer text
 }
@@ -49,6 +49,7 @@ export interface TenantConfig {
   proposalTags?: string[];           // Tags that indicate governance proposals
   snapshotSpace?: string;            // Snapshot space ID e.g. "decentraland.eth"
   featuredTopicIds?: number[];       // Admin-curated Discourse topic IDs to highlight
+  agoraProfileBaseUrl?: string;      // Base URL for per-delegate Agora profiles, e.g. "https://vote.optimism.io/delegates" — appended with /{walletAddress}
 }
 
 export interface TenantCapabilities {
@@ -257,6 +258,7 @@ export interface DelegateDashboard {
     trackedMemberLabel?: string;
     trackedMemberLabelPlural?: string;
     featuredTopicIds?: number[];
+    agoraProfileBaseUrl?: string;
   };
   delegates: DelegateRow[];
   summary: DashboardSummary;

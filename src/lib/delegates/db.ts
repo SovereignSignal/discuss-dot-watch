@@ -680,17 +680,14 @@ function mapTenantInviteRow(row: Record<string, unknown>): TenantInvite {
 
 // --- Dashboard assembly ---
 
-export async function getDashboardData(slug: string, opts?: { trackedOnly?: boolean }): Promise<DelegateDashboard | null> {
+export async function getDashboardData(slug: string): Promise<DelegateDashboard | null> {
   const tenant = await getTenantBySlug(slug);
   if (!tenant) return null;
 
-  const delegates = await getDelegatesByTenant(tenant.id, opts);
+  const delegates = await getDelegatesByTenant(tenant.id);
   const snapshots = await getLatestSnapshots(tenant.id);
 
-  // Count tracked members from full roster (for showing toggle)
-  const trackedCount = opts?.trackedOnly
-    ? delegates.length  // Already filtered
-    : delegates.filter((d) => d.isTracked).length;
+  const trackedCount = delegates.filter((d) => d.isTracked).length;
 
   const delegateRows: DelegateRow[] = delegates.map((d) => {
     const snapshot = snapshots.get(d.id);
@@ -773,6 +770,7 @@ export async function getDashboardData(slug: string, opts?: { trackedOnly?: bool
       trackedMemberLabel: tenant.config.trackedMemberLabel,
       trackedMemberLabelPlural: tenant.config.trackedMemberLabelPlural,
       featuredTopicIds: tenant.config.featuredTopicIds,
+      agoraProfileBaseUrl: tenant.config.agoraProfileBaseUrl,
     },
     delegates: delegateRows,
     summary,

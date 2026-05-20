@@ -28,7 +28,6 @@ export const PROTOCOL_LOGOS: Record<string, string> = {
   'zksync era': 'https://icons.llama.fi/zksync-era.jpg',
   'polygon': 'https://icons.llama.fi/polygon.jpg',
   'starknet': 'https://icons.llama.fi/starknet.jpg',
-  'scroll': 'https://icons.llama.fi/scroll.jpg',
   'mantle': 'https://icons.llama.fi/mantle.jpg',
   'mode': 'https://icons.llama.fi/mode.jpg',
   'base': 'https://icons.llama.fi/base.jpg',

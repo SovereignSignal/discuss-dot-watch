@@ -19,7 +19,7 @@ export async function GET(
     }
 
     const [dashboard, snapshot] = await Promise.allSettled([
-      getDashboardData(slug, { trackedOnly: false }),
+      getDashboardData(slug),
       fetchTenantSnapshotData(slug),
     ]);
 

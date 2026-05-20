@@ -61,9 +61,6 @@ export default function TenantDashboardPage() {
   const { isSuperAdmin, canAdminTenant } = useTenantRoles();
   const branding = dashboard?.tenant.branding;
   const bc = brandedColors(branding);
-  const trackedLabel = dashboard?.tenant.trackedMemberLabel || 'Tracked Member';
-  const trackedLabelPlural = dashboard?.tenant.trackedMemberLabelPlural || trackedLabel + 's';
-  const hasTracked = (dashboard?.trackedCount ?? 0) > 0;
   const hasVerified = useMemo(() => dashboard?.delegates.some(d => d.verifiedStatus) ?? false, [dashboard]);
 
   // Delegates filtered by tracked/verified toggle (for overview stats), before search/role/status
@@ -603,8 +600,6 @@ export default function TenantDashboardPage() {
             bc={bc}
             isMobile={isMobile}
             onSelectDelegate={(username) => { setSelectedDelegate(username); setActiveTab('contributors'); }}
-            hasTracked={hasTracked}
-            trackedLabelPlural={trackedLabelPlural}
             snapshotData={snapshotData}
             governanceScores={governanceScores}
             period={period}
@@ -963,6 +958,7 @@ export default function TenantDashboardPage() {
           delegate={detail}
           forumUrl={dashboard.tenant.forumUrl}
           tenantSlug={slug}
+          agoraProfileBaseUrl={dashboard.tenant.agoraProfileBaseUrl}
           onClose={closeDelegatePanel}
           t={t}
           accent={bc?.accent}

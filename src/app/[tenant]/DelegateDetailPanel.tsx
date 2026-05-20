@@ -17,6 +17,7 @@ export default function DelegateDetailPanel({
   delegate: d,
   forumUrl,
   tenantSlug,
+  agoraProfileBaseUrl,
   onClose,
   t,
   accent,
@@ -27,6 +28,7 @@ export default function DelegateDetailPanel({
   delegate: DelegateRow;
   forumUrl: string;
   tenantSlug: string;
+  agoraProfileBaseUrl?: string;
   onClose: () => void;
   t: ReturnType<typeof c>;
   accent?: string;
@@ -281,9 +283,9 @@ export default function DelegateDetailPanel({
                 >
                   Forum Profile <ExternalLink size={9} style={{ display: 'inline', verticalAlign: '-1px' }} />
                 </a>
-                {d.walletAddress && (
+                {d.walletAddress && agoraProfileBaseUrl && (
                   <a
-                    href={`https://gov.scroll.io/delegates/${d.walletAddress}`}
+                    href={`${agoraProfileBaseUrl.replace(/\/$/, '')}/${d.walletAddress}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}

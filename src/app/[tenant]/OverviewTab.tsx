@@ -9,7 +9,6 @@ import {
   ThumbsUp,
   Sparkles,
   TrendingUp,
-  AlertTriangle,
   Vote,
   CheckCircle2,
   Target,
@@ -30,12 +29,10 @@ interface OverviewTabProps {
   bc: BrandedColorsResult | null;
   isMobile: boolean;
   onSelectDelegate: (username: string) => void;
-  hasTracked: boolean;
-  trackedLabelPlural: string;
   snapshotData?: TenantSnapshotData | null;
   governanceScores?: GovernanceScore[];
   period?: DashboardPeriod;
-  filterMode?: 'all' | 'tracked' | 'verified';
+  filterMode?: 'all' | 'verified';
   featuredThreads?: FeaturedThread[];
   delegateActivityThreads?: DelegateActivityThread[];
 }
@@ -47,8 +44,6 @@ export default function OverviewTab({
   bc,
   isMobile,
   onSelectDelegate,
-  hasTracked,
-  trackedLabelPlural,
   snapshotData,
   governanceScores,
   period = 'year',
