@@ -414,6 +414,130 @@ export async function upsertDelegate(tenantId: number, delegate: {
   return mapDelegateRow(row);
 }
 
+/**
+ * Bulk upsert directory-synced contributors in a single round-trip.
+ * Used by contributorSync to replace ~200 sequential upsertDelegate calls.
+ *
+ * Preserves existing is_tracked = true via GREATEST(EXCLUDED, current).
+ * Only writes directory-derived fields; leaves wallet/votes/programs/role
+ * untouched on existing rows.
+ */
+export async function bulkUpsertDirectoryContributors(
+  tenantId: number,
+  contributors: Array<{
+    username: string;
+    displayName: string;
+    avatarTemplate?: string;
+    directoryPostCount?: number;
+    directoryTopicCount?: number;
+    directoryLikesReceived?: number;
+    directoryLikesGiven?: number;
+    directoryDaysVisited?: number;
+    directoryPostsRead?: number;
+    directoryTopicsEntered?: number;
+    postCountPercentile?: number;
+    likesReceivedPercentile?: number;
+    daysVisitedPercentile?: number;
+    topicsEnteredPercentile?: number;
+    directoryPostCountMonth?: number | null;
+    directoryTopicCountMonth?: number | null;
+    directoryLikesReceivedMonth?: number | null;
+    directoryDaysVisitedMonth?: number | null;
+    directoryPostCountWeek?: number | null;
+    directoryTopicCountWeek?: number | null;
+    directoryLikesReceivedWeek?: number | null;
+    directoryDaysVisitedWeek?: number | null;
+    directoryPostCountYear?: number | null;
+    directoryTopicCountYear?: number | null;
+    directoryLikesReceivedYear?: number | null;
+    directoryDaysVisitedYear?: number | null;
+  }>
+): Promise<number> {
+  if (contributors.length === 0) return 0;
+  await ensureSchema();
+  const db = getDb();
+
+  // Build snake_case rows for the Porsager VALUES helper
+  const rows = contributors.map((c) => ({
+    tenant_id: tenantId,
+    username: c.username,
+    display_name: c.displayName,
+    is_tracked: false,
+    avatar_template: c.avatarTemplate || null,
+    directory_post_count: c.directoryPostCount ?? null,
+    directory_topic_count: c.directoryTopicCount ?? null,
+    directory_likes_received: c.directoryLikesReceived ?? null,
+    directory_likes_given: c.directoryLikesGiven ?? null,
+    directory_days_visited: c.directoryDaysVisited ?? null,
+    directory_posts_read: c.directoryPostsRead ?? null,
+    directory_topics_entered: c.directoryTopicsEntered ?? null,
+    post_count_percentile: c.postCountPercentile ?? null,
+    likes_received_percentile: c.likesReceivedPercentile ?? null,
+    days_visited_percentile: c.daysVisitedPercentile ?? null,
+    topics_entered_percentile: c.topicsEnteredPercentile ?? null,
+    directory_post_count_month: c.directoryPostCountMonth ?? null,
+    directory_topic_count_month: c.directoryTopicCountMonth ?? null,
+    directory_likes_received_month: c.directoryLikesReceivedMonth ?? null,
+    directory_days_visited_month: c.directoryDaysVisitedMonth ?? null,
+    directory_post_count_week: c.directoryPostCountWeek ?? null,
+    directory_topic_count_week: c.directoryTopicCountWeek ?? null,
+    directory_likes_received_week: c.directoryLikesReceivedWeek ?? null,
+    directory_days_visited_week: c.directoryDaysVisitedWeek ?? null,
+    directory_post_count_year: c.directoryPostCountYear ?? null,
+    directory_topic_count_year: c.directoryTopicCountYear ?? null,
+    directory_likes_received_year: c.directoryLikesReceivedYear ?? null,
+    directory_days_visited_year: c.directoryDaysVisitedYear ?? null,
+  }));
+
+  const cols = [
+    'tenant_id', 'username', 'display_name', 'is_tracked', 'avatar_template',
+    'directory_post_count', 'directory_topic_count', 'directory_likes_received',
+    'directory_likes_given', 'directory_days_visited', 'directory_posts_read',
+    'directory_topics_entered',
+    'post_count_percentile', 'likes_received_percentile', 'days_visited_percentile',
+    'topics_entered_percentile',
+    'directory_post_count_month', 'directory_topic_count_month',
+    'directory_likes_received_month', 'directory_days_visited_month',
+    'directory_post_count_week', 'directory_topic_count_week',
+    'directory_likes_received_week', 'directory_days_visited_week',
+    'directory_post_count_year', 'directory_topic_count_year',
+    'directory_likes_received_year', 'directory_days_visited_year',
+  ] as const;
+
+  const result = await db`
+    INSERT INTO delegates ${db(rows, ...cols)}
+    ON CONFLICT (tenant_id, username) DO UPDATE SET
+      display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), delegates.display_name),
+      is_tracked = GREATEST(EXCLUDED.is_tracked, delegates.is_tracked),
+      avatar_template = COALESCE(EXCLUDED.avatar_template, delegates.avatar_template),
+      directory_post_count = COALESCE(EXCLUDED.directory_post_count, delegates.directory_post_count),
+      directory_topic_count = COALESCE(EXCLUDED.directory_topic_count, delegates.directory_topic_count),
+      directory_likes_received = COALESCE(EXCLUDED.directory_likes_received, delegates.directory_likes_received),
+      directory_likes_given = COALESCE(EXCLUDED.directory_likes_given, delegates.directory_likes_given),
+      directory_days_visited = COALESCE(EXCLUDED.directory_days_visited, delegates.directory_days_visited),
+      directory_posts_read = COALESCE(EXCLUDED.directory_posts_read, delegates.directory_posts_read),
+      directory_topics_entered = COALESCE(EXCLUDED.directory_topics_entered, delegates.directory_topics_entered),
+      post_count_percentile = COALESCE(EXCLUDED.post_count_percentile, delegates.post_count_percentile),
+      likes_received_percentile = COALESCE(EXCLUDED.likes_received_percentile, delegates.likes_received_percentile),
+      days_visited_percentile = COALESCE(EXCLUDED.days_visited_percentile, delegates.days_visited_percentile),
+      topics_entered_percentile = COALESCE(EXCLUDED.topics_entered_percentile, delegates.topics_entered_percentile),
+      directory_post_count_month = COALESCE(EXCLUDED.directory_post_count_month, delegates.directory_post_count_month),
+      directory_topic_count_month = COALESCE(EXCLUDED.directory_topic_count_month, delegates.directory_topic_count_month),
+      directory_likes_received_month = COALESCE(EXCLUDED.directory_likes_received_month, delegates.directory_likes_received_month),
+      directory_days_visited_month = COALESCE(EXCLUDED.directory_days_visited_month, delegates.directory_days_visited_month),
+      directory_post_count_week = COALESCE(EXCLUDED.directory_post_count_week, delegates.directory_post_count_week),
+      directory_topic_count_week = COALESCE(EXCLUDED.directory_topic_count_week, delegates.directory_topic_count_week),
+      directory_likes_received_week = COALESCE(EXCLUDED.directory_likes_received_week, delegates.directory_likes_received_week),
+      directory_days_visited_week = COALESCE(EXCLUDED.directory_days_visited_week, delegates.directory_days_visited_week),
+      directory_post_count_year = COALESCE(EXCLUDED.directory_post_count_year, delegates.directory_post_count_year),
+      directory_topic_count_year = COALESCE(EXCLUDED.directory_topic_count_year, delegates.directory_topic_count_year),
+      directory_likes_received_year = COALESCE(EXCLUDED.directory_likes_received_year, delegates.directory_likes_received_year),
+      directory_days_visited_year = COALESCE(EXCLUDED.directory_days_visited_year, delegates.directory_days_visited_year),
+      updated_at = NOW()
+  `;
+  return result.count ?? contributors.length;
+}
+
 export async function getDelegatesByTenant(tenantId: number, opts?: { trackedOnly?: boolean }): Promise<Delegate[]> {
   const db = getDb();
   const rows = opts?.trackedOnly

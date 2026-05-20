@@ -8,7 +8,7 @@
  */
 
 import { fetchDirectoryItems } from './discourseClient';
-import { upsertDelegate } from './db';
+import { bulkUpsertDirectoryContributors } from './db';
 import type { DirectoryItem } from '@/types/delegates';
 
 interface ContributorSyncConfig {
@@ -104,50 +104,47 @@ export async function syncContributorsFromDirectory(
   // Compute percentiles for all-time data
   const percentiles = computePercentiles(contributors, totalForum);
 
-  // Upsert each contributor
-  let synced = 0;
-  for (const item of contributors) {
+  // Bulk upsert all contributors in a single Postgres round-trip
+  const rows = contributors.map((item) => {
     const pct = percentiles.get(item.username);
     const monthly = monthlyMap?.get(item.username);
     const weekly = weeklyMap?.get(item.username);
     const yearly = yearlyMap?.get(item.username);
-    try {
-      await upsertDelegate(tenantId, {
-        username: item.username,
-        displayName: item.name || item.username,
-        isTracked: false, // GREATEST in upsert preserves existing is_tracked = true
-        avatarTemplate: item.avatarTemplate || undefined,
-        directoryPostCount: item.postCount,
-        directoryTopicCount: item.topicCount,
-        directoryLikesReceived: item.likesReceived,
-        directoryLikesGiven: item.likesGiven,
-        directoryDaysVisited: item.daysVisited,
-        directoryPostsRead: item.postsRead,
-        directoryTopicsEntered: item.topicsEntered,
-        postCountPercentile: pct?.postCount,
-        likesReceivedPercentile: pct?.likesReceived,
-        daysVisitedPercentile: pct?.daysVisited,
-        topicsEnteredPercentile: pct?.topicsEntered,
-        // Monthly stats (0 if user not in monthly directory — distinct from null/not-provided)
-        directoryPostCountMonth: monthly?.postCount ?? 0,
-        directoryTopicCountMonth: monthly?.topicCount ?? 0,
-        directoryLikesReceivedMonth: monthly?.likesReceived ?? 0,
-        directoryDaysVisitedMonth: monthly?.daysVisited ?? 0,
-        // Weekly stats
-        directoryPostCountWeek: weekly?.postCount ?? 0,
-        directoryTopicCountWeek: weekly?.topicCount ?? 0,
-        directoryLikesReceivedWeek: weekly?.likesReceived ?? 0,
-        directoryDaysVisitedWeek: weekly?.daysVisited ?? 0,
-        // Yearly stats
-        directoryPostCountYear: yearly?.postCount ?? 0,
-        directoryTopicCountYear: yearly?.topicCount ?? 0,
-        directoryLikesReceivedYear: yearly?.likesReceived ?? 0,
-        directoryDaysVisitedYear: yearly?.daysVisited ?? 0,
-      });
-      synced++;
-    } catch (err) {
-      console.error(`[ContributorSync] Failed to upsert ${item.username}:`, err);
-    }
+    return {
+      username: item.username,
+      displayName: item.name || item.username,
+      avatarTemplate: item.avatarTemplate || undefined,
+      directoryPostCount: item.postCount,
+      directoryTopicCount: item.topicCount,
+      directoryLikesReceived: item.likesReceived,
+      directoryLikesGiven: item.likesGiven,
+      directoryDaysVisited: item.daysVisited,
+      directoryPostsRead: item.postsRead,
+      directoryTopicsEntered: item.topicsEntered,
+      postCountPercentile: pct?.postCount,
+      likesReceivedPercentile: pct?.likesReceived,
+      daysVisitedPercentile: pct?.daysVisited,
+      topicsEnteredPercentile: pct?.topicsEntered,
+      directoryPostCountMonth: monthly?.postCount ?? 0,
+      directoryTopicCountMonth: monthly?.topicCount ?? 0,
+      directoryLikesReceivedMonth: monthly?.likesReceived ?? 0,
+      directoryDaysVisitedMonth: monthly?.daysVisited ?? 0,
+      directoryPostCountWeek: weekly?.postCount ?? 0,
+      directoryTopicCountWeek: weekly?.topicCount ?? 0,
+      directoryLikesReceivedWeek: weekly?.likesReceived ?? 0,
+      directoryDaysVisitedWeek: weekly?.daysVisited ?? 0,
+      directoryPostCountYear: yearly?.postCount ?? 0,
+      directoryTopicCountYear: yearly?.topicCount ?? 0,
+      directoryLikesReceivedYear: yearly?.likesReceived ?? 0,
+      directoryDaysVisitedYear: yearly?.daysVisited ?? 0,
+    };
+  });
+
+  let synced = 0;
+  try {
+    synced = await bulkUpsertDirectoryContributors(tenantId, rows);
+  } catch (err) {
+    console.error(`[ContributorSync] Bulk upsert failed:`, err);
   }
 
   console.log(`[ContributorSync] Synced ${synced}/${contributors.length} contributors`);

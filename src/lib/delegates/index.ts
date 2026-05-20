@@ -15,6 +15,7 @@ export {
   updateTenantCapabilities,
   updateTenantLastRefresh,
   upsertDelegate,
+  bulkUpsertDirectoryContributors,
   getDelegatesByTenant,
   getDelegateByUsername,
   deleteDelegate,
