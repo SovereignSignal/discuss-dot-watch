@@ -28,14 +28,20 @@ interface DigestViewProps {
 
 const GOVERNANCE_TAG_KEYWORDS = ['governance', 'grant', 'grants', 'proposal', 'proposals', 'delegate', 'delegates', 'rfp', 'rfc', 'temp-check', 'temperature-check', 'snapshot-vote'];
 
+// Bracketed prefixes commonly used in governance forum threads
+const GOVERNANCE_TITLE_PREFIXES = /^\[(rfc|arfc|rfp|aip|eip|tip|sip|pip|gp|gip|gov|prop|proposal|temp-?check|snapshot)[^\]]*\]/i;
+const GOVERNANCE_TITLE_KEYWORDS = /\b(proposal|temperature check|snapshot vote|delegate)\b/i;
+
 function topicTags(topic: DiscussionTopic): string[] {
   const raw = (topic.tags || []) as Array<string | { name?: string; id?: string }>;
   return raw.map((t) => (typeof t === 'string' ? t : t?.name || t?.id || '')).filter(Boolean).map((t) => t.toLowerCase());
 }
 
-function topicHasGovernanceTag(topic: DiscussionTopic): boolean {
+function topicIsGovernance(topic: DiscussionTopic): boolean {
   const tags = topicTags(topic);
-  return tags.some((tag) => GOVERNANCE_TAG_KEYWORDS.some((kw) => tag.includes(kw)));
+  if (tags.some((tag) => GOVERNANCE_TAG_KEYWORDS.some((kw) => tag.includes(kw)))) return true;
+  const title = topic.title || '';
+  return GOVERNANCE_TITLE_PREFIXES.test(title) || GOVERNANCE_TITLE_KEYWORDS.test(title);
 }
 
 function topicMatchesKeyword(topic: DiscussionTopic, keyword: string): boolean {
@@ -221,7 +227,7 @@ export function DigestView({ onSelectTopic, isDark = true, forumUrls, enabledAle
     const out: BriefsTopic[] = [];
     for (const topic of allTopics) {
       if (seen.has(topic.refId)) continue;
-      if (topicHasGovernanceTag(topic)) {
+      if (topicIsGovernance(topic)) {
         out.push(topic);
         seen.add(topic.refId);
       }
