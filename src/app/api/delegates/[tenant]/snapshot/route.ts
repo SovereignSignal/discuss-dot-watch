@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchTenantSnapshotData, fetchVoterParticipation, getDashboardData } from '@/lib/delegates';
+import { fetchTenantSnapshotData, fetchProposalVoters, getDashboardData } from '@/lib/delegates';
 
 export async function GET(
   request: NextRequest,
@@ -31,35 +31,34 @@ export async function GET(
 
     if (include === 'votes') {
       try {
-        // Fetch voter participation and cross-reference with delegates
-        const voterParticipation = await fetchVoterParticipation(data.space);
-        const dashboard = await getDashboardData(slug);
+        const [proposalVoters, dashboard] = await Promise.all([
+          fetchProposalVoters(data.space),
+          getDashboardData(slug),
+        ]);
 
         if (dashboard) {
-          // Build a map of wallet address -> username for tracked delegates
-          const walletToUsername = new Map<string, string>();
+          // Set of all tracked delegate wallet addresses (lowercased)
+          const delegateWallets = new Set<string>();
           for (const d of dashboard.delegates) {
             if (d.walletAddress) {
-              walletToUsername.set(d.walletAddress.toLowerCase(), d.username);
+              delegateWallets.add(d.walletAddress.toLowerCase());
             }
           }
 
-          // For each voter address, check if it's a known delegate
-          // Return per-proposal: which delegate wallets voted
+          // For each proposal, return only the delegate wallets that actually
+          // voted on THAT proposal (intersection of proposal voters and delegate wallets).
           delegateVotes = {};
-          // We have voterParticipation: address -> count
-          // But we need per-proposal votes. Use the raw votes data via a second query.
-          // For now, return the voter addresses that are delegate wallets
-          const delegateVoterAddresses = new Set<string>();
-          for (const [addr] of walletToUsername) {
-            if (voterParticipation.has(addr)) {
-              delegateVoterAddresses.add(addr);
-            }
-          }
-
-          // Mark each proposal with which tracked delegates voted (simplified)
           for (const proposal of data.proposals) {
-            delegateVotes[proposal.id] = Array.from(delegateVoterAddresses);
+            const voters = proposalVoters.get(proposal.id);
+            if (!voters || delegateWallets.size === 0) {
+              delegateVotes[proposal.id] = [];
+              continue;
+            }
+            const matched: string[] = [];
+            for (const wallet of delegateWallets) {
+              if (voters.has(wallet)) matched.push(wallet);
+            }
+            delegateVotes[proposal.id] = matched;
           }
         }
       } catch (err) {

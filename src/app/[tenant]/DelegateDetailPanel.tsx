@@ -332,8 +332,8 @@ export default function DelegateDetailPanel({
                   <GcrCriterionRow
                     label="Rationale Rate"
                     weight={0.5}
-                    value={govScore.breakdown.proposalsTotal > 0
-                      ? Math.round((d.rationaleCount / govScore.breakdown.proposalsTotal) * 100)
+                    value={govScore.breakdown.proposalsVoted > 0
+                      ? Math.min(100, Math.round((d.rationaleCount / govScore.breakdown.proposalsVoted) * 100))
                       : 0}
                     maxValue={100}
                     format="pct"

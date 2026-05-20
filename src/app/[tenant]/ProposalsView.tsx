@@ -342,6 +342,13 @@ function SnapshotProposalCard({
         )}
       </div>
 
+      <VoteBreakdownBar
+        choices={sp.choices}
+        scores={sp.scores}
+        scoresTotal={sp.scoresTotal}
+        t={t}
+      />
+
       {expanded && hasWalletData && (
         <div style={{ padding: '0 14px 12px', borderTop: `1px solid ${t.borderSubtle}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.fgDim, margin: '10px 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -365,6 +372,68 @@ function SnapshotProposalCard({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function VoteBreakdownBar({
+  choices,
+  scores,
+  scoresTotal,
+  t,
+}: {
+  choices?: string[];
+  scores?: number[];
+  scoresTotal?: number;
+  t: ThemeColors;
+}) {
+  if (!choices || !scores || !scoresTotal || scoresTotal <= 0 || choices.length !== scores.length) {
+    return null;
+  }
+  const COLORS = ['#22c55e', '#ef4444', '#94a3b8', '#3b82f6', '#a855f7', '#f59e0b', '#06b6d4', '#ec4899'];
+  const segments = choices.map((label, i) => ({
+    label,
+    pct: ((scores[i] || 0) / scoresTotal) * 100,
+    color: COLORS[i % COLORS.length],
+  })).filter((s) => s.pct > 0);
+  if (segments.length === 0) return null;
+  return (
+    <div style={{ padding: '0 14px 10px' }}>
+      <div
+        style={{
+          display: 'flex',
+          height: 6,
+          borderRadius: 3,
+          overflow: 'hidden',
+          background: t.bgSubtle,
+        }}
+      >
+        {segments.map((s, i) => (
+          <div
+            key={i}
+            title={`${s.label}: ${s.pct.toFixed(1)}%`}
+            style={{ width: `${s.pct}%`, background: s.color }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
+        {segments.map((s, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 10,
+              color: t.fgDim,
+            }}
+          >
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, display: 'inline-block' }} />
+            <span style={{ color: t.fgMuted }}>{s.label}</span>
+            <span>{s.pct.toFixed(0)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

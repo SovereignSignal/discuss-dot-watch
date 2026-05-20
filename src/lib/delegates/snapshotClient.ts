@@ -197,6 +197,50 @@ export async function fetchVoterParticipation(
 }
 
 /**
+ * Fetch per-proposal voter sets for a space.
+ * Returns Map<proposalId, Set<voterAddress>> with lowercased addresses.
+ * Paginates the votes endpoint (Snapshot caps `first` at 1000).
+ */
+export async function fetchProposalVoters(
+  space: string,
+  maxVotes: number = 5000,
+): Promise<Map<string, Set<string>>> {
+  const byProposal = new Map<string, Set<string>>();
+  const pageSize = 1000;
+  let skip = 0;
+
+  while (skip < maxVotes) {
+    const result = await snapshotGraphQL<{
+      votes: Array<{
+        voter: string;
+        proposal: { id: string };
+        created: number;
+      }>;
+    }>(VOTES_FOR_VOTERS_QUERY, { space, first: pageSize, skip });
+
+    if (result.error || !result.data?.votes) {
+      break;
+    }
+    const page = result.data.votes;
+    for (const vote of page) {
+      const proposalId = vote.proposal?.id;
+      if (!proposalId) continue;
+      const addr = vote.voter.toLowerCase();
+      let set = byProposal.get(proposalId);
+      if (!set) {
+        set = new Set();
+        byProposal.set(proposalId, set);
+      }
+      set.add(addr);
+    }
+    if (page.length < pageSize) break;
+    skip += pageSize;
+  }
+
+  return byProposal;
+}
+
+/**
  * Compute governance scores by cross-referencing forum activity with Snapshot voting
  */
 export function computeGovernanceScores(

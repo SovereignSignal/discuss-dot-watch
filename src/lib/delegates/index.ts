@@ -5,7 +5,7 @@ export { refreshTenant } from './refreshEngine';
 export { fetchProposals } from './proposalTracker';
 export { fetchFeaturedThreads } from './featuredThreads';
 export { getDelegateActivityThreads } from './activityThreads';
-export { fetchTenantSnapshotData, fetchVoterParticipation, computeGovernanceScores } from './snapshotClient';
+export { fetchTenantSnapshotData, fetchVoterParticipation, fetchProposalVoters, computeGovernanceScores } from './snapshotClient';
 export {
   initializeDelegateSchema,
   createTenant,
