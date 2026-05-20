@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useDataSync } from '@/components/DataSyncProvider';
 
 const STORAGE_KEY = 'discuss-watch-read-discussions';
 const MAX_STORED_ITEMS = 1000; // Limit storage size
@@ -44,6 +45,41 @@ function saveReadState(state: ReadState): boolean {
 
 export function useReadState() {
   const [readState, setReadState] = useState<ReadState>(() => getReadState());
+  const { serverData, markAsRead: syncMarkAsRead, markAllAsRead: syncMarkAllAsRead } = useDataSync();
+  const hydratedRef = useRef(false);
+
+  // Hydrate from server on first arrival of serverData (cross-device sync)
+  useEffect(() => {
+    if (!serverData || hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    const server = serverData.readState || {};
+    const serverIds = Object.keys(server);
+    const localIds = Object.keys(readState);
+
+    if (serverIds.length === 0 && localIds.length === 0) return;
+
+    // Union: keep the more recent timestamp per refId
+    const merged: ReadState = { ...readState };
+    let changed = false;
+    for (const id of serverIds) {
+      const serverTs = server[id];
+      const localTs = merged[id];
+      if (!localTs || serverTs > localTs) {
+        merged[id] = serverTs;
+        changed = true;
+      }
+    }
+    if (changed) {
+      setReadState(merged);
+      saveReadState(merged);
+    }
+    // Push any local-only refIds to server
+    const localOnly = localIds.filter((id) => !(id in server));
+    if (localOnly.length > 0) {
+      syncMarkAllAsRead(localOnly);
+    }
+  }, [serverData, readState, syncMarkAllAsRead]);
 
   const markAsRead = useCallback((refId: string) => {
     setReadState((prev) => {
@@ -51,7 +87,10 @@ export function useReadState() {
       saveReadState(updated);
       return updated;
     });
-  }, []);
+    if (hydratedRef.current) {
+      syncMarkAsRead(refId);
+    }
+  }, [syncMarkAsRead]);
 
   const markMultipleAsRead = useCallback((refIds: string[]) => {
     setReadState((prev) => {
@@ -63,7 +102,10 @@ export function useReadState() {
       saveReadState(updated);
       return updated;
     });
-  }, []);
+    if (hydratedRef.current && refIds.length > 0) {
+      syncMarkAllAsRead(refIds);
+    }
+  }, [syncMarkAllAsRead]);
 
   const isRead = useCallback(
     (refId: string): boolean => {

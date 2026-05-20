@@ -111,6 +111,65 @@ function PercentilePill({ percentile, t }: { percentile: number; t: ReturnType<t
   );
 }
 
+// --- Trajectory delta arrow (this month vs 12-month average) ---
+
+function TrajectoryDelta({ postCountMonth, postCountYear }: { postCountMonth?: number; postCountYear?: number }) {
+  if (postCountYear == null || postCountYear <= 0) return null;
+  const avgMonthly = postCountYear / 12;
+  if (avgMonthly < 0.5) return null;
+  const current = postCountMonth ?? 0;
+  const delta = current - avgMonthly;
+  const pct = Math.round((delta / avgMonthly) * 100);
+  if (Math.abs(pct) < 10) return null; // Don't bother for tiny noise
+  const color = pct > 0 ? '#22c55e' : '#ef4444';
+  const arrow = pct > 0 ? '▲' : '▼';
+  return (
+    <span
+      title={`This month: ${current.toFixed(0)} vs 12-mo avg ${avgMonthly.toFixed(1)}/mo`}
+      style={{
+        fontSize: 9,
+        color,
+        marginLeft: 4,
+        whiteSpace: 'nowrap',
+        fontWeight: 500,
+      }}
+    >
+      {arrow} {Math.abs(pct)}%
+    </span>
+  );
+}
+
+// --- Trust level badge (Discourse trust_level 0-4) ---
+
+function TrustLevelBadge({ trustLevel, t }: { trustLevel: number; t: ReturnType<typeof c> }) {
+  if (!trustLevel || trustLevel <= 0) return null;
+  const TL_COLOR: Record<number, string> = {
+    1: '#94a3b8',
+    2: '#3b82f6',
+    3: '#22c55e',
+    4: '#a855f7',
+  };
+  const color = TL_COLOR[trustLevel] || t.fgDim;
+  const label = trustLevel === 4 ? 'Leader' : trustLevel === 3 ? 'Regular' : trustLevel === 2 ? 'Member' : 'Basic';
+  return (
+    <span
+      title={`Discourse Trust Level ${trustLevel}: ${label}`}
+      style={{
+        fontSize: 9,
+        padding: '1px 5px',
+        borderRadius: 9999,
+        background: `${color}15`,
+        border: `1px solid ${color}33`,
+        color,
+        whiteSpace: 'nowrap',
+        fontWeight: 500,
+      }}
+    >
+      TL{trustLevel}
+    </span>
+  );
+}
+
 // --- Desktop Table Row ---
 
 export function DelegateTableRow({
@@ -282,6 +341,7 @@ export function DelegateTableRow({
                   Inactive
                 </span>
               )}
+              <TrustLevelBadge trustLevel={d.trustLevel} t={t} />
             </div>
             <a
               href={`${forumUrl}/u/${d.username}`}
@@ -325,6 +385,7 @@ export function DelegateTableRow({
       <td style={{ padding: '10px 16px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: t.fg }}>
         {getPostCountForPeriod(d, period).toLocaleString()}
         {period === 'all' && d.postCountPercentile != null && <PercentilePill percentile={d.postCountPercentile} t={t} />}
+        {(period === 'all' || period === 'year') && <TrajectoryDelta postCountMonth={d.postCountMonth} postCountYear={d.postCountYear} />}
       </td>
       <NumCell value={getTopicCountForPeriod(d, period)} t={t} />
       <NumCell value={getLikesForPeriod(d, period)} t={t} />

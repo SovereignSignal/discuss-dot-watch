@@ -273,9 +273,20 @@ export interface ForumHealthResult {
   status: 'ok' | 'error' | 'not_cached';
   topicCount: number;
   lastFetched: number | null;
+  lastActivityAt: number | null;
   error?: string;
   consecutiveFailures: number;
   lastSuccess: number | null;
+}
+
+function latestBumpedAt(topics: DiscussionTopic[] | undefined): number | null {
+  if (!topics || topics.length === 0) return null;
+  let max = 0;
+  for (const t of topics) {
+    const ts = Date.parse(t.bumpedAt);
+    if (!Number.isNaN(ts) && ts > max) max = ts;
+  }
+  return max > 0 ? max : null;
 }
 
 /**
@@ -304,6 +315,7 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         status: 'not_cached',
         topicCount: 0,
         lastFetched: null,
+        lastActivityAt: null,
         ...base,
       });
     } else if (cached.error) {
@@ -313,6 +325,7 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         status: 'error',
         topicCount: 0,
         lastFetched: cached.fetchedAt,
+        lastActivityAt: null,
         error: cached.error,
         ...base,
       });
@@ -323,6 +336,7 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         status: 'ok',
         topicCount: cached.topics?.length || 0,
         lastFetched: cached.fetchedAt,
+        lastActivityAt: latestBumpedAt(cached.topics),
         ...base,
       });
     }
@@ -347,6 +361,7 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         status: 'not_cached',
         topicCount: 0,
         lastFetched: null,
+        lastActivityAt: null,
         ...base,
       });
     } else if (cached.error) {
@@ -356,6 +371,7 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         status: 'error',
         topicCount: 0,
         lastFetched: cached.fetchedAt,
+        lastActivityAt: null,
         error: cached.error,
         ...base,
       });
@@ -366,6 +382,7 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         status: 'ok',
         topicCount: cached.topics?.length || 0,
         lastFetched: cached.fetchedAt,
+        lastActivityAt: latestBumpedAt(cached.topics),
         ...base,
       });
     }

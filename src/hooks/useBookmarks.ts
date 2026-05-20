@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Bookmark } from '@/types';
 import { getBookmarks, saveBookmarks as saveBookmarksToStorage } from '@/lib/storage';
+import { useDataSync } from '@/components/DataSyncProvider';
 
 const MIGRATION_KEY = 'discuss-watch-bookmarks-migrated-v1';
 
@@ -64,10 +65,46 @@ function getStoredBookmarks(): Bookmark[] {
 export function useBookmarks() {
   // Use lazy initialization - this runs only on client after hydration
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => getStoredBookmarks());
+  const { serverData, syncBookmarks } = useDataSync();
+  const hydratedRef = useRef(false);
+
+  // Hydrate from server on first arrival of serverData (cross-device sync)
+  useEffect(() => {
+    if (!serverData || hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    const local = bookmarks;
+    const server: Bookmark[] = serverData.bookmarks.map((b) => ({
+      id: b.id,
+      topicRefId: b.topicRefId,
+      topicTitle: b.topicTitle,
+      topicUrl: b.topicUrl,
+      protocol: b.protocol,
+      createdAt: b.createdAt,
+    }));
+
+    if (local.length === 0 && server.length > 0) {
+      setBookmarks(server);
+      saveBookmarksToStorage(server);
+    } else if (local.length > 0 && server.length === 0) {
+      syncBookmarks(local);
+    } else if (local.length > 0 && server.length > 0) {
+      const localRefs = new Set(local.map((b) => b.topicRefId));
+      const merged = [...local, ...server.filter((b) => !localRefs.has(b.topicRefId))];
+      if (merged.length !== local.length) {
+        setBookmarks(merged);
+        saveBookmarksToStorage(merged);
+        syncBookmarks(merged);
+      }
+    }
+  }, [serverData, bookmarks, syncBookmarks]);
 
   const persistBookmarks = useCallback((updated: Bookmark[]) => {
     saveBookmarksToStorage(updated);
-  }, []);
+    if (hydratedRef.current) {
+      syncBookmarks(updated);
+    }
+  }, [syncBookmarks]);
 
   const addBookmark = useCallback((topic: {
     refId: string;

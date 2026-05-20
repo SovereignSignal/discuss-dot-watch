@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Trash2,
@@ -16,6 +16,7 @@ import {
   CheckSquare,
   MinusSquare,
 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { Forum, ForumCategoryId } from '@/types';
 import { getProtocolLogo } from '@/lib/logoUtils';
 import { c } from '@/lib/theme';
@@ -27,6 +28,12 @@ import {
 } from '@/lib/forumPresets';
 import { ConfirmDialog } from './ConfirmDialog';
 import { normalizeUrl, isValidUrl } from '@/lib/url';
+
+interface ForumStat {
+  topicCount: number;
+  lastActivityAt: number | null;
+  status: 'ok' | 'error' | 'not_cached';
+}
 
 interface ForumManagerProps {
   forums: Forum[];
@@ -70,6 +77,28 @@ export function ForumManager({
     () => new Set(forums.map((f) => normalizeUrl(f.discourseForum.url))),
     [forums]
   );
+
+  // Per-forum stats from the cache (topic count + last activity)
+  const [forumStats, setForumStats] = useState<Map<string, ForumStat>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/forum-stats')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.data) return;
+        const map = new Map<string, ForumStat>();
+        for (const s of data.data as Array<{ url: string; topicCount: number; lastActivityAt: number | null; status: 'ok' | 'error' | 'not_cached' }>) {
+          map.set(normalizeUrl(s.url), {
+            topicCount: s.topicCount,
+            lastActivityAt: s.lastActivityAt,
+            status: s.status,
+          });
+        }
+        setForumStats(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const filteredCategories = useMemo(() => {
     if (!searchQuery.trim()) return FORUM_CATEGORIES;
@@ -413,6 +442,25 @@ export function ForumManager({
                           <p className="text-xs truncate" style={{ color: t.fgDim }}>
                             {forum.discourseForum.url}
                           </p>
+                          {(() => {
+                            const stat = forumStats.get(normalizeUrl(forum.discourseForum.url));
+                            if (!stat || stat.status !== 'ok') return null;
+                            const recent = stat.lastActivityAt && Date.now() - stat.lastActivityAt < 24 * 60 * 60 * 1000;
+                            return (
+                              <p className="text-[11px] mt-0.5 flex items-center gap-1.5" style={{ color: t.fgDim }}>
+                                {recent && (
+                                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                                )}
+                                <span>{stat.topicCount} topic{stat.topicCount === 1 ? '' : 's'}</span>
+                                {stat.lastActivityAt && (
+                                  <>
+                                    <span>·</span>
+                                    <span>active {formatDistanceToNow(stat.lastActivityAt, { addSuffix: true })}</span>
+                                  </>
+                                )}
+                              </p>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
