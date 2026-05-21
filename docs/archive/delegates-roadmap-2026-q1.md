@@ -1,8 +1,14 @@
-# Forum Analytics Platform — Improvement Roadmap
+# Forum Analytics Platform — Improvement Roadmap (ARCHIVED)
 
-> This file defines the phased improvement plan for discuss.watch's forum analytics feature.
-> Each task is self-contained with clear scope, affected files, and acceptance criteria.
-> Designed for use with Claude Code — each task can be picked up independently.
+> **ARCHIVED — see [docs/ROADMAP.md](../ROADMAP.md) "Multi-tenant analytics" section for the current state.**
+>
+> This is a historical Q1 2026 phased plan for the forum analytics / delegate dashboard feature. Phase 1.5 (contributor analytics), Phase 2 (snapshot deltas, trajectory), and large parts of Phase 3 / 4 have shipped. Items listed as "pending" here may be outdated. Retained for historical reference.
+>
+> Archived: 2026-05-21
+
+This file defined the phased improvement plan for discuss.watch's forum analytics feature.
+Each task is self-contained with clear scope, affected files, and acceptance criteria.
+Designed for use with Claude Code — each task can be picked up independently.
 
 ---
 

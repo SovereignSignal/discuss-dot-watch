@@ -16,14 +16,27 @@
 
 | Variable | Description | Where to Get |
 |----------|-------------|--------------|
-| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app identifier | Privy Dashboard → Settings |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app identifier (client) | Privy Dashboard → Settings |
+| `PRIVY_APP_SECRET` | Privy server-side secret | Privy Dashboard → Settings |
 | `DATABASE_URL` | Postgres connection string | Railway → Add Postgres → Variables |
+| `REDIS_URL` | Redis connection string for forum cache | Railway → Add Redis → Variables |
+| `ANTHROPIC_API_KEY` | Claude API key for AI digests | console.anthropic.com |
+| `RESEND_API_KEY` | Email delivery API key | resend.com |
+| `RESEND_FROM_EMAIL` | Sender address for digests | Resend verified domain |
+| `CRON_SECRET` | Bearer token for cron endpoints | Generate with `openssl rand -hex 32` |
+| `ENCRYPTION_KEY` | AES-256-GCM key for delegate API keys | Generate with `openssl rand -hex 32` |
+| `NEXT_PUBLIC_APP_URL` | Public app URL (digest email links) | `https://discuss.watch` |
 
 ### Optional
 
-The app works without these variables (localStorage-only mode):
+- `GITHUB_TOKEN` — Higher rate limits on GitHub Discussions
+- `SNAPSHOT_API_KEY` — Higher rate limits on Snapshot GraphQL
+
+### Without optional infra
+
+- Without `REDIS_URL`: in-memory cache only (works for single-instance local dev; production prefers Redis)
 - Without `NEXT_PUBLIC_PRIVY_APP_ID`: No login button shown, anonymous mode only
-- Without `DATABASE_URL`: API user routes return 503, localStorage used
+- Without `DATABASE_URL`: API user routes return 503, localStorage-only mode
 
 ---
 
@@ -45,14 +58,11 @@ The app works without these variables (localStorage-only mode):
 5. Go to your main service → **"Variables"** tab
 6. Add `DATABASE_URL` with the copied value
 
-### 3. Run Database Schema
+### 3. Database Schema
 
-1. In Railway, click Postgres service → **"Data"** tab
-2. Open **"Query"** panel
-3. Copy contents of `src/lib/schema.sql`
-4. Paste and run the SQL
+**No manual step needed.** Schema initializes lazily on the first API request via `initializeSchema()` in `src/lib/db.ts` and `initializeDelegateSchema()` in `src/lib/delegates/db.ts`. Both use `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` so they are idempotent and forward-compatible.
 
-Or use CLI:
+If you want to inspect or seed the schema manually:
 ```bash
 # Install Railway CLI
 npm install -g @railway/cli

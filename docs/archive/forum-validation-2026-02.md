@@ -1,4 +1,8 @@
-# Forum Validation Log
+# Forum Validation Log (ARCHIVED)
+
+> **ARCHIVED — this is a 2026-02-04 snapshot of forum validation when there were ~101 forums. The current count is 220+ Discourse + 75+ external sources.** See `src/lib/forumPresets.ts` and `src/lib/externalSources.ts` for the live list.
+>
+> Archived: 2026-05-21
 
 Last updated: 2026-02-04
 

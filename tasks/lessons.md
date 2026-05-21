@@ -266,7 +266,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 <detailed description if needed>
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 ```
 
 Types: `fix`, `feat`, `refactor`, `docs`, `chore`, `test`

@@ -1,6 +1,10 @@
-# discuss.watch - Improvement Plan
+# discuss.watch - Improvement Plan (ARCHIVED)
 
-> Last updated: Feb 13, 2026
+> **ARCHIVED — see [docs/ROADMAP.md](../ROADMAP.md) for the current roadmap.**
+>
+> This is a historical Q1 2026 Phase 1-3 plan. Most items have shipped (see ROADMAP "Current State"). Some "pending" items here are outdated or were superseded by Sprints 1–18. Retained for historical reference only.
+>
+> Original last updated: Feb 13, 2026 · Archived: 2026-05-21
 
 ## Phase 1: Quick Wins ✅ COMPLETED
 

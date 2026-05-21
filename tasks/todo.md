@@ -1,6 +1,8 @@
 # discuss.watch - Task Tracking
 
-> Last Updated: February 13, 2026
+> Last Updated: 2026-05-21
+>
+> **Note:** This file is mostly historical. Sprints 1–18 (Jan–May 2026) have shipped on top of the "V1 Launch" milestone tracked below. For the current state, see [docs/ROADMAP.md](../docs/ROADMAP.md). For what's actually deployed, see `git log --oneline` and the "Current State" section of ROADMAP.
 
 ## Current Sprint: V1 Launch
 
@@ -105,7 +107,7 @@
 - [ ] Real-time sync across devices (WebSocket or polling)
 - [ ] Email notifications for keyword alerts
 - [ ] Push notifications (PWA)
-- [ ] Forum health monitoring (detect dead/moved forums)
+- [x] Forum health monitoring (detect dead/moved forums) — shipped via persistent consecutive-failure tracking in `forumCache.ts`
 
 ### P2 - Medium Priority
 - [ ] Custom forum categories
