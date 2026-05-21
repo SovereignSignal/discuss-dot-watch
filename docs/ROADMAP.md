@@ -6,29 +6,49 @@
 
 ---
 
-## Current State (Mar 2026)
+## Current State (May 2026)
 
-- ✅ 160+ Discourse forums + 60+ external sources monitored (crypto, AI, OSS)
-- ✅ Keyword alerts and filtering
+### Core platform
+- ✅ **220+ Discourse forums + 75+ external sources** monitored across crypto, AI, OSS (live count in `src/lib/forumPresets.ts` + `src/lib/externalSources.ts`)
+- ✅ Keyword alerts with body-match-style filtering, surfaced as clickable chips above the feed (Sprint 16)
 - ✅ Email digests with AI summaries (Claude Sonnet)
 - ✅ Daily Grants & Funding email brief
 - ✅ Activity badges (Hot, Active, NEW)
-- ✅ Delegate thread filtering
-- ✅ Privy authentication
-- ✅ Light/dark theme support
-- ✅ Inline discussion reader (split-panel, reads posts without leaving app)
-- ✅ On-site AI Briefs view (zero-cost discovery, trending + new from cache)
-- ✅ Discussion excerpts in feed cards
+- ✅ Privy authentication (email, Google, wallet)
+- ✅ Light/dark theme support — token-driven via `--ds-*` CSS variables (Sprint 12)
+- ✅ Density modes (Compact / Standard / Cozy) with cross-device sync (Sprint 12, 14)
+- ✅ Inline discussion reader (480px right pane, mobile full-screen)
+- ✅ On-site AI Briefs view + top-3 trending strip directly on Feed (Sprint 15)
 - ✅ Server-side forum cache (Redis + Postgres + memory)
 - ✅ Command menu (Cmd+K) for quick navigation
-- ✅ Public API v1 for external consumers
+- ✅ Bookmark folders (Sprint 8)
+- ✅ Read-state collapse — already-read items fold under a toggle (Sprint 15)
+- ✅ Per-vertical color coding (crypto amber, AI violet, OSS cyan) across the feed (Sprint 14)
+- ✅ Public API v1 + MCP endpoint + RSS/Atom feeds by vertical
 - ✅ Server-side "All Forums" mode with paginated API
+- ✅ Mobile-responsive: stacked BriefsStrip, flexible header search, hamburger nav (Sprint 18)
+
+### Multi-tenant analytics
 - ✅ Forum-wide contributor analytics (directory sync, percentile rankings, two-phase refresh)
-- ✅ Multi-tenant admin roles (tenant_admins table, invite system, verifyTenantAdmin auth, useTenantRoles hook)
+- ✅ Multi-tenant admin roles (`tenant_admins` table, invite system, `verifyTenantAdmin` auth, `useTenantRoles` hook)
 - ✅ Persistent forum health monitoring with consecutive failure tracking
-- ✅ Governance proposal tracking (parse Discourse categories, status inference, timeline view)
-- ✅ Per-tenant Snapshot voting integration (proposals, voter participation, governance scores)
+- ✅ Governance proposal tracking (parse Discourse categories, status inference, timeline view, broadened detection: `[ARFC]`, `AIP-N`, `ERC-N`, `xgov`, etc.)
+- ✅ Per-tenant Snapshot voting integration with **per-proposal voter attribution** (Sprint 2) — voters intersected with delegate wallets at the proposal level
+- ✅ Vote choice breakdown bar (`scores` / `choices` rendered) (Sprint 2)
 - ✅ Embeddable governance widget (iframe page + CORS JSON API)
+- ✅ Verified Delegate Program with GCR scoring
+- ✅ Tenant admin panel for managing verified delegates + featured threads
+- ✅ Trajectory deltas (Δ posts vs 12-month avg) on contributor table (Sprint 3)
+- ✅ Trust level badges (Discourse trust level 1–4) on tracked delegates (Sprint 3)
+- ✅ Score-band + wallet-linked filters on contributors table (Sprint 4)
+
+### Design system (Sprints 12–18)
+- ✅ Token-based design system in `globals.css` — `--ds-*` CSS variables for colors, spacing, type, radii
+- ✅ Per-vertical accent system (crypto/ai/oss) propagated through every feed surface
+- ✅ Density toggle in left sidebar (Compact / Standard / Cozy)
+- ✅ 8 UI primitives in `src/components/ui/` (TickerBadge, DiscussionListItem, ScorePill, MetricBox, Button, SectionHeader, EmptyState, Chip)
+- ✅ 2-pane layout — right sidebar removed; alerts moved to `AlertsStrip` above feed, search moved to feed header (Sprint 16)
+- ✅ Reader app surfaces (Feed, Saved, Briefs, Settings, Inline Reader) migrated to CSS variables (Sprints 17–18)
 
 ---
 
@@ -289,4 +309,4 @@
 
 ---
 
-*Last updated: 2026-03-06*
+*Last updated: 2026-05-21*

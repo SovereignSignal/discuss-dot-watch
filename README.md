@@ -21,43 +21,43 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 
 ## Features
 
-- **Multi-Platform Aggregation** — 160+ forums across crypto, AI, and OSS
+- **Multi-Platform Aggregation** — **220+ Discourse forums + 75+ external sources** across crypto, AI, and OSS
 - **AI-Powered Digests** — Daily/weekly email summaries with Claude (Haiku 4.5 + Sonnet 4.5)
-- **On-Site Briefs** — Browsable AI digest within the app
+- **On-Site Briefs** — Browsable AI digest within the app; top 3 trending also surfaced as a strip on the main Feed
 - **Inline Discussion Reader** — Read posts without leaving the app
-- **Keyword Alerts** — Track specific terms with highlighting
+- **Keyword Alerts** — Track terms with highlighting; alerts surface as clickable chips above the feed
+- **Per-Vertical Color Coding** — Crypto (amber), AI (violet), OSS (cyan) tickers for at-a-glance category recognition across the full feed
+- **Density Modes** — Compact / Standard / Cozy toggle that re-flows the feed and syncs across devices
+- **Bookmark Folders** — Organize saved discussions into named folders
+- **Read-State Collapse** — Already-read items fold under a single toggle so the feed stays clean
 - **Activity Badges** — Hot, Active, NEW indicators
-- **Delegate Filtering** — Separates delegate threads from main governance
-- **Search & Filter** — By date, forum, category, or keyword
+- **Search & Filter** — By date, forum, category, tag, or keyword
 - **Privy Authentication** — Email, Google, or wallet login
-- **Bookmarks & Read Tracking** — Save discussions and track read/unread state
-- **Dark/Light Theme** — Toggleable dark and light modes
+- **Cross-Device Sync** — Bookmarks, alerts, read state, theme, density preferences sync via Postgres
+- **Dark/Light Theme** — Token-driven theme system (`--ds-*` CSS variables)
 - **Command Menu** — Quick navigation with Cmd+K
-- **Mobile Responsive** — Optimized for mobile with hamburger nav
+- **Mobile Responsive** — Stacked layout, tappable density toggle, header-search shrinks gracefully
 - **Server-Side Cache** — Redis + Postgres for fast loading
-- **Forum Analytics Dashboards** — Multi-tenant contributor analytics at `discuss.watch/<slug>`
-- **Governance Proposal Tracking** — Parse forum categories for proposals with status tracking (open/voting/closed/implemented)
-- **Snapshot Voting Integration** — Per-tenant Snapshot space data with governance scores
+- **Forum Analytics Dashboards** — Multi-tenant contributor analytics at `discuss.watch/<slug>` with verified delegate programs, GCR scoring, governance proposal lifecycle, trajectory deltas
+- **Governance Proposal Tracking** — Parse forum categories for proposals with status tracking (open/voting/closed/implemented); per-proposal Snapshot voter attribution
+- **Snapshot Voting Integration** — Per-tenant Snapshot space data, vote breakdown bars, governance scores
 - **Embeddable Governance Widget** — Iframe-friendly widget and CORS-enabled JSON API for external dApps
-- **Public API** — REST API at `/api/v1/` for integrations
-- **MCP Endpoint** — Machine-consumable protocol endpoint for AI integrations
-- **RSS/Atom Feeds** — Syndication feeds by vertical
-- **Privacy-First** — Optional sync, works offline
+- **Public API** — REST API at `/api/v1/`, MCP endpoint, RSS/Atom feeds by vertical
 
 ---
 
 ## Supported Platforms
 
 ### Live Now
-- **Discourse (Crypto)** — 85+ forums: Arbitrum, Optimism, ENS, Uniswap, Aave, etc.
-- **Discourse (AI)** — OpenAI, Hugging Face, Google AI, PyTorch
-- **Discourse (OSS)** — Rust, Swift, Mozilla, NixOS, Django, Elixir, etc.
+- **Discourse (Crypto)** — ~100 forums: Uniswap Governance, Aave, Arbitrum, Optimism, ENS, Compound, Gitcoin, Polkadot, Cosmos Hub, plus the long tail
+- **Discourse (AI)** — ~25 forums: OpenAI Developer, Hugging Face, Modular (Mojo), Cursor, Weights & Biases, Streamlit, CrewAI, Weaviate, Ray, etc.
+- **Discourse (OSS)** — ~95 forums: Rust, Swift, NixOS, Django, Caddy, Traefik, GitLab, Vercel Community, Gradle, Ziggit, Fly.io, etc.
 - **EA Forum / LessWrong** — GraphQL integration for AI safety and alignment communities
-- **GitHub Discussions** — Node.js, React, LangChain, llama.cpp, and more
-- **Snapshot** — On-chain governance voting data
+- **GitHub Discussions** — 60+ repos including LlamaIndex, Argo CD, Cilium, OpenTelemetry, Vite, TanStack Query, Neovim, DuckDB, ClickHouse, Supabase
+- **Snapshot** — On-chain governance voting data (17 spaces)
 - **Hacker News** — Tech community discussions
 
-See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for the complete target list.
+The authoritative live count is in `src/lib/forumPresets.ts` (220+ Discourse presets) and `src/lib/externalSources.ts` (75+ external sources). See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for a curated thematic view.
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for implementation timeline.
 
 ---

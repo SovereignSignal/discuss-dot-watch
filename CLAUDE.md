@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN), 165+ forums, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmarking, read/unread tracking, dark/light theme, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration, embeddable governance widgets, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN), **220+ Discourse forums + 75+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -39,27 +39,39 @@ src/
 │   ├── app/                # Main app page (client-side, authenticated)
 │   ├── invite/[token]/     # Tenant admin invite claim page
 │   └── feed/               # RSS/Atom feed generator
-├── components/             # React components (see individual files for props)
-├── hooks/                  # Custom React hooks (state, localStorage, data fetching)
+├── components/             # React components
+│   └── ui/                 # Design system primitives (TickerBadge, DiscussionListItem, ScorePill, MetricBox, Button, SectionHeader, EmptyState, Chip)
+├── hooks/                  # Custom React hooks (useTheme, useDensity, useBookmarks, useAlerts, useReadState, useForums, useUserSync, useTopicDetail, useTenantRoles, etc.)
 ├── lib/                    # Utility libraries
-│   ├── delegates/          # Forum analytics subsystem (index, brief, contributorSync, db, discourseClient, encryption, proposalTracker, refreshEngine, snapshotClient)
+│   ├── delegates/          # Forum analytics subsystem (index, brief, contributorSync, db, discourseClient, encryption, proposalTracker, refreshEngine, snapshotClient, featuredThreads, activityThreads)
 │   ├── db.ts               # PostgreSQL client, queries, and core schema (initializeSchema())
 │   ├── auth.ts             # Server-side auth (verifyAuth, verifyAdminAuth, verifyTenantAdmin, checkIsSuperAdmin)
 │   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
-│   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres)
-│   ├── forumPresets.ts     # 160+ pre-configured forum presets by category
-│   ├── externalSources.ts  # External source registry (EA Forum, GitHub, Snapshot, HN)
-│   ├── theme.ts            # c() theme utility for consistent color tokens
+│   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres) + getForumHealthFromCache
+│   ├── forumPresets.ts     # 220+ pre-configured Discourse forum presets by category
+│   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, HN) — 75+ entries
+│   ├── theme.ts            # c() theme utility (legacy; new components prefer --ds-* CSS variables)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
 │   ├── url.ts              # URL validation, normalization, and SSRF protection
 │   ├── grantsBrief.ts      # Grants & funding brief generation
 │   ├── emailDigest.ts      # AI email digest generation
 │   ├── emailService.ts     # Resend email delivery
+│   ├── eaForumClient.ts    # EA Forum / LessWrong GraphQL client
+│   ├── githubDiscussionsClient.ts  # GitHub Discussions GraphQL client
+│   ├── snapshotClient.ts   # Snapshot voting client (feed-side; separate from delegates/snapshotClient.ts)
+│   ├── logoUtils.ts        # Per-protocol logo URL resolver
+│   ├── rateLimit.ts        # Outgoing rate limit for upstream fetches
+│   ├── redis.ts            # ioredis client setup
+│   ├── storage.ts          # localStorage helpers (forums, alerts, bookmarks)
+│   ├── storageMigration.ts # localStorage schema migrations
+│   ├── backfill.ts         # Topic backfill orchestration (admin)
 │   └── cors.ts             # CORS headers utility
 └── types/
     ├── delegates.ts        # Forum analytics / delegate monitoring types
     └── index.ts            # Core TypeScript interfaces and types
 ```
+
+See [docs/DESIGN_SYSTEM.md](./docs/DESIGN_SYSTEM.md) for the CSS variable token system and UI primitives. See [docs/API.md](./docs/API.md) for the full endpoint reference.
 
 ## Development Commands
 
@@ -99,6 +111,7 @@ npm run lint     # Run ESLint
 | `/api/discussions` | GET | Paginated discussions from ALL cached forums (server-side filtering, search, sort) |
 | `/api/briefs` | GET | Zero-cost discovery (trending + new from cache) |
 | `/api/external-sources` | GET | Fetch from non-Discourse sources |
+| `/api/forum-stats` | GET | Public per-forum activity (topic count + last activity timestamp) for ForumManager cards |
 | `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
 | `/api/digest` | GET/POST | AI digest retrieval / generation (admin) |
 
@@ -127,7 +140,9 @@ npm run lint     # Run ESLint
 | `/api/delegates/[tenant]` | GET | Public | Dashboard data (`?filter=tracked` for tracked-only) |
 | `/api/delegates/[tenant]/[username]` | GET | Public | Individual contributor detail |
 | `/api/delegates/[tenant]/proposals` | GET | Public | Governance proposals parsed from forum categories |
-| `/api/delegates/[tenant]/snapshot` | GET | Public | Snapshot voting data for tenant's configured space |
+| `/api/delegates/[tenant]/snapshot` | GET | Public | Snapshot voting data for tenant's configured space (`?include=votes` adds per-proposal delegate voter attribution) |
+| `/api/delegates/[tenant]/featured` | GET | Public | Admin-curated featured Discourse threads for the tenant overview |
+| `/api/delegates/[tenant]/activity-threads` | GET | Public | Auto-derived recent activity from tracked delegates |
 | `/api/delegates/[tenant]/embed` | GET | Public (CORS) | Lightweight governance metrics JSON for embedding |
 | `/api/delegates/[tenant]/refresh` | POST | `verifyTenantAdmin` | Trigger data refresh |
 | `/api/delegates/admin` | GET | `verifyAdminAuth` or `verifyTenantAdmin` | List all tenants (super) or tenant delegates (scoped) |
@@ -176,10 +191,22 @@ For tenant admin types see `lib/delegates/db.ts`: `TenantAdmin`, `TenantInvite` 
 
 ## Styling Conventions
 
-- **Default**: Dark mode (zinc/black palette). Light mode via `.light` class on `<html>`.
-- **Preferred pattern**: Use `c(isDark)` from `lib/theme.ts` for inline styles — returns color token object (`bg`, `bgCard`, `fg`, `fgMuted`, `border`, etc.)
-- **Legacy**: Some components use hardcoded Tailwind classes; `globals.css` has `html.light` overrides with `!important`. **New components should always use `c()`.**
+- **Default**: Dark mode (refined zinc base). Light mode via `.light` class on `<html>`.
+- **Preferred pattern (Sprints 12-18):** design system **CSS variables** defined in `globals.css`. Read tokens via `style={{ color: 'var(--ds-fg)' }}` — automatic theme + density switching, no JS theme awareness needed.
+  - Backgrounds: `--ds-bg-base`, `--ds-bg-card`, `--ds-bg-elev`, `--ds-bg-subtle`
+  - Foreground: `--ds-fg`, `--ds-fg-muted`, `--ds-fg-dim`
+  - Borders: `--ds-border`, `--ds-border-subtle`
+  - Per-vertical accents: `--ds-ticker-{crypto|ai|oss}-{fg|bg|border}` (crypto=amber, ai=violet, oss=cyan)
+  - Semantic: `--ds-success`, `--ds-warn`, `--ds-error`, `--ds-info`
+  - Type: `--ds-text-{xs|sm|base|md|lg|xl}`, `--ds-font-{sans|mono}`
+  - Spacing: `--ds-space-{1..16}`, radii: `--ds-radius-{sm|md|lg|xl|full}`
+  - Density-aware (driven by `data-density` on `<html>`): `--ds-density-item-{py|px|title|excerpt-lines|show-excerpt}`
+- **UI primitives** (`src/components/ui/`) demonstrate the new pattern. Prefer composing primitives (`<TickerBadge>`, `<ScorePill>`, `<Button>`, `<Chip>`, `<MetricBox>`, `<SectionHeader>`, `<EmptyState>`, `<DiscussionListItem>`) over rolling new inline styles.
+- **Legacy `c()` helper** in `lib/theme.ts` is still used by older components (admin page, ForumManager, OnboardingWizard, Toast, ConfirmDialog). Migration is opportunistic: when touching one of those files, migrate it to CSS vars.
+- **Density**: `useDensity()` hook ([src/hooks/useDensity.ts](src/hooks/useDensity.ts)) sets `data-density="compact|standard|cozy"` on `<html>` and syncs the choice cross-device via `DataSyncProvider.syncDensity`.
 - **Discourse content**: `.discourse-content` CSS class in `globals.css` handles rendered forum post HTML.
+
+See [docs/DESIGN_SYSTEM.md](./docs/DESIGN_SYSTEM.md) for the full token reference and migration guide.
 
 ## Storage Keys
 
@@ -189,8 +216,10 @@ For tenant admin types see `lib/delegates/db.ts`: `TenantAdmin`, `TenantInvite` 
 | `discuss-watch-alerts` | `KeywordAlert[]` | Keyword alerts |
 | `discuss-watch-bookmarks` | `Bookmark[]` | Bookmarks |
 | `discuss-watch-theme` | `'dark' \| 'light'` | Theme preference |
+| `discuss-watch-density` | `'compact' \| 'standard' \| 'cozy'` | Density preference (default `standard`) |
 | `discuss-watch-read-discussions` | `Record<string, number>` | Read timestamps by refId |
 | `discuss-watch-onboarding-completed` | `'true'` | Onboarding flag |
+| `discuss-watch-bookmarks-migrated-v1` | `'true'` | Bookmark URL migration flag |
 
 ## Forum Analytics / Delegate Monitoring
 
@@ -230,17 +259,21 @@ Tenant dashboard uses reserved slugs: `terms, about, privacy, contact, pricing, 
 
 ### Do
 - Use existing type system in `types/index.ts` and `types/delegates.ts`
-- Follow established hook patterns for state management
+- Follow established hook patterns for state management (see `src/hooks/useBookmarks.ts` for the localStorage + server-sync pattern)
 - Handle SSR hydration when adding localStorage-based features
-- Use `c()` theme utility for new component styling
-- Add new components to `components/` directory
+- **Prefer `--ds-*` CSS variables** (`var(--ds-fg)`, `var(--ds-bg-card)`, etc.) for new component styling. See `src/components/ui/` for examples.
+- **Compose existing primitives** from `src/components/ui/` (TickerBadge, ScorePill, Button, Chip, MetricBox, SectionHeader, EmptyState, DiscussionListItem) before building new ones.
+- Add new shared primitives to `src/components/ui/`. Feature-specific components to `src/components/`.
+- Density-aware? Use `var(--ds-density-*)` tokens and let `data-density` on `<html>` cascade the styling.
 
 ### Don't
 - Add external state management libraries without discussion
 - Commit `.env` files — env vars are on Railway only
 - Modify core Discourse API proxy without understanding CORS implications
-- Use hardcoded Tailwind color classes in new components — use `c()` utility
+- Use hardcoded Tailwind color classes in new components — use `--ds-*` CSS variables
+- Use `c(isDark)` in new components — it's legacy. Touched files can opportunistically migrate to CSS vars.
 - Forget hydration handling when using localStorage/browser APIs
+- Re-introduce a right sidebar — Sprint 16 reclaimed it; alerts moved to AlertsStrip above the feed and search moved to the feed header.
 
 ### Testing
 No testing framework configured. If adding: Jest + React Testing Library, `__tests__` dirs or `.test.ts` files.
@@ -264,13 +297,23 @@ Legacy components use hardcoded Tailwind classes → light theme uses `html.ligh
 Must be full topic URL: `{forumUrl}/t/{slug}/{topicId}`. Migration system fixes old incomplete URLs on app load.
 
 ### Mobile Layout
-Uses Tailwind `md:` breakpoint (768px). Mobile: fixed header with hamburger, slide-in sidebars. State managed in `app/page.tsx` via `isMobileMenuOpen` / `isMobileAlertsOpen`.
+Uses Tailwind `md:` breakpoint (768px). Mobile: fixed header with hamburger menu, slide-in left sidebar. Density toggle in the left sidebar works on mobile too. BriefsStrip stacks to single column at &lt; 640px (via `@media (max-width: 640px)` in `globals.css`). Header search shrinks via flex. State managed in `app/app/page.tsx` via `isMobileMenuOpen`.
 
 ### Inline Reader
-Desktop: 480px panel on right replacing sidebar. Mobile: full-screen overlay with back arrow. Escape closes both. Works in Feed and Briefs views.
+Desktop: 480px right panel that appears **only when a topic is selected** (Sprint 16 reclaimed the always-on right sidebar; alerts now live in `AlertsStrip` above the feed and search lives in the feed header). Mobile: full-screen overlay with back arrow. Escape closes both. Works in Feed and Briefs views.
 
 ### Sidebar Views
-`'feed' | 'briefs' | 'projects' | 'saved' | 'settings'`
+`'feed' | 'briefs' | 'projects' | 'saved' | 'settings'` (Note: the `'projects'` view ID actually renders the Communities/ForumManager view — naming is historical.)
+
+### Feed-View Composition (Sprint 12-16 design system)
+The feed view is built from a stack of components in `src/components/DiscussionFeed.tsx`:
+1. **Header** — title + 3-state Refresh / Mark Read / **inline search** input
+2. **`<FeedFilters>`** — sticky filter strip (category / date mode / range / forum / sort)
+3. **`<AlertsStrip>`** — keyword alerts as clickable Chips (relocated from right sidebar)
+4. **`<BriefsStrip>`** — top-3 trending across all categories as a 3-card horizontal strip (stacks on mobile)
+5. **Discussion list** — `<DiscussionItem>` rows with per-vertical color coding; read items collapse behind a "Show N already-read" toggle
+
+The density toggle (Compact / Standard / Cozy) sits in the left sidebar and re-flows every `DiscussionItem` via CSS variables.
 
 ### Middleware 404 Handling for [tenant]
 `notFound()` in async server components returns HTTP 200 (not 404) because Next.js RSC streaming commits the status before async code resolves. Fix: `middleware.ts` validates the slug format and rewrites to `/_not-found` for invalid slugs, ensuring a proper 404 status code.
