@@ -789,3 +789,10 @@ html[data-density="cozy"] {
   --ds-density-item-excerpt-lines: 2;
   --ds-density-show-excerpt: 1;
 }
+
+/* Sprint 18: mobile UX — stack BriefsStrip's 3-column grid on phones */
+@media (max-width: 640px) {
+  .briefs-strip-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

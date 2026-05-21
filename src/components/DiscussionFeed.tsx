@@ -270,7 +270,9 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
                   border: `1px solid var(--ds-border)`,
                   borderRadius: 'var(--ds-radius-md)',
                   padding: '5px 10px 5px 30px',
-                  minWidth: 220,
+                  flex: '1 1 160px',
+                  maxWidth: 260,
+                  minWidth: 0,
                 }}
               >
                 <Search size={13} style={{ position: 'absolute', left: 10, color: 'var(--ds-fg-dim)' }} />

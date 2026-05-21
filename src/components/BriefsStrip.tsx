@@ -115,9 +115,10 @@ export function BriefsStrip({ onSelectTopic, onSeeAll }: BriefsStripProps) {
         </span>
       </SectionHeader>
       <div
+        className="briefs-strip-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
           gap: 10,
         }}
       >
