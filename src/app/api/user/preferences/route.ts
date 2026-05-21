@@ -15,7 +15,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { theme, onboardingCompleted } = body;
+    const { theme, onboardingCompleted, density } = body;
     const privyDid = auth.userId;
 
     const sql = getDb();
@@ -31,30 +31,29 @@ export async function PATCH(request: NextRequest) {
 
     const userId = users[0].id;
 
-    // Build update query dynamically based on provided fields
-    const updates: string[] = [];
-    const values: Record<string, unknown> = { userId };
-
-    if (theme !== undefined) {
-      if (!['dark', 'light'].includes(theme)) {
-        return NextResponse.json({ error: 'Invalid theme value' }, { status: 400 });
-      }
+    if (theme !== undefined && !['dark', 'light'].includes(theme)) {
+      return NextResponse.json({ error: 'Invalid theme value' }, { status: 400 });
+    }
+    if (density !== undefined && !['compact', 'standard', 'cozy'].includes(density)) {
+      return NextResponse.json({ error: 'Invalid density value' }, { status: 400 });
     }
 
     // Update preferences
     const result = await sql`
-      INSERT INTO user_preferences (user_id, theme, onboarding_completed)
+      INSERT INTO user_preferences (user_id, theme, onboarding_completed, density)
       VALUES (
         ${userId},
         ${theme || 'dark'},
-        ${onboardingCompleted ?? false}
+        ${onboardingCompleted ?? false},
+        ${density || 'standard'}
       )
       ON CONFLICT (user_id)
       DO UPDATE SET
         theme = COALESCE(${theme}, user_preferences.theme),
         onboarding_completed = COALESCE(${onboardingCompleted}, user_preferences.onboarding_completed),
+        density = COALESCE(${density}, user_preferences.density),
         updated_at = NOW()
-      RETURNING theme, onboarding_completed
+      RETURNING theme, onboarding_completed, density
     `;
 
     return NextResponse.json({ preferences: result[0] });

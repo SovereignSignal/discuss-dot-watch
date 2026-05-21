@@ -13,6 +13,7 @@ interface DataSyncContextType {
   markAsRead: (topicRefId: string) => void;
   markAllAsRead: (topicRefIds: string[]) => void;
   syncTheme: (theme: 'dark' | 'light') => void;
+  syncDensity: (density: 'compact' | 'standard' | 'cozy') => void;
   syncOnboarding: (completed: boolean) => void;
   // Migration function - call when user logs in to migrate localStorage to database
   migrateLocalData: () => Promise<void>;
@@ -26,7 +27,7 @@ interface ServerData {
   alerts: { id: string; keyword: string; isEnabled: boolean; createdAt: string }[];
   bookmarks: { id: string; topicRefId: string; topicTitle: string; topicUrl: string; protocol: string; folder?: string | null; createdAt: string }[];
   readState: Record<string, number>;
-  preferences: { theme: 'dark' | 'light'; onboarding_completed: boolean };
+  preferences: { theme: 'dark' | 'light'; onboarding_completed: boolean; density?: 'compact' | 'standard' | 'cozy' };
 }
 
 const DataSyncContext = createContext<DataSyncContextType | null>(null);
@@ -196,6 +197,18 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     });
   }, [userId, debouncedSync, getAuthHeaders]);
 
+  const syncDensity = useCallback((density: 'compact' | 'standard' | 'cozy') => {
+    if (!userId) return;
+    debouncedSync('density', async () => {
+      const authHeaders = await getAuthHeaders();
+      await fetch('/api/user/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ density }),
+      });
+    });
+  }, [userId, debouncedSync, getAuthHeaders]);
+
   const syncOnboarding = useCallback((completed: boolean) => {
     if (!userId) return;
     (async () => {
@@ -338,6 +351,7 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     markAsRead,
     markAllAsRead,
     syncTheme,
+    syncDensity,
     syncOnboarding,
     migrateLocalData,
     serverData,

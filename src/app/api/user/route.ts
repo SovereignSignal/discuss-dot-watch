@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     // Get user preferences
     const preferences = await sql`
-      SELECT theme, onboarding_completed
+      SELECT theme, onboarding_completed, density
       FROM user_preferences
       WHERE user_id = ${user.id}
     `;
@@ -129,7 +129,8 @@ export async function GET(request: NextRequest) {
         preferences: pref ? {
           theme: pref.theme,
           onboarding_completed: pref.onboarding_completed,
-        } : { theme: 'dark', onboarding_completed: false },
+          density: pref.density || 'standard',
+        } : { theme: 'dark', onboarding_completed: false, density: 'standard' },
         forums: forums.map((f) => ({
           cname: f.forum_cname,
           isEnabled: f.is_enabled

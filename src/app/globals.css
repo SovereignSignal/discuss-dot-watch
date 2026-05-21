@@ -665,3 +665,127 @@ html.light .discourse-content th {
   border-top: 1px solid var(--card-border);
   margin: 1em 0;
 }
+
+/* ===================================================================
+ * Sprint 12 foundation — new design system tokens (Sprint 11 brainstorm).
+ * Additive only: no existing component reads from these yet. Subsequent
+ * sprints migrate components onto these tokens incrementally.
+ * Co-exists with the legacy --background / --foreground variables above.
+ * =================================================================== */
+
+html, html.dark {
+  /* Base palette — refined zinc, dark mode */
+  --ds-bg-base: #0a0a0c;
+  --ds-bg-card: #101013;
+  --ds-bg-elev: #16161a;
+  --ds-bg-subtle: #18181b;
+  --ds-border: #27272a;
+  --ds-border-subtle: #1a1a1f;
+  --ds-fg: #fafafa;
+  --ds-fg-muted: #a1a1aa;
+  --ds-fg-dim: #71717a;
+
+  /* Per-vertical accents — dark mode (saturated text + low-alpha bg) */
+  --ds-ticker-crypto-fg: #fbbf24;
+  --ds-ticker-crypto-bg: rgba(251, 191, 36, 0.12);
+  --ds-ticker-crypto-border: rgba(251, 191, 36, 0.30);
+  --ds-ticker-ai-fg: #a78bfa;
+  --ds-ticker-ai-bg: rgba(167, 139, 250, 0.12);
+  --ds-ticker-ai-border: rgba(167, 139, 250, 0.30);
+  --ds-ticker-oss-fg: #22d3ee;
+  --ds-ticker-oss-bg: rgba(34, 211, 238, 0.12);
+  --ds-ticker-oss-border: rgba(34, 211, 238, 0.30);
+
+  /* Semantic accents — theme-stable */
+  --ds-success: #10b981;
+  --ds-warn: #f59e0b;
+  --ds-error: #ef4444;
+  --ds-info: #3b82f6;
+}
+
+html.light {
+  /* Base palette — refined zinc, light mode */
+  --ds-bg-base: #fafaf9;
+  --ds-bg-card: #ffffff;
+  --ds-bg-elev: #f5f5f4;
+  --ds-bg-subtle: #efedea;
+  --ds-border: #e7e5e4;
+  --ds-border-subtle: #efedea;
+  --ds-fg: #18181b;
+  --ds-fg-muted: #52525b;
+  --ds-fg-dim: #78716c;
+
+  /* Per-vertical accents — light mode (darker text for AA contrast, higher-alpha bg) */
+  --ds-ticker-crypto-fg: #92400e;
+  --ds-ticker-crypto-bg: rgba(251, 191, 36, 0.18);
+  --ds-ticker-crypto-border: rgba(251, 191, 36, 0.42);
+  --ds-ticker-ai-fg: #5b21b6;
+  --ds-ticker-ai-bg: rgba(167, 139, 250, 0.18);
+  --ds-ticker-ai-border: rgba(167, 139, 250, 0.42);
+  --ds-ticker-oss-fg: #0e7490;
+  --ds-ticker-oss-bg: rgba(34, 211, 238, 0.18);
+  --ds-ticker-oss-border: rgba(34, 211, 238, 0.42);
+}
+
+html {
+  /* Type families — reuse existing Geist (loaded in layout.tsx) so no extra
+   * font weight downloads in Sprint 12. Aliased through ds-* so we can swap
+   * to Inter / JetBrains Mono later without touching every consumer. */
+  --ds-font-sans: var(--font-geist-sans), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ds-font-mono: var(--font-geist-mono), 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Type scale (rem) — six steps */
+  --ds-text-xs: 0.6875rem;   /* 11px — meta, tickers, mono counts */
+  --ds-text-sm: 0.8125rem;   /* 13px — body, excerpts */
+  --ds-text-base: 0.875rem;  /* 14px — section headers, nav */
+  --ds-text-md: 0.9375rem;   /* 15px — discussion titles (Standard density) */
+  --ds-text-lg: 1.125rem;    /* 18px — page section headers */
+  --ds-text-xl: 1.375rem;    /* 22px — page titles */
+
+  /* Spacing scale (4px steps) */
+  --ds-space-1: 0.25rem;
+  --ds-space-2: 0.5rem;
+  --ds-space-3: 0.75rem;
+  --ds-space-4: 1rem;
+  --ds-space-6: 1.5rem;
+  --ds-space-8: 2rem;
+  --ds-space-12: 3rem;
+  --ds-space-16: 4rem;
+
+  /* Radii */
+  --ds-radius-sm: 4px;
+  --ds-radius-md: 6px;
+  --ds-radius-lg: 8px;
+  --ds-radius-xl: 12px;
+  --ds-radius-full: 9999px;
+}
+
+/* ===================================================================
+ * Density modes — applied via data-density on <html>.
+ * Default is 'standard'; compact and cozy override key spacings.
+ * Consumers opt-in by referencing the --ds-density-* variables.
+ * =================================================================== */
+
+html, html[data-density="standard"] {
+  --ds-density-item-py: var(--ds-space-3);     /* 12px */
+  --ds-density-item-px: var(--ds-space-4);     /* 16px */
+  --ds-density-item-title: var(--ds-text-md);  /* 15px */
+  --ds-density-item-excerpt-lines: 1;
+  --ds-density-show-excerpt: 1;
+}
+
+html[data-density="compact"] {
+  --ds-density-item-py: var(--ds-space-2);     /* 8px */
+  --ds-density-item-px: var(--ds-space-3);     /* 12px */
+  --ds-density-item-title: var(--ds-text-sm);  /* 13px */
+  --ds-density-item-excerpt-lines: 0;
+  --ds-density-show-excerpt: 0;
+}
+
+html[data-density="cozy"] {
+  --ds-density-item-py: var(--ds-space-6);     /* 24px */
+  --ds-density-item-px: var(--ds-space-6);     /* 24px */
+  --ds-density-item-title: var(--ds-text-md);  /* 15px */
+  --ds-density-item-excerpt-lines: 2;
+  --ds-density-show-excerpt: 1;
+}

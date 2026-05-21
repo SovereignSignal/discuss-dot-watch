@@ -200,6 +200,8 @@ export async function initializeSchema() {
   await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()`;
   // Forward-compatible migration: add folder to bookmarks if missing
   await db`ALTER TABLE bookmarks ADD COLUMN IF NOT EXISTS folder TEXT`;
+  // Forward-compatible migration: add density preference (Sprint 12)
+  await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS density TEXT DEFAULT 'standard'`;
 
   // Create indexes for common queries
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;
