@@ -3,7 +3,6 @@
 import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper } from 'lucide-react';
 import { UserButton } from './UserButton';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
-import { c } from '@/lib/theme';
 
 type Density = 'compact' | 'standard' | 'cozy';
 
@@ -21,7 +20,6 @@ interface SidebarProps {
 
 export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, density = 'standard', onSetDensity, savedCount = 0, isMobileOpen, onMobileToggle }: SidebarProps) {
   const isDark = theme === 'dark';
-  const t = c(isDark);
   const { isSuperAdmin } = useTenantRoles();
   
   const navItems = [
@@ -40,18 +38,18 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
   return (
     <>
       {/* Mobile Header */}
-      <div 
-        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-14 border-b"
-        style={{ backgroundColor: t.bgSidebar, borderColor: t.border }}
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-14"
+        style={{ background: 'var(--ds-bg-base)', borderBottom: `1px solid var(--ds-border)` }}
       >
-        <button onClick={onMobileToggle} className="p-2 -ml-2">
+        <button onClick={onMobileToggle} className="p-2 -ml-2" style={{ color: 'var(--ds-fg)' }}>
           {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
         <div className="flex items-center gap-2">
           <span className="text-lg">👁️‍🗨️</span>
-          <span className="text-sm font-semibold tracking-tight">discuss.watch</span>
+          <span className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ds-fg)' }}>discuss.watch</span>
         </div>
-        <button onClick={onToggleTheme} className="p-2 -mr-2" style={{ color: t.fgMuted }}>
+        <button onClick={onToggleTheme} className="p-2 -mr-2" style={{ color: 'var(--ds-fg-muted)' }}>
           {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
       </div>
@@ -62,28 +60,28 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
       )}
 
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`
           fixed md:relative w-56 flex flex-col h-full z-50 md:z-auto
           transition-transform duration-200
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-          top-0 md:top-auto pt-14 md:pt-0 border-r
+          top-0 md:top-auto pt-14 md:pt-0
         `}
-        style={{ backgroundColor: t.bgSidebar, borderColor: t.border }}
+        style={{ background: 'var(--ds-bg-base)', borderRight: `1px solid var(--ds-border)` }}
       >
         {/* Logo */}
-        <div className="hidden md:flex items-center justify-between px-4 h-14 border-b" style={{ borderColor: t.border }}>
+        <div className="hidden md:flex items-center justify-between px-4 h-14" style={{ borderBottom: `1px solid var(--ds-border)` }}>
           <div className="flex items-center gap-2">
             <span className="text-lg">👁️‍🗨️</span>
-            <span className="text-sm font-semibold tracking-tight" style={{ color: t.fg }}>
+            <span className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ds-fg)' }}>
               discuss.watch
             </span>
           </div>
-          <button onClick={onToggleTheme} className="p-1.5 rounded-md transition-colors" style={{ color: t.fgMuted }}>
+          <button onClick={onToggleTheme} className="p-1.5 rounded-md transition-colors" style={{ color: 'var(--ds-fg-muted)' }}>
             {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
         </div>
-        
+
         {/* Nav */}
         <nav className="flex-1 px-2 py-3">
           <ul className="space-y-0.5">
@@ -94,22 +92,24 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
                 <li key={item.id}>
                   <button
                     onClick={() => handleNavClick(item.id)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-colors"
                     style={{
-                      backgroundColor: isActive ? t.bgActive : 'transparent',
-                      color: isActive ? t.fg : t.fgMuted
+                      background: isActive ? 'var(--ds-bg-elev)' : 'transparent',
+                      color: isActive ? 'var(--ds-fg)' : 'var(--ds-fg-muted)',
+                      fontSize: 'var(--ds-text-sm)',
+                      fontFamily: 'var(--ds-font-sans)',
                     }}
                     onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.backgroundColor = t.hoverBg;
+                      if (!isActive) e.currentTarget.style.background = 'var(--ds-bg-elev)';
                     }}
                     onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+                      if (!isActive) e.currentTarget.style.background = 'transparent';
                     }}
                   >
                     <Icon className="w-4 h-4" />
                     <span>{item.label}</span>
                     {item.count !== undefined && item.count > 0 && (
-                      <span className="ml-auto text-[11px]" style={{ color: t.fgMuted }}>
+                      <span style={{ marginLeft: 'auto', fontSize: 'var(--ds-text-xs)', color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}>
                         {item.count}
                       </span>
                     )}
@@ -124,10 +124,10 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
         {isSuperAdmin && (
           <div className="px-2 pb-2">
             <a href="/admin"
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              style={{ color: t.fgMuted }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = t.hoverBg; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-colors"
+              style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-sm)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--ds-bg-elev)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             >
               <Shield className="w-4 h-4" />
               <span>Admin</span>
@@ -137,7 +137,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
 
         {/* Density toggle */}
         {onSetDensity && (
-          <div className="px-3 py-2 border-t" style={{ borderColor: t.border }}>
+          <div className="px-3 py-2" style={{ borderTop: `1px solid var(--ds-border)` }}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--ds-fg-dim)' }}>
                 Density
@@ -163,7 +163,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
         )}
 
         {/* User */}
-        <div className="px-3 py-3 border-t" style={{ borderColor: t.border }}>
+        <div className="px-3 py-3" style={{ borderTop: `1px solid var(--ds-border)` }}>
           <UserButton />
         </div>
       </aside>

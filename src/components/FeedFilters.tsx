@@ -2,7 +2,6 @@
 
 import { ArrowUpDown } from 'lucide-react';
 import { DateRangeFilter, DateFilterMode, SortOption, Forum } from '@/types';
-import { c } from '@/lib/theme';
 
 interface ForumOption {
   value: string;
@@ -62,10 +61,8 @@ export function FeedFilters({
   selectedForumId, onForumFilterChange,
   selectedCategory, onCategoryChange,
   forums, sortBy, onSortChange,
-  isDark = true, allForumsList,
+  allForumsList,
 }: FeedFiltersProps) {
-  const t = c(isDark);
-
   const useServerForums = !!allForumsList;
 
   // Filter forums by selected category for the dropdown
@@ -88,62 +85,129 @@ export function FeedFilters({
         : (countSource as Forum[]).filter(f => resolveCategory(f.category) === opt.value).length,
   }));
 
-  return (
-    <div className="flex flex-wrap items-center gap-2 px-5 py-2.5 border-b text-[13px]" style={{ borderColor: t.border }}>
-      {/* Category filter */}
-      <div className="flex items-center gap-0.5">
-        {categoryCounts.filter(c => c.count > 0 || c.value === null).map((opt) => (
-          <button key={opt.label}
-            onClick={() => { onCategoryChange(opt.value); onForumFilterChange(null); }}
-            className="px-2.5 py-1 rounded-md font-medium transition-colors"
-            style={{
-              backgroundColor: selectedCategory === opt.value ? t.bgActive : 'transparent',
-              color: selectedCategory === opt.value ? t.fgSecondary : t.fgMuted,
-            }}>
-            {opt.label}
-            {opt.value !== null && <span className="ml-1 opacity-60">{opt.count}</span>}
-          </button>
-        ))}
-      </div>
+  // Sprint 17: rebuilt with --ds-* tokens. Each filter "group" uses the same
+  // pill pattern from the design system: subtle background, active = inverted
+  // fg/bg pair, hover = bg-elev.
+  const activeBg = 'var(--ds-fg)';
+  const activeFg = 'var(--ds-bg-base)';
+  const inactiveBg = 'transparent';
+  const inactiveFg = 'var(--ds-fg-muted)';
 
-      <div className="w-px h-4" style={{ backgroundColor: t.border }} />
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        flexWrap: 'wrap',
+        padding: '10px 20px',
+        borderBottom: `1px solid var(--ds-border)`,
+        background: 'var(--ds-bg-base)',
+        fontSize: 'var(--ds-text-sm)',
+        fontFamily: 'var(--ds-font-sans)',
+      }}
+    >
+      {/* Category filter — grouped pill bar */}
+      <div style={{ display: 'inline-flex', background: 'var(--ds-bg-elev)', border: `1px solid var(--ds-border)`, borderRadius: 'var(--ds-radius-md)', padding: 2, gap: 2 }}>
+        {categoryCounts.filter(c => c.count > 0 || c.value === null).map((opt) => {
+          const active = selectedCategory === opt.value;
+          return (
+            <button
+              key={opt.label}
+              onClick={() => { onCategoryChange(opt.value); onForumFilterChange(null); }}
+              style={{
+                background: active ? activeBg : inactiveBg,
+                color: active ? activeFg : inactiveFg,
+                border: 'none',
+                borderRadius: 'var(--ds-radius-sm)',
+                padding: '4px 10px',
+                fontSize: 'var(--ds-text-xs)',
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'var(--ds-font-sans)',
+              }}
+            >
+              {opt.label}
+              {opt.value !== null && (
+                <span style={{ marginLeft: 4, opacity: 0.6, fontFamily: 'var(--ds-font-mono)' }}>{opt.count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Date filter mode */}
-      <div className="flex items-center gap-0.5">
-        <button onClick={() => onDateFilterModeChange('created')}
-          className="px-2 py-1 rounded-md font-medium transition-colors"
-          style={{ backgroundColor: dateFilterMode === 'created' ? t.bgActive : 'transparent', color: dateFilterMode === 'created' ? t.fgSecondary : t.fgMuted }}>
-          New
-        </button>
-        <button onClick={() => onDateFilterModeChange('activity')}
-          className="px-2 py-1 rounded-md font-medium transition-colors"
-          style={{ backgroundColor: dateFilterMode === 'activity' ? t.bgActive : 'transparent', color: dateFilterMode === 'activity' ? t.fgSecondary : t.fgMuted }}>
-          Active
-        </button>
+      <div style={{ display: 'inline-flex', background: 'var(--ds-bg-elev)', border: `1px solid var(--ds-border)`, borderRadius: 'var(--ds-radius-md)', padding: 2, gap: 2 }}>
+        {([
+          { value: 'created' as const, label: 'New' },
+          { value: 'activity' as const, label: 'Active' },
+        ]).map((opt) => {
+          const active = dateFilterMode === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => onDateFilterModeChange(opt.value)}
+              style={{
+                background: active ? activeBg : inactiveBg,
+                color: active ? activeFg : inactiveFg,
+                border: 'none',
+                borderRadius: 'var(--ds-radius-sm)',
+                padding: '4px 10px',
+                fontSize: 'var(--ds-text-xs)',
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'var(--ds-font-sans)',
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
-
-      <div className="w-px h-4" style={{ backgroundColor: t.border }} />
 
       {/* Date range */}
-      <div className="flex items-center gap-0.5">
-        {DATE_RANGE_OPTIONS.map((option) => (
-          <button key={option.value}
-            onClick={() => onDateRangeChange(option.value)}
-            className="px-2 py-1 rounded-md font-medium transition-colors"
-            style={{ backgroundColor: dateRange === option.value ? t.bgActive : 'transparent', color: dateRange === option.value ? t.fgSecondary : t.fgMuted }}>
-            {option.label}
-          </button>
-        ))}
+      <div style={{ display: 'inline-flex', background: 'var(--ds-bg-elev)', border: `1px solid var(--ds-border)`, borderRadius: 'var(--ds-radius-md)', padding: 2, gap: 2 }}>
+        {DATE_RANGE_OPTIONS.map((option) => {
+          const active = dateRange === option.value;
+          return (
+            <button
+              key={option.value}
+              onClick={() => onDateRangeChange(option.value)}
+              style={{
+                background: active ? activeBg : inactiveBg,
+                color: active ? activeFg : inactiveFg,
+                border: 'none',
+                borderRadius: 'var(--ds-radius-sm)',
+                padding: '4px 10px',
+                fontSize: 'var(--ds-text-xs)',
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'var(--ds-font-sans)',
+              }}
+            >
+              {option.label}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="w-px h-4" style={{ backgroundColor: t.border }} />
-
-      {/* Forum filter */}
+      {/* Forum filter dropdown */}
       {filteredForums.length > 0 && (
-        <select value={selectedForumId || ''}
+        <select
+          value={selectedForumId || ''}
           onChange={(e) => onForumFilterChange(e.target.value || null)}
-          className="px-2 py-1 rounded-md font-medium transition-colors cursor-pointer"
-          style={{ backgroundColor: selectedForumId ? t.bgActive : t.bgInput, color: t.fgSecondary, border: 'none', fontSize: '13px' }}>
+          style={{
+            background: selectedForumId ? 'var(--ds-fg)' : 'var(--ds-bg-elev)',
+            color: selectedForumId ? 'var(--ds-bg-base)' : 'var(--ds-fg)',
+            border: `1px solid var(--ds-border)`,
+            borderRadius: 'var(--ds-radius-md)',
+            padding: '5px 10px',
+            fontSize: 'var(--ds-text-xs)',
+            fontWeight: 500,
+            cursor: 'pointer',
+            fontFamily: 'var(--ds-font-sans)',
+          }}
+        >
           <option value="">{selectedCategory ? `All ${selectedCategory}` : 'All forums'}</option>
           {useServerForums
             ? (filteredForums as ForumOption[]).map((f) => (
@@ -156,12 +220,23 @@ export function FeedFilters({
       )}
 
       {/* Sort */}
-      <div className="flex items-center gap-1 ml-auto">
-        <ArrowUpDown className="w-3 h-3" style={{ color: t.fgMuted }} />
-        <select value={sortBy}
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+        <ArrowUpDown size={12} style={{ color: 'var(--ds-fg-dim)' }} />
+        <select
+          value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortOption)}
-          className="px-2 py-1 rounded-md font-medium transition-colors cursor-pointer"
-          style={{ backgroundColor: t.bgInput, color: t.fgSecondary, border: 'none', fontSize: '13px' }}>
+          style={{
+            background: 'var(--ds-bg-elev)',
+            color: 'var(--ds-fg)',
+            border: `1px solid var(--ds-border)`,
+            borderRadius: 'var(--ds-radius-md)',
+            padding: '5px 10px',
+            fontSize: 'var(--ds-text-xs)',
+            fontWeight: 500,
+            cursor: 'pointer',
+            fontFamily: 'var(--ds-font-sans)',
+          }}
+        >
           {SORT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
