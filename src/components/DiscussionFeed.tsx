@@ -7,6 +7,7 @@ import { getProtocolLogo } from '@/lib/logoUtils';
 import { DiscussionItem } from './DiscussionItem';
 import { DiscussionSkeletonList } from './DiscussionSkeleton';
 import { FeedFilters } from './FeedFilters';
+import { BriefsStrip } from './BriefsStrip';
 import { ForumLoadingState } from '@/hooks/useDiscussions';
 import { format, isToday, isThisWeek, isThisMonth } from 'date-fns';
 import { c } from '@/lib/theme';
@@ -87,6 +88,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
   const [selectedForumId, setSelectedForumId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('recent');
+  const [showReadItems, setShowReadItems] = useState(false);
   const t = c(isDark);
 
   // Listen for command menu events
@@ -279,6 +281,8 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
         allForumsList={isServerMode ? props.allForumsList : undefined}
       />
 
+      <BriefsStrip onSelectTopic={onSelectTopic} />
+
       {/* Loading progress */}
       {isLoading && !isServerMode && forumStates.length > 0 && (
         <div className="px-5 py-1.5 border-b text-xs" style={{ borderColor: t.border, color: t.fgMuted }}>
@@ -309,30 +313,55 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
           </div>
         ) : (
           <div className="space-y-2">
-            {displayedDiscussions.map((topic) => {
-              // Prefer server-enriched category on topic (set by /api/discussions and /api/briefs).
-              // Fall back to forumCategoryMap derived from user's enabled forums (client mode).
-              const rawCat = topic.category || forumCategoryMap.get(topic.protocol.toLowerCase());
-              const vertical: 'crypto' | 'ai' | 'oss' | 'neutral' =
-                rawCat === 'crypto' || rawCat === 'ai' || rawCat === 'oss' ? rawCat : 'neutral';
+            {(() => {
+              const renderRow = (topic: typeof displayedDiscussions[number]) => {
+                const rawCat = topic.category || forumCategoryMap.get(topic.protocol.toLowerCase());
+                const vertical: 'crypto' | 'ai' | 'oss' | 'neutral' =
+                  rawCat === 'crypto' || rawCat === 'ai' || rawCat === 'oss' ? rawCat : 'neutral';
+                return (
+                  <MemoizedDiscussionItem key={topic.refId}
+                    topic={topic} alerts={alerts}
+                    isBookmarked={isBookmarked(topic.refId)}
+                    isRead={isRead(topic.refId)}
+                    isSelected={selectedTopicRefId === topic.refId}
+                    onToggleBookmark={onToggleBookmark}
+                    onMarkAsRead={onMarkAsRead}
+                    onSelect={onSelectTopic}
+                    onTagClick={onTagClick}
+                    forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
+                    forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
+                    vertical={vertical}
+                    dateFilterMode={dateFilterMode}
+                    isDark={isDark}
+                  />
+                );
+              };
+              // Split into unread + read, render unread first, collapse read behind a toggle.
+              const unread = displayedDiscussions.filter(d => !isRead(d.refId));
+              const read = displayedDiscussions.filter(d => isRead(d.refId));
               return (
-                <MemoizedDiscussionItem key={topic.refId}
-                  topic={topic} alerts={alerts}
-                  isBookmarked={isBookmarked(topic.refId)}
-                  isRead={isRead(topic.refId)}
-                  isSelected={selectedTopicRefId === topic.refId}
-                  onToggleBookmark={onToggleBookmark}
-                  onMarkAsRead={onMarkAsRead}
-                  onSelect={onSelectTopic}
-                  onTagClick={onTagClick}
-                  forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
-                  forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
-                  vertical={vertical}
-                  dateFilterMode={dateFilterMode}
-                  isDark={isDark}
-                />
+                <>
+                  {unread.map(renderRow)}
+                  {read.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => setShowReadItems(v => !v)}
+                        className="w-full py-2.5 px-3 rounded-md text-sm font-medium transition-colors"
+                        style={{
+                          background: 'var(--ds-bg-elev)',
+                          color: 'var(--ds-fg-muted)',
+                          border: `1px solid var(--ds-border)`,
+                          marginTop: 8,
+                        }}
+                      >
+                        {showReadItems ? '▲ Hide' : '▼ Show'} {read.length} already-read
+                      </button>
+                      {showReadItems && read.map(renderRow)}
+                    </>
+                  )}
+                </>
               );
-            })}
+            })()}
             {hasMore && (
               <div className="py-3 flex justify-center">
                 <button onClick={() => {
