@@ -310,9 +310,11 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
         ) : (
           <div className="space-y-2">
             {displayedDiscussions.map((topic) => {
-              const cat = forumCategoryMap.get(topic.protocol.toLowerCase());
+              // Prefer server-enriched category on topic (set by /api/discussions and /api/briefs).
+              // Fall back to forumCategoryMap derived from user's enabled forums (client mode).
+              const rawCat = topic.category || forumCategoryMap.get(topic.protocol.toLowerCase());
               const vertical: 'crypto' | 'ai' | 'oss' | 'neutral' =
-                cat === 'crypto' || cat === 'ai' || cat === 'oss' ? cat : 'neutral';
+                rawCat === 'crypto' || rawCat === 'ai' || rawCat === 'oss' ? rawCat : 'neutral';
               return (
                 <MemoizedDiscussionItem key={topic.refId}
                   topic={topic} alerts={alerts}

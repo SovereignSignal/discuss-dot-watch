@@ -59,6 +59,8 @@ export interface DiscussionTopic {
   authorName?: string;
   score?: number;  // For voting-based platforms (HN, EA Forum)
   externalUrl?: string;  // Full canonical URL for non-Discourse sources
+  /** Server-enriched: vertical/category derived from the forum's preset (crypto/ai/oss). */
+  category?: ForumCategoryId | string;
 }
 
 export interface KeywordAlert {
