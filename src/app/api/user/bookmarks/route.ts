@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { topicRefId, topicTitle, topicUrl, protocol } = body;
+    const { topicRefId, topicTitle, topicUrl, protocol, folder } = body;
     const privyDid = auth.userId;
 
     if (!topicRefId || !topicTitle || !topicUrl || !protocol) {
@@ -36,33 +36,16 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = users[0].id;
+    const sanitizedFolder = typeof folder === 'string' && folder.trim() ? folder.trim().slice(0, 100) : null;
 
-    // Insert bookmark
+    // Insert bookmark (or update folder if it already exists)
     const result = await sql`
-      INSERT INTO bookmarks (user_id, topic_ref_id, topic_title, topic_url, protocol)
-      VALUES (${userId}, ${topicRefId}, ${topicTitle}, ${topicUrl}, ${protocol})
-      ON CONFLICT (user_id, topic_ref_id) DO NOTHING
-      RETURNING id, topic_ref_id, topic_title, topic_url, protocol, created_at
+      INSERT INTO bookmarks (user_id, topic_ref_id, topic_title, topic_url, protocol, folder)
+      VALUES (${userId}, ${topicRefId}, ${topicTitle}, ${topicUrl}, ${protocol}, ${sanitizedFolder})
+      ON CONFLICT (user_id, topic_ref_id)
+      DO UPDATE SET folder = EXCLUDED.folder
+      RETURNING id, topic_ref_id, topic_title, topic_url, protocol, folder, created_at
     `;
-
-    if (result.length === 0) {
-      // Already exists, fetch it
-      const existing = await sql`
-        SELECT id, topic_ref_id, topic_title, topic_url, protocol, created_at
-        FROM bookmarks
-        WHERE user_id = ${userId} AND topic_ref_id = ${topicRefId}
-      `;
-      return NextResponse.json({
-        bookmark: {
-          id: existing[0].id,
-          topicRefId: existing[0].topic_ref_id,
-          topicTitle: existing[0].topic_title,
-          topicUrl: existing[0].topic_url,
-          protocol: existing[0].protocol,
-          createdAt: existing[0].created_at,
-        }
-      });
-    }
 
     return NextResponse.json({
       bookmark: {
@@ -71,6 +54,7 @@ export async function POST(request: NextRequest) {
         topicTitle: result[0].topic_title,
         topicUrl: result[0].topic_url,
         protocol: result[0].protocol,
+        folder: result[0].folder,
         createdAt: result[0].created_at,
       }
     });
@@ -172,9 +156,12 @@ export async function PUT(request: NextRequest) {
       await tx`DELETE FROM bookmarks WHERE user_id = ${userId}`;
       for (const bookmark of bookmarks) {
         if (bookmark.topicRefId && bookmark.topicTitle && bookmark.topicUrl && bookmark.protocol) {
+          const folder = typeof bookmark.folder === 'string' && bookmark.folder.trim()
+            ? bookmark.folder.trim().slice(0, 100)
+            : null;
           await tx`
-            INSERT INTO bookmarks (user_id, topic_ref_id, topic_title, topic_url, protocol)
-            VALUES (${userId}, ${bookmark.topicRefId}, ${bookmark.topicTitle}, ${bookmark.topicUrl}, ${bookmark.protocol})
+            INSERT INTO bookmarks (user_id, topic_ref_id, topic_title, topic_url, protocol, folder)
+            VALUES (${userId}, ${bookmark.topicRefId}, ${bookmark.topicTitle}, ${bookmark.topicUrl}, ${bookmark.protocol}, ${folder})
             ON CONFLICT (user_id, topic_ref_id) DO NOTHING
           `;
           count++;

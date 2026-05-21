@@ -80,6 +80,7 @@ export function useBookmarks() {
       topicTitle: b.topicTitle,
       topicUrl: b.topicUrl,
       protocol: b.protocol,
+      folder: (b as Bookmark).folder ?? null,
       createdAt: b.createdAt,
     }));
 
@@ -141,6 +142,15 @@ export function useBookmarks() {
     });
   }, [persistBookmarks]);
 
+  const setBookmarkFolder = useCallback((topicRefId: string, folder: string | null) => {
+    setBookmarks(prev => {
+      const sanitized = folder && folder.trim() ? folder.trim().slice(0, 100) : null;
+      const updated = prev.map(b => b.topicRefId === topicRefId ? { ...b, folder: sanitized } : b);
+      persistBookmarks(updated);
+      return updated;
+    });
+  }, [persistBookmarks]);
+
   const bookmarkedRefIds = useMemo(
     () => new Set(bookmarks.map(b => b.topicRefId)),
     [bookmarks]
@@ -168,6 +178,7 @@ export function useBookmarks() {
     bookmarks,
     addBookmark,
     removeBookmark,
+    setBookmarkFolder,
     isBookmarked,
     importBookmarks,
   };

@@ -80,6 +80,7 @@ export interface Bookmark {
   topicUrl: string;
   protocol: string;
   createdAt: string;
+  folder?: string | null;
 }
 
 // Raw Discourse API response - tags can be strings OR objects depending on forum

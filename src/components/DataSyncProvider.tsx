@@ -9,7 +9,7 @@ interface DataSyncContextType {
   // Sync functions - call these when data changes
   syncForums: (forums: { cname: string; isEnabled: boolean }[]) => void;
   syncAlerts: (alerts: { keyword: string; isEnabled: boolean }[]) => void;
-  syncBookmarks: (bookmarks: { topicRefId: string; topicTitle: string; topicUrl: string; protocol: string }[]) => void;
+  syncBookmarks: (bookmarks: { topicRefId: string; topicTitle: string; topicUrl: string; protocol: string; folder?: string | null }[]) => void;
   markAsRead: (topicRefId: string) => void;
   markAllAsRead: (topicRefIds: string[]) => void;
   syncTheme: (theme: 'dark' | 'light') => void;
@@ -24,7 +24,7 @@ interface DataSyncContextType {
 interface ServerData {
   forums: { cname: string; isEnabled: boolean }[];
   alerts: { id: string; keyword: string; isEnabled: boolean; createdAt: string }[];
-  bookmarks: { id: string; topicRefId: string; topicTitle: string; topicUrl: string; protocol: string; createdAt: string }[];
+  bookmarks: { id: string; topicRefId: string; topicTitle: string; topicUrl: string; protocol: string; folder?: string | null; createdAt: string }[];
   readState: Record<string, number>;
   preferences: { theme: 'dark' | 'light'; onboarding_completed: boolean };
 }
@@ -148,7 +148,7 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     });
   }, [userId, debouncedSync, getAuthHeaders]);
 
-  const syncBookmarks = useCallback((bookmarks: { topicRefId: string; topicTitle: string; topicUrl: string; protocol: string }[]) => {
+  const syncBookmarks = useCallback((bookmarks: { topicRefId: string; topicTitle: string; topicUrl: string; protocol: string; folder?: string | null }[]) => {
     if (!userId) return;
     debouncedSync('bookmarks', async () => {
       const authHeaders = await getAuthHeaders();

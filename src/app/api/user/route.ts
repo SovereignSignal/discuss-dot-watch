@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
 
     // Get bookmarks
     const bookmarks = await sql`
-      SELECT id, topic_ref_id, topic_title, topic_url, protocol, created_at
+      SELECT id, topic_ref_id, topic_title, topic_url, protocol, folder, created_at
       FROM bookmarks
       WHERE user_id = ${user.id}
     `;
@@ -158,6 +158,7 @@ export async function GET(request: NextRequest) {
           topicTitle: b.topic_title,
           topicUrl: b.topic_url,
           protocol: b.protocol,
+          folder: b.folder,
           createdAt: b.created_at,
         })),
         readState: readState.reduce((acc: Record<string, number>, r) => {

@@ -58,7 +58,7 @@ export default function AppPage() {
     [enabledForums]
   );
   const { alerts, enabledAlerts, addAlert, removeAlert, toggleAlert, importAlerts } = useAlerts();
-  const { bookmarks, addBookmark, removeBookmark, isBookmarked, importBookmarks } = useBookmarks();
+  const { bookmarks, addBookmark, removeBookmark, setBookmarkFolder, isBookmarked, importBookmarks } = useBookmarks();
   const { isRead, markAsRead, markMultipleAsRead, getUnreadCount } = useReadState();
   const { shouldShowOnboarding, completeOnboarding, resetOnboarding } = useOnboarding();
   const { theme, toggleTheme } = useTheme();
@@ -505,6 +505,7 @@ export default function AppPage() {
                     removeBookmark(topicRefId);
                     success('Bookmark removed');
                   }}
+                  onSetFolder={setBookmarkFolder}
                   isDark={isDark}
                 />
               )}
