@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { DiscussionFeed } from '@/components/DiscussionFeed';
 import { ForumManager } from '@/components/ForumManager';
-import { RightSidebar } from '@/components/RightSidebar';
 import { FilterTabs } from '@/components/FilterTabs';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastContainer } from '@/components/Toast';
@@ -47,7 +46,8 @@ export default function AppPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'your'>('your');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMobileAlertsOpen, setIsMobileAlertsOpen] = useState(false);
+  // Legacy state retained for keyboard shortcuts that reference it; no UI now.
+  const [, setIsMobileAlertsOpen] = useState(false);
   const [activeKeywordFilter, setActiveKeywordFilter] = useState<string | null>(null);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<DiscussionTopic | null>(null);
@@ -365,6 +365,11 @@ export default function AppPage() {
                       activeKeywordFilter={activeKeywordFilter}
                       onSelectTopic={handleSelectTopic}
                       onTagClick={setSearchQuery}
+                      onSearchInputChange={setSearchQuery}
+                      onAddAlert={addAlert}
+                      onRemoveAlert={removeAlert}
+                      onToggleAlert={toggleAlert}
+                      onKeywordFilterChange={setActiveKeywordFilter}
                       selectedTopicRefId={selectedTopic?.refId || null}
                       isDark={isDark}
                       serverMode
@@ -396,13 +401,20 @@ export default function AppPage() {
                       activeKeywordFilter={activeKeywordFilter}
                       onSelectTopic={handleSelectTopic}
                       onTagClick={setSearchQuery}
+                      onSearchInputChange={setSearchQuery}
+                      onAddAlert={addAlert}
+                      onRemoveAlert={removeAlert}
+                      onToggleAlert={toggleAlert}
+                      onKeywordFilterChange={setActiveKeywordFilter}
                       selectedTopicRefId={selectedTopic?.refId || null}
                       isDark={isDark}
                     />
                   )}
 
-                  {/* Desktop: Inline reader replaces RightSidebar */}
-                  {selectedTopic ? (
+                  {/* Desktop: Inline reader takes the reclaimed right pane when reading.
+                      When no topic is selected, the right sidebar is hidden — search and
+                      alerts have moved into the feed header and AlertsStrip in Sprint 16. */}
+                  {selectedTopic && (
                     <div className="hidden md:flex w-[480px] flex-shrink-0 relative">
                       {/* Clickable gutter to close reader */}
                       <button
@@ -420,20 +432,6 @@ export default function AppPage() {
                         isDark={isDark}
                       />
                     </div>
-                  ) : (
-                    <RightSidebar
-                      searchQuery={searchQuery}
-                      onSearchChange={setSearchQuery}
-                      alerts={alerts}
-                      onAddAlert={addAlert}
-                      onRemoveAlert={removeAlert}
-                      onToggleAlert={toggleAlert}
-                      activeKeywordFilter={activeKeywordFilter}
-                      onKeywordFilterChange={setActiveKeywordFilter}
-                      isMobileOpen={isMobileAlertsOpen}
-                      onMobileToggle={() => setIsMobileAlertsOpen(!isMobileAlertsOpen)}
-                      isDark={isDark}
-                    />
                   )}
 
                   {/* Mobile: Reader as full-screen overlay */}

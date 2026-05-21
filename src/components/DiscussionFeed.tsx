@@ -8,6 +8,8 @@ import { DiscussionItem } from './DiscussionItem';
 import { DiscussionSkeletonList } from './DiscussionSkeleton';
 import { FeedFilters } from './FeedFilters';
 import { BriefsStrip } from './BriefsStrip';
+import { AlertsStrip } from './AlertsStrip';
+import { Search, X as XIcon } from 'lucide-react';
 import { ForumLoadingState } from '@/hooks/useDiscussions';
 import { format, isToday, isThisWeek, isThisMonth } from 'date-fns';
 import { c } from '@/lib/theme';
@@ -71,6 +73,13 @@ type DiscussionFeedProps = {
   selectedTopicRefId?: string | null;
   isDark?: boolean;
   totalForumCount?: number;
+  /** Search query setter — when provided, search input renders in the header. */
+  onSearchInputChange?: (q: string) => void;
+  /** Alerts management — when all provided, AlertsStrip renders above the feed. */
+  onAddAlert?: (keyword: string) => void;
+  onRemoveAlert?: (id: string) => void;
+  onToggleAlert?: (id: string) => void;
+  onKeywordFilterChange?: (filter: string | null) => void;
 } & (ServerModeProps | ClientModeProps);
 
 export function DiscussionFeed(props: DiscussionFeedProps) {
@@ -80,6 +89,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
     isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
     unreadCount, onRemoveForum, activeKeywordFilter,
     onSelectTopic, onTagClick, selectedTopicRefId, isDark = true, totalForumCount,
+    onSearchInputChange, onAddAlert, onRemoveAlert, onToggleAlert, onKeywordFilterChange,
   } = props;
   const isServerMode = props.serverMode === true;
   const [displayCount, setDisplayCount] = useState(20);
@@ -250,6 +260,47 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {onSearchInputChange && (
+              <div
+                style={{
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'var(--ds-bg-elev)',
+                  border: `1px solid var(--ds-border)`,
+                  borderRadius: 'var(--ds-radius-md)',
+                  padding: '5px 10px 5px 30px',
+                  minWidth: 220,
+                }}
+              >
+                <Search size={13} style={{ position: 'absolute', left: 10, color: 'var(--ds-fg-dim)' }} />
+                <input
+                  id="discussion-search"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => onSearchInputChange(e.target.value)}
+                  placeholder="Search..."
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: 'var(--ds-fg)',
+                    fontSize: 'var(--ds-text-sm)',
+                    fontFamily: 'var(--ds-font-sans)',
+                    width: '100%',
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => onSearchInputChange('')}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--ds-fg-dim)', cursor: 'pointer', display: 'inline-flex', padding: 2, marginLeft: 4 }}
+                    title="Clear search"
+                  >
+                    <XIcon size={13} />
+                  </button>
+                )}
+              </div>
+            )}
             {unreadCount > 0 && (
               <button
                 onClick={() => onMarkAllAsRead(displayedDiscussions.map(d => d.refId))}
@@ -280,6 +331,17 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
         sortBy={sortBy} onSortChange={setSortBy} isDark={isDark}
         allForumsList={isServerMode ? props.allForumsList : undefined}
       />
+
+      {onAddAlert && onRemoveAlert && onToggleAlert && onKeywordFilterChange && (
+        <AlertsStrip
+          alerts={alerts}
+          onAddAlert={onAddAlert}
+          onRemoveAlert={onRemoveAlert}
+          onToggleAlert={onToggleAlert}
+          activeKeywordFilter={activeKeywordFilter ?? null}
+          onKeywordFilterChange={onKeywordFilterChange}
+        />
+      )}
 
       <BriefsStrip onSelectTopic={onSelectTopic} />
 
