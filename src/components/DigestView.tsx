@@ -28,9 +28,12 @@ interface DigestViewProps {
 
 const GOVERNANCE_TAG_KEYWORDS = ['governance', 'grant', 'grants', 'proposal', 'proposals', 'delegate', 'delegates', 'rfp', 'rfc', 'temp-check', 'temperature-check', 'snapshot-vote'];
 
-// Bracketed prefixes commonly used in governance forum threads
-const GOVERNANCE_TITLE_PREFIXES = /^\[(rfc|arfc|rfp|aip|eip|tip|sip|pip|gp|gip|gov|prop|proposal|temp-?check|snapshot)[^\]]*\]/i;
-const GOVERNANCE_TITLE_KEYWORDS = /\b(proposal|temperature check|snapshot vote|delegate)\b/i;
+// Bracketed prefixes commonly used in governance forum threads.
+// Many DAOs gate their proposals via `[ARFC]`, `[DRAFT]`, `[Constitutional]` etc. — match liberally on tag-style brackets.
+const GOVERNANCE_TITLE_PREFIXES = /^\[(rfc|arfc|rfp|aip|eip|tip|sip|pip|gp|gip|gov|prop|proposal|temp-?check|temperature|snapshot|draft|constitutional|non-?constitutional|final|onboarding|delisting|listing|elip|lip|cip|stip|mip|wip)[^\]]*\]/i;
+// Unbracketed proposal-numbering schemes used widely across DAOs (AIP-3, EIP-721, ELIP-017, etc.)
+const GOVERNANCE_TITLE_NUMBERED = /\b(aip|eip|erc|elip|sip|gip|pip|tip|lip|cip|mip|wip|arfc)[- ]?\d+\b/i;
+const GOVERNANCE_TITLE_KEYWORDS = /\b(proposal|temperature check|temp check|snapshot vote|delegate program|delegate platform|governance call|treasury request|funding request|onboard|delist|grant request|working group|xgov)\b/i;
 
 function topicTags(topic: DiscussionTopic): string[] {
   const raw = (topic.tags || []) as Array<string | { name?: string; id?: string }>;
@@ -41,7 +44,7 @@ function topicIsGovernance(topic: DiscussionTopic): boolean {
   const tags = topicTags(topic);
   if (tags.some((tag) => GOVERNANCE_TAG_KEYWORDS.some((kw) => tag.includes(kw)))) return true;
   const title = topic.title || '';
-  return GOVERNANCE_TITLE_PREFIXES.test(title) || GOVERNANCE_TITLE_KEYWORDS.test(title);
+  return GOVERNANCE_TITLE_PREFIXES.test(title) || GOVERNANCE_TITLE_NUMBERED.test(title) || GOVERNANCE_TITLE_KEYWORDS.test(title);
 }
 
 function topicMatchesKeyword(topic: DiscussionTopic, keyword: string): boolean {
