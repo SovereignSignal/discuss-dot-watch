@@ -14,6 +14,8 @@ function isValidImageUrl(url: string | undefined): boolean {
   try { const p = new URL(url); return p.protocol === 'https:' || p.protocol === 'http:'; } catch { return false; }
 }
 
+type Vertical = 'crypto' | 'ai' | 'oss' | 'neutral';
+
 interface DiscussionItemProps {
   topic: DiscussionTopic;
   alerts: KeywordAlert[];
@@ -26,8 +28,17 @@ interface DiscussionItemProps {
   onTagClick?: (tag: string) => void;
   forumLogoUrl?: string;
   forumDisplayName?: string;
+  /** Per-vertical accent for the forum chip — applied via --ds-ticker-* CSS vars. */
+  vertical?: Vertical;
   dateFilterMode?: DateFilterMode;
   isDark?: boolean;
+}
+
+function tickerColors(v: Vertical) {
+  if (v === 'crypto') return { fg: 'var(--ds-ticker-crypto-fg)', bg: 'var(--ds-ticker-crypto-bg)', border: 'var(--ds-ticker-crypto-border)' };
+  if (v === 'ai')     return { fg: 'var(--ds-ticker-ai-fg)',     bg: 'var(--ds-ticker-ai-bg)',     border: 'var(--ds-ticker-ai-border)' };
+  if (v === 'oss')    return { fg: 'var(--ds-ticker-oss-fg)',    bg: 'var(--ds-ticker-oss-bg)',    border: 'var(--ds-ticker-oss-border)' };
+  return                     { fg: 'var(--ds-fg-muted)',         bg: 'var(--ds-bg-elev)',          border: 'var(--ds-border)' };
 }
 
 function formatTimestamp(dateString: string): string {
@@ -79,8 +90,9 @@ function highlightKeywords(text: string, alerts: KeywordAlert[], isDark: boolean
 
 export function DiscussionItem({
   topic, alerts, isBookmarked, isRead = false, isSelected = false,
-  onToggleBookmark, onMarkAsRead, onSelect, onTagClick, forumLogoUrl, forumDisplayName, dateFilterMode, isDark = true,
+  onToggleBookmark, onMarkAsRead, onSelect, onTagClick, forumLogoUrl, forumDisplayName, vertical = 'neutral', dateFilterMode, isDark = true,
 }: DiscussionItemProps) {
+  const tc = tickerColors(vertical);
   // External sources use different URL formats
   const topicUrl = topic.externalUrl
     ? topic.externalUrl
@@ -125,8 +137,17 @@ export function DiscussionItem({
           <div className="flex-1 min-w-0">
             {/* Title row */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-1.5 py-0.5 text-[11px] font-medium rounded border capitalize flex-shrink-0"
-                style={{ borderColor: t.border, backgroundColor: t.bgBadge, color: t.fgSecondary }}>
+              <span
+                className="px-1.5 py-0.5 text-[11px] font-medium rounded flex-shrink-0"
+                style={{
+                  borderColor: tc.border,
+                  backgroundColor: tc.bg,
+                  color: tc.fg,
+                  border: `1px solid ${tc.border}`,
+                  fontFamily: 'var(--ds-font-mono)',
+                  letterSpacing: '0.02em',
+                }}
+              >
                 {forumDisplayName || topic.protocol}
               </span>
               {topic.tags.slice(0, 2).map((tag) => {
@@ -163,8 +184,13 @@ export function DiscussionItem({
             </div>
 
             <div className="mt-1 flex items-start gap-1.5">
-              <h3 className="text-sm sm:text-[15px] font-medium leading-snug line-clamp-2 flex-1"
-                style={{ color: isRead ? t.readFg : t.fg }}>
+              <h3
+                className="font-medium leading-snug line-clamp-2 flex-1"
+                style={{
+                  color: isRead ? t.readFg : t.fg,
+                  fontSize: 'var(--ds-density-item-title, 0.9375rem)',
+                }}
+              >
                 {onSelect ? (
                   <button
                     onClick={() => {

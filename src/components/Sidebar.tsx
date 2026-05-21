@@ -5,17 +5,21 @@ import { UserButton } from './UserButton';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { c } from '@/lib/theme';
 
+type Density = 'compact' | 'standard' | 'cozy';
+
 interface SidebarProps {
   activeView: 'feed' | 'briefs' | 'projects' | 'saved' | 'settings';
   onViewChange: (view: 'feed' | 'briefs' | 'projects' | 'saved' | 'settings') => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  density?: Density;
+  onSetDensity?: (d: Density) => void;
   savedCount?: number;
   isMobileOpen: boolean;
   onMobileToggle: () => void;
 }
 
-export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedCount = 0, isMobileOpen, onMobileToggle }: SidebarProps) {
+export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, density = 'standard', onSetDensity, savedCount = 0, isMobileOpen, onMobileToggle }: SidebarProps) {
   const isDark = theme === 'dark';
   const t = c(isDark);
   const { isSuperAdmin } = useTenantRoles();
@@ -128,6 +132,33 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, savedC
               <Shield className="w-4 h-4" />
               <span>Admin</span>
             </a>
+          </div>
+        )}
+
+        {/* Density toggle */}
+        {onSetDensity && (
+          <div className="px-3 py-2 border-t" style={{ borderColor: t.border }}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--ds-fg-dim)' }}>
+                Density
+              </span>
+              <div className="inline-flex rounded-md p-0.5" style={{ background: 'var(--ds-bg-elev)', border: `1px solid var(--ds-border)` }}>
+                {(['compact', 'standard', 'cozy'] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => onSetDensity(d)}
+                    className="px-1.5 py-1 text-[10px] font-medium rounded transition-colors"
+                    style={{
+                      background: density === d ? 'var(--ds-fg)' : 'transparent',
+                      color: density === d ? 'var(--ds-bg-base)' : 'var(--ds-fg-muted)',
+                    }}
+                    title={d.charAt(0).toUpperCase() + d.slice(1)}
+                  >
+                    {d === 'compact' ? '≡' : d === 'standard' ? '▤' : '☰'}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

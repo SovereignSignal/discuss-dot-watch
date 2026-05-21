@@ -20,6 +20,7 @@ import { useBookmarks } from '@/hooks/useBookmarks';
 import { useReadState } from '@/hooks/useReadState';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { useTheme } from '@/hooks/useTheme';
+import { useDensity } from '@/hooks/useDensity';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useToast } from '@/hooks/useToast';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
@@ -62,6 +63,7 @@ export default function AppPage() {
   const { isRead, markAsRead, markMultipleAsRead, getUnreadCount } = useReadState();
   const { shouldShowOnboarding, completeOnboarding, resetOnboarding } = useOnboarding();
   const { theme, toggleTheme } = useTheme();
+  const { density, setDensity } = useDensity();
   const { toasts, dismissToast, success, error: showError, warning } = useToast();
 
   const { quota } = useStorageMonitor(
@@ -318,6 +320,8 @@ export default function AppPage() {
             onViewChange={setActiveView}
             theme={theme}
             onToggleTheme={toggleTheme}
+            density={density}
+            onSetDensity={setDensity}
             savedCount={bookmarks.length}
             isMobileOpen={isMobileMenuOpen}
             onMobileToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

@@ -309,22 +309,28 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
           </div>
         ) : (
           <div className="space-y-2">
-            {displayedDiscussions.map((topic) => (
-              <MemoizedDiscussionItem key={topic.refId}
-                topic={topic} alerts={alerts}
-                isBookmarked={isBookmarked(topic.refId)}
-                isRead={isRead(topic.refId)}
-                isSelected={selectedTopicRefId === topic.refId}
-                onToggleBookmark={onToggleBookmark}
-                onMarkAsRead={onMarkAsRead}
-                onSelect={onSelectTopic}
-                onTagClick={onTagClick}
-                forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
-                forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
-                dateFilterMode={dateFilterMode}
-                isDark={isDark}
-              />
-            ))}
+            {displayedDiscussions.map((topic) => {
+              const cat = forumCategoryMap.get(topic.protocol.toLowerCase());
+              const vertical: 'crypto' | 'ai' | 'oss' | 'neutral' =
+                cat === 'crypto' || cat === 'ai' || cat === 'oss' ? cat : 'neutral';
+              return (
+                <MemoizedDiscussionItem key={topic.refId}
+                  topic={topic} alerts={alerts}
+                  isBookmarked={isBookmarked(topic.refId)}
+                  isRead={isRead(topic.refId)}
+                  isSelected={selectedTopicRefId === topic.refId}
+                  onToggleBookmark={onToggleBookmark}
+                  onMarkAsRead={onMarkAsRead}
+                  onSelect={onSelectTopic}
+                  onTagClick={onTagClick}
+                  forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
+                  forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
+                  vertical={vertical}
+                  dateFilterMode={dateFilterMode}
+                  isDark={isDark}
+                />
+              );
+            })}
             {hasMore && (
               <div className="py-3 flex justify-center">
                 <button onClick={() => {
