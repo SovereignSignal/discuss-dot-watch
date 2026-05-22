@@ -58,6 +58,7 @@ export default function TenantDashboardPage() {
   const [featuredThreads, setFeaturedThreads] = useState<FeaturedThread[]>([]);
   const [delegateActivityThreads, setDelegateActivityThreads] = useState<DelegateActivityThread[]>([]);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [renderedAt] = useState(() => Date.now());
 
   const t = c(isDark);
   const { isSuperAdmin, canAdminTenant } = useTenantRoles();
@@ -460,7 +461,7 @@ export default function TenantDashboardPage() {
 
       {/* Stale data warning */}
       {dashboard.lastRefreshAt && (() => {
-        const hoursSinceRefresh = (Date.now() - new Date(dashboard.lastRefreshAt!).getTime()) / (1000 * 60 * 60);
+        const hoursSinceRefresh = (renderedAt - new Date(dashboard.lastRefreshAt!).getTime()) / (1000 * 60 * 60);
         if (hoursSinceRefresh <= 8) return null;
         const staleAgo = formatDistanceToNow(new Date(dashboard.lastRefreshAt!), { addSuffix: true });
         return (

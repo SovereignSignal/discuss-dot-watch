@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Terms of Service - discuss.watch',
@@ -44,7 +45,7 @@ export default function TermsPage() {
           We collect: email addresses (for digests), Privy DIDs (for account identity), reading behavior
           (bookmarks, read/unread state, keyword alerts), and forum preferences. This data is used solely to
           provide the Service. We do not sell personal data. See our{' '}
-          <a href="/privacy" style={{ color: '#e4e4e7', textDecoration: 'underline' }}>Privacy Policy</a> for details.
+          <Link href="/privacy" style={{ color: '#e4e4e7', textDecoration: 'underline' }}>Privacy Policy</Link> for details.
         </p>
       </section>
 

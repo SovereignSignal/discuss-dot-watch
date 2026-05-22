@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper } from 'lucide-react';
 import { UserButton } from './UserButton';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
@@ -123,7 +124,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
         {/* Admin */}
         {isSuperAdmin && (
           <div className="px-2 pb-2">
-            <a href="/admin"
+            <Link href="/admin"
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-colors"
               style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-sm)' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--ds-bg-elev)'; }}
@@ -131,7 +132,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
             >
               <Shield className="w-4 h-4" />
               <span>Admin</span>
-            </a>
+            </Link>
           </div>
         )}
 

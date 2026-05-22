@@ -22,11 +22,11 @@ export async function GET() {
     })),
   }));
 
-  // Group by vertical
+  // Group by vertical. Category IDs are currently the top-level verticals.
   const verticals = {
-    crypto: categories.filter(c => c.id.startsWith('crypto-')),
-    ai: categories.filter(c => c.id.startsWith('ai-')),
-    oss: categories.filter(c => c.id.startsWith('oss-')),
+    crypto: categories.filter(c => c.id === 'crypto' || c.id.startsWith('crypto-')),
+    ai: categories.filter(c => c.id === 'ai' || c.id.startsWith('ai-')),
+    oss: categories.filter(c => c.id === 'oss' || c.id.startsWith('oss-')),
   };
 
   return withCors(NextResponse.json({
