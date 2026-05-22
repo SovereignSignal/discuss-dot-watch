@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   ArrowUpDown,
   ArrowUp,
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { DelegateRow, GovernanceScore, DashboardPeriod } from '@/types/delegates';
 import type { c } from '@/lib/theme';
-import type { SortField, SortDir, BrandedColorsResult } from './dashboardUtils';
+import type { SortField, SortDir } from './dashboardUtils';
 import { getActivityTier, dashboardGetRoleColor, dashboardGetRoleLabel, getPostCountForPeriod, getTopicCountForPeriod, getLikesForPeriod, getDaysVisitedForPeriod, getGcrTier } from './dashboardUtils';
 import { GovScorePill } from './OverviewTab';
 import { formatDistanceToNow } from 'date-fns';
@@ -195,13 +196,14 @@ export function DelegateTableRow({
   govScore?: GovernanceScore;
   period?: DashboardPeriod;
 }) {
+  const [now] = useState(() => Date.now());
   const seenAgo = d.lastSeenAt
     ? formatDistanceToNow(new Date(d.lastSeenAt), { addSuffix: true })
     : '\u2014';
 
   const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
   const stale = d.lastSeenAt
-    ? Date.now() - new Date(d.lastSeenAt).getTime() > THIRTY_DAYS_MS
+    ? now - new Date(d.lastSeenAt).getTime() > THIRTY_DAYS_MS
     : false;
 
   return (

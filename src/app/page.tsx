@@ -294,13 +294,13 @@ export default function LandingPage() {
                 REST API and RSS feeds available.
               </p>
               <div className="flex flex-wrap gap-3">
-                <a
+                <Link
                   href="/api/v1"
                   className="inline-flex items-center gap-2 px-4 py-2 font-medium rounded-lg text-sm"
                   style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
                 >
                   API Docs
-                </a>
+                </Link>
               </div>
             </div>
             <div 

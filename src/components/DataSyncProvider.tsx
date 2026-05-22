@@ -2,12 +2,13 @@
 
 import { createContext, useContext, ReactNode, useCallback, useEffect, useState, useRef } from 'react';
 import { useAuth } from './AuthProvider';
+import type { Forum } from '@/types';
 
 interface DataSyncContextType {
   isAuthenticated: boolean;
   userId: string | null;
   // Sync functions - call these when data changes
-  syncForums: (forums: { cname: string; isEnabled: boolean }[]) => void;
+  syncForums: (forums: Forum[]) => void;
   syncAlerts: (alerts: { keyword: string; isEnabled: boolean }[]) => void;
   syncBookmarks: (bookmarks: { topicRefId: string; topicTitle: string; topicUrl: string; protocol: string; folder?: string | null }[]) => void;
   markAsRead: (topicRefId: string) => void;
@@ -125,12 +126,12 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
   }, [userId, user?.email, user?.walletAddress, getAuthHeaders]);
 
   // Sync functions
-  const syncForums = useCallback((forums: { cname: string; isEnabled: boolean }[]) => {
+  const syncForums = useCallback((forums: Forum[]) => {
     if (!userId) return;
     debouncedSync('forums', async () => {
       const authHeaders = await getAuthHeaders();
       await fetch('/api/user/forums', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ forums }),
       });
@@ -244,14 +245,9 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
         const forums = JSON.parse(localForums);
         if (forums.length > 0) {
           promises.push(fetch('/api/user/forums', {
-            method: 'PUT',
+            method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeaders },
-            body: JSON.stringify({
-              forums: forums.map((f: { cname: string; isEnabled: boolean }) => ({
-                cname: f.cname,
-                isEnabled: f.isEnabled,
-              })),
-            }),
+            body: JSON.stringify({ forums }),
           }));
         }
       } catch (e) {

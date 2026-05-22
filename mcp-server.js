@@ -230,8 +230,8 @@ async function handleMessage(message) {
 
 // Main: read from stdin, write to stdout
 async function main() {
-  const readline = require('readline');
-  const rl = readline.createInterface({
+  const { createInterface } = await import('node:readline');
+  const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
     terminal: false,
@@ -244,7 +244,7 @@ async function main() {
       const message = JSON.parse(line);
       const response = await handleMessage(message);
       console.log(JSON.stringify(response));
-    } catch (error) {
+    } catch {
       console.log(JSON.stringify({
         jsonrpc: '2.0',
         id: null,
