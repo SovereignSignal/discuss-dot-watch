@@ -353,6 +353,7 @@ export default function AppPage() {
                       onRefresh={allRefresh}
                       alerts={alerts}
                       searchQuery={debouncedSearchQuery}
+                      searchInputValue={searchQuery}
                       enabledForumIds={[]}
                       forumStates={[]}
                       forums={enabledForums}
@@ -388,6 +389,7 @@ export default function AppPage() {
                       onRefresh={refresh}
                       alerts={alerts}
                       searchQuery={debouncedSearchQuery}
+                      searchInputValue={searchQuery}
                       enabledForumIds={enabledForums.map((f) => f.id)}
                       forumStates={forumStates}
                       forums={enabledForums}
