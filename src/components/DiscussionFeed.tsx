@@ -56,7 +56,10 @@ type DiscussionFeedProps = {
   lastUpdated: Date | null;
   onRefresh: () => void;
   alerts: KeywordAlert[];
+  /** Debounced query used for filtering / server fetch. */
   searchQuery: string;
+  /** Immediate query for the input's displayed value (falls back to searchQuery). Keeps typing responsive while filtering stays debounced. */
+  searchInputValue?: string;
   enabledForumIds: string[];
   forumStates: ForumLoadingState[];
   forums: Forum[];
@@ -85,13 +88,15 @@ type DiscussionFeedProps = {
 export function DiscussionFeed(props: DiscussionFeedProps) {
   const {
     discussions, isLoading, lastUpdated, onRefresh,
-    alerts, searchQuery, enabledForumIds, forumStates, forums,
+    alerts, searchQuery, searchInputValue, enabledForumIds, forumStates, forums,
     isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
     unreadCount, onRemoveForum, activeKeywordFilter,
     onSelectTopic, onTagClick, selectedTopicRefId, isDark = true, totalForumCount,
     onSearchInputChange, onAddAlert, onRemoveAlert, onToggleAlert, onKeywordFilterChange,
   } = props;
   const isServerMode = props.serverMode === true;
+  // Input shows the immediate query so typing is instant; filtering uses the debounced searchQuery.
+  const searchInputDisplay = searchInputValue ?? searchQuery;
   const [displayCount, setDisplayCount] = useState(20);
   const [dateRange, setDateRange] = useState<DateRangeFilter>('week');
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('created');
@@ -279,7 +284,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
                 <input
                   id="discussion-search"
                   type="search"
-                  value={searchQuery}
+                  value={searchInputDisplay}
                   onChange={(e) => onSearchInputChange(e.target.value)}
                   placeholder="Search..."
                   style={{
@@ -292,7 +297,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
                     width: '100%',
                   }}
                 />
-                {searchQuery && (
+                {searchInputDisplay && (
                   <button
                     onClick={() => onSearchInputChange('')}
                     style={{ background: 'transparent', border: 'none', color: 'var(--ds-fg-dim)', cursor: 'pointer', display: 'inline-flex', padding: 2, marginLeft: 4 }}
