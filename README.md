@@ -51,7 +51,7 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 ### Live Now
 - **Discourse (Crypto)** — ~100 forums: Uniswap Governance, Aave, Arbitrum, Optimism, ENS, Compound, Gitcoin, Polkadot, Cosmos Hub, plus the long tail
 - **Discourse (AI)** — ~25 forums: OpenAI Developer, Hugging Face, Modular (Mojo), Cursor, Weights & Biases, Streamlit, CrewAI, Weaviate, Ray, etc.
-- **Discourse (OSS)** — ~95 forums: Rust, Swift, NixOS, Django, Caddy, Traefik, GitLab, Vercel Community, Gradle, Ziggit, Fly.io, etc.
+- **Discourse (OSS)** — ~50 forums: Rust, Swift, NixOS, Django, Caddy, Traefik, GitLab, Vercel Community, Gradle, Ziggit, Fly.io, etc.
 - **EA Forum / LessWrong** — GraphQL integration for AI safety and alignment communities
 - **GitHub Discussions** — 60+ repos including LlamaIndex, Argo CD, Cilium, OpenTelemetry, Vite, TanStack Query, Neovim, DuckDB, ClickHouse, Supabase
 - **Snapshot** — On-chain governance voting data (17 spaces)
@@ -148,7 +148,7 @@ src/
 │   ├── db.ts               # PostgreSQL client and queries
 │   ├── auth.ts             # Server-side auth middleware
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres)
-│   ├── forumPresets.ts     # 160+ pre-configured forum presets
+│   ├── forumPresets.ts     # 220+ pre-configured forum presets
 │   ├── externalSources.ts  # External source registry
 │   ├── theme.ts            # c() theme utility
 │   ├── emailDigest.ts      # AI summarization
@@ -194,7 +194,7 @@ docs/
 ### Forum Analytics / Delegates
 | Route | Method | Purpose |
 |-------|--------|---------|
-| `/api/delegates/[tenant]` | GET | Dashboard data (`?filter=tracked` for tracked-only) |
+| `/api/delegates/[tenant]` | GET | Dashboard data (full roster; tracked-only filtering is client-side) |
 | `/api/delegates/[tenant]/[username]` | GET | Individual contributor detail |
 | `/api/delegates/[tenant]/proposals` | GET | Governance proposals from forum categories |
 | `/api/delegates/[tenant]/snapshot` | GET | Snapshot voting data for tenant's space |
