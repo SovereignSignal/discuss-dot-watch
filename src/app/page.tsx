@@ -260,7 +260,7 @@ export default function LandingPage() {
           
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <FeatureCard icon={<Search />} title="Unified Search" description="Search all forums at once" isDark={isDark} />
-            <FeatureCard icon={<Bell />} title="Keyword Alerts" description="Get notified on topics you care about" isDark={isDark} />
+            <FeatureCard icon={<Bell />} title="Keyword Alerts" description="Filter the feed to topics you care about" isDark={isDark} />
             <FeatureCard icon={<Bookmark />} title="Bookmarks" description="Save discussions to read later" isDark={isDark} />
             <FeatureCard icon={<Eye />} title="Read Tracking" description="Know what you've already seen" isDark={isDark} />
             <FeatureCard icon={<TrendingUp />} title="Hot & Active" description="Spot trending discussions" isDark={isDark} />

@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN), **220+ Discourse forums + 75+ external sources**, AI email digests (Codex + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN), **220+ Discourse forums + 75+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -20,7 +20,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 | Icons | Lucide React |
 | Auth | Privy (`@privy-io/react-auth` client, `@privy-io/node` server) |
 | Email | Resend |
-| AI | Anthropic Codex via @anthropic-ai/sdk (Haiku 4.5 + Sonnet 4.5) |
+| AI | Anthropic Claude via @anthropic-ai/sdk (Haiku 4.5 + Sonnet 4.5) |
 | Validation | Zod 4 |
 | Sanitization | sanitize-html |
 | Cache | Redis (ioredis) |
@@ -245,7 +245,7 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 
 **Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — fetches current user's admin roles from `/api/user/tenant-roles`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
 
-Tenant dashboard uses reserved slugs: `terms, about, privacy, contact, pricing, help, docs, blog, login, signup, settings`.
+Tenant slugs are guarded against the platform's own routes via `STATIC_ROUTES` in `middleware.ts`: `admin, api, app, feed, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
 
 ## Code Conventions
 
@@ -339,7 +339,7 @@ Tags in raw API response can be strings OR objects — handle both.
 |----------|---------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
-| `ANTHROPIC_API_KEY` | Codex API for AI digests |
+| `ANTHROPIC_API_KEY` | Claude API for AI digests |
 | `RESEND_API_KEY` | Email service |
 | `RESEND_FROM_EMAIL` | Sender address |
 | `CRON_SECRET` | Bearer token for cron endpoints |

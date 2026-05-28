@@ -90,7 +90,7 @@ All require `Authorization: Bearer <privy-token>`. Token obtained client-side vi
 
 ### `/api/user/forums`
 - `GET` — Return user's followed forum configurations
-- `POST` / `PUT` — Bulk-replace forum list. Body: `{ forums: { cname, isEnabled }[] }`
+- `POST` — Bulk-replace forum list. Body: `{ forums: { cname, isEnabled }[] }`
 
 ### `/api/user/alerts`
 - `POST` — Add a keyword alert. Body: `{ keyword, isEnabled? }`
@@ -121,7 +121,8 @@ All require `Authorization: Bearer <privy-token>`. Token obtained client-side vi
 Accepts either a `Bearer CRON_SECRET` or a Privy token from the platform admin allow-list (`lib/admin.ts`).
 
 ### `/api/admin`
-- `GET` — Admin dashboard data
+- `GET` — Admin dashboard data (`?action=users|forum-health|forums`)
+- `POST` — Admin actions, discriminated by body `{ action }`: `init-schema`, `refresh-cache`, `clear-redis-cache`, etc.
 
 ### `/api/cache`
 - `GET` — Cache status and per-forum health stats
@@ -129,6 +130,7 @@ Accepts either a `Bearer CRON_SECRET` or a Privy token from the platform admin a
 
 ### `/api/db`
 - `GET` — Database + cache stats
+- `POST` — Initialize the database schema (`initializeSchema()`) and return stats
 
 ### `/api/backfill`
 - `GET` — Backfill job status
@@ -187,11 +189,11 @@ Single endpoint, action discriminated by request body `{ action: '...' }`.
 
 ## Cron Endpoints
 
-All protected by `Authorization: Bearer ${CRON_SECRET}`. Schedule configured in `railway.json`.
+All protected by `Authorization: Bearer ${CRON_SECRET}`. Triggered by an external scheduler hitting these endpoints; `/api/cron/delegates` self-throttles per tenant via each tenant's `refreshIntervalHours` config (default 4h).
 
-| Route | Default schedule | Purpose |
+| Route | Default cadence | Purpose |
 |---|---|---|
-| `/api/cron/delegates` | per-tenant (default every 4h) | Refresh delegate/contributor stats |
+| `/api/cron/delegates` | per-tenant (default every 4h, enforced in-route) | Refresh delegate/contributor stats |
 | `/api/cron/grants-brief` | Daily | Send grants & funding brief email |
 
 Note: Discussion digest sending is invoked via `POST /api/digest` (admin-only), not a separate cron route.

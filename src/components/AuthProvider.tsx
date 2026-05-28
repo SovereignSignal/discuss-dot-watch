@@ -193,7 +193,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           accentColor: '#4f46e5', // Indigo-600 to match app theme
           logo: '/icon.svg',
         },
-        loginMethods: ['email', 'google', 'wallet'],
+        loginMethods: ['email', 'wallet'],
         // Don't auto-create embedded wallets
         embeddedWallets: {
           ethereum: {

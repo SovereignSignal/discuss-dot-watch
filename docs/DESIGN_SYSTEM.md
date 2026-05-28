@@ -5,7 +5,7 @@
 ## Quick reference
 
 ```html
-<html data-theme="dark|light" data-density="compact|standard|cozy">
+<html class="dark|light" data-density="compact|standard|cozy">
 ```
 
 Components read theme + density via CSS variables — no JS theme awareness, no `isDark` prop drilling.

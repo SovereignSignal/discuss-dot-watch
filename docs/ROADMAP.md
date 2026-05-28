@@ -174,7 +174,7 @@
 - [x] Discussion fetching and normalization to `DiscussionTopic` type
 - [x] Rate limiting and caching
 - [x] Unified feed display (Discourse + GitHub via external sources)
-- [x] Full preset coverage (46 GitHub sources configured)
+- [x] Full preset coverage (60 GitHub sources configured as of May 2026; the per-vertical lists below are the original Feb 2026 snapshot)
 
 ### GitHub Presets — OSS (28 repos)
 - [x] Deno, Bun, Fresh

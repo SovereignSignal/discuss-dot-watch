@@ -137,7 +137,7 @@ npm run lint     # Run ESLint
 ### Forum Analytics / Delegates
 | Route | Method | Auth | Purpose |
 |-------|--------|------|---------|
-| `/api/delegates/[tenant]` | GET | Public | Dashboard data (`?filter=tracked` for tracked-only) |
+| `/api/delegates/[tenant]` | GET | Public | Dashboard data (full roster; `trackedCount` in response drives the tracked-only toggle client-side) |
 | `/api/delegates/[tenant]/[username]` | GET | Public | Individual contributor detail |
 | `/api/delegates/[tenant]/proposals` | GET | Public | Governance proposals parsed from forum categories |
 | `/api/delegates/[tenant]/snapshot` | GET | Public | Snapshot voting data for tenant's configured space (`?include=votes` adds per-proposal delegate voter attribution) |
@@ -245,7 +245,7 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 
 **Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — fetches current user's admin roles from `/api/user/tenant-roles`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
 
-Tenant dashboard uses reserved slugs: `terms, about, privacy, contact, pricing, help, docs, blog, login, signup, settings`.
+Tenant slugs are guarded against the platform's own routes via `STATIC_ROUTES` in `middleware.ts`: `admin, api, app, feed, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
 
 ## Code Conventions
 

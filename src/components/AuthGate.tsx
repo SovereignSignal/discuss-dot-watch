@@ -151,8 +151,6 @@ export function AuthGate({ children }: AuthGateProps) {
                 <div className="flex justify-center gap-4 text-sm" style={{ color: t.fgMuted }}>
                   <span>Email</span>
                   <span style={{ color: t.border }}>•</span>
-                  <span>Google</span>
-                  <span style={{ color: t.border }}>•</span>
                   <span>Wallet</span>
                 </div>
               </div>
