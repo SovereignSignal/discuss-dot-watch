@@ -150,8 +150,8 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
                     onClick={() => onSetDensity(d)}
                     className="px-1.5 py-1 text-[10px] font-medium rounded transition-colors"
                     style={{
-                      background: density === d ? 'var(--ds-fg)' : 'transparent',
-                      color: density === d ? 'var(--ds-bg-base)' : 'var(--ds-fg-muted)',
+                      background: density === d ? 'var(--ds-bg-subtle)' : 'transparent',
+                      color: density === d ? 'var(--ds-fg)' : 'var(--ds-fg-muted)',
                     }}
                     title={d.charAt(0).toUpperCase() + d.slice(1)}
                   >

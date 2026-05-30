@@ -86,10 +86,13 @@ export function FeedFilters({
   }));
 
   // Sprint 17: rebuilt with --ds-* tokens. Each filter "group" uses the same
-  // pill pattern from the design system: subtle background, active = inverted
-  // fg/bg pair, hover = bg-elev.
-  const activeBg = 'var(--ds-fg)';
-  const activeFg = 'var(--ds-bg-base)';
+  // pill pattern from the design system: the track is --ds-bg-elev; the active
+  // chip reads as a soft "raised" selection one contrast-step above the track
+  // (--ds-bg-subtle) with full-strength text. Both tokens flip per-theme, so
+  // this stays gentle in light mode instead of the old hard --ds-fg invert,
+  // which rendered as a jarring near-black chip on the light background.
+  const activeBg = 'var(--ds-bg-subtle)';
+  const activeFg = 'var(--ds-fg)';
   const inactiveBg = 'transparent';
   const inactiveFg = 'var(--ds-fg-muted)';
 
