@@ -11,7 +11,7 @@ export function SkipLinks() {
         <li>
           <a
             href="#main-content"
-            className="px-4 py-2 bg-zinc-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="px-4 py-2 bg-[var(--ds-info)] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ds-info)]"
           >
             Skip to main content
           </a>
@@ -19,7 +19,7 @@ export function SkipLinks() {
         <li>
           <a
             href="#search"
-            className="px-4 py-2 bg-zinc-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="px-4 py-2 bg-[var(--ds-info)] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ds-info)]"
           >
             Skip to search
           </a>
@@ -27,7 +27,7 @@ export function SkipLinks() {
         <li>
           <a
             href="#navigation"
-            className="px-4 py-2 bg-zinc-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="px-4 py-2 bg-[var(--ds-info)] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ds-info)]"
           >
             Skip to navigation
           </a>
