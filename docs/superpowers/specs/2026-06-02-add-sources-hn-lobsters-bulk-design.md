@@ -107,9 +107,12 @@ Add both types to the polite-delay set at `:642`.
 
 ## Workstream A — Hacker News client
 
-- **API:** `https://hn.algolia.com/api/v1/search_by_date?query=<terms>&tags=story&numericFilters=points>=<N>&hitsPerPage=<limit>`
-  — no auth, 10,000 req/hr, recency-ordered.
-- **Three sources**, each a per-vertical OR-query + a points quality bar (default 75; tunable):
+- **API:** `https://hn.algolia.com/api/v1/search_by_date` — no auth, 10,000 req/hr, recency-ordered.
+- **OR semantics (verified):** Algolia treats a plain multi-word `query` as **AND** (`LLM GPT Anthropic`
+  → 0 hits). To get per-vertical OR behavior, pass the terms as **both** `query` **and** `optionalWords`,
+  plus `restrictSearchableAttributes=title` for precision (`optionalWords` → 3,370 on-topic hits). Full
+  params: `query=<terms>&optionalWords=<terms>&restrictSearchableAttributes=title&tags=story&numericFilters=points>=<N>&hitsPerPage=<limit>`.
+- **Three sources**, each a per-vertical term list + a points quality bar (default 75; tunable):
 
 | id | category | tier | `hnQuery` (tunable OR terms) |
 |---|---|---|---|
