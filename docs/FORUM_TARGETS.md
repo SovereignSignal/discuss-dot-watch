@@ -12,7 +12,8 @@ All monitorable community platforms across crypto, AI, and OSS.
 | EA Forum / LessWrong | ✅ Live | GraphQL | Done |
 | GitHub Discussions | ✅ Live | GraphQL | Done |
 | Snapshot | ✅ Live | GraphQL | Done |
-| Hacker News | ✅ Live | REST | Done |
+| Hacker News | ✅ Live | Algolia Search | Done (per-vertical topic feeds) |
+| Lobsters | ✅ Live | Tag JSON | Done (AI + OSS) |
 | Commonwealth | 🔜 Planned | REST | Medium |
 | Reddit | 📋 Backlog | REST | Medium |
 | Zulip | 📋 Backlog | REST | Medium |
@@ -220,7 +221,8 @@ High signal, no clean API.
 - Snapshot — ✅ Live via `snapshotClient.ts` (governance voting data)
 - Tally — on-chain governance
 - Loomio — cooperative governance
-- Hacker News — ✅ Live via `externalSources.ts` (keyword monitoring)
+- Hacker News — ✅ Live via `hackerNewsClient.ts` (per-vertical topic feeds: hn-ai, hn-oss, hn-crypto)
+- Lobsters — ✅ Live via `lobstersClient.ts` (tag feeds: lobsters-ai, lobsters-oss)
 
 **Government/Institutional (feeds Grant Wires)**
 - grants.gov
