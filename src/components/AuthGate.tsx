@@ -4,6 +4,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { LogIn, Loader2, Globe, Zap, Bell, Shield, ArrowRight, Sun, Moon } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 import { c } from '@/lib/theme';
+import { getTotalForumCount } from '@/lib/forumPresets';
 
 interface AuthGateProps {
   children: ReactNode;
@@ -88,7 +89,7 @@ export function AuthGate({ children }: AuthGateProps) {
           </h2>
 
           <div className="space-y-4">
-            <FeatureItem icon={<Globe className="w-5 h-5" />} title="100+ Forums" description="Crypto, AI, and open source communities" t={t} />
+            <FeatureItem icon={<Globe className="w-5 h-5" />} title={`${getTotalForumCount()} Forums`} description="Crypto, AI, and open source communities" t={t} />
             <FeatureItem icon={<Zap className="w-5 h-5" />} title="Save Hours" description="One feed instead of dozens of tabs" t={t} />
             <FeatureItem icon={<Bell className="w-5 h-5" />} title="Keyword Alerts" description="Never miss important discussions" t={t} />
             <FeatureItem icon={<Shield className="w-5 h-5" />} title="Privacy First" description="Optional sync, works offline" t={t} />
@@ -158,7 +159,7 @@ export function AuthGate({ children }: AuthGateProps) {
 
             {/* Mobile benefits */}
             <div className="lg:hidden mt-8 grid grid-cols-2 gap-3">
-              <MobileBenefit icon={<Globe className="w-4 h-4" />} text="100+ forums" t={t} />
+              <MobileBenefit icon={<Globe className="w-4 h-4" />} text={`${getTotalForumCount()} forums`} t={t} />
               <MobileBenefit icon={<Zap className="w-4 h-4" />} text="Save hours" t={t} />
               <MobileBenefit icon={<Bell className="w-4 h-4" />} text="Alerts" t={t} />
               <MobileBenefit icon={<Shield className="w-4 h-4" />} text="Private" t={t} />

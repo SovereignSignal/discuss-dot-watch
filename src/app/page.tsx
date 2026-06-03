@@ -340,7 +340,7 @@ export default function LandingPage() {
             Ready to simplify your reading?
           </h2>
           <p className="mb-8" style={{ color: isDark ? '#71717a' : '#6b7280' }}>
-            No signup required.
+            Free — sign in with email or wallet.
           </p>
           <Link
             href="/app"
