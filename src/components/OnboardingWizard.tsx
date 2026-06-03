@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { X, ChevronRight, ChevronLeft, Check, Bell, Bookmark, Search, Plus } from 'lucide-react';
-import { FORUM_CATEGORIES, ForumPreset } from '@/lib/forumPresets';
+import { FORUM_CATEGORIES, ForumPreset, getTotalForumCount } from '@/lib/forumPresets';
 import { useTheme } from '@/hooks/useTheme';
 import { c } from '@/lib/theme';
 
@@ -179,7 +179,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
               {[
                 { n: '1', title: 'Set Up Keyword Alerts', desc: 'Use the right sidebar to add keywords. Discussions matching your keywords will be highlighted.' },
                 { n: '2', title: 'Bookmark Important Discussions', desc: 'Click the bookmark icon on any discussion to save it. Access saved discussions from the "Saved" view.' },
-                { n: '3', title: 'Add More Forums Anytime', desc: 'Go to "Communities" in the sidebar to browse 100+ forums or add your own custom Discourse forum URL.' },
+                { n: '3', title: 'Add More Forums Anytime', desc: `Go to "Communities" in the sidebar to browse ${getTotalForumCount()} forums or add your own custom Discourse forum URL.` },
               ].map((tip) => (
                 <div key={tip.n} className="p-4 rounded-xl flex gap-4" style={{ backgroundColor: t.bgSubtle, border: `1px solid ${t.border}` }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold"
