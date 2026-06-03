@@ -1068,6 +1068,20 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         sourceType: 'lobsters',
         sourceId: 'lobsters-ai',
       },
+      {
+        name: 'fast.ai',
+        url: 'https://forums.fast.ai/',
+        description: 'fast.ai deep-learning course and library community',
+        logoUrl: 'https://forums.fast.ai/favicon.ico',
+        tier: 2,
+      },
+      {
+        name: 'n8n',
+        url: 'https://community.n8n.io/',
+        description: 'n8n workflow-automation and AI-agent community',
+        logoUrl: 'https://community.n8n.io/favicon.ico',
+        tier: 2,
+      },
 
     ],
   },
