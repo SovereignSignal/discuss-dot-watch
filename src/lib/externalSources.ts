@@ -934,6 +934,29 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     hnQuery: 'Ethereum Bitcoin rollup zero-knowledge DeFi stablecoin onchain Solana zk blockchain',
     minPoints: 75,
   },
+  // Lobsters — per-vertical tag feeds (public JSON, no auth). Crypto skipped (low volume).
+  {
+    id: 'lobsters-ai',
+    name: 'Lobsters · AI',
+    sourceType: 'lobsters',
+    category: 'ai',
+    description: 'Recent Lobsters discussions tagged AI/ML',
+    logoUrl: 'https://lobste.rs/favicon.ico',
+    tier: 2,
+    enabled: true,
+    lobstersTags: 'ai',
+  },
+  {
+    id: 'lobsters-oss',
+    name: 'Lobsters · Open Source',
+    sourceType: 'lobsters',
+    category: 'oss',
+    description: 'Recent Lobsters discussions on programming and open source',
+    logoUrl: 'https://lobste.rs/favicon.ico',
+    tier: 2,
+    enabled: true,
+    lobstersTags: 'programming,rust,go,python,javascript,web,devops,compsci',
+  },
 ];
 
 export function getEnabledExternalSources(): ExternalSource[] {

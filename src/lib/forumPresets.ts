@@ -10,7 +10,7 @@ export interface ForumPreset {
   token?: string;
   logoUrl?: string;
   tier: 1 | 2 | 3;
-  sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews';
+  sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews' | 'lobsters';
   sourceId?: string;  // Maps to EXTERNAL_SOURCES[].id for non-Discourse sources
 }
 
@@ -1059,6 +1059,15 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         sourceType: 'hackernews',
         sourceId: 'hn-ai',
       },
+      {
+        name: 'Lobsters · AI',
+        url: 'https://lobste.rs/t/ai',
+        description: 'Recent Lobsters discussions tagged AI/ML',
+        logoUrl: 'https://lobste.rs/favicon.ico',
+        tier: 2,
+        sourceType: 'lobsters',
+        sourceId: 'lobsters-ai',
+      },
 
     ],
   },
@@ -1819,6 +1828,15 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
         sourceType: 'hackernews',
         sourceId: 'hn-oss',
+      },
+      {
+        name: 'Lobsters · Open Source',
+        url: 'https://lobste.rs/t/programming',
+        description: 'Recent Lobsters discussions on programming and open source',
+        logoUrl: 'https://lobste.rs/favicon.ico',
+        tier: 2,
+        sourceType: 'lobsters',
+        sourceId: 'lobsters-oss',
       },
 
     ],
