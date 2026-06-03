@@ -10,7 +10,7 @@ export interface ForumPreset {
   token?: string;
   logoUrl?: string;
   tier: 1 | 2 | 3;
-  sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews';
+  sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews' | 'lobsters';
   sourceId?: string;  // Maps to EXTERNAL_SOURCES[].id for non-Discourse sources
 }
 
@@ -846,6 +846,15 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://avatars.githubusercontent.com/u/20820676',
         tier: 2,
       },
+      {
+        name: 'Hacker News · Crypto',
+        url: 'https://news.ycombinator.com/#crypto',
+        description: 'Top HN stories on Ethereum, Bitcoin, rollups, and onchain protocols',
+        logoUrl: 'https://news.ycombinator.com/favicon.ico',
+        tier: 2,
+        sourceType: 'hackernews',
+        sourceId: 'hn-crypto',
+      },
 
     ],
   },
@@ -1040,6 +1049,38 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
         sourceType: 'github',
         sourceId: 'github-llamaindex',
+      },
+      {
+        name: 'Hacker News · AI',
+        url: 'https://news.ycombinator.com/#ai',
+        description: 'Top HN stories on LLMs, AI models, and ML tooling',
+        logoUrl: 'https://news.ycombinator.com/favicon.ico',
+        tier: 1,
+        sourceType: 'hackernews',
+        sourceId: 'hn-ai',
+      },
+      {
+        name: 'Lobsters · AI',
+        url: 'https://lobste.rs/t/ai',
+        description: 'Recent Lobsters discussions tagged AI/ML',
+        logoUrl: 'https://lobste.rs/favicon.ico',
+        tier: 2,
+        sourceType: 'lobsters',
+        sourceId: 'lobsters-ai',
+      },
+      {
+        name: 'fast.ai',
+        url: 'https://forums.fast.ai/',
+        description: 'fast.ai deep-learning course and library community',
+        logoUrl: 'https://forums.fast.ai/favicon.ico',
+        tier: 2,
+      },
+      {
+        name: 'n8n',
+        url: 'https://community.n8n.io/',
+        description: 'n8n workflow-automation and AI-agent community',
+        logoUrl: 'https://community.n8n.io/favicon.ico',
+        tier: 2,
       },
 
     ],
@@ -1792,6 +1833,24 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
         sourceType: 'github',
         sourceId: 'github-pulumi',
+      },
+      {
+        name: 'Hacker News · Open Source',
+        url: 'https://news.ycombinator.com/#oss',
+        description: 'Top HN stories on open-source projects, maintainers, and licensing',
+        logoUrl: 'https://news.ycombinator.com/favicon.ico',
+        tier: 1,
+        sourceType: 'hackernews',
+        sourceId: 'hn-oss',
+      },
+      {
+        name: 'Lobsters · Open Source',
+        url: 'https://lobste.rs/t/programming,rust,go,python,javascript,web,devops,compsci',
+        description: 'Recent Lobsters discussions on programming and open source',
+        logoUrl: 'https://lobste.rs/favicon.ico',
+        tier: 2,
+        sourceType: 'lobsters',
+        sourceId: 'lobsters-oss',
       },
 
     ],

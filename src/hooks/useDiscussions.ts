@@ -46,7 +46,7 @@ export function useDiscussions(forums: Forum[]): UseDiscussionsResult {
     }
 
     // Separate Discourse forums from external sources
-    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'hackernews', 'snapshot']);
+    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'hackernews', 'snapshot', 'lobsters']);
     const discourseForums = enabledForums.filter(f => !f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType));
     const externalForums = enabledForums.filter(f => f.sourceType && EXTERNAL_SOURCE_TYPES.has(f.sourceType));
 

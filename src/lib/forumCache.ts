@@ -18,6 +18,8 @@ import { getEnabledExternalSources } from './externalSources';
 import { fetchEAForumPosts } from './eaForumClient';
 import { fetchGitHubDiscussions, isGitHubConfigured } from './githubDiscussionsClient';
 import { fetchSnapshotProposals } from './snapshotClient';
+import { fetchHackerNewsStories } from './hackerNewsClient';
+import { fetchLobstersStories } from './lobstersClient';
 import { 
   getCachedTopics, 
   setCachedTopics, 
@@ -582,6 +584,10 @@ async function refreshExternalSources(): Promise<void> {
         result = await fetchGitHubDiscussions(source.repoRef, 30);
       } else if (source.sourceType === 'snapshot' && source.snapshotSpace) {
         result = await fetchSnapshotProposals(source.snapshotSpace, 20);
+      } else if (source.sourceType === 'hackernews' && source.hnQuery) {
+        result = await fetchHackerNewsStories(source.hnQuery, source.minPoints ?? 75, 30);
+      } else if (source.sourceType === 'lobsters' && source.lobstersTags) {
+        result = await fetchLobstersStories(source.lobstersTags, 30);
       } else {
         continue;
       }
@@ -639,7 +645,12 @@ async function refreshExternalSources(): Promise<void> {
       }
 
       // Small delay between API calls to be polite
-      if (source.sourceType === 'github' || source.sourceType === 'snapshot') {
+      if (
+        source.sourceType === 'github' ||
+        source.sourceType === 'snapshot' ||
+        source.sourceType === 'hackernews' ||
+        source.sourceType === 'lobsters'
+      ) {
         await sleep(1000);
       }
     } catch (error) {
@@ -678,7 +689,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   
   try {
     // Get all Discourse forums from specified tiers (skip external sources like EA Forum, LessWrong)
-    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews']);
+    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews', 'lobsters']);
     const forumsWithCategory = FORUM_CATEGORIES.flatMap(cat => 
       cat.forums
         .filter(f => tiers.includes(f.tier) && (!f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType)))

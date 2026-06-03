@@ -14,7 +14,7 @@ export type ForumCategoryId =
   | 'custom';
 
 // Source platform types
-export type SourceType = 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews';
+export type SourceType = 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews' | 'lobsters';
 
 export interface Forum {
   id: string;

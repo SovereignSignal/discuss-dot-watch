@@ -18,6 +18,9 @@ export interface ExternalSource {
   enabled: boolean;
   repoRef?: string; // GitHub "owner/repo" format (for sourceType: 'github')
   snapshotSpace?: string; // Snapshot space ID e.g. "aave.eth" (for sourceType: 'snapshot')
+  hnQuery?: string; // HN topic terms, used as query + optionalWords (for sourceType: 'hackernews')
+  minPoints?: number; // HN points quality threshold (for sourceType: 'hackernews'; default 75)
+  lobstersTags?: string; // Comma-separated Lobsters tags (for sourceType: 'lobsters')
 }
 
 export const EXTERNAL_SOURCES: ExternalSource[] = [
@@ -894,17 +897,100 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     enabled: true,
     repoRef: 'pulumi/pulumi',
   },
-  // Future sources (disabled for now)
-  // {
-  //   id: 'hackernews',
-  //   name: 'Hacker News',
-  //   sourceType: 'hackernews',
-  //   category: 'cross',
-  //   description: 'Tech news and discussions',
-  //   logoUrl: 'https://news.ycombinator.com/favicon.ico',
-  //   tier: 2,
-  //   enabled: false,
-  // },
+  // Hacker News — per-vertical topic feeds (Algolia API, no auth)
+  {
+    id: 'hn-ai',
+    name: 'Hacker News · AI',
+    sourceType: 'hackernews',
+    category: 'ai',
+    description: 'Top HN stories on LLMs, AI models, and ML tooling',
+    logoUrl: 'https://news.ycombinator.com/favicon.ico',
+    tier: 1,
+    enabled: true,
+    hnQuery: 'LLM GPT transformer inference Llama Anthropic OpenAI Mistral embeddings RAG finetuning Gemini Claude diffusion',
+    minPoints: 75,
+  },
+  {
+    id: 'hn-oss',
+    name: 'Hacker News · Open Source',
+    sourceType: 'hackernews',
+    category: 'oss',
+    description: 'Top HN stories on open-source projects, maintainers, and licensing',
+    logoUrl: 'https://news.ycombinator.com/favicon.ico',
+    tier: 1,
+    enabled: true,
+    hnQuery: 'open-source FOSS maintainer copyleft GPL AGPL self-hosted upstream kernel Linux',
+    minPoints: 75,
+  },
+  {
+    id: 'hn-crypto',
+    name: 'Hacker News · Crypto',
+    sourceType: 'hackernews',
+    category: 'crypto',
+    description: 'Top HN stories on Ethereum, Bitcoin, rollups, and onchain protocols',
+    logoUrl: 'https://news.ycombinator.com/favicon.ico',
+    tier: 2,
+    enabled: true,
+    hnQuery: 'Ethereum Bitcoin rollup zero-knowledge DeFi stablecoin onchain Solana zk blockchain',
+    minPoints: 75,
+  },
+  // Snapshot governance spaces — Sprint 18 bulk additions (confirmed active proposals)
+  {
+    id: 'snapshot-morpho',
+    name: 'Morpho (Snapshot)',
+    sourceType: 'snapshot',
+    category: 'crypto',
+    description: 'Morpho DAO governance proposals',
+    logoUrl: 'https://assets.coingecko.com/coins/images/29837/small/Morpho-token-icon.png',
+    tier: 2,
+    enabled: true,
+    snapshotSpace: 'morpho.eth',
+  },
+  {
+    id: 'snapshot-starknet',
+    name: 'Starknet (Snapshot)',
+    sourceType: 'snapshot',
+    category: 'crypto',
+    description: 'Starknet governance proposals',
+    logoUrl: 'https://assets.coingecko.com/coins/images/26433/small/starknet.png',
+    tier: 2,
+    enabled: true,
+    snapshotSpace: 'starknet.eth',
+  },
+  {
+    id: 'snapshot-apecoin',
+    name: 'ApeCoin (Snapshot)',
+    sourceType: 'snapshot',
+    category: 'crypto',
+    description: 'ApeCoin DAO governance proposals',
+    logoUrl: 'https://assets.coingecko.com/coins/images/24383/small/apecoin.jpg',
+    tier: 2,
+    enabled: true,
+    snapshotSpace: 'apecoin.eth',
+  },
+  // Lobsters — per-vertical tag feeds (public JSON, no auth). Crypto skipped (low volume).
+  {
+    id: 'lobsters-ai',
+    name: 'Lobsters · AI',
+    sourceType: 'lobsters',
+    category: 'ai',
+    description: 'Recent Lobsters discussions tagged AI/ML',
+    logoUrl: 'https://lobste.rs/favicon.ico',
+    tier: 2,
+    enabled: true,
+    lobstersTags: 'ai',
+  },
+  {
+    id: 'lobsters-oss',
+    name: 'Lobsters · Open Source',
+    sourceType: 'lobsters',
+    category: 'oss',
+    description: 'Recent Lobsters discussions on programming and open source',
+    logoUrl: 'https://lobste.rs/favicon.ico',
+    tier: 2,
+    enabled: true,
+    lobstersTags: 'programming,rust,go,python,javascript,web,devops,compsci',
+  },
 ];
 
 export function getEnabledExternalSources(): ExternalSource[] {
