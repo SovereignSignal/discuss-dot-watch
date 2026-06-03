@@ -11,7 +11,7 @@ const ForumDataSchema = z.array(z.object({
   logoUrl: z.string().max(500).optional().nullable(),
   token: z.string().max(50).optional().nullable(),
   category: z.string().max(50).optional().nullable(),
-  sourceType: z.enum(['discourse', 'ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews']).optional().nullable(),
+  sourceType: z.enum(['discourse', 'ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews', 'lobsters']).optional().nullable(),
   discourseForum: z.object({
     url: z.string().max(500),
     categoryId: z.number().int().optional().nullable(),
