@@ -14,7 +14,7 @@ const LOBSTERS_BASE = 'https://lobste.rs/t';
 interface LobstersStory {
   short_id: string;
   title: string;
-  url: string;
+  url: string; // submitted external link — not surfaced; externalUrl uses comments_url instead
   score: number;
   comment_count: number;
   created_at: string;
@@ -43,6 +43,9 @@ export async function fetchLobstersStories(
       headers: { 'User-Agent': 'discuss.watch/1.0' },
     });
 
+    if (response.status === 429) {
+      return { posts: [], error: 'Lobsters API rate limit exceeded' };
+    }
     if (!response.ok) {
       return { posts: [], error: `Lobsters API HTTP ${response.status}` };
     }
@@ -78,7 +81,7 @@ export async function fetchLobstersStories(
         createdAt: s.created_at,
         bumpedAt: s.created_at,
         forumUrl: 'https://lobste.rs/',
-        excerpt: truncateText(s.description_plain ?? s.description ?? '', 200),
+        excerpt: truncateText(s.description_plain ?? stripHtml(s.description ?? ''), 200),
         sourceType: 'lobsters' as SourceType,
         authorName: author,
         score,
@@ -105,7 +108,21 @@ function hashStringToNumber(str: string): number {
   return Math.abs(hash);
 }
 
-function truncateText(text: string, maxLength: number): string {
+/** Lobsters description field can contain HTML; reduce to plain text for the excerpt. */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateText(text: string | undefined, maxLength: number): string {
   if (!text) return '';
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength).trim() + '…';

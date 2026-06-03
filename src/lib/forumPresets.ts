@@ -1831,7 +1831,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       },
       {
         name: 'Lobsters · Open Source',
-        url: 'https://lobste.rs/t/programming',
+        url: 'https://lobste.rs/t/programming,rust,go,python,javascript,web,devops,compsci',
         description: 'Recent Lobsters discussions on programming and open source',
         logoUrl: 'https://lobste.rs/favicon.ico',
         tier: 2,
