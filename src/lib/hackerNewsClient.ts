@@ -13,7 +13,12 @@
  */
 import type { DiscussionTopic, SourceType } from '@/types';
 
+// search_by_date ranks by recency (newest first); points>= filter provides quality signal.
+// Use /search instead if relevance ranking is ever preferred over recency.
 const HN_ENDPOINT = 'https://hn.algolia.com/api/v1/search_by_date';
+
+// Self-imposed payload cap — keeps response size predictable regardless of caller's limit.
+const MAX_HITS_PER_PAGE = 50;
 
 interface HnHit {
   objectID: string;
@@ -47,7 +52,7 @@ export async function fetchHackerNewsStories(
     restrictSearchableAttributes: 'title',
     tags: 'story',
     numericFilters: `points>=${minPoints}`,
-    hitsPerPage: String(Math.min(limit, 50)),
+    hitsPerPage: String(Math.min(limit, MAX_HITS_PER_PAGE)),
   });
 
   try {
@@ -92,7 +97,7 @@ export async function fetchHackerNewsStories(
           createdAt: h.created_at,
           bumpedAt: h.created_at,
           forumUrl: 'https://news.ycombinator.com/',
-          excerpt: truncateText(h.story_text ?? '', 200),
+          excerpt: truncateText(stripHtml(h.story_text ?? ''), 200),
           sourceType: 'hackernews' as SourceType,
           authorName: h.author,
           score: points,
@@ -120,7 +125,21 @@ function hashStringToNumber(str: string): number {
   return Math.abs(hash);
 }
 
-function truncateText(text: string, maxLength: number): string {
+/** HN story_text is HTML; reduce to plain text for the excerpt. */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateText(text: string | undefined, maxLength: number): string {
   if (!text) return '';
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength).trim() + '…';
