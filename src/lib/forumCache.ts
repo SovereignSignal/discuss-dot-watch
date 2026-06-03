@@ -18,6 +18,7 @@ import { getEnabledExternalSources } from './externalSources';
 import { fetchEAForumPosts } from './eaForumClient';
 import { fetchGitHubDiscussions, isGitHubConfigured } from './githubDiscussionsClient';
 import { fetchSnapshotProposals } from './snapshotClient';
+import { fetchHackerNewsStories } from './hackerNewsClient';
 import { 
   getCachedTopics, 
   setCachedTopics, 
@@ -582,6 +583,8 @@ async function refreshExternalSources(): Promise<void> {
         result = await fetchGitHubDiscussions(source.repoRef, 30);
       } else if (source.sourceType === 'snapshot' && source.snapshotSpace) {
         result = await fetchSnapshotProposals(source.snapshotSpace, 20);
+      } else if (source.sourceType === 'hackernews' && source.hnQuery) {
+        result = await fetchHackerNewsStories(source.hnQuery, source.minPoints ?? 75, 30);
       } else {
         continue;
       }
@@ -639,7 +642,11 @@ async function refreshExternalSources(): Promise<void> {
       }
 
       // Small delay between API calls to be polite
-      if (source.sourceType === 'github' || source.sourceType === 'snapshot') {
+      if (
+        source.sourceType === 'github' ||
+        source.sourceType === 'snapshot' ||
+        source.sourceType === 'hackernews'
+      ) {
         await sleep(1000);
       }
     } catch (error) {

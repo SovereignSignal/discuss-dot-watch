@@ -846,6 +846,15 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://avatars.githubusercontent.com/u/20820676',
         tier: 2,
       },
+      {
+        name: 'Hacker News · Crypto',
+        url: 'https://news.ycombinator.com/#crypto',
+        description: 'Top HN stories on Ethereum, Bitcoin, rollups, and onchain protocols',
+        logoUrl: 'https://news.ycombinator.com/favicon.ico',
+        tier: 2,
+        sourceType: 'hackernews',
+        sourceId: 'hn-crypto',
+      },
 
     ],
   },
@@ -1040,6 +1049,15 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
         sourceType: 'github',
         sourceId: 'github-llamaindex',
+      },
+      {
+        name: 'Hacker News · AI',
+        url: 'https://news.ycombinator.com/#ai',
+        description: 'Top HN stories on LLMs, AI models, and ML tooling',
+        logoUrl: 'https://news.ycombinator.com/favicon.ico',
+        tier: 1,
+        sourceType: 'hackernews',
+        sourceId: 'hn-ai',
       },
 
     ],
@@ -1792,6 +1810,15 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
         sourceType: 'github',
         sourceId: 'github-pulumi',
+      },
+      {
+        name: 'Hacker News · Open Source',
+        url: 'https://news.ycombinator.com/#oss',
+        description: 'Top HN stories on open-source projects, maintainers, and licensing',
+        logoUrl: 'https://news.ycombinator.com/favicon.ico',
+        tier: 1,
+        sourceType: 'hackernews',
+        sourceId: 'hn-oss',
       },
 
     ],
