@@ -55,7 +55,7 @@ Fetch a single topic with all posts for the inline reader.
 - Response: `{ topic: TopicDetail }`
 
 ### `GET /api/external-sources`
-Fetch from non-Discourse sources (EA Forum, LessWrong, GitHub Discussions, Snapshot, HN).
+Fetch from non-Discourse sources (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters).
 - Query: `sourceId`
 - Response: `{ topics: DiscussionTopic[] }`
 
