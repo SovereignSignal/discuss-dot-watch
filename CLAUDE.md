@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Hacker News, Lobsters), **220+ Discourse forums + 90+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Hacker News, Lobsters), **330+ forums + 150+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -48,8 +48,8 @@ src/
 │   ├── auth.ts             # Server-side auth (verifyAuth, verifyAdminAuth, verifyTenantAdmin, checkIsSuperAdmin)
 │   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres) + getForumHealthFromCache
-│   ├── forumPresets.ts     # 220+ pre-configured Discourse forum presets by category
-│   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters) — 90+ entries
+│   ├── forumPresets.ts     # 330+ pre-configured forum & source presets by category (Discourse + dual-registered GitHub/HN/Lobsters)
+│   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters) — 150+ entries
 │   ├── theme.ts            # c() theme utility (legacy; new components prefer --ds-* CSS variables)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
 │   ├── url.ts              # URL validation, normalization, and SSRF protection

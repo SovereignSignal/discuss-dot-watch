@@ -9,7 +9,7 @@
 ## Current State (June 2026)
 
 ### Core platform
-- ✅ **220+ Discourse forums + 90+ external sources** monitored across crypto, AI, OSS (live count in `src/lib/forumPresets.ts` + `src/lib/externalSources.ts`)
+- ✅ **330+ forums + 150+ external sources** monitored across crypto, AI, OSS (live count in `src/lib/forumPresets.ts` + `src/lib/externalSources.ts`)
 - ✅ **Hacker News + Lobsters** as per-vertical topic feeds (Algolia Search / tag JSON; HN links to comment threads)
 - ✅ Keyword alerts with body-match-style filtering, surfaced as clickable chips above the feed (Sprint 16)
 - ✅ Email digests with AI summaries (Claude Sonnet)
