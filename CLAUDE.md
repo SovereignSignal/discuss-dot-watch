@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN), **220+ Discourse forums + 75+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Hacker News, Lobsters), **220+ Discourse forums + 90+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -49,7 +49,7 @@ src/
 │   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres) + getForumHealthFromCache
 │   ├── forumPresets.ts     # 220+ pre-configured Discourse forum presets by category
-│   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, HN) — 75+ entries
+│   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters) — 90+ entries
 │   ├── theme.ts            # c() theme utility (legacy; new components prefer --ds-* CSS variables)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
 │   ├── url.ts              # URL validation, normalization, and SSRF protection
@@ -59,6 +59,8 @@ src/
 │   ├── eaForumClient.ts    # EA Forum / LessWrong GraphQL client
 │   ├── githubDiscussionsClient.ts  # GitHub Discussions GraphQL client
 │   ├── snapshotClient.ts   # Snapshot voting client (feed-side; separate from delegates/snapshotClient.ts)
+│   ├── hackerNewsClient.ts # Hacker News client (Algolia Search API; per-vertical topic feeds, links to comment threads)
+│   ├── lobstersClient.ts   # Lobsters client (public tag JSON feeds; AI + OSS)
 │   ├── logoUtils.ts        # Per-protocol logo URL resolver
 │   ├── rateLimit.ts        # Outgoing rate limit for upstream fetches
 │   ├── redis.ts            # ioredis client setup
@@ -86,7 +88,7 @@ npm run lint     # Run ESLint
 
 ### Data Flow
 1. **Forum Cache** (`lib/forumCache.ts`) — Background refresh fetches all preset forums every 15 min, stores in Redis + memory + Postgres
-2. **External Sources** (`lib/externalSources.ts`) — Fetches from EA Forum, GitHub Discussions, Snapshot, HN via dedicated clients
+2. **External Sources** (`lib/externalSources.ts`) — Fetches from EA Forum, GitHub Discussions, Snapshot, Hacker News, Lobsters via dedicated clients
 3. **API Routes** — Serve cached data, proxy individual topic requests
 4. **Auth Layer** (`lib/auth.ts`) — Three levels of auth:
    - `verifyAuth()` — Privy token verification for user routes
@@ -170,7 +172,7 @@ npm run lint     # Run ESLint
 Types are defined in `src/types/index.ts` and `src/types/delegates.ts`. Key types to know:
 
 - **`ForumCategoryId`**: `'crypto' | 'ai' | 'oss' | 'custom'` (plus legacy aliases)
-- **`SourceType`**: `'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews'`
+- **`SourceType`**: `'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews' | 'lobsters'`
 - **`Forum`**: Forum config with `id`, `cname`, `name`, `sourceType`, `discourseForum.url`, `isEnabled`
 - **`DiscussionTopic`**: Transformed topic with `refId` (protocol-id), `excerpt`, optional `sourceType`/`externalUrl`
 - **`DiscussionPost`**: Individual post within a topic (used by inline reader)

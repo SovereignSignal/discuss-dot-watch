@@ -6,15 +6,16 @@
 
 ---
 
-## Current State (May 2026)
+## Current State (June 2026)
 
 ### Core platform
-- ✅ **220+ Discourse forums + 75+ external sources** monitored across crypto, AI, OSS (live count in `src/lib/forumPresets.ts` + `src/lib/externalSources.ts`)
+- ✅ **220+ Discourse forums + 90+ external sources** monitored across crypto, AI, OSS (live count in `src/lib/forumPresets.ts` + `src/lib/externalSources.ts`)
+- ✅ **Hacker News + Lobsters** as per-vertical topic feeds (Algolia Search / tag JSON; HN links to comment threads)
 - ✅ Keyword alerts with body-match-style filtering, surfaced as clickable chips above the feed (Sprint 16)
 - ✅ Email digests with AI summaries (Claude Sonnet)
 - ✅ Daily Grants & Funding email brief
 - ✅ Activity badges (Hot, Active, NEW)
-- ✅ Privy authentication (email, Google, wallet)
+- ✅ Privy authentication (email, wallet)
 - ✅ Light/dark theme support — token-driven via `--ds-*` CSS variables (Sprint 12)
 - ✅ Density modes (Compact / Standard / Cozy) with cross-device sync (Sprint 12, 14)
 - ✅ Inline discussion reader (480px right pane, mobile full-screen)
@@ -262,8 +263,9 @@
 - [ ] Python-Dev
 - [ ] Apache Foundation lists
 
-### Hacker News
-- [x] Keyword monitoring for funding announcements (via `externalSources.ts`)
+### Hacker News & Lobsters — ✅ Shipped (see Current State)
+- [x] Hacker News: per-vertical topic feeds (hn-ai / hn-oss / hn-crypto) via `hackerNewsClient.ts`, linking to comment threads
+- [x] Lobsters: AI + OSS tag feeds via `lobstersClient.ts`
 
 ---
 
