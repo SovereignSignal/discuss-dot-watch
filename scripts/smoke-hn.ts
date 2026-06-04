@@ -10,7 +10,7 @@ for (const p of posts) {
   assert.ok(p.refId.startsWith('hackernews:'), `bad refId: ${p.refId}`);
   assert.equal(p.sourceType, 'hackernews');
   assert.ok(p.title.length > 0, 'title present');
-  assert.ok(p.externalUrl?.startsWith('http'), `bad externalUrl: ${p.externalUrl}`);
+  assert.ok(p.externalUrl?.includes('news.ycombinator.com/item?id='), `expected HN comments-thread URL, got: ${p.externalUrl}`);
   assert.equal(typeof p.score, 'number');
   assert.ok((p.score ?? 0) >= 75, `points below threshold: ${p.score}`);
 }
