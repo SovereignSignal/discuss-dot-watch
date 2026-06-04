@@ -77,7 +77,7 @@ export async function fetchHackerNewsStories(
       .map((h) => {
         const points = h.points ?? 0;
         const comments = h.num_comments ?? 0;
-        const itemUrl = `https://news.ycombinator.com/item?id=${h.objectID}`;
+        const itemUrl = `https://news.ycombinator.com/item?id=${h.objectID}`; // the HN comments thread
         return {
           id: hashStringToNumber(h.objectID),
           refId: `hackernews:${h.objectID}`,
@@ -101,7 +101,7 @@ export async function fetchHackerNewsStories(
           sourceType: 'hackernews' as SourceType,
           authorName: h.author,
           score: points,
-          externalUrl: h.url ?? itemUrl,
+          externalUrl: itemUrl, // link to the HN discussion thread, not the source article (this is a discussion tracker)
         };
       });
 
