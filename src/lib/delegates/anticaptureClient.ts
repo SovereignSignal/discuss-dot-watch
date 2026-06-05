@@ -57,13 +57,31 @@ export interface FeedEvent {
   metadata?: Record<string, unknown>;
 }
 
+/** A point in a DAO's total-treasury time series (USD). */
+export interface TreasuryPoint {
+  date: number;
+  value: number;
+}
+
+/** An on-chain governance proposal (from `proposals`). */
+export interface AnticaptureProposal {
+  id: string;
+  daoId: string;
+  title: string;
+  proposerAccountId: string;
+  txHash?: string;
+  startBlock?: number;
+  endBlock?: number;
+  [key: string]: unknown;
+}
+
 /** Combined per-DAO governance snapshot — one MCP session powers all panels. */
 export interface GovernanceSnapshot {
   dao: string;
   votingPowers: VotingPowerEntry[];
   feedEvents: FeedEvent[];
-  treasury: unknown;
-  proposals: unknown[];
+  treasury: TreasuryPoint[];
+  proposals: AnticaptureProposal[];
 }
 
 export type TreasuryWindow = '7d' | '30d' | '90d' | '180d' | '365d';
@@ -179,13 +197,13 @@ export async function getGovernanceSnapshot(
   // Sequential: a streamable-HTTP MCP session handles one request at a time.
   const vp = await safeCall(`votingPowers(${id})`, () => callTool<ItemsEnvelope<VotingPowerEntry>>(sid, 'votingPowers', { dao: id, params: {} }), { items: [] });
   const fe = await safeCall(`feedEvents(${id})`, () => callTool<ItemsEnvelope<FeedEvent>>(sid, 'feedEvents', { dao: id, params: {} }), { items: [] });
-  const treasury = await safeCall(`getTotalTreasury(${id})`, () => callTool<unknown>(sid, 'getTotalTreasury', { dao: id, params: { days: opts.treasuryWindow ?? '90d' } }), null);
-  const prop = await safeCall<ItemsEnvelope<unknown> | unknown[]>(`proposals(${id})`, () => callTool(sid, 'proposals', { dao: id, params: {} }), { items: [] });
+  const tre = await safeCall(`getTotalTreasury(${id})`, () => callTool<ItemsEnvelope<TreasuryPoint>>(sid, 'getTotalTreasury', { dao: id, params: { days: opts.treasuryWindow ?? '90d' } }), { items: [] });
+  const prop = await safeCall<ItemsEnvelope<AnticaptureProposal> | AnticaptureProposal[]>(`proposals(${id})`, () => callTool(sid, 'proposals', { dao: id, params: {} }), { items: [] });
   return {
     dao: id,
     votingPowers: vp.items.slice(0, opts.topDelegates ?? 25),
     feedEvents: fe.items,
-    treasury,
+    treasury: tre.items,
     proposals: Array.isArray(prop) ? prop : prop.items || [],
   };
 }
