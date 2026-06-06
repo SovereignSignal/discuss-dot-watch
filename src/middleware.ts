@@ -14,7 +14,7 @@ const VALID_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
 // Routes that have their own static pages (not caught by [tenant])
 const STATIC_ROUTES = new Set([
-  'admin', 'api', 'app', 'feed', 'privacy', 'terms',
+  'admin', 'api', 'app', 'feed', 'governance', 'privacy', 'terms',
   'sitemap.xml', 'robots.txt', 'icon.svg',
 ]);
 
