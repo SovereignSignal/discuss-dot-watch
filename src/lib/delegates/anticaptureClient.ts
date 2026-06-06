@@ -44,6 +44,47 @@ export interface VotingPowerEntry {
   proposalsCount: number;
   delegationsCount: number;
   variation?: { absoluteChange: string; percentageChange: string };
+  label?: string; // Arkham/ENS label, enriched via getAddress
+  isContract?: boolean;
+}
+
+/** An off-chain (Snapshot) proposal (from `offchainProposals`). */
+export interface OffchainProposal {
+  id: string;
+  title: string;
+  author: string;
+  spaceId?: string;
+  discussion?: string; // link to the governance-forum thread
+  [key: string]: unknown;
+}
+
+/** A single on-chain vote (from `votesByProposalId`). support: "1"=for "0"=against "2"=abstain. */
+export interface ProposalVote {
+  voterAddress: string;
+  support: string;
+  votingPower: string;
+  reason?: string;
+}
+
+/** An active delegate who did NOT vote on a proposal (from `proposalNonVoters`). */
+export interface ProposalNonVoter {
+  voter: string;
+  votingPower: string;
+  lastVoteTimestamp?: number;
+}
+
+/** Delegate-accountability for one proposal: who voted, who missed. */
+export interface ProposalAccountability {
+  proposalId: string;
+  proposalTitle: string;
+  votes: ProposalVote[];
+  nonVoters: ProposalNonVoter[];
+}
+
+/** An address label (from getAddress). */
+export interface AddressLabel {
+  label?: string;
+  isContract?: boolean;
 }
 
 /** An on-chain governance event (from `feedEvents`). */
@@ -82,6 +123,8 @@ export interface GovernanceSnapshot {
   feedEvents: FeedEvent[];
   treasury: TreasuryPoint[];
   proposals: AnticaptureProposal[];
+  offchainProposals: OffchainProposal[];
+  accountability: ProposalAccountability | null;
 }
 
 export type TreasuryWindow = '7d' | '30d' | '90d' | '180d' | '365d';
@@ -199,11 +242,51 @@ export async function getGovernanceSnapshot(
   const fe = await safeCall(`feedEvents(${id})`, () => callTool<ItemsEnvelope<FeedEvent>>(sid, 'feedEvents', { dao: id, params: {} }), { items: [] });
   const tre = await safeCall(`getTotalTreasury(${id})`, () => callTool<ItemsEnvelope<TreasuryPoint>>(sid, 'getTotalTreasury', { dao: id, params: { days: opts.treasuryWindow ?? '90d' } }), { items: [] });
   const prop = await safeCall<ItemsEnvelope<AnticaptureProposal> | AnticaptureProposal[]>(`proposals(${id})`, () => callTool(sid, 'proposals', { dao: id, params: {} }), { items: [] });
+  const off = await safeCall(`offchainProposals(${id})`, () => callTool<ItemsEnvelope<OffchainProposal>>(sid, 'offchainProposals', { dao: id, params: { limit: 6, lean: true } }), { items: [] });
+  const proposals = Array.isArray(prop) ? prop : prop.items || [];
+
+  // Delegate accountability for the most recent on-chain proposal.
+  let accountability: ProposalAccountability | null = null;
+  const latest = proposals[0];
+  if (latest?.id) {
+    const pid = String(latest.id);
+    const votes = await safeCall(`votesByProposalId(${id},${pid})`, () => callTool<ItemsEnvelope<ProposalVote>>(sid, 'votesByProposalId', { dao: id, id: pid, params: { limit: 200 } }), { items: [] });
+    const nonV = await safeCall(`proposalNonVoters(${id},${pid})`, () => callTool<ItemsEnvelope<ProposalNonVoter>>(sid, 'proposalNonVoters', { dao: id, id: pid, params: { limit: 12, orderDirection: 'desc' } }), { items: [] });
+    accountability = { proposalId: pid, proposalTitle: latest.title, votes: votes.items, nonVoters: nonV.items };
+  }
+
   return {
     dao: id,
     votingPowers: vp.items.slice(0, opts.topDelegates ?? 25),
     feedEvents: fe.items,
     treasury: tre.items,
-    proposals: Array.isArray(prop) ? prop : prop.items || [],
+    proposals,
+    offchainProposals: off.items,
+    accountability,
   };
+}
+
+/** getAddress response shape (single-address Arkham/ENS lookup). */
+interface AddressInfo {
+  isContract?: boolean;
+  arkham?: { label?: string | null } | null;
+  ens?: string | null;
+}
+
+/**
+ * Resolve human labels (Arkham entity or ENS) for a set of addresses — one
+ * `getAddress` call each, fanned out within a single session because the batch
+ * `getAddresses` tool currently 400s on the dev gateway (a Friday/Blockful
+ * question). Capped to keep first-paint latency bounded; the route caches it.
+ */
+export async function getDelegateLabels(addresses: string[]): Promise<Record<string, AddressLabel>> {
+  const out: Record<string, AddressLabel> = {};
+  if (!isAnticaptureConfigured() || addresses.length === 0) return out;
+  const sid = await openSession();
+  for (const addr of addresses.slice(0, 12)) {
+    const a = addr.toLowerCase();
+    const info = await safeCall<AddressInfo | null>(`getAddress(${a})`, () => callTool(sid, 'getAddress', { address: a }), null);
+    if (info) out[a] = { label: info.arkham?.label || info.ens || undefined, isContract: info.isContract };
+  }
+  return out;
 }

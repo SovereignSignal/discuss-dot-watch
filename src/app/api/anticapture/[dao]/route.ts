@@ -5,6 +5,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { isAnticaptureConfigured, getGovernanceSnapshot } from '@/lib/delegates/anticaptureClient';
+import { getDaoForumTopics } from '@/lib/delegates/daoForums';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +27,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const snapshot = await getGovernanceSnapshot(id, { topDelegates: 20 });
-    const data = { configured: true, ...snapshot };
+    // The Anticapture snapshot (MCP) and the forum topics (Discourse) are
+    // independent upstreams — fetch them concurrently. Forum failure is
+    // non-fatal (getDaoForumTopics already swallows to []).
+    const [snapshot, forumTopics] = await Promise.all([
+      getGovernanceSnapshot(id, { topDelegates: 20 }),
+      getDaoForumTopics(id, 6),
+    ]);
+    const data = { configured: true, ...snapshot, forumTopics };
     cache.set(id, { at: Date.now(), data });
     return NextResponse.json(data);
   } catch (e) {

@@ -3,8 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowUpRight, ExternalLink } from 'lucide-react';
-import type { GovernanceSnapshot, VotingPowerEntry, FeedEvent, AnticaptureProposal, TreasuryPoint } from '@/lib/delegates/anticaptureClient';
+import { ArrowUpRight, ExternalLink, MessageSquare } from 'lucide-react';
+import type { GovernanceSnapshot, VotingPowerEntry, FeedEvent, AnticaptureProposal, TreasuryPoint, OffchainProposal, AddressLabel } from '@/lib/delegates/anticaptureClient';
+import type { DaoForumTopic } from '@/lib/delegates/daoForums';
+
+/** The /api/anticapture/[dao] response = snapshot + the forum topics the route joins in. */
+type DashboardData = GovernanceSnapshot & { forumTopics?: DaoForumTopic[] };
 
 // Per-DAO identity + brand accent — each ecosystem dashboard wears its own colour.
 const DAO: Record<string, { name: string; token: string; accent: string; glow: string }> = {
@@ -35,6 +39,15 @@ function ago(s: number) {
   return d < 3600 ? `${Math.floor(d / 60)}m` : d < 86400 ? `${Math.floor(d / 3600)}h` : `${Math.floor(d / 86400)}d`;
 }
 const REL: Record<string, string> = { HIGH: '#ef4444', MEDIUM: '#f59e0b', LOW: '#71717a' };
+/** Anticapture stores voting power in token base units (1e18); normalize to whole tokens. */
+const vpNum = (raw: string | number) => { const n = Number(raw); return !isFinite(n) ? 0 : n > 1e15 ? n / 1e18 : n; };
+/** Governor vote support codes → display. */
+const SUPPORT: Record<string, { label: string; color: string }> = {
+  '1': { label: 'For', color: '#22c55e' },
+  '0': { label: 'Against', color: '#ef4444' },
+  '2': { label: 'Abstain', color: '#a1a1aa' },
+};
+const labelFor = (labels: Record<string, AddressLabel>, addr: string) => labels[addr.toLowerCase()]?.label;
 
 /** SVG area chart of the treasury series. */
 function TreasuryChart({ points, accent }: { points: TreasuryPoint[]; accent: string }) {
@@ -69,7 +82,8 @@ export default function DaoGovernancePage() {
   const id = (params?.dao || 'uni').toLowerCase();
   const theme = DAO[id] || { name: id.toUpperCase(), token: id.toUpperCase(), accent: '#a1a1aa', glow: 'rgba(161,161,170,0.14)' };
 
-  const [snap, setSnap] = useState<GovernanceSnapshot | null>(null);
+  const [snap, setSnap] = useState<DashboardData | null>(null);
+  const [labels, setLabels] = useState<Record<string, AddressLabel>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,7 +94,7 @@ export default function DaoGovernancePage() {
   }, []);
 
   useEffect(() => {
-    setLoading(true); setError(null); setSnap(null);
+    setLoading(true); setError(null); setSnap(null); setLabels({});
     fetch(`/api/anticapture/${id}`)
       .then((r) => r.json())
       .then((d) => { if (d.error) setError(d.error); else if (d.configured === false) setError('Set ANTICAPTURE_API_KEY to enable.'); else setSnap(d); })
@@ -88,10 +102,40 @@ export default function DaoGovernancePage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Feature 1: enrich the biggest delegates (and no-shows) with Arkham/ENS labels,
+  // fetched after the board paints so it never blocks first render.
+  useEffect(() => {
+    if (!snap?.votingPowers?.length) return;
+    const top = snap.votingPowers.slice(0, 8).map((v) => v.accountId);
+    const noShows = (snap.accountability?.nonVoters ?? []).slice(0, 5).map((n) => n.voter);
+    const addrs = [...new Set([...top, ...noShows].map((a) => a.toLowerCase()))].slice(0, 12);
+    if (!addrs.length) return;
+    let cancelled = false;
+    fetch(`/api/anticapture/${id}/labels?addresses=${addrs.join(',')}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && d.labels) setLabels(d.labels); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [snap, id]);
+
   const treasuryNow = snap?.treasury?.length ? snap.treasury.reduce((a, b) => (b.date > a.date ? b : a)) : null;
-  const totalVp = snap?.votingPowers?.reduce((s, v) => s + (Number(v.votingPower) > 1e15 ? Number(v.votingPower) / 1e18 : Number(v.votingPower)), 0) || 0;
-  const topVp = snap?.votingPowers?.[0] ? (Number(snap.votingPowers[0].votingPower) > 1e15 ? Number(snap.votingPowers[0].votingPower) / 1e18 : Number(snap.votingPowers[0].votingPower)) : 0;
+  const totalVp = snap?.votingPowers?.reduce((s, v) => s + vpNum(v.votingPower), 0) || 0;
+  const topVp = snap?.votingPowers?.[0] ? vpNum(snap.votingPowers[0].votingPower) : 0;
   const maxBar = snap?.votingPowers?.[0]?.votingPower ? Number(snap.votingPowers[0].votingPower) : 1;
+
+  // Feature 2: turnout + vote tally for the most recent on-chain proposal.
+  const acc = snap?.accountability ?? null;
+  const accStats = useMemo(() => {
+    if (!acc) return null;
+    const tally: Record<string, number> = { '1': 0, '0': 0, '2': 0 };
+    let votedVp = 0;
+    for (const v of acc.votes) { tally[v.support] = (tally[v.support] || 0) + 1; votedVp += vpNum(v.votingPower); }
+    const missedVp = acc.nonVoters.reduce((s, n) => s + vpNum(n.votingPower), 0);
+    const turnoutPct = votedVp + missedVp > 0 ? (votedVp / (votedVp + missedVp)) * 100 : 0;
+    return { tally, votedVp, missedVp, turnoutPct, votedCount: acc.votes.length, missedCount: acc.nonVoters.length };
+  }, [acc]);
+
+  const card = { backgroundColor: 'var(--ds-bg-card)', border: '1px solid var(--ds-border)' } as const;
 
   return (
     <div className="min-h-screen relative overflow-x-hidden" style={{ backgroundColor: 'var(--ds-bg-base)', color: 'var(--ds-fg)' }}>
@@ -172,8 +216,15 @@ export default function DaoGovernancePage() {
                       <li key={v.accountId}>
                         <div className="flex items-center justify-between text-sm mb-1">
                           <span className="flex items-center gap-2 min-w-0">
-                            <span className="w-4 text-right tabular-nums" style={{ color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}>{i + 1}</span>
-                            <a href={`https://etherscan.io/address/${v.accountId}`} target="_blank" rel="noopener noreferrer" className="font-mono hover:underline" style={{ fontFamily: 'var(--ds-font-mono)' }}>{short(v.accountId)}</a>
+                            <span className="w-4 text-right tabular-nums flex-shrink-0" style={{ color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}>{i + 1}</span>
+                            <a href={`https://etherscan.io/address/${v.accountId}`} target="_blank" rel="noopener noreferrer" className="hover:underline truncate min-w-0">
+                              {labelFor(labels, v.accountId)
+                                ? <span className="font-medium">{labelFor(labels, v.accountId)}</span>
+                                : <span style={{ fontFamily: 'var(--ds-font-mono)' }}>{short(v.accountId)}</span>}
+                            </a>
+                            {labels[v.accountId.toLowerCase()]?.isContract && (
+                              <span className="text-[9px] px-1 rounded uppercase tracking-wide flex-shrink-0" style={{ backgroundColor: 'var(--ds-bg-subtle)', color: 'var(--ds-fg-dim)' }}>contract</span>
+                            )}
                           </span>
                           <span className="flex items-center gap-3 flex-shrink-0">
                             <span className="font-semibold" style={{ fontFamily: 'var(--ds-font-mono)' }}>{fmtTok(v.votingPower)}</span>
@@ -208,6 +259,109 @@ export default function DaoGovernancePage() {
                 </ul>
               </section>
             </div>
+
+            {/* accountability — latest proposal turnout + no-shows */}
+            {acc && accStats && (acc.votes.length > 0 || acc.nonVoters.length > 0) && (
+              <section className="rise rounded-xl p-6 mt-6" style={{ ...card, animationDelay: '.22s' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--ds-fg-dim)' }}>Latest proposal · delegate accountability</h2>
+                  <span className="text-xs font-semibold tabular-nums" style={{ color: theme.accent, fontFamily: 'var(--ds-font-mono)' }}>{accStats.turnoutPct.toFixed(0)}% turnout</span>
+                </div>
+                <p className="text-sm font-medium mb-4">{acc.proposalTitle}</p>
+                {/* turnout bar: voted VP vs idle VP */}
+                <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: 'var(--ds-bg-subtle)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${Math.max(1, accStats.turnoutPct)}%`, background: `linear-gradient(90deg, ${theme.accent}, ${theme.accent}88)` }} />
+                </div>
+                <div className="flex items-center justify-between text-xs mb-5" style={{ color: 'var(--ds-fg-dim)' }}>
+                  <span>{accStats.votedCount} voted · {fmtTok(String(accStats.votedVp))} VP cast</span>
+                  <span>{accStats.missedCount} no-shows · {fmtTok(String(accStats.missedVp))} VP idle</span>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-x-8 gap-y-5">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wider mb-3" style={{ color: 'var(--ds-fg-dim)' }}>How they voted</div>
+                    <div className="space-y-2.5">
+                      {(['1', '0', '2'] as const).map((s) => (
+                        <div key={s} className="flex items-center gap-2 text-sm">
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SUPPORT[s].color }} />
+                          <span>{SUPPORT[s].label}</span>
+                          <span className="ml-auto font-semibold tabular-nums" style={{ fontFamily: 'var(--ds-font-mono)' }}>{accStats.tally[s] || 0}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wider mb-3" style={{ color: 'var(--ds-fg-dim)' }}>Largest delegates who sat out</div>
+                    {acc.nonVoters.length ? (
+                      <ul className="space-y-2">
+                        {acc.nonVoters.slice(0, 5).map((n) => (
+                          <li key={n.voter} className="flex items-center justify-between gap-3 text-sm">
+                            <a href={`https://etherscan.io/address/${n.voter}`} target="_blank" rel="noopener noreferrer" className="hover:underline truncate min-w-0" style={labelFor(labels, n.voter) ? undefined : { fontFamily: 'var(--ds-font-mono)' }}>
+                              {labelFor(labels, n.voter) || short(n.voter)}
+                            </a>
+                            <span className="font-semibold tabular-nums flex-shrink-0" style={{ fontFamily: 'var(--ds-font-mono)' }}>{fmtTok(n.votingPower)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs" style={{ color: 'var(--ds-fg-dim)' }}>Full turnout among tracked delegates.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Snapshot (off-chain) + governance-forum discussions */}
+            {((snap.offchainProposals?.length ?? 0) > 0 || (snap.forumTopics?.length ?? 0) > 0) && (
+              <div className="grid lg:grid-cols-2 gap-6 mt-6">
+                <section className="rise rounded-xl p-6" style={{ ...card, animationDelay: '.28s' }}>
+                  <h2 className="text-[11px] uppercase tracking-wider mb-4" style={{ color: 'var(--ds-fg-dim)' }}>Snapshot proposals · off-chain</h2>
+                  {snap.offchainProposals?.length ? (
+                    <ul className="space-y-3">
+                      {snap.offchainProposals.slice(0, 6).map((p: OffchainProposal) => {
+                        const sUrl = p.spaceId ? `https://snapshot.org/#/${p.spaceId}/proposal/${p.id}` : null;
+                        return (
+                          <li key={p.id} className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium truncate">{p.title}</div>
+                              <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: 'var(--ds-fg-dim)' }}>
+                                <span style={{ fontFamily: 'var(--ds-font-mono)' }}>{short(p.author)}</span>
+                                {p.discussion && <a href={p.discussion} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: theme.accent }}>discussion ↗</a>}
+                              </div>
+                            </div>
+                            {sUrl && (
+                              <a href={sUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0" style={{ color: theme.accent }}>
+                                <ArrowUpRight className="w-4 h-4" />
+                              </a>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-xs" style={{ color: 'var(--ds-fg-dim)' }}>No off-chain proposals.</p>
+                  )}
+                </section>
+
+                <section className="rise rounded-xl p-6" style={{ ...card, animationDelay: '.32s' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--ds-fg-dim)' }}>Recent forum discussions</h2>
+                    <MessageSquare className="w-3.5 h-3.5" style={{ color: 'var(--ds-fg-dim)' }} />
+                  </div>
+                  {snap.forumTopics?.length ? (
+                    <ul className="space-y-3">
+                      {snap.forumTopics.slice(0, 6).map((t) => (
+                        <li key={t.id}>
+                          <a href={t.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:underline block truncate">{t.title}</a>
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--ds-fg-dim)' }}>{t.replyCount} replies · {t.views} views · {ago(new Date(t.lastPostedAt).getTime() / 1000)} ago</div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs" style={{ color: 'var(--ds-fg-dim)' }}>No governance forum mapped for this DAO yet.</p>
+                  )}
+                </section>
+              </div>
+            )}
 
             {/* proposals */}
             <section className="rise rounded-xl p-6 mt-6" style={{ backgroundColor: 'var(--ds-bg-card)', border: '1px solid var(--ds-border)', animationDelay: '.25s' }}>
