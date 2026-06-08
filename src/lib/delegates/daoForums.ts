@@ -105,54 +105,102 @@ interface DiscourseSearchTopic {
   title: string;
 }
 
-/**
- * Link a governance proposal to the forum thread that discusses it, via Discourse
- * search + a title-overlap guard (≥0.5 of the smaller title's tokens) so we never
- * surface a spurious match. Returns the thread URL or null. Used for ON-CHAIN
- * proposals; off-chain (Snapshot) proposals carry a native `discussion` link.
- */
 // A proposal's discussion thread never changes, so cache lookups indefinitely —
 // this bounds how often we hit Discourse search across requests.
 const discussionCache = new Map<string, string | null>();
 
-export async function findForumDiscussion(dao: string, title: string): Promise<string | null> {
+// Discourse anonymous search is aggressively rate-limited (gov.uniswap.org 429s
+// after ~2 rapid calls). We serialize searches into one spaced chain with a 429
+// backoff so bursts don't get throttled; the Snapshot fallback below avoids most
+// searches entirely.
+let searchChain: Promise<unknown> = Promise.resolve();
+let lastSearchAt = 0;
+const MIN_SEARCH_GAP_MS = 1100;
+
+async function discourseSearch(base: string, q: string): Promise<DiscourseSearchTopic[]> {
+  const opts = { headers: { 'User-Agent': 'discuss.watch/1.0', Accept: 'application/json' }, signal: AbortSignal.timeout(7000) };
+  const url = `${base}/search.json?q=${encodeURIComponent(q)}`;
+  const run = searchChain.then(async () => {
+    const gap = lastSearchAt + MIN_SEARCH_GAP_MS - Date.now();
+    if (gap > 0) await new Promise((r) => setTimeout(r, gap));
+    let res = await fetch(url, opts);
+    if (res.status === 429) {
+      const retry = Math.min(Number(res.headers.get('retry-after')) || 4, 10);
+      await new Promise((r) => setTimeout(r, retry * 1000));
+      res = await fetch(url, opts);
+    }
+    lastSearchAt = Date.now();
+    if (!res.ok) throw new Error(`discourse search ${res.status}`);
+    const data = (await res.json()) as { topics?: DiscourseSearchTopic[] };
+    return data.topics ?? [];
+  });
+  searchChain = run.catch(() => undefined); // keep the chain (and spacing) alive on failure
+  return run;
+}
+
+/** An off-chain proposal carrying its canonical discussion link (for the fallback). */
+interface OffchainRef {
+  title?: string;
+  discussion?: string | null;
+}
+
+/**
+ * Resolve a governance proposal's discussion thread, in order of cost/reliability:
+ *  1. cache (indefinite — the mapping never changes),
+ *  2. a matching Snapshot proposal's native `discussion` link — free and canonical,
+ *     and it catches cases where the forum thread title diverges from the proposal
+ *     (e.g. "Strategic Renewal of Gnosis…" → "…Support of Uniswap V3 Deployments"),
+ *  3. Discourse search + a ≥0.5 title-overlap guard (self-throttled + 429-aware).
+ * Used for ON-CHAIN proposals; off-chain proposals already carry their own link.
+ */
+export async function findForumDiscussion(dao: string, title: string, offchain: OffchainRef[] = []): Promise<string | null> {
   const base = daoForumUrl(dao);
   if (!base || !title) return null;
   const q = normalizeTitle(title).split(' ').slice(0, 8).join(' ');
   if (!q) return null;
   const key = `${dao.toLowerCase()}:${q}`;
   if (discussionCache.has(key)) return discussionCache.get(key) ?? null;
+
+  // (2) Snapshot fallback — best off-chain title match that carries a discussion link.
+  let snap: { url: string; score: number } | null = null;
+  for (const o of offchain) {
+    if (!o?.discussion || !o?.title) continue;
+    const score = titleOverlap(title, o.title);
+    if (score >= 0.6 && (!snap || score > snap.score)) snap = { url: o.discussion, score };
+  }
+  if (snap) {
+    discussionCache.set(key, snap.url);
+    return snap.url;
+  }
+
+  // (3) Discourse search.
   try {
-    const res = await fetch(`${base}/search.json?q=${encodeURIComponent(q)}`, {
-      headers: { 'User-Agent': 'discuss.watch/1.0', Accept: 'application/json' },
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!res.ok) return null; // don't cache transient failures (e.g. 429)
-    const data = (await res.json()) as { topics?: DiscourseSearchTopic[] };
+    const topics = await discourseSearch(base, q);
     let best: { url: string; score: number } | null = null;
-    for (const t of (data.topics ?? []).slice(0, 10)) {
+    for (const t of topics.slice(0, 10)) {
       const score = titleOverlap(title, t.title);
       if (score >= 0.5 && (!best || score > best.score)) {
         best = { url: `${base}/t/${t.slug}/${t.id}`, score };
       }
     }
     const url = best?.url ?? null;
-    discussionCache.set(key, url); // cache hits AND confirmed misses
+    discussionCache.set(key, url); // cache confirmed hits AND misses
     return url;
   } catch {
-    return null;
+    return null; // transient (e.g. 429 after retry) — leave uncached so it retries later
   }
 }
 
 /**
  * Attach a `discussionUrl` to up to `cap` proposals (newest first), skipping any
- * already linked (e.g. off-chain proposals with a native discussion). Sequential
- * + cached to stay gentle on Discourse search rate limits. Mutates + returns.
+ * already linked. Tries the free Snapshot-discussion fallback before any Discourse
+ * search, so most proposals resolve without a network request. Mutates + returns.
  */
 export async function attachDiscussions<T extends { title: string; discussionUrl?: string | null }>(
   dao: string,
   proposals: T[],
-  cap = 8,
+  offchain: OffchainRef[] = [],
+  cap = 10,
 ): Promise<T[]> {
   if (!daoForumUrl(dao)) return proposals;
   let used = 0;
@@ -160,7 +208,7 @@ export async function attachDiscussions<T extends { title: string; discussionUrl
     if (p.discussionUrl) continue;
     if (used >= cap) break;
     used += 1;
-    p.discussionUrl = await findForumDiscussion(dao, p.title);
+    p.discussionUrl = await findForumDiscussion(dao, p.title, offchain);
   }
   return proposals;
 }

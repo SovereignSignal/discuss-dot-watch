@@ -34,9 +34,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       getGovernanceSnapshot(id, { topDelegates: 20 }),
       getDaoForumTopics(id, 6),
     ]);
-    // Link the recent on-chain proposals to their forum-discussion threads.
-    await attachDiscussions(id, snapshot.proposals, 8);
-    const data = { configured: true, ...snapshot, forumTopics };
+    // Link on-chain proposals to their forum threads — Snapshot-discussion fallback
+    // first (free), then Discourse search. Match against the full Snapshot pool, but
+    // only return a handful for the off-chain UI panel.
+    await attachDiscussions(id, snapshot.proposals, snapshot.offchainProposals, snapshot.proposals.length);
+    const data = { configured: true, ...snapshot, offchainProposals: snapshot.offchainProposals.slice(0, 8), forumTopics };
     cache.set(id, { at: Date.now(), data });
     return NextResponse.json(data);
   } catch (e) {
