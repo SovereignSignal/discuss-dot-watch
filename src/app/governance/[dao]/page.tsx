@@ -6,47 +6,12 @@ import Link from 'next/link';
 import { ArrowUpRight, ExternalLink, MessageSquare } from 'lucide-react';
 import type { GovernanceSnapshot, VotingPowerEntry, FeedEvent, AnticaptureProposal, TreasuryPoint, OffchainProposal, AddressLabel } from '@/lib/delegates/anticaptureClient';
 import type { DaoForumTopic } from '@/lib/delegates/daoForums';
+import { DAO, ORDER, fmtUsd, fmtTok, short, ago, vpNum, SUPPORT, STATUS_COLOR } from '../_lib';
 
 /** The /api/anticapture/[dao] response = snapshot + the forum topics the route joins in. */
 type DashboardData = GovernanceSnapshot & { forumTopics?: DaoForumTopic[] };
 
-// Per-DAO identity + brand accent — each ecosystem dashboard wears its own colour.
-const DAO: Record<string, { name: string; token: string; accent: string; glow: string }> = {
-  uni: { name: 'Uniswap', token: 'UNI', accent: '#FF007A', glow: 'rgba(255,0,122,0.18)' },
-  aave: { name: 'Aave', token: 'AAVE', accent: '#B6509E', glow: 'rgba(182,80,158,0.18)' },
-  ens: { name: 'ENS', token: 'ENS', accent: '#5298FF', glow: 'rgba(82,152,255,0.18)' },
-  comp: { name: 'Compound', token: 'COMP', accent: '#00D395', glow: 'rgba(0,211,149,0.16)' },
-  gtc: { name: 'Gitcoin', token: 'GTC', accent: '#02E2AC', glow: 'rgba(2,226,172,0.16)' },
-  scr: { name: 'Scroll', token: 'SCR', accent: '#EBC28E', glow: 'rgba(235,194,142,0.18)' },
-  nouns: { name: 'Nouns', token: 'NOUNS', accent: '#D63A3A', glow: 'rgba(214,58,58,0.16)' },
-  lil_nouns: { name: 'Lil Nouns', token: 'LIL', accent: '#E7A23B', glow: 'rgba(231,162,59,0.16)' },
-  fluid: { name: 'Fluid', token: 'FLUID', accent: '#2F6BFF', glow: 'rgba(47,107,255,0.16)' },
-  obol: { name: 'Obol', token: 'OBOL', accent: '#F26B5E', glow: 'rgba(242,107,94,0.16)' },
-  shu: { name: 'Shutter', token: 'SHU', accent: '#1B3A2E', glow: 'rgba(86,196,150,0.16)' },
-};
-const ORDER = ['uni', 'aave', 'ens', 'comp', 'gtc', 'scr', 'nouns', 'fluid', 'lil_nouns', 'obol', 'shu'];
-
-const fmtUsd = (n: number) => (!isFinite(n) ? '—' : n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(0)}K` : `$${n.toFixed(0)}`);
-function fmtTok(raw: string) {
-  let n = Number(raw);
-  if (!isFinite(n)) return raw;
-  if (n > 1e15) n = n / 1e18;
-  return n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
-}
-const short = (a: string) => (a && a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
-function ago(s: number) {
-  const d = Math.max(0, Date.now() / 1000 - s);
-  return d < 3600 ? `${Math.floor(d / 60)}m` : d < 86400 ? `${Math.floor(d / 3600)}h` : `${Math.floor(d / 86400)}d`;
-}
 const REL: Record<string, string> = { HIGH: '#ef4444', MEDIUM: '#f59e0b', LOW: '#71717a' };
-/** Anticapture stores voting power in token base units (1e18); normalize to whole tokens. */
-const vpNum = (raw: string | number) => { const n = Number(raw); return !isFinite(n) ? 0 : n > 1e15 ? n / 1e18 : n; };
-/** Governor vote support codes → display. */
-const SUPPORT: Record<string, { label: string; color: string }> = {
-  '1': { label: 'For', color: '#22c55e' },
-  '0': { label: 'Against', color: '#ef4444' },
-  '2': { label: 'Abstain', color: '#a1a1aa' },
-};
 const labelFor = (labels: Record<string, AddressLabel>, addr: string) => labels[addr.toLowerCase()]?.label;
 
 /** SVG area chart of the treasury series. */
@@ -217,11 +182,11 @@ export default function DaoGovernancePage() {
                         <div className="flex items-center justify-between text-sm mb-1">
                           <span className="flex items-center gap-2 min-w-0">
                             <span className="w-4 text-right tabular-nums flex-shrink-0" style={{ color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}>{i + 1}</span>
-                            <a href={`https://etherscan.io/address/${v.accountId}`} target="_blank" rel="noopener noreferrer" className="hover:underline truncate min-w-0">
+                            <Link href={`/governance/${id}/${v.accountId}`} className="hover:underline truncate min-w-0" style={{ textDecorationColor: theme.accent }}>
                               {labelFor(labels, v.accountId)
                                 ? <span className="font-medium">{labelFor(labels, v.accountId)}</span>
                                 : <span style={{ fontFamily: 'var(--ds-font-mono)' }}>{short(v.accountId)}</span>}
-                            </a>
+                            </Link>
                             {labels[v.accountId.toLowerCase()]?.isContract && (
                               <span className="text-[9px] px-1 rounded uppercase tracking-wide flex-shrink-0" style={{ backgroundColor: 'var(--ds-bg-subtle)', color: 'var(--ds-fg-dim)' }}>contract</span>
                             )}
@@ -295,9 +260,9 @@ export default function DaoGovernancePage() {
                       <ul className="space-y-2">
                         {acc.nonVoters.slice(0, 5).map((n) => (
                           <li key={n.voter} className="flex items-center justify-between gap-3 text-sm">
-                            <a href={`https://etherscan.io/address/${n.voter}`} target="_blank" rel="noopener noreferrer" className="hover:underline truncate min-w-0" style={labelFor(labels, n.voter) ? undefined : { fontFamily: 'var(--ds-font-mono)' }}>
+                            <Link href={`/governance/${id}/${n.voter}`} className="hover:underline truncate min-w-0" style={labelFor(labels, n.voter) ? { textDecorationColor: theme.accent } : { fontFamily: 'var(--ds-font-mono)', textDecorationColor: theme.accent }}>
                               {labelFor(labels, n.voter) || short(n.voter)}
-                            </a>
+                            </Link>
                             <span className="font-semibold tabular-nums flex-shrink-0" style={{ fontFamily: 'var(--ds-font-mono)' }}>{fmtTok(n.votingPower)}</span>
                           </li>
                         ))}
@@ -367,19 +332,46 @@ export default function DaoGovernancePage() {
             <section className="rise rounded-xl p-6 mt-6" style={{ backgroundColor: 'var(--ds-bg-card)', border: '1px solid var(--ds-border)', animationDelay: '.25s' }}>
               <h2 className="text-[11px] uppercase tracking-wider mb-4" style={{ color: 'var(--ds-fg-dim)' }}>Recent proposals</h2>
               <ul className="divide-y" style={{ borderColor: 'var(--ds-border-subtle)' }}>
-                {snap.proposals.slice(0, 8).map((p: AnticaptureProposal) => (
-                  <li key={p.id} className="py-3 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{p.title}</div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}>#{p.id} · {short(p.proposerAccountId)}</div>
-                    </div>
-                    {p.txHash && (
-                      <a href={`https://etherscan.io/tx/${p.txHash}`} target="_blank" rel="noopener noreferrer" className="flex-shrink-0" style={{ color: theme.accent }}>
-                        <ArrowUpRight className="w-4 h-4" />
-                      </a>
-                    )}
-                  </li>
-                ))}
+                {snap.proposals.slice(0, 8).map((p: AnticaptureProposal) => {
+                  const f = vpNum(p.forVotes ?? 0), ag = vpNum(p.againstVotes ?? 0), ab = vpNum(p.abstainVotes ?? 0);
+                  const tot = f + ag + ab;
+                  const status = String(p.status || '').toUpperCase();
+                  const sc = STATUS_COLOR[status] || 'var(--ds-fg-dim)';
+                  return (
+                    <li key={p.id} className="py-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">{p.title}</div>
+                          <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: 'var(--ds-fg-dim)' }}>
+                            <span style={{ fontFamily: 'var(--ds-font-mono)' }}>#{p.id}</span>
+                            {status && <span style={{ color: sc }}>{status.toLowerCase()}</span>}
+                            <span style={{ fontFamily: 'var(--ds-font-mono)' }}>· {short(p.proposerAccountId)}</span>
+                            {p.discussionUrl && (
+                              <a href={p.discussionUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:underline" style={{ color: theme.accent }}>
+                                <MessageSquare className="w-3 h-3" /> discussion
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          {tot > 0 && <span className="text-xs tabular-nums" style={{ color: 'var(--ds-fg-dim)' }}>{Math.round((f / tot) * 100)}% for</span>}
+                          {p.txHash && (
+                            <a href={`https://etherscan.io/tx/${p.txHash}`} target="_blank" rel="noopener noreferrer" style={{ color: theme.accent }}>
+                              <ArrowUpRight className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      {tot > 0 && (
+                        <div className="h-1 rounded-full overflow-hidden flex mt-2" style={{ backgroundColor: 'var(--ds-bg-subtle)' }}>
+                          <div style={{ width: `${(f / tot) * 100}%`, backgroundColor: SUPPORT['1'].color }} />
+                          <div style={{ width: `${(ag / tot) * 100}%`, backgroundColor: SUPPORT['0'].color }} />
+                          <div style={{ width: `${(ab / tot) * 100}%`, backgroundColor: SUPPORT['2'].color }} />
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           </>

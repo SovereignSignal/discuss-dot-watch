@@ -5,7 +5,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { isAnticaptureConfigured, getGovernanceSnapshot } from '@/lib/delegates/anticaptureClient';
-import { getDaoForumTopics } from '@/lib/delegates/daoForums';
+import { getDaoForumTopics, attachDiscussions } from '@/lib/delegates/daoForums';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +34,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       getGovernanceSnapshot(id, { topDelegates: 20 }),
       getDaoForumTopics(id, 6),
     ]);
+    // Link the recent on-chain proposals to their forum-discussion threads.
+    await attachDiscussions(id, snapshot.proposals, 8);
     const data = { configured: true, ...snapshot, forumTopics };
     cache.set(id, { at: Date.now(), data });
     return NextResponse.json(data);
