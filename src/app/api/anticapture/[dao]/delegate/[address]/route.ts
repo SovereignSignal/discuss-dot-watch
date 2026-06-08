@@ -36,10 +36,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!activity) {
       return NextResponse.json({ configured: true, error: 'no activity for this address' }, { status: 404 });
     }
-    // Link the most recent proposals in their record to the forum threads that
-    // discussed them (mutates the proposal objects inside activity.history).
-    await attachDiscussions(id, activity.history.map((h) => h.proposal), 12);
-    const data = { configured: true, ...activity };
+    // Link the most recent history proposals to their forum threads — Snapshot
+    // fallback first, then Discourse search. offchainPool is internal (matching
+    // only); undefined drops it from the JSON payload.
+    await attachDiscussions(id, activity.history.map((h) => h.proposal), activity.offchainPool ?? [], 12);
+    const data = { configured: true, ...activity, offchainPool: undefined };
     cache.set(key, { at: Date.now(), data });
     return NextResponse.json(data);
   } catch (e) {

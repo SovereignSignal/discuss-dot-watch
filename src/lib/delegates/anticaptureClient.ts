@@ -153,6 +153,7 @@ export interface DelegateActivity {
   yesRate: number; // % of their votes that were "for"
   avgTimeBeforeEnd: number; // avg seconds before proposal close they voted
   history: DelegateHistoryItem[];
+  offchainPool?: OffchainProposal[]; // Snapshot proposals, for proposal→forum linking
 }
 
 /** Combined per-DAO governance snapshot — one MCP session powers all panels. */
@@ -281,7 +282,9 @@ export async function getGovernanceSnapshot(
   const fe = await safeCall(`feedEvents(${id})`, () => callTool<ItemsEnvelope<FeedEvent>>(sid, 'feedEvents', { dao: id, params: {} }), { items: [] });
   const tre = await safeCall(`getTotalTreasury(${id})`, () => callTool<ItemsEnvelope<TreasuryPoint>>(sid, 'getTotalTreasury', { dao: id, params: { days: opts.treasuryWindow ?? '90d' } }), { items: [] });
   const prop = await safeCall<ItemsEnvelope<AnticaptureProposal> | AnticaptureProposal[]>(`proposals(${id})`, () => callTool(sid, 'proposals', { dao: id, params: {} }), { items: [] });
-  const off = await safeCall(`offchainProposals(${id})`, () => callTool<ItemsEnvelope<OffchainProposal>>(sid, 'offchainProposals', { dao: id, params: { limit: 6, lean: true } }), { items: [] });
+  // Fetch a generous pool (UI shows 6) so the proposal→forum linker can match
+  // on-chain proposals to a Snapshot proposal's canonical discussion link.
+  const off = await safeCall(`offchainProposals(${id})`, () => callTool<ItemsEnvelope<OffchainProposal>>(sid, 'offchainProposals', { dao: id, params: { limit: 40, lean: true } }), { items: [] });
   const proposals = Array.isArray(prop) ? prop : prop.items || [];
 
   // Delegate accountability for the most recent on-chain proposal.
@@ -364,6 +367,9 @@ export async function getDelegateActivity(dao: string, address: string, opts: { 
     () => callTool(sid, 'votingPowerByAccountId', { dao: id, address: a, params: {} }),
     null,
   );
+  // Snapshot pool so the route can link this delegate's history proposals to their
+  // forum threads via the canonical discussion link (same fallback as the dashboard).
+  const off = await safeCall(`offchainProposals(${id})`, () => callTool<ItemsEnvelope<OffchainProposal>>(sid, 'offchainProposals', { dao: id, params: { limit: 40, lean: true } }), { items: [] });
   const history = Array.isArray(act.proposals) ? act.proposals : [];
   // Fall back to the most recent vote's VP if the live lookup is unavailable.
   const currentVp = vp?.votingPower || history.find((h) => h.userVote)?.userVote?.votingPower;
@@ -379,5 +385,6 @@ export async function getDelegateActivity(dao: string, address: string, opts: { 
     yesRate: act.yesRate ?? 0,
     avgTimeBeforeEnd: act.avgTimeBeforeEnd ?? 0,
     history,
+    offchainPool: off.items,
   };
 }
