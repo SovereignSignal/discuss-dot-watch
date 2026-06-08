@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 type Theme = 'dark' | 'light';
 
@@ -17,19 +17,27 @@ function getStoredTheme(): Theme {
 }
 
 export function useTheme() {
-  // Use lazy initialization - this runs only on client after hydration
-  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme());
+  // Initialize to a fixed default so SSR and the first client render agree (reading
+  // localStorage here would diverge from the server and cause a hydration mismatch).
+  const [theme, setThemeState] = useState<Theme>('dark');
+  const didApply = useRef(false);
 
-  // Apply theme class to document whenever theme changes
+  // Adopt the persisted theme after hydration.
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'light') {
-      root.classList.add('light');
-      root.classList.remove('dark');
-    } else {
-      root.classList.add('dark');
-      root.classList.remove('light');
+    setThemeState(getStoredTheme());
+  }, []);
+
+  // Keep the <html> theme class in sync on change. Skip the first run: the
+  // pre-hydration inline script in the root layout already set the correct class,
+  // and re-applying the 'dark' default here would clobber it and cause a flash.
+  useEffect(() => {
+    if (!didApply.current) {
+      didApply.current = true;
+      return;
     }
+    const root = document.documentElement;
+    root.classList.toggle('light', theme === 'light');
+    root.classList.toggle('dark', theme !== 'light');
   }, [theme]);
 
   const setTheme = useCallback((newTheme: Theme) => {
