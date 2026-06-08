@@ -21,9 +21,16 @@ function getStoredDensity(): Density {
 }
 
 export function useDensity() {
-  const [density, setDensityState] = useState<Density>(() => getStoredDensity());
+  // Fixed default so SSR and the first client render agree; the stored value is
+  // read post-mount (reading localStorage during render causes a hydration mismatch).
+  const [density, setDensityState] = useState<Density>(DEFAULT);
   const { serverData, syncDensity } = useDataSync();
   const hydratedRef = useRef(false);
+
+  // Adopt the persisted density after hydration.
+  useEffect(() => {
+    setDensityState(getStoredDensity());
+  }, []);
 
   // Apply data-density attribute to <html> whenever density changes
   useEffect(() => {

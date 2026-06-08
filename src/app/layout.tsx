@@ -32,10 +32,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-density="standard">
+    <html lang="en" data-density="standard" suppressHydrationWarning>
       <body
         className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
       >
+        {/* Apply the persisted theme class before paint so themed UI never flashes
+            and the class is set before React hydrates. useTheme reads the same key. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var e=document.documentElement;var t=localStorage.getItem('discuss-watch-theme');e.classList.add(t==='light'?'light':'dark');}catch(_){document.documentElement.classList.add('dark');}})();`,
+          }}
+        />
         <AuthProvider>
           <DataSyncProvider>
             {children}

@@ -311,9 +311,9 @@ export default function AppPage() {
           }}
           isDark={isDark}
         />
-        <div 
+        <div
           className="flex h-screen overflow-hidden pt-14 md:pt-0"
-          style={{ backgroundColor: t.bg, color: t.fg }}
+          style={{ backgroundColor: 'var(--ds-bg-base)', color: 'var(--ds-fg)' }}
         >
           <Sidebar
             activeView={activeView}
