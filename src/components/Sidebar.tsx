@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper } from 'lucide-react';
+import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper, Landmark } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { MouseEvent } from 'react';
 import { UserButton } from './UserButton';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 
@@ -23,12 +25,15 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
   const isDark = theme === 'dark';
   const { isSuperAdmin } = useTenantRoles();
   
-  const navItems = [
-    { id: 'feed' as const, label: 'Feed', icon: LayoutGrid },
-    { id: 'briefs' as const, label: 'Briefs', icon: Newspaper },
-    { id: 'projects' as const, label: 'Communities', icon: FolderOpen },
-    { id: 'saved' as const, label: 'Saved', icon: Bookmark, count: savedCount },
-    { id: 'settings' as const, label: 'Settings', icon: Settings },
+  // View-toggle items have no href; an href makes the item a route link (e.g. the
+  // standalone /governance terminal, which lives outside the /app SPA).
+  const navItems: Array<{ id: typeof activeView | 'governance'; label: string; icon: LucideIcon; count?: number; href?: string }> = [
+    { id: 'feed', label: 'Feed', icon: LayoutGrid },
+    { id: 'briefs', label: 'Briefs', icon: Newspaper },
+    { id: 'projects', label: 'Communities', icon: FolderOpen },
+    { id: 'governance', label: 'Governance', icon: Landmark, href: '/governance' },
+    { id: 'saved', label: 'Saved', icon: Bookmark, count: savedCount },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   const handleNavClick = (view: typeof activeView) => {
@@ -89,32 +94,37 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeView === item.id;
+              const cls = 'w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-colors';
+              const style = {
+                background: isActive ? 'var(--ds-bg-elev)' : 'transparent',
+                color: isActive ? 'var(--ds-fg)' : 'var(--ds-fg-muted)',
+                fontSize: 'var(--ds-text-sm)',
+                fontFamily: 'var(--ds-font-sans)',
+              };
+              const onEnter = (e: MouseEvent<HTMLElement>) => { if (!isActive) e.currentTarget.style.background = 'var(--ds-bg-elev)'; };
+              const onLeave = (e: MouseEvent<HTMLElement>) => { if (!isActive) e.currentTarget.style.background = 'transparent'; };
+              const inner = (
+                <>
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                  {item.count !== undefined && item.count > 0 && (
+                    <span style={{ marginLeft: 'auto', fontSize: 'var(--ds-text-xs)', color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}>
+                      {item.count}
+                    </span>
+                  )}
+                </>
+              );
               return (
                 <li key={item.id}>
-                  <button
-                    onClick={() => handleNavClick(item.id)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-colors"
-                    style={{
-                      background: isActive ? 'var(--ds-bg-elev)' : 'transparent',
-                      color: isActive ? 'var(--ds-fg)' : 'var(--ds-fg-muted)',
-                      fontSize: 'var(--ds-text-sm)',
-                      fontFamily: 'var(--ds-font-sans)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.background = 'var(--ds-bg-elev)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
-                    {item.count !== undefined && item.count > 0 && (
-                      <span style={{ marginLeft: 'auto', fontSize: 'var(--ds-text-xs)', color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}>
-                        {item.count}
-                      </span>
-                    )}
-                  </button>
+                  {item.href ? (
+                    <Link href={item.href} onClick={() => { if (isMobileOpen) onMobileToggle(); }} className={cls} style={style} onMouseEnter={onEnter} onMouseLeave={onLeave}>
+                      {inner}
+                    </Link>
+                  ) : (
+                    <button onClick={() => handleNavClick(item.id as typeof activeView)} className={cls} style={style} onMouseEnter={onEnter} onMouseLeave={onLeave}>
+                      {inner}
+                    </button>
+                  )}
                 </li>
               );
             })}
