@@ -113,7 +113,46 @@ export interface AnticaptureProposal {
   txHash?: string;
   startBlock?: number;
   endBlock?: number;
+  // Result fields — the `proposals` tool returns these; we surface status + tally.
+  status?: string; // ACTIVE | EXECUTED | DEFEATED | QUEUED | CANCELED | ...
+  forVotes?: string;
+  againstVotes?: string;
+  abstainVotes?: string;
+  quorum?: string;
+  timestamp?: string | number;
+  endTimestamp?: string | number;
+  discussionUrl?: string | null; // forum thread, joined in by the route (not from Anticapture)
   [key: string]: unknown;
+}
+
+/** A single delegate's vote on a proposal (the `userVote` block in proposalsActivity). */
+export interface DelegateVote {
+  proposalId: string;
+  support: string; // "1"=for "0"=against "2"=abstain
+  votingPower: string;
+  reason?: string;
+  timestamp?: string | number;
+}
+
+/** One proposal in a delegate's history: the proposal + how they voted (null = didn't vote). */
+export interface DelegateHistoryItem {
+  proposal: AnticaptureProposal;
+  userVote: DelegateVote | null;
+}
+
+/** A delegate's full activity profile (from `proposalsActivity`, enriched with label + VP). */
+export interface DelegateActivity {
+  address: string;
+  label?: string;
+  isContract?: boolean;
+  votingPower?: string; // current VP (votingPowerByAccountId)
+  totalProposals: number;
+  votedProposals: number;
+  neverVoted: boolean;
+  winRate: number; // % of their votes on the winning side
+  yesRate: number; // % of their votes that were "for"
+  avgTimeBeforeEnd: number; // avg seconds before proposal close they voted
+  history: DelegateHistoryItem[];
 }
 
 /** Combined per-DAO governance snapshot — one MCP session powers all panels. */
@@ -289,4 +328,56 @@ export async function getDelegateLabels(addresses: string[]): Promise<Record<str
     if (info) out[a] = { label: info.arkham?.label || info.ens || undefined, isContract: info.isContract };
   }
   return out;
+}
+
+interface ProposalsActivityResponse {
+  address: string;
+  totalProposals: number;
+  votedProposals: number;
+  neverVoted: boolean;
+  winRate: number;
+  yesRate: number;
+  avgTimeBeforeEnd: number;
+  proposals: DelegateHistoryItem[];
+}
+
+/**
+ * A delegate's full governance record (powers the /governance/[dao]/[address]
+ * profile): one `proposalsActivity` call returns participation + win/yes rates +
+ * the per-proposal voting history (each item carries the proposal result AND the
+ * delegate's own vote), enriched with the Arkham/ENS label and current VP.
+ */
+export async function getDelegateActivity(dao: string, address: string, opts: { limit?: number } = {}): Promise<DelegateActivity | null> {
+  if (!isAnticaptureConfigured()) return null;
+  const id = dao.toLowerCase();
+  const a = address.toLowerCase();
+  const sid = await openSession();
+  const act = await safeCall<ProposalsActivityResponse | null>(
+    `proposalsActivity(${id},${a})`,
+    () => callTool(sid, 'proposalsActivity', { dao: id, params: { address: a, limit: opts.limit ?? 40 } }),
+    null,
+  );
+  if (!act) return null;
+  const info = await safeCall<AddressInfo | null>(`getAddress(${a})`, () => callTool(sid, 'getAddress', { address: a }), null);
+  const vp = await safeCall<{ votingPower?: string } | null>(
+    `votingPowerByAccountId(${id},${a})`,
+    () => callTool(sid, 'votingPowerByAccountId', { dao: id, address: a, params: {} }),
+    null,
+  );
+  const history = Array.isArray(act.proposals) ? act.proposals : [];
+  // Fall back to the most recent vote's VP if the live lookup is unavailable.
+  const currentVp = vp?.votingPower || history.find((h) => h.userVote)?.userVote?.votingPower;
+  return {
+    address: a,
+    label: info?.arkham?.label || info?.ens || undefined,
+    isContract: info?.isContract,
+    votingPower: currentVp,
+    totalProposals: act.totalProposals ?? history.length,
+    votedProposals: act.votedProposals ?? history.filter((h) => h.userVote).length,
+    neverVoted: act.neverVoted ?? false,
+    winRate: act.winRate ?? 0,
+    yesRate: act.yesRate ?? 0,
+    avgTimeBeforeEnd: act.avgTimeBeforeEnd ?? 0,
+    history,
+  };
 }

@@ -76,3 +76,91 @@ export async function getDaoForumTopics(dao: string, limit = 6): Promise<DaoForu
     return [];
   }
 }
+
+/** Strip forum/proposal noise (tags, vote suffixes, punctuation) for fuzzy title matching. */
+function normalizeTitle(t: string): string {
+  return t
+    .toLowerCase()
+    .replace(/\[[^\]]*\]/g, ' ') // [Temp Check], [RFC], [Updated]
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(temp check|rfc|onchain|on chain|proposal|governance|vote \d+|cycle \d+|s\d+)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Token-overlap of two titles, relative to the smaller set (0–1). */
+function titleOverlap(a: string, b: string): number {
+  const set = (s: string) => new Set(normalizeTitle(s).split(' ').filter((w) => w.length > 2));
+  const ta = set(a);
+  const tb = set(b);
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let common = 0;
+  for (const w of ta) if (tb.has(w)) common += 1;
+  return common / Math.min(ta.size, tb.size);
+}
+
+interface DiscourseSearchTopic {
+  id: number;
+  slug: string;
+  title: string;
+}
+
+/**
+ * Link a governance proposal to the forum thread that discusses it, via Discourse
+ * search + a title-overlap guard (≥0.5 of the smaller title's tokens) so we never
+ * surface a spurious match. Returns the thread URL or null. Used for ON-CHAIN
+ * proposals; off-chain (Snapshot) proposals carry a native `discussion` link.
+ */
+// A proposal's discussion thread never changes, so cache lookups indefinitely —
+// this bounds how often we hit Discourse search across requests.
+const discussionCache = new Map<string, string | null>();
+
+export async function findForumDiscussion(dao: string, title: string): Promise<string | null> {
+  const base = daoForumUrl(dao);
+  if (!base || !title) return null;
+  const q = normalizeTitle(title).split(' ').slice(0, 8).join(' ');
+  if (!q) return null;
+  const key = `${dao.toLowerCase()}:${q}`;
+  if (discussionCache.has(key)) return discussionCache.get(key) ?? null;
+  try {
+    const res = await fetch(`${base}/search.json?q=${encodeURIComponent(q)}`, {
+      headers: { 'User-Agent': 'discuss.watch/1.0', Accept: 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null; // don't cache transient failures (e.g. 429)
+    const data = (await res.json()) as { topics?: DiscourseSearchTopic[] };
+    let best: { url: string; score: number } | null = null;
+    for (const t of (data.topics ?? []).slice(0, 10)) {
+      const score = titleOverlap(title, t.title);
+      if (score >= 0.5 && (!best || score > best.score)) {
+        best = { url: `${base}/t/${t.slug}/${t.id}`, score };
+      }
+    }
+    const url = best?.url ?? null;
+    discussionCache.set(key, url); // cache hits AND confirmed misses
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Attach a `discussionUrl` to up to `cap` proposals (newest first), skipping any
+ * already linked (e.g. off-chain proposals with a native discussion). Sequential
+ * + cached to stay gentle on Discourse search rate limits. Mutates + returns.
+ */
+export async function attachDiscussions<T extends { title: string; discussionUrl?: string | null }>(
+  dao: string,
+  proposals: T[],
+  cap = 8,
+): Promise<T[]> {
+  if (!daoForumUrl(dao)) return proposals;
+  let used = 0;
+  for (const p of proposals) {
+    if (p.discussionUrl) continue;
+    if (used >= cap) break;
+    used += 1;
+    p.discussionUrl = await findForumDiscussion(dao, p.title);
+  }
+  return proposals;
+}
