@@ -187,6 +187,21 @@ Single endpoint, action discriminated by request body `{ action: '...' }`.
 
 ---
 
+## Anticapture Governance API
+
+Per-DAO on-chain governance analytics, powered by [Anticapture](https://mcp.anticapture.com) (Blockful). Public reads; gated on `ANTICAPTURE_API_KEY` (returns `{ "configured": false }` when unset — the dashboards degrade gracefully). `[dao]` is the lowercase Anticapture id: `uni`, `aave`, `ens`, `comp`, `gtc`, `scr`, `nouns`, `fluid`, `lil_nouns`, `obol`, `shu`.
+
+| Route | Method | Notes |
+|---|---|---|
+| `/api/anticapture` | GET | List the DAOs Anticapture supports |
+| `/api/anticapture/[dao]` | GET | Governance snapshot — top delegates (voting power), treasury series, on-chain proposals (`status` + `forVotes`/`againstVotes`/`abstainVotes` + `discussionUrl`), governance events, Snapshot proposals, latest-proposal accountability (turnout + non-voters), recent forum topics. 5-min cache. |
+| `/api/anticapture/[dao]/labels?addresses=0x..,0x..` | GET | Arkham/ENS labels for delegate addresses (progressive enrichment; 30-min cache) |
+| `/api/anticapture/[dao]/delegate/[address]` | GET | One delegate's record — participation, win/yes rate, avg vote timing, full per-proposal voting history with forum-discussion links. 10-min cache. |
+
+Pages: `/governance/[dao]` (terminal) and `/governance/[dao]/[address]` (delegate profile). Client: `src/lib/delegates/anticaptureClient.ts` (MCP-gateway transport); proposal→forum linking in `src/lib/delegates/daoForums.ts`. `governance` is reserved in `middleware.ts` `STATIC_ROUTES`.
+
+---
+
 ## Cron Endpoints
 
 All protected by `Authorization: Bearer ${CRON_SECRET}`. Triggered by an external scheduler hitting these endpoints; `/api/cron/delegates` self-throttles per tenant via each tenant's `refreshIntervalHours` config (default 4h).

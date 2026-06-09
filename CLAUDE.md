@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Hacker News, Lobsters), **330+ forums + 150+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Hacker News, Lobsters), **330+ forums + 150+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, per-DAO governance terminals (Anticapture: delegate accountability, per-delegate voting records, forum-linked votes), MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -33,17 +33,18 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 src/
 ├── middleware.ts            # Security headers, bare domain redirect, [tenant] slug validation
 ├── app/                    # Next.js App Router
-│   ├── api/                # API routes (discourse, digest, briefs, delegates, user, admin, v1, mcp, cron, health, discussions)
+│   ├── api/                # API routes (discourse, digest, briefs, delegates, anticapture, user, admin, v1, mcp, cron, health, discussions)
 │   ├── [tenant]/           # Multi-tenant forum analytics dashboards
 │   ├── admin/              # Admin dashboard
 │   ├── app/                # Main app page (client-side, authenticated)
+│   ├── governance/         # Per-DAO governance terminal (Anticapture) + per-delegate profiles; _lib.ts = shared brand/formatters
 │   ├── invite/[token]/     # Tenant admin invite claim page
 │   └── feed/               # RSS/Atom feed generator
 ├── components/             # React components
 │   └── ui/                 # Design system primitives (TickerBadge, DiscussionListItem, ScorePill, MetricBox, Button, SectionHeader, EmptyState, Chip)
 ├── hooks/                  # Custom React hooks (useTheme, useDensity, useBookmarks, useAlerts, useReadState, useForums, useUserSync, useTopicDetail, useTenantRoles, etc.)
 ├── lib/                    # Utility libraries
-│   ├── delegates/          # Forum analytics subsystem (index, brief, contributorSync, db, discourseClient, encryption, proposalTracker, refreshEngine, snapshotClient, featuredThreads, activityThreads)
+│   ├── delegates/          # Forum analytics subsystem (index, brief, contributorSync, db, discourseClient, encryption, proposalTracker, refreshEngine, snapshotClient, featuredThreads, activityThreads) + anticaptureClient (Anticapture governance), daoForums (proposal→forum linking)
 │   ├── db.ts               # PostgreSQL client, queries, and core schema (initializeSchema())
 │   ├── auth.ts             # Server-side auth (verifyAuth, verifyAdminAuth, verifyTenantAdmin, checkIsSuperAdmin)
 │   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
@@ -167,6 +168,16 @@ npm run lint     # Run ESLint
 | `/api/mcp` | GET | MCP tool definitions |
 | `/feed/[vertical]` | GET | RSS/Atom feeds (all, crypto, ai, oss) |
 
+### Anticapture Governance (public; gated on `ANTICAPTURE_API_KEY`)
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/anticapture` | GET | List the DAOs Anticapture supports |
+| `/api/anticapture/[dao]` | GET | Governance snapshot: top delegates (voting power), treasury series, on-chain proposals (status + For/Against/Abstain + `discussionUrl`), governance events, Snapshot proposals, latest-proposal accountability (turnout + non-voters), recent forum topics |
+| `/api/anticapture/[dao]/labels` | GET | Arkham/ENS labels for delegate addresses (`?addresses=0x..,0x..`; progressive) |
+| `/api/anticapture/[dao]/delegate/[address]` | GET | One delegate's record: participation, win/yes rate, avg vote timing, full per-proposal voting history with forum-discussion links |
+
+`[dao]` is the lowercase Anticapture id (`uni`, `aave`, `ens`, `comp`, `gtc`, `scr`, `nouns`, `fluid`, `lil_nouns`, `obol`, `shu`). Returns `{ configured: false }` when the key is unset.
+
 ## Core Types
 
 Types are defined in `src/types/index.ts` and `src/types/delegates.ts`. Key types to know:
@@ -247,7 +258,23 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 
 **Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — fetches current user's admin roles from `/api/user/tenant-roles`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
 
-Tenant slugs are guarded against the platform's own routes via `STATIC_ROUTES` in `middleware.ts`: `admin, api, app, feed, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
+Tenant slugs are guarded against the platform's own routes via `STATIC_ROUTES` in `middleware.ts`: `admin, api, app, feed, governance, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
+
+## Governance Terminal (Anticapture)
+
+Per-DAO on-chain governance dashboards at `discuss.watch/governance/<dao>`, powered by [Anticapture](https://mcp.anticapture.com) (Blockful). Distinct from the multi-tenant Forum Analytics above — this is a read-only **cross-DAO** analytics surface, not a per-tenant configurable dashboard.
+
+**Surfaces:**
+- `/governance/[dao]` — the "terminal": treasury (90-day chart), top delegates by voting power (auto-labeled via Arkham/ENS), governance event feed, on-chain proposals (status + For/Against/Abstain + forum link), Snapshot (off-chain) proposals, recent forum discussions, and **delegate accountability** (latest-proposal turnout + the largest delegates who didn't vote, by idle VP). DAO switcher across 11 DAOs. `/governance` redirects to `/governance/uni`.
+- `/governance/[dao]/[address]` — a **per-delegate profile**: participation, win rate, "votes-for" rate, avg vote timing, and full per-proposal voting history (their vote + the outcome + a forum-discussion link). Linked from the leaderboard and the accountability "sat out" rows.
+- A **"Governance"** item in the `/app` left sidebar (`Sidebar.tsx`) links here (nav items support an optional `href` to render as a route link vs a view-toggle button).
+
+**Data layer:**
+- `src/lib/delegates/anticaptureClient.ts` — talks to the Anticapture **MCP gateway** (`https://mcp.anticapture.com/mcp`, JSON-RPC). Transport-stable: when the production REST base lands, only the private `callTool`/`openSession` internals change. Gated on `ANTICAPTURE_API_KEY` (like the GitHub client's `GITHUB_TOKEN`). Key tools: `votingPowers`, `proposals` (carry status + vote tallies), `feedEvents`, `getTotalTreasury`, `offchainProposals`, `votesByProposalId`, `proposalNonVoters`, `proposalsActivity` (the whole delegate record in one call), `getAddress` (labels).
+- `src/lib/delegates/daoForums.ts` — DAO→Discourse map + proposal→forum-thread linking: a Snapshot `discussion` fallback first (free, canonical), then a self-throttled, 429-aware Discourse `/search.json` with a title-overlap guard.
+- `src/app/governance/_lib.ts` — shared brand map (11 DAOs + accents) + formatters reused by both pages.
+
+**Notes:** MCP tool outputs are untrusted data. The gateway uses a **temporary dev key**; swap `ANTICAPTURE_API_KEY` for Blockful's production key (and the REST base) when delivered. `getAddresses` (batch) currently 400s on the dev gateway, so labels fan out via single `getAddress` calls.
 
 ## Code Conventions
 
@@ -305,7 +332,7 @@ Uses Tailwind `md:` breakpoint (768px). Mobile: fixed header with hamburger menu
 Desktop: 480px right panel that appears **only when a topic is selected** (Sprint 16 reclaimed the always-on right sidebar; alerts now live in `AlertsStrip` above the feed and search lives in the feed header). Mobile: full-screen overlay with back arrow. Escape closes both. Works in Feed and Briefs views.
 
 ### Sidebar Views
-`'feed' | 'briefs' | 'projects' | 'saved' | 'settings'` (Note: the `'projects'` view ID actually renders the Communities/ForumManager view — naming is historical.)
+`'feed' | 'briefs' | 'projects' | 'saved' | 'settings'` (Note: the `'projects'` view ID actually renders the Communities/ForumManager view — naming is historical.) The sidebar also has a **"Governance"** entry that is a route `<Link>` to `/governance` (not a view toggle) — `Sidebar.tsx` nav items take an optional `href` to render as a link.
 
 ### Feed-View Composition (Sprint 12-16 design system)
 The feed view is built from a stack of components in `src/components/DiscussionFeed.tsx`:
@@ -349,6 +376,7 @@ Tags in raw API response can be strings OR objects — handle both.
 | `PRIVY_APP_SECRET` | Privy server-side secret |
 | `GITHUB_TOKEN` | GitHub Discussions (optional) |
 | `SNAPSHOT_API_KEY` | Snapshot governance (optional) |
+| `ANTICAPTURE_API_KEY` | Anticapture governance terminal (`/governance`); optional — dashboards degrade gracefully when unset. Currently a temporary dev key. |
 | `ENCRYPTION_KEY` | AES-256-GCM for delegate API keys |
 | `NEXT_PUBLIC_APP_URL` | Public app URL (digest email links) |
 

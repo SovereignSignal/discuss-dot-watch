@@ -43,6 +43,17 @@
 - ✅ Trust level badges (Discourse trust level 1–4) on tracked delegates (Sprint 3)
 - ✅ Score-band + wallet-linked filters on contributors table (Sprint 4)
 
+### Governance terminal (Anticapture)
+- ✅ Per-DAO **governance terminals** at `/governance/[dao]` — 11 DAOs (Uniswap, Aave, ENS, Compound, Gitcoin, Scroll, Nouns, Fluid, Lil Nouns, Obol, Shutter) with a branded "terminal" UI + DAO switcher
+- ✅ Live on-chain analytics via **Anticapture** (Blockful, MCP gateway) — treasury (90-day chart), top delegates by voting power, governance event feed, on-chain proposals with status + For/Against/Abstain results
+- ✅ **Delegate accountability** — latest-proposal turnout, vote tally, and the largest delegates who *didn't* vote (idle VP)
+- ✅ **Per-delegate profiles** at `/governance/[dao]/[address]` — participation, win rate, avg vote timing, full per-proposal voting history (one `proposalsActivity` call)
+- ✅ Auto **delegate labels** (Arkham entity + ENS) via `getAddress`
+- ✅ **Snapshot (off-chain) proposals** + **recent governance-forum discussions** panels
+- ✅ **Discourse ↔ vote linking** — proposals linked to their forum threads via a Snapshot-`discussion` fallback + title-overlap Discourse search (self-throttled, 429-aware)
+- ✅ "Governance" entry point in the app left nav; gated on `ANTICAPTURE_API_KEY` (graceful unconfigured state)
+- ⏳ Transport is the Anticapture MCP gateway with a temporary dev key; swap to the production REST base + key when Blockful delivers
+
 ### Design system (Sprints 12–18)
 - ✅ Token-based design system in `globals.css` — `--ds-*` CSS variables for colors, spacing, type, radii
 - ✅ Per-vertical accent system (crypto/ai/oss) propagated through every feed surface
