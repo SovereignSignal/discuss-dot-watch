@@ -96,4 +96,49 @@ export function getWalletFromPrivyUser(user: PrivyUser): string | null {
   return walletAccount?.address || null;
 }
 
+/**
+ * Fetch a single Privy user by DID via the REST API.
+ * Returns null when Privy is not configured or the lookup fails (fail-closed).
+ */
+export async function fetchPrivyUserById(did: string): Promise<PrivyUser | null> {
+  if (!isPrivyServerConfigured()) return null;
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID!;
+  try {
+    const response = await fetch(
+      `https://auth.privy.io/api/v1/users/${encodeURIComponent(did)}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': getPrivyAuthHeader(),
+          'privy-app-id': appId,
+        },
+      },
+    );
+    if (!response.ok) return null;
+    return (await response.json()) as PrivyUser;
+  } catch {
+    return null;
+  }
+}
+
+// Short-TTL cache of DID → verified email so admin checks don't hit Privy on every request.
+const _verifiedEmailCache = new Map<string, { email: string | null; expires: number }>();
+const VERIFIED_EMAIL_TTL_MS = 60_000;
+
+/**
+ * Resolve the *verified* email for a Privy DID from Privy itself — NOT from the
+ * user-writable `users.email` column. This is the authoritative source for
+ * admin-allowlist checks. Never trust a locally-stored email for authorization.
+ */
+export async function getVerifiedEmailForDid(did: string): Promise<string | null> {
+  const now = Date.now();
+  const cached = _verifiedEmailCache.get(did);
+  if (cached && cached.expires > now) return cached.email;
+
+  const user = await fetchPrivyUserById(did);
+  const email = user ? getEmailFromPrivyUser(user) : null;
+  _verifiedEmailCache.set(did, { email, expires: now + VERIFIED_EMAIL_TTL_MS });
+  return email;
+}
+
 export type { PrivyUser, PrivyLinkedAccount };

@@ -9,10 +9,12 @@ const ADMIN_EMAILS: string[] = process.env.ADMIN_EMAILS
   ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()).filter(Boolean)
   : ['sov@sovereignsignal.com'];
 
-// Admin Privy DIDs (optional, for wallet-based auth)
-const ADMIN_DIDS: string[] = [
-  // Add Privy DIDs here if needed
-];
+// Admin Privy DIDs — read from ADMIN_DIDS env var (comma-separated).
+// A DID is cryptographically bound to the verified Privy access token, so this is
+// the most robust admin check: it needs no DB/network lookup and cannot be spoofed.
+const ADMIN_DIDS: string[] = process.env.ADMIN_DIDS
+  ? process.env.ADMIN_DIDS.split(',').map(d => d.trim()).filter(Boolean)
+  : [];
 
 /**
  * Check if a user is an admin by email

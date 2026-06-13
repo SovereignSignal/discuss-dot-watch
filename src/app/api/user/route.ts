@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, isDatabaseConfigured } from '@/lib/db';
 import { verifyAuth, isAuthError } from '@/lib/auth';
+import { getVerifiedEmailForDid } from '@/lib/privy';
 
 // POST /api/user - Create or get user by Privy DID
 export async function POST(request: NextRequest) {
@@ -14,16 +15,22 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { email, walletAddress } = body;
+    const body = await request.json().catch(() => ({}));
+    const { walletAddress } = body;
     const privyDid = auth.userId;
+
+    // SECURITY: never trust a client-supplied email here — it feeds the admin
+    // allowlist via isAdminEmail(). Resolve the verified email from Privy for this
+    // authenticated DID instead. If Privy is unconfigured/unreachable we pass null
+    // and COALESCE preserves any previously stored (verified) value.
+    const verifiedEmail = await getVerifiedEmailForDid(privyDid);
 
     const sql = getDb();
 
     // Upsert user - create if doesn't exist, update if exists
     const users = await sql`
       INSERT INTO users (privy_did, email, wallet_address)
-      VALUES (${privyDid}, ${email || null}, ${walletAddress || null})
+      VALUES (${privyDid}, ${verifiedEmail || null}, ${walletAddress || null})
       ON CONFLICT (privy_did)
       DO UPDATE SET
         email = COALESCE(EXCLUDED.email, users.email),
@@ -45,7 +52,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('User API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create/get user' },
+      { error: 'Failed to create/get user' },
       { status: 500 }
     );
   }
@@ -171,7 +178,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('User API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to get user' },
+      { error: 'Failed to get user' },
       { status: 500 }
     );
   }
