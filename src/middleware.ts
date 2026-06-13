@@ -7,6 +7,11 @@ const securityHeaders: Record<string, string> = {
   'X-DNS-Prefetch-Control': 'on',
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  // Conservative CSP: these directives can't break scripts, styles, fonts, Privy or
+  // wallet connectors (they don't constrain script-src/connect-src/frame-src), but do
+  // block <base> hijacking and plugin objects.
+  // A full script/style CSP needs a nonce setup + Privy/WalletConnect allowlist — TODO.
+  'Content-Security-Policy': "base-uri 'self'; object-src 'none'",
 };
 
 // Slug format for [tenant] dynamic route

@@ -26,6 +26,18 @@ export function isAnticaptureConfigured(): boolean {
   return apiKey().length > 0;
 }
 
+/** The DAOs Anticapture supports (lowercase ids). Used to bound public routes so an
+ *  arbitrary `[dao]` can't grow the in-memory cache or fan out to the upstream MCP. */
+export const KNOWN_DAOS = [
+  'uni', 'aave', 'ens', 'comp', 'gtc', 'scr', 'nouns', 'lil_nouns', 'fluid', 'obol', 'shu',
+] as const;
+
+const KNOWN_DAO_SET = new Set<string>(KNOWN_DAOS);
+
+export function isKnownDao(id: string): boolean {
+  return KNOWN_DAO_SET.has(id.toLowerCase());
+}
+
 /** Governance params + feature flags for a configured DAO (from the `daos` tool). */
 export interface AnticaptureDao {
   id: string;

@@ -36,7 +36,11 @@ export default async function EmbedPage({
   }
 
   const branding = dashData.tenant.branding;
-  const accent = branding?.accentColor || '#3b82f6';
+  // SECURITY: accentColor is tenant-controlled and interpolated into a <style> block
+  // in this public cross-origin iframe — restrict it to a hex color or fall back,
+  // otherwise a crafted value injects arbitrary CSS.
+  const rawAccent = branding?.accentColor || '#3b82f6';
+  const accent = /^#[0-9a-fA-F]{3,8}$/.test(rawAccent) ? rawAccent : '#3b82f6';
   const s = dashData.summary;
 
   return (

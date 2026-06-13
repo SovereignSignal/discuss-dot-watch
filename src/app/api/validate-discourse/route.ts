@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAllowedUrl } from '@/lib/url';
+import { safeFetch, readCappedText } from '@/lib/safeFetch';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 async function tryFetch(url: string, timeout = 8000): Promise<Response | null> {
   try {
-    const response = await fetch(url, {
+    // safeFetch: re-validates DNS-resolved IPs and follows redirects manually so a
+    // submitted forum URL can't 302 to an internal/metadata host.
+    const response = await safeFetch(url, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'discuss.watch/1.0 (forum validator; https://discuss.watch)',
@@ -132,7 +135,8 @@ export async function GET(request: NextRequest) {
     // Check if the base URL at least returns HTML with Discourse indicators
     const htmlResponse = await tryFetch(baseUrl);
     if (htmlResponse) {
-      const html = await htmlResponse.text();
+      // Cap the body read — an arbitrary URL could stream an unbounded response.
+      const html = await readCappedText(htmlResponse, 512 * 1024);
       if (html.includes('discourse') || html.includes('Discourse') || html.includes('data-discourse')) {
         forumName = getNameFromHostname(baseUrl);
         return NextResponse.json({ valid: true, name: forumName });
