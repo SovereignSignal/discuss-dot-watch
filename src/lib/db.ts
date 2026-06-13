@@ -412,8 +412,11 @@ export async function getRecentTopics(options: {
  */
 export async function searchTopics(query: string, limit = 50) {
   const db = getDb();
-  const searchPattern = `%${query}%`;
-  
+  // Escape ILIKE wildcards so a user's literal % or _ doesn't act as a wildcard
+  // (Postgres ILIKE treats backslash as the escape char by default).
+  const escaped = query.replace(/([\\%_])/g, '\\$1');
+  const searchPattern = `%${escaped}%`;
+
   return db`
     SELECT t.*, f.name as forum_name, f.url as forum_url, f.logo_url as forum_logo
     FROM topics t

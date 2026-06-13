@@ -297,7 +297,11 @@ export async function getGovernanceSnapshot(
   // Fetch a generous pool (UI shows 6) so the proposal→forum linker can match
   // on-chain proposals to a Snapshot proposal's canonical discussion link.
   const off = await safeCall(`offchainProposals(${id})`, () => callTool<ItemsEnvelope<OffchainProposal>>(sid, 'offchainProposals', { dao: id, params: { limit: 40, lean: true } }), { items: [] });
-  const proposals = Array.isArray(prop) ? prop : prop.items || [];
+  // Sort newest-first by timestamp so both the UI list and the "latest proposal"
+  // accountability pick below are correct regardless of the order the tool returns.
+  const proposals = (Array.isArray(prop) ? prop : prop.items || [])
+    .slice()
+    .sort((a, b) => Number(b.timestamp ?? b.endTimestamp ?? 0) - Number(a.timestamp ?? a.endTimestamp ?? 0));
 
   // Delegate accountability for the most recent on-chain proposal.
   let accountability: ProposalAccountability | null = null;
