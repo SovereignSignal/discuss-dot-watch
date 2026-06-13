@@ -24,6 +24,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Match production (nixpacks.toml) — the lockfile is npm@11-generated and
+      # older npm reads its peer-dep resolution inconsistently (spurious "missing" deps).
+      - name: Pin npm to 11 (match production)
+        run: npm i -g npm@11
+
       - name: Install
         run: npm ci
 
