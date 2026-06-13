@@ -67,6 +67,8 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
 
       {/* Sidebar */}
       <aside
+        id="navigation"
+        aria-label="Primary navigation"
         className={`
           fixed md:relative w-56 flex flex-col h-full z-50 md:z-auto
           transition-transform duration-200
