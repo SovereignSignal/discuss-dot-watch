@@ -9,14 +9,16 @@ import { timingSafeEqual, createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { PrivyClient } from '@privy-io/node';
 import { isAdminEmail, isAdminDid } from './admin';
-import { getDb, isDatabaseConfigured } from './db';
+import { isDatabaseConfigured } from './db';
+import { getVerifiedEmailForDid } from './privy';
 
 /** Constant-time string comparison to prevent timing attacks.
- *  Hashes both inputs to fixed-length values to avoid leaking length information. */
+ *  Hashing both inputs to fixed-length SHA-256 digests equalizes length, so the
+ *  timingSafeEqual comparison is already complete and length-safe on its own. */
 function safeCompare(a: string, b: string): boolean {
   const hashA = createHash('sha256').update(a).digest();
   const hashB = createHash('sha256').update(b).digest();
-  return timingSafeEqual(hashA, hashB) && a.length === b.length;
+  return timingSafeEqual(hashA, hashB);
 }
 
 // Lazy singleton — avoids constructing when env vars are missing (dev mode)
@@ -109,22 +111,20 @@ export async function verifyAdminAuth(
     return { error: 'Invalid or expired token', status: 401 };
   }
 
-  // Look up user email from DB for admin check
-  if (isDatabaseConfigured()) {
-    try {
-      const db = getDb();
-      const users = await db`SELECT email FROM users WHERE privy_did = ${userId}`;
-      if (users.length > 0 && isAdminEmail(users[0].email)) {
-        return { userId };
-      }
-    } catch {
-      // DB lookup failed — fall through to DID check
-    }
-  }
-
-  // Also check admin DID list
+  // 1. DID allowlist — cryptographically bound to the verified token, no lookup needed.
   if (isAdminDid(userId)) {
     return { userId };
+  }
+
+  // 2. Verified email from Privy (the authoritative source — NEVER the user-writable
+  //    users.email column, which a client can set to any address).
+  try {
+    const email = await getVerifiedEmailForDid(userId);
+    if (isAdminEmail(email)) {
+      return { userId };
+    }
+  } catch (err) {
+    console.error('[auth] admin email resolution failed:', err);
   }
 
   return { error: 'Unauthorized', status: 403 };
@@ -144,16 +144,14 @@ export function isAuthError(
 export async function checkIsSuperAdmin(privyDid: string): Promise<boolean> {
   if (isAdminDid(privyDid)) return true;
 
-  if (isDatabaseConfigured()) {
-    try {
-      const db = getDb();
-      const users = await db`SELECT email FROM users WHERE privy_did = ${privyDid}`;
-      if (users.length > 0 && isAdminEmail(users[0].email)) {
-        return true;
-      }
-    } catch {
-      // DB lookup failed
+  // Resolve the verified email from Privy, not from the user-writable users.email column.
+  try {
+    const email = await getVerifiedEmailForDid(privyDid);
+    if (isAdminEmail(email)) {
+      return true;
     }
+  } catch (err) {
+    console.error('[auth] super-admin email resolution failed:', err);
   }
 
   return false;
@@ -225,11 +223,22 @@ export function validateCronSecret(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  if (!cronSecret && process.env.NODE_ENV === 'development') {
-    return true;
+  // Dev-only bypass: allow ONLY when no secret is configured, we are explicitly in
+  // development, AND there are no proxy-forwarded headers (i.e. a genuinely local
+  // request, never a deployed preview/staging env where a proxy sits in front).
+  if (!cronSecret) {
+    const isLocalDev =
+      process.env.NODE_ENV === 'development' &&
+      !request.headers.get('x-forwarded-for') &&
+      !request.headers.get('x-forwarded-host');
+    if (isLocalDev) {
+      console.warn('[auth] CRON_SECRET unset — allowing cron access in local dev only');
+      return true;
+    }
+    return false;
   }
 
-  if (!authHeader || !cronSecret) return false;
+  if (!authHeader) return false;
 
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   if (!token) return false;

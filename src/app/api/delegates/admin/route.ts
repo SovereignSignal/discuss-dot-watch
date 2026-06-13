@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAuth, verifyTenantAdmin, isAuthError } from '@/lib/auth';
+import { isValidUrl, isAllowedUrl } from '@/lib/url';
 import {
   initializeDelegateSchema,
   createTenant,
@@ -78,6 +79,14 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** Tenant slug format: alphanumeric, dash and underscore, 1-100 chars. */
+const SLUG_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/;
+
+/** Validate a tenant forum URL: well-formed http(s) AND not an SSRF target. */
+function isAcceptableForumUrl(url: unknown): url is string {
+  return typeof url === 'string' && isValidUrl(url) && isAllowedUrl(url);
+}
+
 /** Actions that require super admin (platform-level operations). */
 const SUPER_ADMIN_ACTIONS = new Set([
   'init-schema', 'create-tenant', 'update-tenant', 'delete-tenant', 'detect-capabilities',
@@ -133,6 +142,19 @@ export async function POST(request: NextRequest) {
         if (!slug || !name || !forumUrl || !apiKey || !apiUsername) {
           return NextResponse.json(
             { error: 'Missing required fields: slug, name, forumUrl, apiKey, apiUsername' },
+            { status: 400 }
+          );
+        }
+
+        if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
+          return NextResponse.json(
+            { error: 'Invalid slug: use 1-100 letters, numbers, dashes or underscores' },
+            { status: 400 }
+          );
+        }
+        if (!isAcceptableForumUrl(forumUrl)) {
+          return NextResponse.json(
+            { error: 'Invalid or disallowed forumUrl' },
             { status: 400 }
           );
         }
@@ -205,6 +227,13 @@ export async function POST(request: NextRequest) {
         const tenant = await getTenantBySlug(tenantSlug);
         if (!tenant) {
           return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+        }
+
+        if (forumUrl !== undefined && !isAcceptableForumUrl(forumUrl)) {
+          return NextResponse.json(
+            { error: 'Invalid or disallowed forumUrl' },
+            { status: 400 }
+          );
         }
 
         const updates: Parameters<typeof updateTenant>[1] = {};
@@ -487,7 +516,6 @@ export async function POST(request: NextRequest) {
     }
   } catch (err) {
     console.error('[Admin] Error:', err);
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

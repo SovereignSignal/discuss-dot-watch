@@ -732,13 +732,19 @@ export async function claimTenantInvite(token: string, privyDid: string): Promis
   if (new Date(invite.expires_at as string) < new Date()) return { success: false, error: 'Invite expired' };
   if (!invite.tenant_active) return { success: false, error: 'Tenant is inactive' };
 
-  // Claim the invite and add as admin in a transaction
+  // Claim the invite atomically. The UPDATE's `AND claimed_by IS NULL` guard means
+  // exactly one of N concurrent claims wins; the others get 0 rows back and bail.
+  // (The check above is just a fast/friendly path — this is the real race guard.)
+  let claimed = false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await db.begin(async (tx: any) => {
-    await tx`
+    const updated = await tx`
       UPDATE tenant_invites SET claimed_by = ${privyDid}, claimed_at = NOW()
-      WHERE id = ${invite.id}
+      WHERE id = ${invite.id} AND claimed_by IS NULL
+      RETURNING id
     `;
+    if (updated.length === 0) return; // lost the race — another DID already claimed it
+    claimed = true;
     await tx`
       INSERT INTO tenant_admins (tenant_id, privy_did, granted_by)
       VALUES (${invite.tenant_id}, ${privyDid}, ${invite.created_by})
@@ -746,6 +752,7 @@ export async function claimTenantInvite(token: string, privyDid: string): Promis
     `;
   });
 
+  if (!claimed) return { success: false, error: 'Invite already claimed' };
   return { success: true, tenantSlug: invite.tenant_slug as string };
 }
 

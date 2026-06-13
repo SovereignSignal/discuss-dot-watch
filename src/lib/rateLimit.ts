@@ -114,22 +114,42 @@ export function checkOutgoingRateLimit(domain: string): RateLimitResult {
   return checkRateLimit(key, OUTGOING_RATE_LIMIT);
 }
 
+/** Loose syntactic validation that a string is an IPv4 or IPv6 address. */
+function isValidIp(ip: string): boolean {
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+    return ip.split('.').every((octet) => Number(octet) <= 255);
+  }
+  // IPv6 (loose — hex groups and colons, must contain at least one colon)
+  return ip.includes(':') && /^[0-9a-fA-F:.]+$/.test(ip);
+}
+
 /**
- * Get rate limit key from request (uses IP address or forwarded header)
+ * Get rate limit key from request.
+ *
+ * IMPORTANT: the *leftmost* X-Forwarded-For value is whatever the original client
+ * sent and is trivially spoofable (a fresh value per request defeats per-IP limits).
+ * We trust only the edge proxy:
+ *   1. `x-real-ip`, which Railway/most platforms set from the actual connection, then
+ *   2. the *rightmost* X-Forwarded-For hop (appended by our own proxy), not the leftmost.
+ * Each candidate is validated as a real IP; otherwise all requests share one bucket
+ * (fail-safe / more restrictive). The per-domain outgoing limiter remains the real
+ * upstream backstop regardless.
  */
 export function getRateLimitKey(request: Request): string {
-  // Try to get real IP from forwarded headers (for proxies/load balancers)
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    // Get first IP in chain (client IP)
-    return forwarded.split(',')[0].trim();
-  }
-
-  const realIp = request.headers.get('x-real-ip');
-  if (realIp) {
+  const realIp = request.headers.get('x-real-ip')?.trim();
+  if (realIp && isValidIp(realIp)) {
     return realIp;
   }
 
-  // Fallback to a generic key (all requests share same limit)
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) {
+    const hops = forwarded.split(',').map((s) => s.trim()).filter(Boolean);
+    const edgeHop = hops[hops.length - 1];
+    if (edgeHop && isValidIp(edgeHop)) {
+      return edgeHop;
+    }
+  }
+
+  // Fallback to a generic key (all requests share same limit — fail-safe)
   return 'anonymous';
 }
