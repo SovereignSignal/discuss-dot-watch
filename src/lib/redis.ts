@@ -240,6 +240,37 @@ export async function releaseRefreshLock(): Promise<void> {
 }
 
 /**
+ * Idempotency guard for once-per-day jobs (e.g. the grants brief email).
+ * Returns true if THIS caller claimed today's slot (and should proceed). Returns
+ * false if it was already claimed (a retry/overlap — skip). With no Redis it
+ * returns true (can't dedupe — don't block the job).
+ */
+export async function claimOncePerDay(name: string, ttlSeconds = 90_000): Promise<boolean> {
+  const client = getRedis();
+  if (!client) return true;
+  try {
+    const day = new Date().toISOString().slice(0, 10); // UTC date
+    const result = await client.set(`oncePerDay:${name}:${day}`, '1', 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  } catch (err) {
+    console.error('[Redis] Error claiming daily slot:', err);
+    return true; // don't block the job on a Redis error
+  }
+}
+
+/** Release a once-per-day claim (e.g. when the send failed, so a retry can run). */
+export async function releaseDailyClaim(name: string): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    await client.del(`oncePerDay:${name}:${day}`);
+  } catch (err) {
+    console.error('[Redis] Error releasing daily claim:', err);
+  }
+}
+
+/**
  * Clear all cached data (useful for testing)
  */
 export async function clearCache(): Promise<void> {

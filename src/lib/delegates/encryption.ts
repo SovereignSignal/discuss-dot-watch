@@ -11,12 +11,16 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 
+const HEX_64 = /^[0-9a-fA-F]{64}$/;
+
 function getEncryptionKey(): Buffer {
   const key = process.env.ENCRYPTION_KEY;
   if (!key) {
     throw new Error('ENCRYPTION_KEY environment variable is not set');
   }
-  if (key.length !== 64) {
+  // Validate hex, not just length: Buffer.from(nonHex,'hex') silently yields a
+  // short/garbage key instead of failing, weakening encryption without warning.
+  if (!HEX_64.test(key)) {
     throw new Error('ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
   }
   return Buffer.from(key, 'hex');
@@ -69,5 +73,5 @@ export function decrypt(encryptedBase64: string): string {
 }
 
 export function isEncryptionConfigured(): boolean {
-  return !!process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length === 64;
+  return !!process.env.ENCRYPTION_KEY && HEX_64.test(process.env.ENCRYPTION_KEY);
 }

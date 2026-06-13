@@ -14,6 +14,7 @@ import {
   formatGrantsBriefText,
 } from '@/lib/grantsBrief';
 import { sendEmail } from '@/lib/emailService';
+import { claimOncePerDay, releaseDailyClaim } from '@/lib/redis';
 
 const RECIPIENT = 'sov@sovereignsignal.com';
 
@@ -35,6 +36,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Idempotency: only one send per UTC day, so a cron retry/overlap can't
+    // duplicate the email. Claimed after the no-content skip above so an empty
+    // early run doesn't burn the day's slot.
+    if (!(await claimOncePerDay('grants-brief'))) {
+      console.log('[Cron GrantsBrief] Already sent today, skipping');
+      return NextResponse.json({ success: true, sent: false, reason: 'Already sent today' });
+    }
+
     const html = formatGrantsBriefEmail(brief);
     const text = formatGrantsBriefText(brief);
     const dateStr = brief.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -51,6 +60,8 @@ export async function GET(request: NextRequest) {
 
     if (!result.success) {
       console.error('[Cron GrantsBrief] Email send failed:', result.error);
+      // Release today's slot so a later retry can send.
+      await releaseDailyClaim('grants-brief');
       return NextResponse.json({
         success: false,
         error: result.error,

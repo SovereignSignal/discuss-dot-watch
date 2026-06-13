@@ -122,7 +122,8 @@ export async function GET(request: Request) {
   const query = searchParams.get('q');
   const forumsParam = searchParams.get('forums');
   const category = searchParams.get('category');
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '10'), 25);
+  const limitParam = parseInt(searchParams.get('limit') ?? '10', 10);
+  const limit = Math.min(Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 10, 25);
 
   if (!query || query.trim().length < 2) {
     return withCors(NextResponse.json(

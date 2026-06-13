@@ -310,7 +310,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
             )}
             {unreadCount > 0 && (
               <button
-                onClick={() => onMarkAllAsRead(displayedDiscussions.map(d => d.refId))}
+                onClick={() => onMarkAllAsRead(filteredAndSortedDiscussions.map(d => d.refId))}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
                 style={{ color: t.fgSecondary }}
                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = t.bgSubtle; }}
