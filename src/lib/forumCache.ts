@@ -20,6 +20,7 @@ import { fetchGitHubDiscussions, isGitHubConfigured } from './githubDiscussionsC
 import { fetchSnapshotProposals } from './snapshotClient';
 import { fetchHackerNewsStories } from './hackerNewsClient';
 import { fetchLobstersStories } from './lobstersClient';
+import { safeFetch } from './safeFetch';
 import { 
   getCachedTopics, 
   setCachedTopics, 
@@ -434,7 +435,7 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
 
     const apiUrl = `${baseUrl}/latest.json`;
 
-    const response = await fetch(apiUrl, {
+    const response = await safeFetch(apiUrl, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'discuss.watch/1.0 (forum aggregator; https://discuss.watch)',

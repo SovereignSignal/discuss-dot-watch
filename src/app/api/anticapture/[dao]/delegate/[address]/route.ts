@@ -5,7 +5,7 @@
  * proposal linked to its forum-discussion thread where one can be found.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { isAnticaptureConfigured, getDelegateActivity } from '@/lib/delegates/anticaptureClient';
+import { isAnticaptureConfigured, isKnownDao, getDelegateActivity } from '@/lib/delegates/anticaptureClient';
 import { attachDiscussions } from '@/lib/delegates/daoForums';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const id = dao.toLowerCase();
   const addr = address.toLowerCase();
 
+  if (!isKnownDao(id)) {
+    return NextResponse.json({ error: 'Unknown DAO' }, { status: 404 });
+  }
   if (!/^0x[0-9a-f]{40}$/.test(addr)) {
     return NextResponse.json({ error: 'invalid address' }, { status: 400 });
   }
@@ -44,8 +47,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     cache.set(key, { at: Date.now(), data });
     return NextResponse.json(data);
   } catch (e) {
+    console.error('[anticapture] delegate activity error:', e);
     return NextResponse.json(
-      { configured: true, error: e instanceof Error ? e.message : 'fetch failed' },
+      { configured: true, error: 'Upstream governance fetch failed' },
       { status: 502 },
     );
   }

@@ -6,7 +6,7 @@
  * getAddress is chain-global — but keeps the URL namespaced to the dashboard.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { isAnticaptureConfigured, getDelegateLabels } from '@/lib/delegates/anticaptureClient';
+import { isAnticaptureConfigured, isKnownDao, getDelegateLabels } from '@/lib/delegates/anticaptureClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,10 @@ const cache = new Map<string, { at: number; data: Record<string, { label?: strin
 const TTL_MS = 30 * 60 * 1000; // labels are stable — cache longer than the snapshot
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ dao: string }> }) {
-  await params; // [dao] is namespacing only
+  const { dao } = await params;
+  if (!isKnownDao(dao)) {
+    return NextResponse.json({ error: 'Unknown DAO' }, { status: 404 });
+  }
   if (!isAnticaptureConfigured()) {
     return NextResponse.json({ configured: false, labels: {} });
   }
@@ -36,8 +39,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     cache.set(key, { at: Date.now(), data: labels });
     return NextResponse.json({ configured: true, labels });
   } catch (e) {
+    console.error('[anticapture] label fetch error:', e);
     return NextResponse.json(
-      { configured: true, labels: {}, error: e instanceof Error ? e.message : 'label fetch failed' },
+      { configured: true, labels: {}, error: 'Label fetch failed' },
       { status: 502 },
     );
   }

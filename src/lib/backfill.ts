@@ -6,6 +6,7 @@
  */
 
 import { getDb, isDatabaseConfigured, upsertTopic } from './db';
+import { safeFetch } from './safeFetch';
 
 const DELAY_BETWEEN_PAGES_MS = 5000; // 5 seconds between requests
 const PAGES_PER_CYCLE = 3; // Process 3 pages per worker cycle
@@ -180,8 +181,8 @@ async function fetchPage(forumUrl: string, page: number): Promise<{
   hasMore: boolean;
 }> {
   const url = `${forumUrl}/latest.json?page=${page}`;
-  
-  const response = await fetch(url, {
+
+  const response = await safeFetch(url, {
     headers: {
       'Accept': 'application/json',
       'User-Agent': 'discuss.watch/1.0 (historical indexer)',

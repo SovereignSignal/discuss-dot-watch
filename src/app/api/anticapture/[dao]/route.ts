@@ -4,8 +4,9 @@
  * treasury series, and proposals.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { isAnticaptureConfigured, getGovernanceSnapshot } from '@/lib/delegates/anticaptureClient';
+import { isAnticaptureConfigured, isKnownDao, getGovernanceSnapshot } from '@/lib/delegates/anticaptureClient';
 import { getDaoForumTopics, attachDiscussions } from '@/lib/delegates/daoForums';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,9 +14,19 @@ export const dynamic = 'force-dynamic';
 const cache = new Map<string, { at: number; data: unknown }>();
 const TTL_MS = 5 * 60 * 1000;
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ dao: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ dao: string }> }) {
   const { dao } = await params;
   const id = dao.toLowerCase();
+
+  // Bound to known DAOs — stops an arbitrary id from growing the cache / hitting upstream.
+  if (!isKnownDao(id)) {
+    return NextResponse.json({ error: 'Unknown DAO' }, { status: 404 });
+  }
+
+  const rl = checkRateLimit(`anticapture:${getRateLimitKey(request)}`, { windowMs: 60000, maxRequests: 30 });
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
 
   if (!isAnticaptureConfigured()) {
     return NextResponse.json({ configured: false });
@@ -42,8 +53,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     cache.set(id, { at: Date.now(), data });
     return NextResponse.json(data);
   } catch (e) {
+    console.error('[anticapture] snapshot error:', e);
     return NextResponse.json(
-      { configured: true, error: e instanceof Error ? e.message : 'fetch failed' },
+      { configured: true, error: 'Upstream governance fetch failed' },
       { status: 502 },
     );
   }

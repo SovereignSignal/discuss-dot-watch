@@ -1,43 +1,58 @@
+/** Private / reserved IPv4 ranges (loopback, RFC1918, link-local, CGNAT, 0/8). */
+function isPrivateIPv4(ip: string): boolean {
+  const m = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  const a = Number(m[1]), b = Number(m[2]), c = Number(m[3]), d = Number(m[4]);
+  if (a > 255 || b > 255 || c > 255 || d > 255) return false;
+  if (a === 0) return true;                          // 0.0.0.0/8
+  if (a === 127) return true;                        // loopback
+  if (a === 10) return true;                         // RFC1918
+  if (a === 172 && b >= 16 && b <= 31) return true;  // RFC1918
+  if (a === 192 && b === 168) return true;           // RFC1918
+  if (a === 169 && b === 254) return true;           // link-local (cloud metadata)
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10
+  return false;
+}
+
 /**
- * Check if an IP address is private/internal
- * Used to validate both hostnames and resolved IPs
+ * Check if an IP address is private/internal.
+ * Used to validate both hostnames and DNS-resolved IPs. Handles IPv4, bracketed
+ * IPv6, and — critically — IPv6-mapped IPv4 in BOTH dotted (`::ffff:169.254.169.254`)
+ * and hex-compressed (`::ffff:a9fe:a9fe`) forms, which Node may emit and which
+ * otherwise bypass the IPv4 checks straight to cloud metadata.
  */
 export function isPrivateIP(ip: string): boolean {
-  // IPv4 checks
-  // Localhost
-  if (ip === '127.0.0.1' || ip.startsWith('127.')) {
-    return true;
+  const addr = ip.replace(/^\[/, '').replace(/\]$/, '').toLowerCase();
+
+  // IPv6-mapped IPv4 — normalize the embedded address and re-check.
+  const mapped = addr.match(/^::ffff:(.+)$/);
+  if (mapped) {
+    const inner = mapped[1];
+    if (inner.includes('.')) {
+      return isPrivateIPv4(inner);
+    }
+    const groups = inner.split(':');
+    if (groups.length === 2) {
+      const hi = parseInt(groups[0], 16);
+      const lo = parseInt(groups[1], 16);
+      if (!Number.isNaN(hi) && !Number.isNaN(lo)) {
+        const dotted = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+        return isPrivateIPv4(dotted);
+      }
+    }
+    return true; // any other mapped form we can't parse — fail safe
   }
 
-  // 0.0.0.0
-  if (ip === '0.0.0.0') {
-    return true;
+  // Plain IPv4
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(addr)) {
+    return isPrivateIPv4(addr);
   }
 
-  // 10.0.0.0 - 10.255.255.255
-  if (ip.match(/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
-    return true;
-  }
-
-  // 172.16.0.0 - 172.31.255.255
-  if (ip.match(/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/)) {
-    return true;
-  }
-
-  // 192.168.0.0 - 192.168.255.255
-  if (ip.match(/^192\.168\.\d{1,3}\.\d{1,3}$/)) {
-    return true;
-  }
-
-  // 169.254.0.0 - 169.254.255.255 (link-local, includes AWS metadata)
-  if (ip.match(/^169\.254\.\d{1,3}\.\d{1,3}$/)) {
-    return true;
-  }
-
-  // IPv6 loopback and link-local
-  if (ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('::ffff:127.')) {
-    return true;
-  }
+  // IPv6 special ranges
+  if (addr === '::1') return true;                   // loopback
+  if (addr === '::') return true;                    // unspecified
+  if (addr.startsWith('fe80:')) return true;         // link-local
+  if (/^f[cd][0-9a-f]{2}:/.test(addr)) return true;  // fc00::/7 unique-local
 
   return false;
 }
@@ -46,8 +61,9 @@ export function isPrivateIP(ip: string): boolean {
  * Check if a URL is potentially unsafe (SSRF protection)
  * Blocks localhost, private IPs, and cloud metadata endpoints
  *
- * Note: This validates the URL at parse time. For full DNS rebinding protection,
- * use validateResolvedIP() after DNS resolution or use safeFetch() which does both.
+ * Note: This validates the URL string at parse time only. For DNS-rebinding
+ * protection (a public hostname that resolves to a private IP), fetch through
+ * `safeFetch()` in lib/safeFetch.ts, which resolves DNS and re-checks every IP.
  */
 export function isAllowedUrl(url: string): boolean {
   try {
@@ -67,13 +83,8 @@ export function isAllowedUrl(url: string): boolean {
       return false;
     }
 
-    // Check if hostname is an IP and if it's private
+    // Check if hostname is an IP (incl. bracketed IPv6 / IPv6-mapped IPv4) and private
     if (isPrivateIP(hostname)) {
-      return false;
-    }
-
-    // Block IPv6 loopback and link-local (bracketed format)
-    if (hostname.startsWith('[') && (hostname.includes('::1') || hostname.includes('fe80:'))) {
       return false;
     }
 

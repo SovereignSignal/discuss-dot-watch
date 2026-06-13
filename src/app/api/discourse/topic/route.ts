@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAllowedUrl } from '@/lib/url';
+import { safeFetch } from '@/lib/safeFetch';
 import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
 import { getCachedTopicDetail, setCachedTopicDetail } from '@/lib/redis';
 import { sanitizeHtml } from '@/lib/sanitize';
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
     const baseUrl = forumUrl.endsWith('/') ? forumUrl.slice(0, -1) : forumUrl;
     const apiUrl = `${baseUrl}/t/${parsedTopicId}.json`;
 
-    const response = await fetch(apiUrl, {
+    const response = await safeFetch(apiUrl, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'discuss.watch/1.0 (forum aggregator; https://discuss.watch)',
