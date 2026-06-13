@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink, MessageSquare } from 'lucide-react';
 import type { DelegateActivity, DelegateHistoryItem } from '@/lib/delegates/anticaptureClient';
-import { daoTheme, fmtTok, short, agoTs, vpNum, SUPPORT, STATUS_COLOR } from '../../_lib';
+import { daoTheme, fmtTok, short, agoTs, vpNum, SUPPORT, STATUS_COLOR, explorerAddress } from '../../_lib';
 
 type DelegateData = DelegateActivity & { configured?: boolean; error?: string };
 
@@ -135,7 +135,7 @@ export default function DelegatePage() {
                 {data.isContract && <span className="text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wide" style={{ backgroundColor: 'var(--ds-bg-subtle)', color: 'var(--ds-fg-dim)' }}>contract</span>}
               </div>
               <div className="flex items-center gap-3 text-sm flex-wrap" style={{ color: 'var(--ds-fg-dim)' }}>
-                <a href={`https://etherscan.io/address/${address}`} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1" style={{ fontFamily: 'var(--ds-font-mono)' }}>
+                <a href={explorerAddress(id, address)} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1" style={{ fontFamily: 'var(--ds-font-mono)' }}>
                   {short(address)} <ExternalLink className="w-3 h-3" />
                 </a>
                 <span>· {theme.name} delegate · governance record via Anticapture</span>

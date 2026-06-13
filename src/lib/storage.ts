@@ -152,6 +152,9 @@ const BookmarkSchema = z.object({
   topicTitle: z.string().min(1).max(500),
   topicUrl: z.string().url(),
   protocol: z.string().min(1).max(200),
+  // Folder assignment — without this Zod strips it on every read, silently losing
+  // the bookmark-folders feature for local-only users.
+  folder: z.string().max(200).nullable().optional(),
   createdAt: z.string(),
 });
 

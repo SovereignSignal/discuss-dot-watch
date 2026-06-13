@@ -87,7 +87,8 @@ export async function GET(request: Request) {
 
   const forumsParam = searchParams.get('forums');
   const category = searchParams.get('category');
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '20'), 50);
+  const limitParam = parseInt(searchParams.get('limit') ?? '20', 10);
+  const limit = Math.min(Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 20, 50);
   const hot = searchParams.get('hot') === 'true';
   const since = searchParams.get('since');
   const sort = searchParams.get('sort') ?? 'activity';
