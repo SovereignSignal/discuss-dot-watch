@@ -5,7 +5,7 @@
  * Rate-limit friendly: 1 request per 5 seconds, processes one forum at a time.
  */
 
-import { getDb, isDatabaseConfigured, upsertTopic } from './db';
+import { getDb, isDatabaseConfigured, bulkUpsertTopics } from './db';
 
 const DELAY_BETWEEN_PAGES_MS = 5000; // 5 seconds between requests
 const PAGES_PER_CYCLE = 3; // Process 3 pages per worker cycle
@@ -239,25 +239,23 @@ export async function processJob(job: BackfillJob): Promise<{
         return { pagesProcessed, topicsFetched: totalTopicsFetched - job.topics_fetched, complete: true };
       }
       
-      // Store topics
-      for (const topic of topics) {
-        await upsertTopic(job.forum_id, {
-          discourseId: topic.id,
-          title: topic.title,
-          slug: topic.slug,
-          categoryId: topic.category_id,
-          tags: normalizeTags(topic.tags),  // Normalize tags to string[]
-          postsCount: topic.posts_count,
-          views: topic.views,
-          replyCount: topic.reply_count,
-          likeCount: topic.like_count,
-          pinned: topic.pinned,
-          closed: topic.closed,
-          archived: topic.archived,
-          createdAt: topic.created_at,
-          bumpedAt: topic.bumped_at,
-        });
-      }
+      // Store topics in a single batch round-trip (was a per-topic N+1).
+      await bulkUpsertTopics(job.forum_id, topics.map((topic) => ({
+        discourseId: topic.id,
+        title: topic.title,
+        slug: topic.slug,
+        categoryId: topic.category_id,
+        tags: normalizeTags(topic.tags),  // Normalize tags to string[]
+        postsCount: topic.posts_count,
+        views: topic.views,
+        replyCount: topic.reply_count,
+        likeCount: topic.like_count,
+        pinned: topic.pinned,
+        closed: topic.closed,
+        archived: topic.archived,
+        createdAt: topic.created_at,
+        bumpedAt: topic.bumped_at,
+      })));
       
       totalTopicsFetched += topics.length;
       currentPage++;

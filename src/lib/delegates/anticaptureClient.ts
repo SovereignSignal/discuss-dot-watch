@@ -184,7 +184,14 @@ async function post(sessionId: string | null, payload: unknown): Promise<RpcResu
   };
   if (sessionId) headers['Mcp-Session-Id'] = sessionId;
 
-  const res = await fetch(MCP_URL, { method: 'POST', headers, body: JSON.stringify(payload) });
+  // Bound each MCP call so one slow upstream tool can't hang the whole
+  // /governance/[dao] request (which chains several of these).
+  const res = await fetch(MCP_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15_000),
+  });
   const sid = res.headers.get('mcp-session-id') || sessionId;
   const text = await res.text();
 
