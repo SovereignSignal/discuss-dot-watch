@@ -2,12 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  experimental: {
-    // Use system TLS certificates for Turbopack's font fetching.
-    // Turbopack uses rustls by default which doesn't use the system cert store,
-    // causing Google Fonts fetch failures in containerized build environments (Railway/Nixpacks).
-    turbopackUseSystemTlsCerts: true,
-  },
+  // Note: the former experimental.turbopackUseSystemTlsCerts (a workaround for
+  // Turbopack fetching Google Fonts over rustls in containers) was removed — fonts
+  // are self-hosted via next/font (geist), so no external font fetch happens, and
+  // the option no longer exists in Next 16.2+.
 };
 
 export default nextConfig;
