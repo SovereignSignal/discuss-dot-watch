@@ -33,7 +33,7 @@ import {
 import {
   isDatabaseConfigured,
   upsertForum,
-  upsertTopic,
+  bulkUpsertTopics,
   getForumByUrl,
   getRecentTopics,
   updateForumLastFetched,
@@ -216,26 +216,27 @@ export async function getCachedDiscussions(forumUrls: string[]): Promise<Array<{
     pinned: boolean;
   }> = [];
   
-  for (const forumUrl of forumUrls) {
-    const cached = await getCachedForum(forumUrl);
-    if (cached && cached.topics) {
-      for (const topic of cached.topics) {
-        results.push({
-          title: topic.title,
-          url: `${forumUrl.replace(/\/$/, '')}/t/${topic.slug}/${topic.id}`,
-          forumName: topic.protocol || forumUrl,
-          replies: topic.replyCount || topic.postsCount - 1 || 0,
-          views: topic.views || 0,
-          likes: topic.likeCount || 0,
-          tags: topic.tags || [],
-          createdAt: topic.createdAt,
-          bumpedAt: topic.bumpedAt,
-          pinned: topic.pinned || false,
-        });
-      }
-    }
-  }
-  
+  // Fetch all forums' caches concurrently (was sequential per-forum awaits).
+  const perForum = await Promise.all(
+    forumUrls.map(async (forumUrl) => {
+      const cached = await getCachedForum(forumUrl);
+      if (!cached || !cached.topics) return [] as typeof results;
+      return cached.topics.map((topic) => ({
+        title: topic.title,
+        url: `${forumUrl.replace(/\/$/, '')}/t/${topic.slug}/${topic.id}`,
+        forumName: topic.protocol || forumUrl,
+        replies: topic.replyCount || topic.postsCount - 1 || 0,
+        views: topic.views || 0,
+        likes: topic.likeCount || 0,
+        tags: topic.tags || [],
+        createdAt: topic.createdAt,
+        bumpedAt: topic.bumpedAt,
+        pinned: topic.pinned || false,
+      }));
+    }),
+  );
+  for (const list of perForum) results.push(...list);
+
   return results;
 }
 
@@ -538,26 +539,24 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
       forumId = forumRecord.id;
     }
     
-    // Upsert each topic
-    for (const topic of topics) {
-      await upsertTopic(forumId, {
-        discourseId: topic.id,
-        title: topic.title,
-        slug: topic.slug,
-        categoryId: topic.categoryId,
-        tags: topic.tags,
-        postsCount: topic.postsCount,
-        views: topic.views,
-        replyCount: topic.replyCount,
-        likeCount: topic.likeCount,
-        pinned: topic.pinned,
-        closed: topic.closed,
-        archived: topic.archived,
-        createdAt: topic.createdAt,
-        bumpedAt: topic.bumpedAt,
-      });
-    }
-    
+    // Batch-upsert all topics in one round-trip (was a per-topic N+1).
+    await bulkUpsertTopics(forumId, topics.map((topic) => ({
+      discourseId: topic.id,
+      title: topic.title,
+      slug: topic.slug,
+      categoryId: topic.categoryId,
+      tags: topic.tags,
+      postsCount: topic.postsCount,
+      views: topic.views,
+      replyCount: topic.replyCount,
+      likeCount: topic.likeCount,
+      pinned: topic.pinned,
+      closed: topic.closed,
+      archived: topic.archived,
+      createdAt: topic.createdAt,
+      bumpedAt: topic.bumpedAt,
+    })));
+
     // Update last fetched timestamp
     await updateForumLastFetched(forumId);
   } catch (error) {

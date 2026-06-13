@@ -228,12 +228,25 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
     });
   }, [discussions, searchQuery, dateRange, dateFilterMode, selectedForumId, selectedCategory, forums, forumCategoryMap, sortBy, activeKeywordFilter, alerts, isServerMode]);
 
-  const displayedDiscussions = isServerMode
-    ? filteredAndSortedDiscussions
-    : filteredAndSortedDiscussions.slice(0, displayCount);
+  const displayedDiscussions = useMemo(
+    () => isServerMode
+      ? filteredAndSortedDiscussions
+      : filteredAndSortedDiscussions.slice(0, displayCount),
+    [isServerMode, filteredAndSortedDiscussions, displayCount],
+  );
   const hasMore = isServerMode
     ? (props.serverHasMore ?? false)
     : displayCount < filteredAndSortedDiscussions.length;
+
+  // Single-pass read/unread partition (was two .filter() scans per render).
+  const { unreadItems, readItems } = useMemo(() => {
+    const unread: typeof displayedDiscussions = [];
+    const read: typeof displayedDiscussions = [];
+    for (const d of displayedDiscussions) {
+      (isRead(d.refId) ? read : unread).push(d);
+    }
+    return { unreadItems: unread, readItems: read };
+  }, [displayedDiscussions, isRead]);
 
   // Compute filtered unread count when category/forum filters are active
   const filteredUnreadCount = useMemo(() => {
@@ -406,8 +419,9 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
                 );
               };
               // Split into unread + read, render unread first, collapse read behind a toggle.
-              const unread = displayedDiscussions.filter(d => !isRead(d.refId));
-              const read = displayedDiscussions.filter(d => isRead(d.refId));
+              // (Partition is computed once, memoized — see unreadItems/readItems above.)
+              const unread = unreadItems;
+              const read = readItems;
               return (
                 <>
                   {unread.map(renderRow)}
