@@ -207,6 +207,8 @@ export async function initializeSchema() {
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;
   await db`CREATE INDEX IF NOT EXISTS idx_topics_created_at ON topics(created_at DESC)`;
   await db`CREATE INDEX IF NOT EXISTS idx_topics_bumped_at ON topics(bumped_at DESC)`;
+  // Composite for getRecentTopics' per-forum "latest" query (filter forum_id + sort bumped_at).
+  await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_bumped ON topics(forum_id, bumped_at DESC)`;
   await db`CREATE INDEX IF NOT EXISTS idx_topics_first_seen ON topics(first_seen_at DESC)`;
   await db`CREATE INDEX IF NOT EXISTS idx_topic_snapshots_topic_id ON topic_snapshots(topic_id)`;
   await db`CREATE INDEX IF NOT EXISTS idx_forums_category ON forums(category)`;
@@ -297,6 +299,75 @@ export async function upsertTopic(forumId: number, topic: {
   `;
   
   return result[0]?.id;
+}
+
+/**
+ * Batch upsert topics for one forum in a single multi-row INSERT, replacing the
+ * per-topic N+1 (~10k sequential round-trips per 15-min refresh). Mirrors the
+ * proven bulkUpsertDirectoryContributors pattern. Returns the number of rows written.
+ */
+export async function bulkUpsertTopics(forumId: number, topics: Array<{
+  discourseId: number;
+  title: string;
+  slug?: string;
+  categoryId?: number;
+  tags?: string[];
+  postsCount?: number;
+  views?: number;
+  replyCount?: number;
+  likeCount?: number;
+  pinned?: boolean;
+  closed?: boolean;
+  archived?: boolean;
+  createdAt?: string;
+  bumpedAt?: string;
+}>): Promise<number> {
+  if (topics.length === 0) return 0;
+  const db = getDb();
+
+  const rows = topics.map((t) => ({
+    forum_id: forumId,
+    discourse_id: t.discourseId,
+    title: t.title,
+    slug: t.slug || null,
+    category_id: t.categoryId || null,
+    tags: t.tags || [],
+    posts_count: t.postsCount || 0,
+    views: t.views || 0,
+    reply_count: t.replyCount || 0,
+    like_count: t.likeCount || 0,
+    pinned: t.pinned || false,
+    closed: t.closed || false,
+    archived: t.archived || false,
+    created_at: t.createdAt || null,
+    bumped_at: t.bumpedAt || null,
+  }));
+
+  const cols = [
+    'forum_id', 'discourse_id', 'title', 'slug', 'category_id', 'tags',
+    'posts_count', 'views', 'reply_count', 'like_count',
+    'pinned', 'closed', 'archived', 'created_at', 'bumped_at',
+  ] as const;
+
+  const result = await db`
+    INSERT INTO topics ${db(rows, ...cols)}
+    ON CONFLICT (forum_id, discourse_id) DO UPDATE SET
+      title = EXCLUDED.title,
+      slug = EXCLUDED.slug,
+      category_id = EXCLUDED.category_id,
+      tags = EXCLUDED.tags,
+      posts_count = EXCLUDED.posts_count,
+      views = EXCLUDED.views,
+      reply_count = EXCLUDED.reply_count,
+      like_count = EXCLUDED.like_count,
+      pinned = EXCLUDED.pinned,
+      closed = EXCLUDED.closed,
+      archived = EXCLUDED.archived,
+      bumped_at = EXCLUDED.bumped_at,
+      last_seen_at = NOW()
+    RETURNING id
+  `;
+  return result.length;
 }
 
 /**
@@ -412,8 +483,11 @@ export async function getRecentTopics(options: {
  */
 export async function searchTopics(query: string, limit = 50) {
   const db = getDb();
-  const searchPattern = `%${query}%`;
-  
+  // Escape ILIKE wildcards so a user's literal % or _ doesn't act as a wildcard
+  // (Postgres ILIKE treats backslash as the escape char by default).
+  const escaped = query.replace(/([\\%_])/g, '\\$1');
+  const searchPattern = `%${escaped}%`;
+
   return db`
     SELECT t.*, f.name as forum_name, f.url as forum_url, f.logo_url as forum_logo
     FROM topics t

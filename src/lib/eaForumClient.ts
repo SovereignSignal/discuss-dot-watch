@@ -6,6 +6,7 @@
  */
 
 import { DiscussionTopic, SourceType } from '@/types';
+import { hashStringToNumber, truncateText } from './sourceClientUtils';
 
 // API endpoints
 const EA_FORUM_ENDPOINT = 'https://forum.effectivealtruism.org/graphql';
@@ -142,27 +143,7 @@ export async function fetchEAForumPosts(
   }
 }
 
-/**
- * Hash a string to a stable numeric ID
- */
-function hashStringToNumber(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash);
-}
 
-/**
- * Truncate text to a maximum length
- */
-function truncateText(text: string | undefined, maxLength: number): string {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength).trim() + '…';
-}
 
 /**
  * Get post detail (for inline reader)

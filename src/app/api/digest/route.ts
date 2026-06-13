@@ -379,6 +379,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
   }
 
+  // Validate testEmail before it is used as a recipient / reflected into HTML.
+  if (testEmail !== undefined &&
+      (typeof testEmail !== 'string' || !/^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(testEmail))) {
+    return NextResponse.json({ success: false, error: 'Invalid testEmail' }, { status: 400 });
+  }
+
   try {
     // Grants brief flow
     if (body.type === 'grants-brief') {

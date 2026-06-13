@@ -7,6 +7,7 @@
  */
 
 import { DiscussionTopic, SourceType } from '@/types';
+import { hashStringToNumber, truncateText } from './sourceClientUtils';
 import { sanitizeHtml } from '@/lib/sanitize';
 
 const SNAPSHOT_ENDPOINT = 'https://hub.snapshot.org/graphql';
@@ -401,24 +402,4 @@ function markdownToBasicHtml(md: string): string {
   return sanitizeHtml(raw);
 }
 
-/**
- * Hash a string to a stable numeric ID
- */
-function hashStringToNumber(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash);
-}
 
-/**
- * Truncate text to a maximum length
- */
-function truncateText(text: string | undefined, maxLength: number): string {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength).trim() + '…';
-}

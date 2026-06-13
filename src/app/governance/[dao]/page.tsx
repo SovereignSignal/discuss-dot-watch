@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowUpRight, ExternalLink, MessageSquare } from 'lucide-react';
 import type { GovernanceSnapshot, VotingPowerEntry, FeedEvent, AnticaptureProposal, TreasuryPoint, OffchainProposal, AddressLabel } from '@/lib/delegates/anticaptureClient';
 import type { DaoForumTopic } from '@/lib/delegates/daoForums';
-import { DAO, ORDER, fmtUsd, fmtTok, short, ago, vpNum, SUPPORT, STATUS_COLOR } from '../_lib';
+import { DAO, ORDER, fmtUsd, fmtTok, short, ago, vpNum, SUPPORT, STATUS_COLOR, explorerTx } from '../_lib';
 
 /** The /api/anticapture/[dao] response = snapshot + the forum topics the route joins in. */
 type DashboardData = GovernanceSnapshot & { forumTopics?: DaoForumTopic[] };
@@ -216,7 +216,7 @@ export default function DaoGovernancePage() {
                         <span className="font-medium">{e.type}</span>
                         <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--ds-bg-subtle)', color: 'var(--ds-fg-dim)' }}>{e.relevance.toLowerCase()}</span>
                       </span>
-                      <a href={`https://etherscan.io/tx/${e.txHash}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs flex-shrink-0 hover:opacity-70" style={{ color: 'var(--ds-fg-dim)' }}>
+                      <a href={explorerTx(id, e.txHash)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs flex-shrink-0 hover:opacity-70" style={{ color: 'var(--ds-fg-dim)' }}>
                         {ago(e.timestamp)} ago <ExternalLink className="w-3 h-3" />
                       </a>
                     </li>
@@ -356,7 +356,7 @@ export default function DaoGovernancePage() {
                         <div className="flex items-center gap-3 flex-shrink-0">
                           {tot > 0 && <span className="text-xs tabular-nums" style={{ color: 'var(--ds-fg-dim)' }}>{Math.round((f / tot) * 100)}% for</span>}
                           {p.txHash && (
-                            <a href={`https://etherscan.io/tx/${p.txHash}`} target="_blank" rel="noopener noreferrer" style={{ color: theme.accent }}>
+                            <a href={explorerTx(id, p.txHash)} target="_blank" rel="noopener noreferrer" style={{ color: theme.accent }}>
                               <ArrowUpRight className="w-4 h-4" />
                             </a>
                           )}

@@ -45,32 +45,45 @@ function getItemsFromCache(forumUrls: Set<string>): FeedItem[] {
   return items;
 }
 
+/** Escape a value for safe interpolation into XML text or an attribute. */
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function generateAtomFeed(items: FeedItem[], title: string, feedUrl: string): string {
   const updated = items.length > 0
     ? new Date(Math.max(...items.map(i => new Date(i.updatedAt).getTime()))).toISOString()
     : new Date().toISOString();
 
-  const entries = items.map(item => `
+  const entries = items.map(item => {
+    // The content is escaped HTML (type="html"), so escape the whole snippet once.
+    const contentHtml =
+      `<p><strong>${item.forum}</strong> · ${item.replies} replies · ${item.views} views</p>` +
+      `<p><a href="${item.url}">Read discussion →</a></p>`;
+    return `
     <entry>
-      <title><![CDATA[${item.title}]]></title>
-      <link href="${item.url}" rel="alternate" type="text/html"/>
-      <id>${item.url}</id>
+      <title>${escapeXml(item.title)}</title>
+      <link href="${escapeXml(item.url)}" rel="alternate" type="text/html"/>
+      <id>${escapeXml(item.url)}</id>
       <published>${new Date(item.createdAt).toISOString()}</published>
       <updated>${new Date(item.updatedAt).toISOString()}</updated>
-      <author><name>${item.forum}</name></author>
-      <content type="html"><![CDATA[
-        <p><strong>${item.forum}</strong> · ${item.replies} replies · ${item.views} views</p>
-        <p><a href="${item.url}">Read discussion →</a></p>
-      ]]></content>
-    </entry>`).join('\n');
+      <author><name>${escapeXml(item.forum)}</name></author>
+      <content type="html">${escapeXml(contentHtml)}</content>
+    </entry>`;
+  }).join('\n');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <title>${title}</title>
+  <title>${escapeXml(title)}</title>
   <subtitle>Unified forum feed from discuss.watch</subtitle>
-  <link href="${feedUrl}" rel="self" type="application/atom+xml"/>
+  <link href="${escapeXml(feedUrl)}" rel="self" type="application/atom+xml"/>
   <link href="https://discuss.watch" rel="alternate" type="text/html"/>
-  <id>https://discuss.watch${feedUrl}</id>
+  <id>https://discuss.watch${escapeXml(feedUrl)}</id>
   <updated>${updated}</updated>
   <generator>discuss.watch</generator>
   ${entries}
@@ -126,9 +139,9 @@ export async function GET(
     }
   }
 
-  if (forums.length === 0) {
-    return new NextResponse('No forums found', { status: 404 });
-  }
+  // Note: deliberately no 404 here. Unknown verticals already 404 in the switch
+  // default; a KNOWN vertical must keep returning a valid (possibly empty) feed even
+  // when the cache is cold, so subscribed readers don't unsubscribe on a transient 404.
 
   // Build set of forum URLs to match against cache
   const forumUrls = new Set(forums.map(f => f.url.replace(/\/$/, '').toLowerCase()));

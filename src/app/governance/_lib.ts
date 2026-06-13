@@ -25,6 +25,16 @@ export function daoTheme(id: string) {
   return DAO[id] || { name: id.toUpperCase(), token: id.toUpperCase(), accent: '#a1a1aa', glow: 'rgba(161,161,170,0.14)' };
 }
 
+/** Block-explorer base per DAO — most are Ethereum mainnet; Scroll lives on Scroll. */
+const EXPLORER: Record<string, string> = {
+  scr: 'https://scrollscan.com',
+};
+function explorerBase(daoId: string): string {
+  return EXPLORER[daoId] || 'https://etherscan.io';
+}
+export const explorerTx = (daoId: string, hash: string) => `${explorerBase(daoId)}/tx/${hash}`;
+export const explorerAddress = (daoId: string, addr: string) => `${explorerBase(daoId)}/address/${addr}`;
+
 export const fmtUsd = (n: number) =>
   !isFinite(n) ? '—' : n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(0)}K` : `$${n.toFixed(0)}`;
 

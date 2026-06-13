@@ -8,6 +8,7 @@
  * can be exercised directly by scripts/smoke-lobsters.ts under tsx.
  */
 import type { DiscussionTopic, SourceType } from '@/types';
+import { hashStringToNumber, truncateText, stripHtml } from './sourceClientUtils';
 
 const LOBSTERS_BASE = 'https://lobste.rs/t';
 
@@ -98,32 +99,5 @@ export async function fetchLobstersStories(
   }
 }
 
-function hashStringToNumber(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash);
-}
 
-/** Lobsters description field can contain HTML; reduce to plain text for the excerpt. */
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
-function truncateText(text: string | undefined, maxLength: number): string {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength).trim() + '…';
-}

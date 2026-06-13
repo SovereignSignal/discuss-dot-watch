@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, ReactNode, useCallback, useEffect, useState, useRef } from 'react';
+import { createContext, useContext, ReactNode, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useAuth } from './AuthProvider';
 import type { Forum } from '@/types';
 
@@ -338,7 +338,9 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     await loadUserData();
   }, [userId, loadUserData, getAuthHeaders]);
 
-  const value: DataSyncContextType = {
+  // Memoize so the context value is stable across renders — recreating it every
+  // render forces every consumer of DataSyncContext to re-render.
+  const value: DataSyncContextType = useMemo(() => ({
     isAuthenticated,
     userId,
     syncForums,
@@ -352,7 +354,11 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     migrateLocalData,
     serverData,
     isLoadingServerData,
-  };
+  }), [
+    isAuthenticated, userId, syncForums, syncAlerts, syncBookmarks, markAsRead,
+    markAllAsRead, syncTheme, syncDensity, syncOnboarding, migrateLocalData,
+    serverData, isLoadingServerData,
+  ]);
 
   return (
     <DataSyncContext.Provider value={value}>
