@@ -126,18 +126,9 @@ export function CommandMenu({
     el?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
 
-  // Global keyboard shortcut
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        if (isOpen) onClose();
-        else onClose();
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, onClose]);
+  // Cmd/Ctrl+K is owned by the parent (app/page.tsx), which toggles the menu open.
+  // A second handler here previously closed the menu on the same keystroke (both
+  // branches called onClose), racing the parent's toggle — removed.
 
   const handleSelect = useCallback((item: CommandItem) => {
     item.action();

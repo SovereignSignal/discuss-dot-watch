@@ -43,6 +43,7 @@ export function SortHeader({
   const activeColor = accent || t.fg;
   return (
     <th
+      aria-sort={isActive ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'}
       style={{
         padding: 0,
         position: sticky ? 'sticky' : undefined,
@@ -53,7 +54,6 @@ export function SortHeader({
     >
       <button
         onClick={() => onSort(field)}
-        aria-sort={isActive ? (dir === 'desc' ? 'descending' : 'ascending') : undefined}
         style={{
           all: 'unset',
           display: 'inline-flex',
