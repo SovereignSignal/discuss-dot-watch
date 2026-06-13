@@ -18,14 +18,6 @@ export function SkipLinks() {
         </li>
         <li>
           <a
-            href="#search"
-            className="px-4 py-2 bg-[var(--ds-info)] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ds-info)]"
-          >
-            Skip to search
-          </a>
-        </li>
-        <li>
-          <a
             href="#navigation"
             className="px-4 py-2 bg-[var(--ds-info)] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ds-info)]"
           >

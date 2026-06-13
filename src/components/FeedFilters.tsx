@@ -199,9 +199,12 @@ export function FeedFilters({
         <select
           value={selectedForumId || ''}
           onChange={(e) => onForumFilterChange(e.target.value || null)}
+          aria-label="Filter by forum"
           style={{
-            background: selectedForumId ? 'var(--ds-fg)' : 'var(--ds-bg-elev)',
-            color: selectedForumId ? 'var(--ds-bg-base)' : 'var(--ds-fg)',
+            // Match the soft "raised" active style of the chips above — not the old
+            // hard --ds-fg invert (which read as a jarring near-black box in light mode).
+            background: selectedForumId ? activeBg : 'var(--ds-bg-elev)',
+            color: selectedForumId ? activeFg : 'var(--ds-fg)',
             border: `1px solid var(--ds-border)`,
             borderRadius: 'var(--ds-radius-md)',
             padding: '5px 10px',
@@ -228,6 +231,7 @@ export function FeedFilters({
         <select
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortOption)}
+          aria-label="Sort discussions"
           style={{
             background: 'var(--ds-bg-elev)',
             color: 'var(--ds-fg)',
