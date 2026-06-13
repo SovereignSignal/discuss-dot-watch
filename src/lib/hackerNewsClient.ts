@@ -12,6 +12,7 @@
  * dependency and can be exercised directly by scripts/smoke-hn.ts under tsx.
  */
 import type { DiscussionTopic, SourceType } from '@/types';
+import { hashStringToNumber, truncateText, stripHtml } from './sourceClientUtils';
 
 // search_by_date ranks by recency (newest first); points>= filter provides quality signal.
 // Use /search instead if relevance ranking is ever preferred over recency.
@@ -114,33 +115,5 @@ export async function fetchHackerNewsStories(
   }
 }
 
-/** Stable numeric id from a string (matches snapshotClient convention). */
-function hashStringToNumber(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash);
-}
 
-/** HN story_text is HTML; reduce to plain text for the excerpt. */
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
-function truncateText(text: string | undefined, maxLength: number): string {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength).trim() + '…';
-}

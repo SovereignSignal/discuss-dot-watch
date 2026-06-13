@@ -5,6 +5,7 @@
  */
 
 import { notFound } from 'next/navigation';
+import { isValidTenantSlug } from '@/lib/tenantSlug';
 import { getDashboardData, fetchTenantSnapshotData } from '@/lib/delegates';
 import { initializeDelegateSchema } from '@/lib/delegates';
 
@@ -17,7 +18,7 @@ export default async function EmbedPage({
 }) {
   const { tenant: slug } = await params;
 
-  if (!slug || !/^[a-zA-Z0-9_-]{1,100}$/.test(slug)) {
+  if (!isValidTenantSlug(slug)) {
     notFound();
   }
 
