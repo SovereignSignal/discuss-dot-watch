@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isValidTenantSlug } from '@/lib/tenantSlug';
 import { getDashboardData, fetchTenantSnapshotData } from '@/lib/delegates';
 import { withCors, corsOptions } from '@/lib/cors';
 
@@ -14,7 +15,7 @@ export async function GET(
   try {
     const { tenant: slug } = await params;
 
-    if (!slug || typeof slug !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(slug)) {
+    if (!isValidTenantSlug(slug)) {
       return withCors(NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 }));
     }
 

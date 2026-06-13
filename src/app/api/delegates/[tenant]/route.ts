@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isValidTenantSlug } from '@/lib/tenantSlug';
 import { getDashboardData, fetchTenantSnapshotData, fetchVoterParticipation, computeGovernanceScores } from '@/lib/delegates';
 import { generateDelegateBrief, getCachedBrief } from '@/lib/delegates/brief';
 import type { GovernanceScore } from '@/types/delegates';
@@ -15,7 +16,7 @@ export async function GET(
   try {
     const { tenant: slug } = await params;
 
-    if (!slug || typeof slug !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(slug)) {
+    if (!isValidTenantSlug(slug)) {
       return NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 });
     }
 
