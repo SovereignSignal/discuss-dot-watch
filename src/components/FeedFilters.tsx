@@ -28,7 +28,8 @@ interface FeedFiltersProps {
 
 const DATE_RANGE_OPTIONS: { value: DateRangeFilter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'today', label: 'Today' },
+  // Rolling 24h window (not calendar-day), so "Today" would mislabel it.
+  { value: 'today', label: '24h' },
   { value: 'week', label: 'Week' },
   { value: 'month', label: 'Month' },
 ];

@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Claude Code superpowers brainstorm artifacts (HTML mockup workspace)
 .superpowers/
+
+# Playwright MCP debug artifacts
+.playwright-mcp/

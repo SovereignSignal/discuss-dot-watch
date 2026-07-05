@@ -130,7 +130,27 @@ html.light {
 body {
   background-color: var(--background) !important;
   color: var(--foreground) !important;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--ds-font-sans);
+}
+
+/* Hover-revealed row actions (bookmark, remove, open-external).
+   Hidden until row hover / keyboard focus on pointer devices, but always
+   visible on touch devices, which have no hover to reveal them with. */
+.hover-action {
+  opacity: 0;
+  transition: opacity 150ms;
+}
+/* :has(:focus-visible) rather than :focus-within so keyboard Tab reveals
+   the actions but a mouse click inside the row doesn't pin them visible. */
+.group:hover .hover-action,
+.group:has(:focus-visible) .hover-action,
+.hover-action:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .hover-action {
+    opacity: 0.6;
+  }
 }
 
 /* Theme-aware component styles */
@@ -696,7 +716,7 @@ html, html.dark {
   --ds-ticker-oss-bg: rgba(34, 211, 238, 0.12);
   --ds-ticker-oss-border: rgba(34, 211, 238, 0.30);
 
-  /* Semantic accents — theme-stable */
+  /* Semantic accents — dark mode (light-mode overrides in html.light below) */
   --ds-success: #10b981;
   --ds-warn: #f59e0b;
   --ds-error: #ef4444;
@@ -725,6 +745,13 @@ html.light {
   --ds-ticker-oss-fg: #0e7490;
   --ds-ticker-oss-bg: rgba(34, 211, 238, 0.18);
   --ds-ticker-oss-border: rgba(34, 211, 238, 0.42);
+
+  /* Semantic accents — light mode (darker for ≥3:1 non-text contrast on
+     light surfaces; the dark-theme values above wash out on white) */
+  --ds-success: #059669;
+  --ds-warn: #b45309;
+  --ds-error: #dc2626;
+  --ds-info: #0284c7;
 }
 
 html {

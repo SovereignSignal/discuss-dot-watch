@@ -100,14 +100,29 @@ export function DiscussionItem({
   const activity = getActivityLevel(topic);
   const t = c(isDark);
 
+  const handleOpen = () => {
+    if (!isRead && onMarkAsRead) onMarkAsRead(topic.refId);
+    onSelect?.(topic);
+  };
+
   return (
     <article
       className="group relative overflow-hidden rounded-lg border transition-all duration-150"
       style={{
         borderColor: isSelected ? t.borderActive : isRead ? t.readBorder : t.border,
         backgroundColor: isSelected ? t.bgActive : isRead ? 'transparent' : t.bgCard,
-        cursor: 'pointer',
+        cursor: onSelect ? 'pointer' : 'default',
       }}
+      onClick={onSelect ? (e) => {
+        // Nested interactive elements (title, tags, bookmark, external link)
+        // handle their own clicks.
+        if ((e.target as HTMLElement).closest('button, a')) return;
+        // The click dispatched at the end of a drag-to-select shouldn't open
+        // the reader (or mark the topic read). Normal clicks are unaffected:
+        // mousedown collapses any prior selection before click fires.
+        if (window.getSelection()?.toString()) return;
+        handleOpen();
+      } : undefined}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = t.hoverBorder; e.currentTarget.style.backgroundColor = isSelected ? t.bgActive : t.bgCardHover; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = isRead ? t.readBorder : t.border; e.currentTarget.style.backgroundColor = isSelected ? t.bgActive : isRead ? 'transparent' : t.bgCard; }}
     >
@@ -193,10 +208,7 @@ export function DiscussionItem({
               >
                 {onSelect ? (
                   <button
-                    onClick={() => {
-                      if (!isRead && onMarkAsRead) onMarkAsRead(topic.refId);
-                      onSelect(topic);
-                    }}
+                    onClick={handleOpen}
                     className="text-left hover:underline"
                   >
                     {highlightKeywords(topic.title, alerts, isDark)}
@@ -211,7 +223,7 @@ export function DiscussionItem({
               </h3>
               {onSelect && (
                 <a href={topicUrl} target="_blank" rel="noopener noreferrer"
-                  className="mt-0.5 p-0.5 rounded opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0"
+                  className="mt-0.5 p-0.5 rounded hover-action flex-shrink-0"
                   style={{ color: t.fgDim }}
                   title="Open in new tab"
                   onClick={(e) => e.stopPropagation()}>
@@ -256,8 +268,10 @@ export function DiscussionItem({
           {/* Bookmark */}
           {onToggleBookmark && (
             <button onClick={() => onToggleBookmark(topic)}
-              className={`p-1.5 rounded-md transition-all flex-shrink-0 ${isBookmarked ? '' : 'opacity-0 group-hover:opacity-60'}`}
-              style={{ color: t.fgDim }}>
+              className={`p-1.5 rounded-md flex-shrink-0 ${isBookmarked ? '' : 'hover-action'}`}
+              style={{ color: t.fgDim }}
+              title={isBookmarked ? 'Remove bookmark' : 'Save discussion'}
+              aria-label={isBookmarked ? 'Remove bookmark' : 'Save discussion'}>
               {isBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
             </button>
           )}

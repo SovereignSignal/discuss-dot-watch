@@ -7,7 +7,7 @@
  * Query params:
  *   q         — search query (matches title, protocol, tags)
  *   category  — 'crypto' | 'ai' | 'oss' (filter by forum vertical)
- *   dateRange — 'today' | 'week' | 'month' | 'all' (default: 'week')
+ *   dateRange — 'today' | 'week' | 'month' | 'all' (default: 'week'; rolling 24h/7d/30d windows)
  *   dateMode  — 'created' | 'activity' (default: 'created')
  *   sort      — 'recent' | 'replies' | 'views' | 'likes' (default: 'recent')
  *   page      — page number (default: 1)
@@ -22,7 +22,7 @@ import { getAllCachedForums } from '@/lib/forumCache';
 import { buildUrlCategoryMap, buildUrlForumNameMap } from '@/lib/forumPresets';
 import { EXTERNAL_SOURCES } from '@/lib/externalSources';
 import { DiscussionTopic } from '@/types';
-import { isToday, isThisWeek, isThisMonth } from 'date-fns';
+import { isWithinDateRange } from '@/lib/dateWindows';
 
 const urlCategoryMap = buildUrlCategoryMap(EXTERNAL_SOURCES);
 const urlForumNameMap = buildUrlForumNameMap();
@@ -79,14 +79,8 @@ export async function GET(request: NextRequest) {
       // Skip pinned
       if (topic.pinned) continue;
 
-      // Date range filter
-      if (dateRange !== 'all') {
-        const dateField = dateMode === 'created' ? topic.createdAt : topic.bumpedAt;
-        const topicDate = new Date(dateField);
-        if (dateRange === 'today' && !isToday(topicDate)) continue;
-        if (dateRange === 'week' && !isThisWeek(topicDate)) continue;
-        if (dateRange === 'month' && !isThisMonth(topicDate)) continue;
-      }
+      // Date range filter (rolling windows — see lib/dateWindows)
+      if (!isWithinDateRange(dateMode === 'created' ? topic.createdAt : topic.bumpedAt, dateRange)) continue;
 
       // Search filter
       if (query) {

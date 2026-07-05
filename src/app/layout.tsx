@@ -31,11 +31,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Geist variable classes live on <html>, not <body>: --ds-font-* tokens
+  // are declared on html and substitute var(--font-geist-*) there, so the
+  // variables must be defined at (or above) that element to resolve.
   return (
-    <html lang="en" data-density="standard" suppressHydrationWarning>
-      <body
-        className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
-      >
+    <html
+      lang="en"
+      data-density="standard"
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+    >
+      <body className="antialiased">
         {/* Apply the persisted theme class before paint so themed UI never flashes
             and the class is set before React hydrates. useTheme reads the same key. */}
         <script

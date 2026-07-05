@@ -39,20 +39,24 @@ export class ErrorBoundary extends Component<Props, State> {
 
       return (
         <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
-          <AlertTriangle className="w-16 h-16 text-yellow-500 mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">Something went wrong</h2>
-          <p className="text-gray-400 mb-6 max-w-md">
+          <AlertTriangle className="w-16 h-16 mb-4" style={{ color: 'var(--ds-warn)' }} />
+          <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--ds-fg)' }}>Something went wrong</h2>
+          <p className="mb-6 max-w-md" style={{ color: 'var(--ds-fg-muted)' }}>
             An unexpected error occurred. Please try refreshing the page.
           </p>
           <button
             onClick={this.handleReset}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'var(--ds-bg-elev)', color: 'var(--ds-fg)', border: '1px solid var(--ds-border)' }}
           >
             <RefreshCw className="w-4 h-4" />
             Try Again
           </button>
           {process.env.NODE_ENV === 'development' && this.state.error && (
-            <pre className="mt-6 p-4 bg-gray-900 rounded-lg text-left text-xs text-red-400 max-w-full overflow-auto">
+            <pre
+              className="mt-6 p-4 rounded-lg text-left text-xs max-w-full overflow-auto"
+              style={{ backgroundColor: 'var(--ds-bg-card)', color: 'var(--ds-error)', border: '1px solid var(--ds-border)' }}
+            >
               {this.state.error.message}
               {'\n'}
               {this.state.error.stack}
