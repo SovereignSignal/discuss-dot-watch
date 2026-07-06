@@ -127,6 +127,10 @@ export interface GrantsQuery {
   cursor?: number;
 }
 
+// Note: status is frozen at first classification; 'open' additionally drops
+// items whose extracted deadline has passed. Only db`` fragments may be
+// interpolated below — a plain string would bind as a SQL parameter and
+// break the statement.
 export async function queryGrantsItems(q: GrantsQuery): Promise<GrantsItemRow[]> {
   if (!isDatabaseConfigured()) return [];
   const db = getDb();
@@ -143,8 +147,6 @@ export async function queryGrantsItems(q: GrantsQuery): Promise<GrantsItemRow[]>
       ${q.minConfidence != null ? db`AND confidence >= ${q.minConfidence}` : db``}
       ${q.classification ? db`AND classification = ${q.classification}` : db``}
       ${q.status ? db`AND status = ${q.status}` : db``}
-      ${/* status is frozen at first classification; for 'open' additionally
-          drop items whose extracted deadline has passed */ ''}
       ${q.status === 'open' ? db`AND (deadline IS NULL OR deadline >= NOW())` : db``}
       ${q.cursor != null ? db`AND id < ${q.cursor}` : db``}
     ORDER BY id DESC
