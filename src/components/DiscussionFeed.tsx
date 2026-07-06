@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo, useEffect, useCallback } from 'react';
 import { RefreshCw, CheckCheck, MessageSquare } from 'lucide-react';
-import { DiscussionTopic, KeywordAlert, DateRangeFilter, DateFilterMode, Forum, SortOption } from '@/types';
+import { DiscussionTopic, KeywordAlert, Forum, SortOption } from '@/types';
 import { getProtocolLogo } from '@/lib/logoUtils';
 import { DiscussionItem } from './DiscussionItem';
 import { DiscussionSkeletonList } from './DiscussionSkeleton';
@@ -11,8 +11,10 @@ import { BriefsStrip } from './BriefsStrip';
 import { AlertsStrip } from './AlertsStrip';
 import { Search, X as XIcon } from 'lucide-react';
 import { ForumLoadingState } from '@/hooks/useDiscussions';
+import { FeedFiltersController, normalizeForumUrl } from '@/hooks/useFeedFilters';
 import { format } from 'date-fns';
 import { isWithinDateRange } from '@/lib/dateWindows';
+import { Button } from './ui/Button';
 import { c } from '@/lib/theme';
 
 const MemoizedDiscussionItem = memo(DiscussionItem);
@@ -30,13 +32,6 @@ interface ServerModeProps {
   serverTotal: number;
   serverHasMore: boolean;
   onLoadMore: () => void;
-  onFiltersChange: (filters: {
-    dateRange: DateRangeFilter;
-    dateMode: DateFilterMode;
-    sort: SortOption;
-    category: string | null;
-    forum: string | null;
-  }) => void;
   cachedForumCount?: number;
   allForumsList?: Array<{ value: string; label: string; category?: string }>;
 }
@@ -46,7 +41,6 @@ interface ClientModeProps {
   serverTotal?: never;
   serverHasMore?: never;
   onLoadMore?: never;
-  onFiltersChange?: never;
   cachedForumCount?: never;
   allForumsList?: never;
 }
@@ -84,6 +78,18 @@ type DiscussionFeedProps = {
   onRemoveAlert?: (id: string) => void;
   onToggleAlert?: (id: string) => void;
   onKeywordFilterChange?: (filter: string | null) => void;
+  /** Page-owned filter state — survives Your/All toggles and view switches. */
+  feedFilters: FeedFiltersController;
+  /**
+   * RefId of the topic that was unread when opened (page-owned so row clicks,
+   * BriefsStrip, and j/k all share it). Exempt from the read-collapse while
+   * its reader is open.
+   */
+  freshlyReadRefId?: string | null;
+  /** Reports the currently visible ordered topics (for j/k reader navigation). */
+  onVisibleTopicsChange?: (topics: DiscussionTopic[]) => void;
+  /** Navigates to the Briefs view from the BriefsStrip "See all" link. */
+  onSeeAllBriefs?: () => void;
 } & (ServerModeProps | ClientModeProps);
 
 export function DiscussionFeed(props: DiscussionFeedProps) {
@@ -94,45 +100,22 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
     unreadCount, onRemoveForum, activeKeywordFilter,
     onSelectTopic, onTagClick, selectedTopicRefId, isDark = true, totalForumCount,
     onSearchInputChange, onAddAlert, onRemoveAlert, onToggleAlert, onKeywordFilterChange,
+    feedFilters, freshlyReadRefId = null, onVisibleTopicsChange, onSeeAllBriefs,
   } = props;
   const isServerMode = props.serverMode === true;
   // Input shows the immediate query so typing is instant; filtering uses the debounced searchQuery.
   const searchInputDisplay = searchInputValue ?? searchQuery;
   const [displayCount, setDisplayCount] = useState(20);
-  const [dateRange, setDateRange] = useState<DateRangeFilter>('week');
-  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('created');
-  const [selectedForumId, setSelectedForumId] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<SortOption>('recent');
+  // Filter state is page-owned (useFeedFilters) so it survives remounts.
+  const {
+    dateRange, setDateRange,
+    dateFilterMode, setDateFilterMode,
+    selectedForum, setSelectedForum,
+    selectedCategory, setSelectedCategory,
+    sortBy, setSortBy,
+  } = feedFilters;
   const [showReadItems, setShowReadItems] = useState(false);
-  // The refId of a topic that was UNREAD when the user opened it. Only that
-  // topic is exempt from the read-collapse below — an already-read topic
-  // opened from the read section stays in the read section.
-  const [freshlyReadRefId, setFreshlyReadRefId] = useState<string | null>(null);
   const t = c(isDark);
-
-  // isRead still reflects the pre-click state here: the parent marks the
-  // topic read in the same event and React batches that update.
-  const handleSelectTopic = useCallback((topic: DiscussionTopic) => {
-    setFreshlyReadRefId(isRead(topic.refId) ? null : topic.refId);
-    onSelectTopic?.(topic);
-  }, [isRead, onSelectTopic]);
-  const selectHandler = onSelectTopic ? handleSelectTopic : undefined;
-
-  // Listen for command menu events
-  useEffect(() => {
-    const handleSelectForum = (e: Event) => setSelectedForumId((e as CustomEvent).detail);
-    const handleSelectCategory = (e: Event) => setSelectedCategory((e as CustomEvent).detail);
-    const handleSelectSort = (e: Event) => setSortBy((e as CustomEvent).detail as SortOption);
-    window.addEventListener('selectForum', handleSelectForum);
-    window.addEventListener('selectCategory', handleSelectCategory);
-    window.addEventListener('selectSort', handleSelectSort);
-    return () => {
-      window.removeEventListener('selectForum', handleSelectForum);
-      window.removeEventListener('selectCategory', handleSelectCategory);
-      window.removeEventListener('selectSort', handleSelectSort);
-    };
-  }, []);
 
   // Map protocol → category for filtering
   // External sources set protocol to human-readable names (e.g. "llama.cpp", "ENS")
@@ -170,20 +153,6 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
     return map;
   }, [forums]);
 
-  // Notify parent of filter changes in server mode
-  useEffect(() => {
-    if (isServerMode && props.onFiltersChange) {
-      props.onFiltersChange({
-        dateRange,
-        dateMode: dateFilterMode,
-        sort: sortBy,
-        category: selectedCategory,
-        forum: selectedForumId,
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, dateFilterMode, sortBy, selectedCategory, selectedForumId, isServerMode]);
-
   // In server mode: topics are already filtered/sorted by the server
   // In client mode: filter and sort locally
   const filteredAndSortedDiscussions = useMemo(() => {
@@ -214,9 +183,9 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
       }
       // Date range (rolling windows — see lib/dateWindows)
       if (!isWithinDateRange(dateFilterMode === 'created' ? topic.createdAt : topic.bumpedAt, dateRange)) return false;
-      // Forum filter
-      if (selectedForumId) {
-        const forum = forums.find((f) => f.id === selectedForumId);
+      // Forum filter (selectedForum is the normalized forum URL in both modes)
+      if (selectedForum) {
+        const forum = forums.find((f) => normalizeForumUrl(f.discourseForum.url) === selectedForum);
         if (forum) {
           const proto = topic.protocol.toLowerCase();
           if (proto !== forum.cname.toLowerCase() && proto !== forum.name.toLowerCase()) return false;
@@ -233,7 +202,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
         default: return new Date(b.bumpedAt).getTime() - new Date(a.bumpedAt).getTime();
       }
     });
-  }, [discussions, searchQuery, dateRange, dateFilterMode, selectedForumId, selectedCategory, forums, forumCategoryMap, sortBy, activeKeywordFilter, alerts, isServerMode]);
+  }, [discussions, searchQuery, dateRange, dateFilterMode, selectedForum, selectedCategory, forums, forumCategoryMap, sortBy, activeKeywordFilter, alerts, isServerMode]);
 
   const displayedDiscussions = useMemo(
     () => isServerMode
@@ -261,9 +230,14 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
 
   // Compute filtered unread count when category/forum filters are active
   const filteredUnreadCount = useMemo(() => {
-    if (!selectedCategory && !selectedForumId) return unreadCount;
+    if (!selectedCategory && !selectedForum) return unreadCount;
     return filteredAndSortedDiscussions.filter(d => !isRead(d.refId)).length;
-  }, [selectedCategory, selectedForumId, filteredAndSortedDiscussions, isRead, unreadCount]);
+  }, [selectedCategory, selectedForum, filteredAndSortedDiscussions, isRead, unreadCount]);
+
+  // Report the visible ordered list upward for j/k reader navigation.
+  useEffect(() => {
+    onVisibleTopicsChange?.([...unreadItems, ...(showReadItems ? readItems : [])]);
+  }, [unreadItems, readItems, showReadItems, onVisibleTopicsChange]);
 
   return (
     <section className="flex-1 flex flex-col" aria-label="Discussion feed">
@@ -333,22 +307,19 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
               </div>
             )}
             {unreadCount > 0 && (
-              <button
-                onClick={() => onMarkAllAsRead(filteredAndSortedDiscussions.map(d => d.refId))}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-                style={{ color: t.fgSecondary }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = t.bgSubtle; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              <Button
+                variant="ghost"
+                onClick={() => onMarkAllAsRead(filteredAndSortedDiscussions.filter(d => !isRead(d.refId)).map(d => d.refId))}
+                style={{ color: 'var(--ds-fg-muted)' }}
               >
-                <CheckCheck className="w-4 h-4" /> Mark read
-              </button>
+                {/* Server mode only sees loaded pages — say so instead of implying the whole corpus */}
+                <CheckCheck className="w-4 h-4" /> {isServerMode ? 'Mark loaded read' : 'Mark read'}
+              </Button>
             )}
-            <button onClick={onRefresh} disabled={isLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-              style={{ backgroundColor: t.bgCardHover, color: t.fgSecondary }}>
+            <Button variant="secondary" onClick={onRefresh} disabled={isLoading}>
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               {isLoading ? 'Loading...' : 'Refresh'}
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -356,7 +327,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
       <FeedFilters
         dateRange={dateRange} onDateRangeChange={setDateRange}
         dateFilterMode={dateFilterMode} onDateFilterModeChange={setDateFilterMode}
-        selectedForumId={selectedForumId} onForumFilterChange={setSelectedForumId}
+        selectedForum={selectedForum} onForumFilterChange={setSelectedForum}
         selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory}
         forums={forums.filter((f) => f.isEnabled)}
         sortBy={sortBy} onSortChange={setSortBy} isDark={isDark}
@@ -374,7 +345,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
         />
       )}
 
-      <BriefsStrip onSelectTopic={selectHandler} />
+      <BriefsStrip onSelectTopic={onSelectTopic} onSeeAll={onSeeAllBriefs} />
 
       {/* Loading progress */}
       {isLoading && !isServerMode && forumStates.length > 0 && (
@@ -419,13 +390,12 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
                     isSelected={selectedTopicRefId === topic.refId}
                     onToggleBookmark={onToggleBookmark}
                     onMarkAsRead={onMarkAsRead}
-                    onSelect={selectHandler}
+                    onSelect={onSelectTopic}
                     onTagClick={onTagClick}
                     forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
                     forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
                     vertical={vertical}
                     dateFilterMode={dateFilterMode}
-                    isDark={isDark}
                   />
                 );
               };

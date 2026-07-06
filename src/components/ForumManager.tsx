@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Plus,
   Trash2,
@@ -35,6 +35,45 @@ interface ForumStat {
   status: 'ok' | 'error' | 'not_cached';
 }
 
+/** Compact relative time: "2h ago", "3d ago". Only rendered client-side (stats arrive post-hydration). */
+function formatRelativeTime(timestamp: number): string {
+  const minutes = Math.floor((Date.now() - timestamp) / 60_000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
+/**
+ * Forum row avatar: the two-letter fallback is always the base layer; the logo
+ * image sits absolutely on top and only becomes visible once it actually loads
+ * (favicons often 404 or load blank, which used to leave an empty gray circle).
+ */
+function ForumAvatar({ logoUrl, name, theme }: { logoUrl?: string; name: string; theme: ReturnType<typeof c> }) {
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  return (
+    <div className="relative w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
+      style={{ backgroundColor: theme.bgBadge }}>
+      <span className="text-xs font-bold" style={{ color: theme.fg, visibility: logoLoaded ? 'hidden' : 'visible' }}>
+        {name.slice(0, 2).toUpperCase()}
+      </span>
+      {logoUrl && (
+        <img src={logoUrl} alt="" referrerPolicy="no-referrer"
+          className="absolute inset-0 m-auto w-5 h-5 object-contain pointer-events-none"
+          style={{ visibility: logoLoaded ? 'visible' : 'hidden' }}
+          onLoad={() => setLogoLoaded(true)}
+          onError={() => setLogoLoaded(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 interface ForumManagerProps {
   forums: Forum[];
   onAddForum: (forum: Omit<Forum, 'id' | 'createdAt'>) => void;
@@ -64,7 +103,9 @@ export function ForumManager({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationSuccess, setValidationSuccess] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
-  
+  const [bulkRemoveConfirm, setBulkRemoveConfirm] = useState(false);
+  const [addAllConfirm, setAddAllConfirm] = useState<{ categoryId: string; categoryName: string; count: number } | null>(null);
+
   // Multi-select state
   const [selectedForumIds, setSelectedForumIds] = useState<Set<string>>(new Set());
   const [selectedBrowseUrls, setSelectedBrowseUrls] = useState<Set<string>>(new Set());
@@ -88,6 +129,10 @@ export function ForumManager({
         if (cancelled || !data?.data) return;
         const map = new Map<string, ForumStat>();
         for (const s of data.data as Array<{ url: string; topicCount: number; lastActivityAt: number | null; status: 'ok' | 'error' | 'not_cached' }>) {
+          // Only usable stats: on a cold cache every entry is not_cached, and
+          // storing those would flip the browse lists to alphabetical instead
+          // of keeping the curated preset order (size===0 fallback).
+          if (s.status !== 'ok') continue;
           map.set(normalizeUrl(s.url), {
             topicCount: s.topicCount,
             lastActivityAt: s.lastActivityAt,
@@ -100,15 +145,44 @@ export function ForumManager({
     return () => { cancelled = true; };
   }, []);
 
+  // Activity-first ordering: forums with cached stats sort by most-recent
+  // activity (tie-break: topic count), forums without stats follow, A→Z.
+  // With no stats at all (fetch failed / empty cache) the preset order is kept.
+  const sortByActivity = useCallback((presets: ForumPreset[]): ForumPreset[] => {
+    if (forumStats.size === 0) return presets;
+    return presets
+      .map((preset) => {
+        const stat = forumStats.get(normalizeUrl(preset.url));
+        return { preset, stat: stat && stat.status === 'ok' ? stat : undefined };
+      })
+      .sort((a, b) => {
+        if (a.stat && b.stat) {
+          const byActivity = (b.stat.lastActivityAt ?? 0) - (a.stat.lastActivityAt ?? 0);
+          if (byActivity !== 0) return byActivity;
+          return b.stat.topicCount - a.stat.topicCount;
+        }
+        if (a.stat) return -1;
+        if (b.stat) return 1;
+        return a.preset.name.localeCompare(b.preset.name);
+      })
+      .map((entry) => entry.preset);
+  }, [forumStats]);
+
   const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return FORUM_CATEGORIES;
+    const sorted = FORUM_CATEGORIES.map((category) => ({
+      ...category,
+      forums: sortByActivity(category.forums),
+    }));
+    if (!searchQuery.trim()) return sorted;
     const matchingForums = searchForums(searchQuery);
     const matchingUrls = new Set(matchingForums.map((f) => f.url));
-    return FORUM_CATEGORIES.map((category) => ({
-      ...category,
-      forums: category.forums.filter((f) => matchingUrls.has(f.url)),
-    })).filter((category) => category.forums.length > 0);
-  }, [searchQuery]);
+    return sorted
+      .map((category) => ({
+        ...category,
+        forums: category.forums.filter((f) => matchingUrls.has(f.url)),
+      }))
+      .filter((category) => category.forums.length > 0);
+  }, [searchQuery, sortByActivity]);
 
   const totalAvailable = getTotalForumCount();
 
@@ -245,6 +319,8 @@ export function ForumManager({
     const isAdded = !!existingForum && isEnabled;
     const isSelected = selectedBrowseUrls.has(preset.url);
     const logoUrl = preset.logoUrl || getProtocolLogo(preset.name);
+    const rawStat = forumStats.get(normalizeUrl(preset.url));
+    const stat = rawStat && rawStat.status === 'ok' ? rawStat : undefined;
 
     return (
       <div key={preset.url} className="group flex items-center gap-3 w-full p-3 rounded-lg transition-all"
@@ -257,22 +333,7 @@ export function ForumManager({
             {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
           </button>
         )}
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-          style={{ backgroundColor: t.bgBadge }}>
-          {logoUrl ? (
-            <img src={logoUrl} alt="" className="w-5 h-5 object-contain" referrerPolicy="no-referrer"
-              onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                img.style.display = 'none';
-                const fallback = img.parentElement?.querySelector('[data-fallback]') as HTMLElement;
-                if (fallback) fallback.style.display = '';
-              }}
-            />
-          ) : null}
-          <span data-fallback className="text-xs font-bold" style={{ color: t.fg, display: logoUrl ? 'none' : '' }}>
-            {preset.name.slice(0, 2).toUpperCase()}
-          </span>
-        </div>
+        <ForumAvatar logoUrl={logoUrl} name={preset.name} theme={t} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm truncate" style={{ color: isAdded ? t.fgMuted : t.fg }}>{preset.name}</span>
@@ -288,6 +349,17 @@ export function ForumManager({
           </div>
           {preset.description && (
             <p className="text-xs truncate mt-0.5" style={{ color: t.fgDim }}>{preset.description}</p>
+          )}
+          {stat && (
+            <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: t.fgDim }}>
+              {stat.lastActivityAt != null && (
+                <>
+                  <span>{formatRelativeTime(stat.lastActivityAt)}</span>
+                  <span>·</span>
+                </>
+              )}
+              <span>{stat.topicCount} topic{stat.topicCount === 1 ? '' : 's'}</span>
+            </p>
           )}
         </div>
         {isAdded && existingForum ? (
@@ -396,7 +468,7 @@ export function ForumManager({
                   </button>
                 </div>
                 {selectedForumIds.size > 0 && (
-                  <button onClick={handleBulkRemove}
+                  <button onClick={() => setBulkRemoveConfirm(true)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors hover:bg-red-500/10"
                     style={{ color: '#ef4444' }}>
                     <Trash2 className="w-4 h-4" />
@@ -419,21 +491,7 @@ export function ForumManager({
                         <button onClick={() => toggleForumSelection(forum.id)} className="flex-shrink-0" style={{ color: t.fgDim }}>
                           {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                         </button>
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-                          style={{ backgroundColor: t.bgBadge }}>
-                          {logoUrl ? (
-                            <img src={logoUrl} alt="" className="w-5 h-5 object-contain" referrerPolicy="no-referrer"
-                              onError={(e) => {
-                                const img = e.target as HTMLImageElement;
-                                img.style.display = 'none';
-                                const fallback = img.parentElement?.querySelector('[data-fallback]') as HTMLElement;
-                                if (fallback) fallback.style.display = '';
-                              }} />
-                          ) : null}
-                          <span data-fallback className="text-xs font-bold" style={{ color: t.fg, display: logoUrl ? 'none' : '' }}>
-                            {forum.name.slice(0, 2).toUpperCase()}
-                          </span>
-                        </div>
+                        <ForumAvatar logoUrl={logoUrl} name={forum.name} theme={t} />
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate" style={{ color: t.fg }}>
                             {forum.name}
@@ -505,7 +563,7 @@ export function ForumManager({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium"
                 style={{ backgroundColor: t.fg, color: isDark ? '#000' : '#fff' }}>
                 <Plus className="w-4 h-4" />
-                Add {selectedBrowseUrls.size} forums
+                Add {selectedBrowseUrls.size} forum{selectedBrowseUrls.size === 1 ? '' : 's'}
               </button>
             </div>
           )}
@@ -513,7 +571,7 @@ export function ForumManager({
           {searchQuery.trim() ? (
             <div className="flex-1 overflow-y-auto">
               {(() => {
-                const matchingForums = searchForums(searchQuery);
+                const matchingForums = sortByActivity(searchForums(searchQuery));
                 const notAddedForums = matchingForums.filter(f => !urlExists(f.url));
                 if (matchingForums.length === 0) {
                   return <div className="text-center py-8 text-sm" style={{ color: t.fgDim }}>No forums found</div>;
@@ -560,7 +618,14 @@ export function ForumManager({
                       <div className="flex items-center gap-3">
                         <span className="text-xs" style={{ color: t.fgDim }}>{addedCount}/{category.forums.length}</span>
                         {notAddedInCategory.length > 0 && (
-                          <button onClick={(e) => { e.stopPropagation(); handleAddAllInCategory(category.id); }}
+                          <button onClick={(e) => {
+                              e.stopPropagation();
+                              if (notAddedInCategory.length > 10) {
+                                setAddAllConfirm({ categoryId: category.id, categoryName: category.name, count: notAddedInCategory.length });
+                              } else {
+                                handleAddAllInCategory(category.id);
+                              }
+                            }}
                             className="px-2 py-1 text-xs font-medium rounded-md transition-colors"
                             style={{ backgroundColor: t.bgActive, color: t.fgMuted }}>
                             Add all
@@ -643,6 +708,30 @@ export function ForumManager({
         variant="danger"
         onConfirm={() => { if (deleteConfirm) { onRemoveForum(deleteConfirm.id); setDeleteConfirm(null); } }}
         onCancel={() => setDeleteConfirm(null)}
+        isDark={isDark}
+      />
+
+      <ConfirmDialog
+        isOpen={bulkRemoveConfirm}
+        title="Remove Forums"
+        message={`Remove ${selectedForumIds.size} forum${selectedForumIds.size === 1 ? '' : 's'} from your watch list?`}
+        confirmLabel="Remove"
+        cancelLabel="Keep"
+        variant="danger"
+        onConfirm={() => { handleBulkRemove(); setBulkRemoveConfirm(false); }}
+        onCancel={() => setBulkRemoveConfirm(false)}
+        isDark={isDark}
+      />
+
+      <ConfirmDialog
+        isOpen={!!addAllConfirm}
+        title="Add All Forums"
+        message={`Add all ${addAllConfirm?.count} forums in ${addAllConfirm?.categoryName}?`}
+        confirmLabel="Add all"
+        cancelLabel="Cancel"
+        variant="warning"
+        onConfirm={() => { if (addAllConfirm) { handleAddAllInCategory(addAllConfirm.categoryId); setAddAllConfirm(null); } }}
+        onCancel={() => setAddAllConfirm(null)}
         isDark={isDark}
       />
     </div>

@@ -133,6 +133,54 @@ body {
   font-family: var(--ds-font-sans);
 }
 
+/* ui/Button interaction states — inline styles carry the variant colors,
+   these rules add the pseudo-state feedback tokens can't express. */
+.ds-btn {
+  transition: filter 120ms ease, opacity 120ms ease;
+}
+.ds-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+html.light .ds-btn:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+/* Brightness is a no-op on transparent backgrounds — give ghost/danger a
+   real hover surface (!important to beat the variant's inline background). */
+.ds-btn[data-variant="ghost"]:hover:not(:disabled),
+.ds-btn[data-variant="danger"]:hover:not(:disabled) {
+  background-color: var(--ds-bg-subtle) !important;
+}
+.ds-btn:active:not(:disabled) {
+  filter: brightness(0.92);
+}
+.ds-btn:focus-visible {
+  outline: 2px solid var(--ds-info);
+  outline-offset: 2px;
+}
+.ds-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Density: compact hides feed-row excerpts entirely (the numeric
+   --ds-density-show-excerpt token can't gate rendering from inline styles). */
+html[data-density="compact"] .density-excerpt {
+  display: none;
+}
+
+/* Mobile tier: the density tokens own the sub-640px tightening that the old
+   hardcoded `px-3 py-2.5 sm:px-4 sm:py-3` row padding used to provide. */
+@media (max-width: 640px) {
+  html, html[data-density="standard"] {
+    --ds-density-item-py: 0.625rem; /* 10px */
+    --ds-density-item-px: var(--ds-space-3); /* 12px */
+  }
+  html[data-density="cozy"] {
+    --ds-density-item-py: var(--ds-space-3);
+    --ds-density-item-px: var(--ds-space-4);
+  }
+}
+
 /* Hover-revealed row actions (bookmark, remove, open-external).
    Hidden until row hover / keyboard focus on pointer devices, but always
    visible on touch devices, which have no hover to reveal them with. */
@@ -721,6 +769,10 @@ html, html.dark {
   --ds-warn: #f59e0b;
   --ds-error: #ef4444;
   --ds-info: #3b82f6;
+
+  /* Emphasized border for hover/selected surfaces — one step above
+     --ds-border, far softer than using a foreground token as a border. */
+  --ds-border-strong: #3f3f46;
 }
 
 html.light {
@@ -752,6 +804,7 @@ html.light {
   --ds-warn: #b45309;
   --ds-error: #dc2626;
   --ds-info: #0284c7;
+  --ds-border-strong: #d6d3d1;
 }
 
 html {

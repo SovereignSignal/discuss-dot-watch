@@ -19,5 +19,6 @@ export type { EmptyStateProps } from './EmptyState';
 export { Chip } from './Chip';
 export type { ChipProps, ChipVariant } from './Chip';
 
-export { DiscussionListItem } from './DiscussionListItem';
-export type { DiscussionListItemProps } from './DiscussionListItem';
+// DiscussionListItem was removed: it shipped as the density-aware feed row
+// but never gained a consumer — its density tokens now live directly in
+// components/DiscussionItem.tsx (the actual feed row).

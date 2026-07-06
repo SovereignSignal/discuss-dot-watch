@@ -25,21 +25,30 @@ import { useToast } from '@/hooks/useToast';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { StorageError } from '@/lib/storage';
 import { ForumPreset, getTotalForumCount, FORUM_CATEGORIES } from '@/lib/forumPresets';
-import { DiscussionTopic, DateRangeFilter, DateFilterMode, SortOption } from '@/types';
+import { DiscussionTopic, SortOption } from '@/types';
 import { useAllDiscussions } from '@/hooks/useAllDiscussions';
+import { useFeedFilters, normalizeForumUrl } from '@/hooks/useFeedFilters';
 import { c } from '@/lib/theme';
 import { DiscussionReader } from '@/components/DiscussionReader';
 import { DigestView } from '@/components/DigestView';
 import { SavedView } from '@/components/SavedView';
 import { SettingsView } from '@/components/SettingsView';
 
+// Discourse presets only: /api/discussions can't filter by external-source
+// URLs (their cache keys are source ids), so offering them in the server-mode
+// dropdown — or forwarding them from a Your-mode selection — yields an
+// inexplicably empty feed.
 const ALL_FORUMS_LIST = FORUM_CATEGORIES.flatMap(cat =>
-  cat.forums.map(f => ({
-    value: f.url.replace(/\/$/, '').toLowerCase(),
-    label: f.name,
-    category: cat.id,
-  }))
+  cat.forums
+    .filter(f => !f.sourceType || f.sourceType === 'discourse')
+    .map(f => ({
+      value: f.url.replace(/\/$/, '').toLowerCase(),
+      label: f.name,
+      category: cat.id,
+    }))
 ).sort((a, b) => a.label.localeCompare(b.label));
+
+const SERVER_FORUM_URLS = new Set(ALL_FORUMS_LIST.map(f => f.value));
 
 export default function AppPage() {
   const [activeView, setActiveView] = useState<'feed' | 'briefs' | 'projects' | 'saved' | 'settings'>('feed');
@@ -51,6 +60,10 @@ export default function AppPage() {
   const [activeKeywordFilter, setActiveKeywordFilter] = useState<string | null>(null);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<DiscussionTopic | null>(null);
+  // The refId of a topic that was UNREAD when opened — exempt from the feed's
+  // read-collapse while its reader is open. Lives here (not in the feed) so
+  // every selection path shares it: row clicks, BriefsStrip, and j/k.
+  const [freshlyReadRefId, setFreshlyReadRefId] = useState<string | null>(null);
 
   const { forums, enabledForums, addForum, removeForum, toggleForum, importForums } = useForums();
   const { discussions, isLoading, error, lastUpdated, forumStates, refresh } = useDiscussions(enabledForums);
@@ -83,24 +96,26 @@ export default function AppPage() {
   const isDark = theme === 'dark';
   const t = c(isDark);
 
-  // --- "All Forums" server-side mode ---
-  const [allFilters, setAllFilters] = useState({
-    dateRange: 'week' as DateRangeFilter,
-    dateMode: 'created' as DateFilterMode,
-    sort: 'recent' as SortOption,
-    category: null as string | null,
-    forum: null as string | null,
-  });
+  // Feed filters live here (not inside DiscussionFeed) so they survive the
+  // Your/All toggle and view switches, and so the command menu can set them
+  // directly instead of via fragile CustomEvents.
+  const feedFilters = useFeedFilters();
 
+  // --- "All Forums" server-side mode ---
   const allDiscussionsFilters = useMemo(() => ({
     searchQuery: debouncedSearchQuery,
-    category: allFilters.category,
-    dateRange: allFilters.dateRange,
-    dateMode: allFilters.dateMode,
-    sort: allFilters.sort,
+    category: feedFilters.selectedCategory,
+    dateRange: feedFilters.dateRange,
+    dateMode: feedFilters.dateFilterMode,
+    sort: feedFilters.sortBy,
     keyword: activeKeywordFilter === 'all' ? null : activeKeywordFilter,
-    forum: allFilters.forum,
-  }), [debouncedSearchQuery, allFilters, activeKeywordFilter]);
+    // Only forward URLs the server can actually match (Discourse presets);
+    // an external-source or custom-forum selection carried over from Your
+    // mode would otherwise filter everything out.
+    forum: feedFilters.selectedForum && SERVER_FORUM_URLS.has(feedFilters.selectedForum)
+      ? feedFilters.selectedForum
+      : null,
+  }), [debouncedSearchQuery, feedFilters.selectedCategory, feedFilters.dateRange, feedFilters.dateFilterMode, feedFilters.sortBy, feedFilters.selectedForum, activeKeywordFilter]);
 
   const {
     discussions: allDiscussions,
@@ -113,16 +128,7 @@ export default function AppPage() {
   } = useAllDiscussions(filterMode === 'all', allDiscussionsFilters, enabledForumUrls);
 
   const allForumsList = ALL_FORUMS_LIST;
-
-  const handleAllFiltersChange = useCallback((filters: {
-    dateRange: DateRangeFilter;
-    dateMode: DateFilterMode;
-    sort: SortOption;
-    category: string | null;
-    forum: string | null;
-  }) => {
-    setAllFilters(filters);
-  }, []);
+  const allUnreadCount = getUnreadCount(allDiscussions.map((d) => d.refId));
 
   const handleToggleBookmark = useCallback((topic: DiscussionTopic) => {
     if (isBookmarked(topic.refId)) {
@@ -190,6 +196,7 @@ export default function AppPage() {
   }, [importForums, importAlerts, importBookmarks]);
 
   const handleSelectTopic = useCallback((topic: DiscussionTopic) => {
+    setFreshlyReadRefId(isRead(topic.refId) ? null : topic.refId);
     if (!isRead(topic.refId)) {
       markAsRead(topic.refId);
     }
@@ -203,6 +210,29 @@ export default function AppPage() {
   const handleCloseReader = useCallback(() => {
     setSelectedTopic(null);
   }, []);
+
+  // The feed reports its currently visible, ordered topics so j/k can
+  // navigate the same list the user sees.
+  const visibleTopicsRef = useRef<DiscussionTopic[]>([]);
+  const handleVisibleTopicsChange = useCallback((topics: DiscussionTopic[]) => {
+    visibleTopicsRef.current = topics;
+  }, []);
+
+  const navigateReader = useCallback((dir: 1 | -1) => {
+    const list = visibleTopicsRef.current;
+    if (list.length === 0) return;
+    // Skip external rows — selecting one opens a browser tab per keypress.
+    const opensInReader = (t: DiscussionTopic) => !(t.sourceType && t.sourceType !== 'discourse' && t.externalUrl);
+    const currentRef = selectedTopic?.refId;
+    let idx = currentRef ? list.findIndex(topic => topic.refId === currentRef) : -1;
+    if (idx === -1 && dir === -1) idx = list.length;
+    for (let i = idx + dir; i >= 0 && i < list.length; i += dir) {
+      if (opensInReader(list[i])) {
+        handleSelectTopic(list[i]);
+        return;
+      }
+    }
+  }, [selectedTopic, handleSelectTopic]);
 
   useEffect(() => {
     if (error && !error.includes('All forums failed')) {
@@ -237,8 +267,15 @@ export default function AppPage() {
         return;
       }
 
-      // Skip other shortcuts when in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      // Skip other shortcuts when in form fields or editable content
+      // (select type-to-jump would otherwise drive j/k navigation).
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target.isContentEditable
+      ) {
         return;
       }
 
@@ -252,6 +289,12 @@ export default function AppPage() {
             const searchInput = document.getElementById('discussion-search') as HTMLInputElement;
             searchInput?.focus();
           }, 100);
+          break;
+        case 'j':
+          if (activeView === 'feed') navigateReader(1);
+          break;
+        case 'k':
+          if (activeView === 'feed') navigateReader(-1);
           break;
         case 'Escape':
           if (selectedTopic) {
@@ -267,7 +310,7 @@ export default function AppPage() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTopic]);
+  }, [selectedTopic, activeView, navigateReader]);
 
   return (
     <AuthGate>
@@ -280,20 +323,22 @@ export default function AppPage() {
           forums={enabledForums.map(f => ({ id: f.id, name: f.name, category: f.category || 'crypto' }))}
           onSelectForum={(forumId) => {
             setActiveView('feed');
-            // The feed filters handle forum selection via FeedFilters component
-            // Dispatch a custom event that FeedFilters can listen for
-            window.dispatchEvent(new CustomEvent('selectForum', { detail: forumId }));
+            // Direct setter (the old CustomEvent was lost whenever the feed
+            // wasn't mounted, and carried an id the server mode couldn't use).
+            const forum = enabledForums.find(f => f.id === forumId);
+            if (forum) feedFilters.setSelectedForum(normalizeForumUrl(forum.discourseForum.url));
           }}
           onSelectCategory={(category) => {
             setActiveView('feed');
-            window.dispatchEvent(new CustomEvent('selectCategory', { detail: category }));
+            feedFilters.setSelectedCategory(category);
+            feedFilters.setSelectedForum(null);
           }}
           onSearch={(query) => {
             setActiveView('feed');
             setSearchQuery(query);
           }}
           onSort={(sort) => {
-            window.dispatchEvent(new CustomEvent('selectSort', { detail: sort }));
+            feedFilters.setSortBy(sort as SortOption);
           }}
           onAction={(action) => {
             switch (action) {
@@ -362,7 +407,7 @@ export default function AppPage() {
                       onToggleBookmark={handleToggleBookmark}
                       onMarkAsRead={markAsRead}
                       onMarkAllAsRead={handleMarkAllAsRead}
-                      unreadCount={0}
+                      unreadCount={allUnreadCount}
                       activeKeywordFilter={activeKeywordFilter}
                       onSelectTopic={handleSelectTopic}
                       onTagClick={setSearchQuery}
@@ -373,11 +418,14 @@ export default function AppPage() {
                       onKeywordFilterChange={setActiveKeywordFilter}
                       selectedTopicRefId={selectedTopic?.refId || null}
                       isDark={isDark}
+                      feedFilters={feedFilters}
+                      freshlyReadRefId={freshlyReadRefId}
+                      onVisibleTopicsChange={handleVisibleTopicsChange}
+                      onSeeAllBriefs={() => setActiveView('briefs')}
                       serverMode
                       serverTotal={allMeta?.total ?? 0}
                       serverHasMore={allHasMore}
                       onLoadMore={allLoadMore}
-                      onFiltersChange={handleAllFiltersChange}
                       cachedForumCount={allMeta?.cachedForumCount}
                       allForumsList={allForumsList}
                     />
@@ -410,6 +458,10 @@ export default function AppPage() {
                       onKeywordFilterChange={setActiveKeywordFilter}
                       selectedTopicRefId={selectedTopic?.refId || null}
                       isDark={isDark}
+                      feedFilters={feedFilters}
+                      freshlyReadRefId={freshlyReadRefId}
+                      onVisibleTopicsChange={handleVisibleTopicsChange}
+                      onSeeAllBriefs={() => setActiveView('briefs')}
                     />
                   )}
 

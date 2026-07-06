@@ -249,6 +249,10 @@ export async function initializeSchema() {
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_bumped ON topics(forum_id, bumped_at DESC)`;
   await db`CREATE INDEX IF NOT EXISTS idx_topics_first_seen ON topics(first_seen_at DESC)`;
   await db`CREATE INDEX IF NOT EXISTS idx_topic_snapshots_topic_id ON topic_snapshots(topic_id)`;
+  // At most ONE snapshot per topic per UTC day: the background refresh runs
+  // every 15 min, but bulkInsertTopicSnapshots relies on this unique index
+  // (via ON CONFLICT DO NOTHING) so repeat same-day cycles are near-no-ops.
+  await db`CREATE UNIQUE INDEX IF NOT EXISTS idx_topic_snapshots_daily ON topic_snapshots (topic_id, ((captured_at AT TIME ZONE 'UTC')::date))`;
   await db`CREATE INDEX IF NOT EXISTS idx_forums_category ON forums(category)`;
   await db`CREATE INDEX IF NOT EXISTS idx_backfill_status ON backfill_jobs(status)`;
   await db`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`;
@@ -342,7 +346,9 @@ export async function upsertTopic(forumId: number, topic: {
 /**
  * Batch upsert topics for one forum in a single multi-row INSERT, replacing the
  * per-topic N+1 (~10k sequential round-trips per 15-min refresh). Mirrors the
- * proven bulkUpsertDirectoryContributors pattern. Returns the number of rows written.
+ * proven bulkUpsertDirectoryContributors pattern. Returns the upserted rows'
+ * { id, discourseId } mappings so callers (forumCache snapshot capture) can
+ * reference topics.id without an extra SELECT.
  */
 export async function bulkUpsertTopics(forumId: number, topics: Array<{
   discourseId: number;
@@ -359,8 +365,8 @@ export async function bulkUpsertTopics(forumId: number, topics: Array<{
   archived?: boolean;
   createdAt?: string;
   bumpedAt?: string;
-}>): Promise<number> {
-  if (topics.length === 0) return 0;
+}>): Promise<Array<{ id: number; discourseId: number }>> {
+  if (topics.length === 0) return [];
   const db = getDb();
 
   const rows = topics.map((t) => ({
@@ -387,7 +393,7 @@ export async function bulkUpsertTopics(forumId: number, topics: Array<{
     'pinned', 'closed', 'archived', 'created_at', 'bumped_at',
   ] as const;
 
-  const result = await db`
+  const result = await db<{ id: number; discourse_id: number }[]>`
     INSERT INTO topics ${db(rows, ...cols)}
     ON CONFLICT (forum_id, discourse_id) DO UPDATE SET
       title = EXCLUDED.title,
@@ -403,9 +409,42 @@ export async function bulkUpsertTopics(forumId: number, topics: Array<{
       archived = EXCLUDED.archived,
       bumped_at = EXCLUDED.bumped_at,
       last_seen_at = NOW()
-    RETURNING id
+    RETURNING id, discourse_id
   `;
-  return result.length;
+  return result.map((r) => ({ id: r.id, discourseId: r.discourse_id }));
+}
+
+/**
+ * Insert engagement snapshots for topics in a single multi-row INSERT.
+ * Design constraint: at most ONE snapshot per topic per UTC day, enforced by
+ * the idx_topic_snapshots_daily unique index — ON CONFLICT DO NOTHING makes
+ * repeat same-day refresh cycles (every 15 min) near-no-ops, bounding table
+ * growth to ~one row per active topic per day. Returns rows actually inserted.
+ */
+export async function bulkInsertTopicSnapshots(rows: Array<{
+  topicId: number;
+  views?: number;
+  replyCount?: number;
+  likeCount?: number;
+}>): Promise<number> {
+  if (rows.length === 0) return 0;
+  const db = getDb();
+
+  const values = rows.map((r) => ({
+    topic_id: r.topicId,
+    views: r.views || 0,
+    reply_count: r.replyCount || 0,
+    like_count: r.likeCount || 0,
+  }));
+
+  // Bare ON CONFLICT DO NOTHING: the only unique constraints on this table are
+  // the serial PK (never conflicts) and the daily unique index, so any conflict
+  // means "already snapshotted today".
+  const result = await db`
+    INSERT INTO topic_snapshots ${db(values, 'topic_id', 'views', 'reply_count', 'like_count')}
+    ON CONFLICT DO NOTHING
+  `;
+  return result.count;
 }
 
 /**
