@@ -21,6 +21,8 @@ import { fetchSnapshotProposals } from './snapshotClient';
 import { fetchHackerNewsStories } from './hackerNewsClient';
 import { fetchLobstersStories } from './lobstersClient';
 import { safeFetch } from './safeFetch';
+import { matchGrantsKeywords } from './grantsDetect';
+import { queueGrantsCandidate, runGrantsScan } from './grantsScan';
 import {
   getCachedTopics,
   setCachedTopics,
@@ -42,7 +44,7 @@ import {
 } from './db';
 import { checkOutgoingRateLimit } from './rateLimit';
 
-interface CachedForum {
+export interface CachedForum {
   url: string;
   topics: DiscussionTopic[];
   fetchedAt: number;
@@ -593,6 +595,23 @@ async function refreshExternalSources(): Promise<void> {
         continue;
       }
 
+      // Grants pipeline: queue candidates while full text is in hand, then
+      // strip the transient body so it never reaches memory/Redis/responses.
+      const vertical = source.category === 'crypto' || source.category === 'ai' || source.category === 'oss'
+        ? source.category
+        : null;
+      for (const post of result.posts) {
+        if (vertical && (post.firstPostText || matchGrantsKeywords(post.title, post.tags || [], post.excerpt).length > 0)) {
+          queueGrantsCandidate(
+            post,
+            vertical,
+            post.firstPostText || post.excerpt,
+            post.firstPostText ? 'external body match' : 'external title/excerpt match',
+          );
+        }
+        delete post.firstPostText;
+      }
+
       const key = `external:${source.id}`;
       const now = Date.now();
 
@@ -836,8 +855,14 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
     
     // Refresh external sources (EA Forum, LessWrong, etc.)
     await refreshExternalSources();
-    
+
     console.log(`[ForumCache] Refresh complete`);
+
+    // Grants classification pipeline — fire-and-forget with its own lock,
+    // so a slow scan never blocks or extends the refresh cycle.
+    void runGrantsScan(getAllCachedForums()).catch(err => {
+      console.error('[GrantsScan] Post-refresh scan failed:', err);
+    });
   } finally {
     // Always reset the flag, even on error
     isRefreshing = false;

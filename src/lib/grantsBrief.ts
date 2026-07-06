@@ -10,26 +10,11 @@ import { FORUM_CATEGORIES } from './forumPresets';
 import { EXTERNAL_SOURCES } from './externalSources';
 import { generateTopicInsight } from './emailDigest';
 import { escapeHtml } from './sanitize';
+import { matchGrantsKeywords } from './grantsDetect';
 import { DiscussionTopic } from '@/types';
 import Anthropic from '@anthropic-ai/sdk';
 
-// ── Keyword lists ──────────────────────────────────────────────────
-
-const TITLE_EXCERPT_PATTERNS = [
-  'grant', 'grants', 'funding', 'funded', 'treasury',
-  'bounty', 'bounties', 'rfp', 'request for proposal',
-  'budget', 'allocation', 'retroactive', 'retro funding',
-  'rpgf', 'public goods', 'quadratic funding', 'milestone',
-  'disbursement', 'sponsorship', 'community pool',
-  'ecosystem fund', 'grants council', 'incentive program',
-  'builder program', 'accelerator',
-];
-
-const TAG_PATTERNS = new Set([
-  'grants', 'grant', 'funding', 'treasury', 'bounty',
-  'rpgf', 'public-goods', 'budget', 'rfp', 'incentives',
-  'ecosystem-fund',
-]);
+// Keyword lists live in grantsDetect.ts (shared with the grants scan).
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -58,31 +43,6 @@ export interface GrantsBriefContent {
     activeCount: number;
     forumCount: number;
   };
-}
-
-// ── Keyword matching ───────────────────────────────────────────────
-
-function matchGrantsKeywords(
-  title: string,
-  tags: string[],
-  excerpt?: string,
-): string[] {
-  const matched = new Set<string>();
-  const searchText = `${title} ${excerpt || ''}`.toLowerCase();
-
-  for (const pattern of TITLE_EXCERPT_PATTERNS) {
-    if (searchText.includes(pattern)) {
-      matched.add(pattern);
-    }
-  }
-
-  for (const tag of tags) {
-    if (typeof tag === 'string' && TAG_PATTERNS.has(tag.toLowerCase())) {
-      matched.add(tag.toLowerCase());
-    }
-  }
-
-  return Array.from(matched);
 }
 
 // ── URL-to-category map (reused from briefs route) ─────────────────

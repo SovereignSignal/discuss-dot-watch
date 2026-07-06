@@ -12,6 +12,13 @@ export interface ForumPreset {
   tier: 1 | 2 | 3;
   sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews' | 'lobsters';
   sourceId?: string;  // Maps to EXTERNAL_SOURCES[].id for non-Discourse sources
+  /**
+   * Dedicated grants/funding Discourse categories watched by the grants
+   * scan (lib/grantsScan.ts) via /c/{slug}/{id}.rss — these threads rarely
+   * surface on /latest, so the main cache never sees them. Category IDs
+   * verified against each forum's /categories.json on 2026-07-06.
+   */
+  grantsCategories?: Array<{ id: number; slug: string }>;
 }
 
 export interface ForumCategory {
@@ -58,6 +65,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Scroll',
         url: 'https://forum.scroll.io/',
+        grantsCategories: [{ id: 16, slug: 'community-grants' }, { id: 10, slug: 'eco-growth' }],
         description: 'Scroll governance & community forum',
         logoUrl: 'https://forum.scroll.io/favicon.ico',
         tier: 2,
@@ -65,6 +73,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Celo',
         url: 'https://forum.celo.org/',
+        grantsCategories: [{ id: 27, slug: 'grants' }],
         description: 'Celo governance & community forum',
         logoUrl: 'https://forum.celo.org/favicon.ico',
         tier: 2,
@@ -164,6 +173,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Arbitrum',
         url: 'https://forum.arbitrum.foundation/',
+        grantsCategories: [{ id: 16, slug: 'dao-grant-programs' }, { id: 48, slug: 'questbook-updates' }, { id: 67, slug: 'defi-renaissance-incentive-program-drip' }],
         description: 'Leading Ethereum L2 with full DAO governance',
         token: 'ARB',
         logoUrl: 'https://cryptologos.cc/logos/arbitrum-arb-logo.png',
@@ -172,6 +182,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Optimism',
         url: 'https://gov.optimism.io/',
+        grantsCategories: [{ id: 87, slug: 'grants' }, { id: 69, slug: 'gov-fund-missions' }, { id: 46, slug: 'retrofunding' }],
         description: 'Bicameral governance with Token House + Citizens House',
         token: 'OP',
         logoUrl: 'https://cryptologos.cc/logos/optimism-ethereum-op-logo.png',
@@ -260,6 +271,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Near Protocol',
         url: 'https://gov.near.org/',
+        grantsCategories: [{ id: 13, slug: 'community-fund' }],
         description: 'NEAR Digital Collective governance; House of Stake',
         token: 'NEAR',
         logoUrl: 'https://assets.coingecko.com/coins/images/10365/small/near.jpg',
@@ -398,6 +410,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'ENS',
         url: 'https://discuss.ens.domains/',
+        grantsCategories: [{ id: 37, slug: 'public-goods' }, { id: 54, slug: 'resource-requests' }, { id: 55, slug: 'resource-requests' }, { id: 57, slug: 'resource-requests' }],
         description: 'Ethereum Name Service governance',
         token: 'ENS',
         logoUrl: 'https://assets.coingecko.com/coins/images/19785/small/acatxTm8_400x400.jpg',
@@ -406,6 +419,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Gitcoin',
         url: 'https://gov.gitcoin.co/',
+        grantsCategories: [{ id: 15, slug: 'gitcoin-grants' }, { id: 20, slug: 'citizen-grants' }],
         description: 'Public goods funding governance',
         token: 'GTC',
         logoUrl: 'https://assets.coingecko.com/coins/images/15810/small/gitcoin.png',
@@ -517,6 +531,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'CoW Protocol',
         url: 'https://forum.cow.fi/',
+        grantsCategories: [{ id: 10, slug: 'cow-grants-program' }],
         description: 'MEV protection and batch auctions; Grants Council',
         token: 'COW',
         logoUrl: 'https://assets.coingecko.com/coins/images/24384/small/cow.png',
@@ -558,6 +573,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Compound',
         url: 'https://www.comp.xyz/',
+        grantsCategories: [{ id: 10, slug: 'grants' }],
         description: 'Pioneer lending protocol with Governor Bravo',
         token: 'COMP',
         logoUrl: 'https://assets.coingecko.com/coins/images/10775/small/COMP.png',
@@ -846,6 +862,7 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Uniswap Governance',
         url: 'https://gov.uniswap.org/',
+        grantsCategories: [{ id: 15, slug: 'butter-cfms' }],
         description: 'Uniswap protocol governance (proposals, treasury, fee switch)',
         token: 'UNI',
         logoUrl: 'https://icons.llama.fi/uniswap.jpg',

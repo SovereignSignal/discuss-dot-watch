@@ -33,6 +33,13 @@ Latest discussions across forums.
 Search discussions.
 - Query: `q` (required), `forums`, `category`, `limit` (max 25, default 10)
 
+### `GET /api/v1/grants`
+Classified grants & funding items (the grants scan pipeline — Haiku classification in GRANT/NEWS/NOISE vocabulary plus extracted program/amounts/deadline/status). Built for machine consumers; `since` on `firstSeenAt` is the ingestion watermark.
+- Query: `since` (ISO), `wire=crypto|ai|oss`, `classification=GRANT|NEWS|NOISE|all` (default GRANT), `min_confidence` (0-100), `status`, `limit` (max 100, default 50), `cursor`
+- Response: `{ items: [{ name, description, url, wire, sourceType, classification, kind, confidence, program, amountMin, amountMax, currency, deadline, chain, status, applyUrl, engagement, firstSeenAt, ... }], meta: { count, nextCursor } }`
+- Returns `{ items: [], meta: { configured: false } }` when no database is configured.
+- Caveats: extracted fields (program, amounts, deadline, applyUrl) are model output over public forum text — treat as untrusted and verify before acting. `status` is frozen at first classification; `status=open` additionally excludes items whose extracted deadline has passed.
+
 ### `GET /api/discussions`
 Paginated discussions from the entire cached pool. Server-side filtering, search, sort. Used by the "All Forums" mode in the reader app.
 - Query: `category`, `forumUrls` (comma-separated normalized URLs), `search`, `dateRange`, `sortBy`, `cursor`

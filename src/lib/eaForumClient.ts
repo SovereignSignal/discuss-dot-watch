@@ -7,16 +7,17 @@
 
 import { DiscussionTopic, SourceType } from '@/types';
 import { hashStringToNumber, truncateText } from './sourceClientUtils';
+import { matchGrantsKeywords } from './grantsDetect';
 
 // API endpoints
 const EA_FORUM_ENDPOINT = 'https://forum.effectivealtruism.org/graphql';
 const LESSWRONG_ENDPOINT = 'https://www.lesswrong.com/graphql';
 
 // GraphQL query builder for recent posts (limit must be inlined due to API quirk)
-function buildPostsQuery(limit: number): string {
+function buildPostsQuery(limit: number, terms = 'view: "new"'): string {
   return `
 query RecentPosts {
-  posts(input: {terms: {view: "new", limit: ${limit}}}) {
+  posts(input: {terms: {${terms}, limit: ${limit}}}) {
     results {
       _id
       title
@@ -107,39 +108,91 @@ export async function fetchEAForumPosts(
       return { posts: [], error: json.errors[0].message };
     }
 
-    const posts = json.data.posts.results.map((post): DiscussionTopic => ({
-      id: hashStringToNumber(post._id),
-      refId: `${source}:${post._id}`,
-      protocol: protocolCname,
-      title: post.title,
-      slug: post.slug,
-      tags: post.tags?.map(t => t.name) || [],
-      postsCount: post.commentCount + 1,
-      views: 0, // Not available in API
-      replyCount: post.commentCount,
-      likeCount: post.voteCount,
-      categoryId: 0,
-      pinned: false,
-      visible: true,
-      closed: false,
-      archived: false,
-      createdAt: post.postedAt,
-      bumpedAt: post.modifiedAt || post.postedAt,
-      forumUrl: baseUrl,
-      excerpt: truncateText(post.contents?.plaintextMainText, 200),
-      // New multi-source fields
-      sourceType: source as SourceType,
-      authorName: post.user?.displayName || 'Anonymous',
-      score: post.baseScore,
-      externalUrl: `${baseUrl}/posts/${post._id}/${post.slug}`,
-    }));
+    const posts = json.data.posts.results.map((post) =>
+      transformPost(post, source, baseUrl, protocolCname),
+    );
 
     return { posts };
   } catch (error) {
-    return { 
-      posts: [], 
-      error: error instanceof Error ? error.message : 'Failed to fetch' 
+    return {
+      posts: [],
+      error: error instanceof Error ? error.message : 'Failed to fetch'
     };
+  }
+}
+
+function transformPost(
+  post: EAForumPost,
+  source: 'ea-forum' | 'lesswrong',
+  baseUrl: string,
+  protocolCname: string,
+): DiscussionTopic {
+  const fullText = post.contents?.plaintextMainText;
+  const tags = post.tags?.map(t => t.name) || [];
+  const topic: DiscussionTopic = {
+    id: hashStringToNumber(post._id),
+    refId: `${source}:${post._id}`,
+    protocol: protocolCname,
+    title: post.title,
+    slug: post.slug,
+    tags,
+    postsCount: post.commentCount + 1,
+    views: 0, // Not available in API
+    replyCount: post.commentCount,
+    likeCount: post.voteCount,
+    categoryId: 0,
+    pinned: false,
+    visible: true,
+    closed: false,
+    archived: false,
+    createdAt: post.postedAt,
+    bumpedAt: post.modifiedAt || post.postedAt,
+    forumUrl: baseUrl,
+    excerpt: truncateText(fullText, 200),
+    // New multi-source fields
+    sourceType: source as SourceType,
+    authorName: post.user?.displayName || 'Anonymous',
+    score: post.baseScore,
+    externalUrl: `${baseUrl}/posts/${post._id}/${post.slug}`,
+  };
+  // Grants pipeline: carry the full text (transient — stripped before caching)
+  // when the topic matches the grants prefilter, so the classifier sees the
+  // real post instead of a 200-char excerpt.
+  if (fullText && matchGrantsKeywords(post.title, tags, fullText).length > 0) {
+    topic.firstPostText = fullText.slice(0, 8000);
+  }
+  return topic;
+}
+
+/**
+ * Fetch posts carrying a specific tag (e.g. the EA Forum
+ * "Funding opportunities" tag) with full text for the grants pipeline.
+ */
+export async function fetchEAForumTaggedPosts(
+  tagId: string,
+  limit: number = 30,
+): Promise<Array<{ topic: DiscussionTopic; body?: string }>> {
+  try {
+    const response = await fetch(EA_FORUM_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'discuss.watch/1.0',
+      },
+      body: JSON.stringify({
+        query: buildPostsQuery(limit, `view: "tagById", tagId: "${tagId}"`),
+      }),
+    });
+    if (!response.ok) return [];
+    const json: EAForumResponse = await response.json();
+    if (json.errors?.length) return [];
+    return json.data.posts.results.map(post => ({
+      topic: transformPost(post, 'ea-forum', 'https://forum.effectivealtruism.org', 'ea-forum'),
+      body: post.contents?.plaintextMainText,
+    }));
+  } catch (error) {
+    console.error('[EAForum] Tagged posts fetch failed:', error);
+    return [];
   }
 }
 

@@ -203,6 +203,44 @@ export async function initializeSchema() {
   // Forward-compatible migration: add density preference (Sprint 12)
   await db`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS density TEXT DEFAULT 'standard'`;
 
+  // Grants intelligence (Phase 1): classified + extracted grants/funding items.
+  // Upserted on topic_ref_id so an item is classified once and its engagement
+  // updates in place — no duplicate surfacing across days.
+  await db`
+    CREATE TABLE IF NOT EXISTS grants_items (
+      id SERIAL PRIMARY KEY,
+      topic_ref_id TEXT NOT NULL UNIQUE,
+      forum_url TEXT,
+      protocol TEXT,
+      vertical TEXT,
+      title TEXT NOT NULL,
+      url TEXT NOT NULL,
+      first_post_text TEXT,
+      signal TEXT,
+      classification TEXT NOT NULL,
+      kind TEXT,
+      confidence INTEGER DEFAULT 0,
+      program TEXT,
+      amount_min NUMERIC,
+      amount_max NUMERIC,
+      currency TEXT,
+      deadline TIMESTAMP WITH TIME ZONE,
+      chain TEXT,
+      status TEXT,
+      apply_url TEXT,
+      replies INTEGER DEFAULT 0,
+      views INTEGER DEFAULT 0,
+      likes INTEGER DEFAULT 0,
+      topic_created_at TIMESTAMP WITH TIME ZONE,
+      last_activity_at TIMESTAMP WITH TIME ZONE,
+      first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+  await db`CREATE INDEX IF NOT EXISTS idx_grants_items_first_seen ON grants_items(first_seen_at DESC)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_grants_items_vertical ON grants_items(vertical)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_grants_items_classification ON grants_items(classification)`;
+
   // Create indexes for common queries
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;
   await db`CREATE INDEX IF NOT EXISTS idx_topics_created_at ON topics(created_at DESC)`;
