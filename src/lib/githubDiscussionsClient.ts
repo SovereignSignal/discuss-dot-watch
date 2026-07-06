@@ -8,6 +8,7 @@
 
 import { DiscussionTopic, SourceType } from '@/types';
 import { hashStringToNumber, truncateText } from './sourceClientUtils';
+import { matchGrantsKeywords } from './grantsDetect';
 
 const GITHUB_GRAPHQL_ENDPOINT = 'https://api.github.com/graphql';
 
@@ -322,6 +323,11 @@ export async function fetchGitHubDiscussions(
     authorName: d.author?.login || 'ghost',
     score: d.upvoteCount,
     externalUrl: d.url,
+    // Grants pipeline: full body (transient — stripped before caching) when
+    // the discussion matches the grants prefilter.
+    firstPostText: d.bodyText && matchGrantsKeywords(d.title, [], d.bodyText).length > 0
+      ? d.bodyText.slice(0, 8000)
+      : undefined,
   }));
 
   return { posts };

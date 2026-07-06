@@ -61,6 +61,12 @@ export interface DiscussionTopic {
   externalUrl?: string;  // Full canonical URL for non-Discourse sources
   /** Server-enriched: vertical/category derived from the forum's preset (crypto/ai/oss). */
   category?: ForumCategoryId | string;
+  /**
+   * TRANSIENT: full first-post text attached by source clients only when the
+   * topic matches the grants prefilter, consumed and stripped by the grants
+   * scan before caching. Never persisted on cached/served topics.
+   */
+  firstPostText?: string;
 }
 
 export interface KeywordAlert {

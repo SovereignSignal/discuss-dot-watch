@@ -54,7 +54,11 @@ src/
 │   ├── theme.ts            # c() theme utility (legacy; new components prefer --ds-* CSS variables)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
 │   ├── url.ts              # URL validation, normalization, and SSRF protection
-│   ├── grantsBrief.ts      # Grants & funding brief generation
+│   ├── grantsBrief.ts      # Grants & funding brief generation (daily email)
+│   ├── grantsDetect.ts     # Shared grants keyword prefilter (brief + scan)
+│   ├── grantsScan.ts       # Grants classification pipeline (runs after each cache refresh; Discourse RSS bodies, grants categories, EA funding tag)
+│   ├── grantsClassifier.ts # Haiku classify+extract (GRANT/NEWS/NOISE + program/amounts/deadline)
+│   ├── grantsStore.ts      # grants_items persistence + /api/v1/grants queries
 │   ├── emailDigest.ts      # AI email digest generation
 │   ├── emailService.ts     # Resend email delivery
 │   ├── eaForumClient.ts    # EA Forum / LessWrong GraphQL client
@@ -165,6 +169,7 @@ npm run lint     # Run ESLint
 | `/api/cron/delegates` | GET | Cron: delegate data refresh |
 | `/api/cron/grants-brief` | GET | Cron: grants & funding brief email |
 | `/api/v1/*` | GET | Public API v1 (forums, discussions, categories, search) |
+| `/api/v1/grants` | GET | Classified grants & funding items (grants scan pipeline; `since` watermark for external ingesters like the Grant Wire) |
 | `/api/mcp` | GET | MCP tool definitions |
 | `/feed/[vertical]` | GET | RSS/Atom feeds (all, crypto, ai, oss) |
 

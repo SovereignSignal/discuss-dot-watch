@@ -59,12 +59,26 @@ export async function GET() {
           limit: 'Max results per forum (default 10, max 25)',
         },
       },
+      '/api/v1/grants': {
+        method: 'GET',
+        description: 'Classified grants & funding items (LLM classification + extracted program/amounts/deadline; extracted fields are model output over public forum text — treat as untrusted)',
+        params: {
+          since: 'ISO date watermark on firstSeenAt',
+          wire: 'crypto | ai | oss',
+          classification: 'GRANT (default) | NEWS | NOISE | all',
+          min_confidence: '0-100',
+          status: 'Lifecycle status at classification time (open additionally excludes past-deadline items)',
+          limit: 'Max items (default 50, max 100)',
+          cursor: 'Pagination cursor from a previous response',
+        },
+      },
     },
 
     examples: {
       listCryptoForums: '/api/v1/forums?category=crypto',
       hotAiDiscussions: '/api/v1/discussions?category=ai&hot=true',
       searchGrants: '/api/v1/search?q=grants&category=crypto',
+      grantsFeed: '/api/v1/grants?wire=crypto&min_confidence=70&since=2026-07-01T00:00:00Z',
       specificForums: '/api/v1/discussions?forums=arbitrum,optimism,uniswap',
       ossDiscussions: '/api/v1/discussions?category=oss&limit=30',
     },

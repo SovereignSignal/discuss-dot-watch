@@ -8,6 +8,7 @@
 
 import { DiscussionTopic, SourceType } from '@/types';
 import { hashStringToNumber, truncateText } from './sourceClientUtils';
+import { matchGrantsKeywords } from './grantsDetect';
 import { sanitizeHtml } from '@/lib/sanitize';
 
 const SNAPSHOT_ENDPOINT = 'https://hub.snapshot.org/graphql';
@@ -262,6 +263,12 @@ export async function fetchSnapshotProposals(
       authorName: shortenAddress(p.author),
       score: p.scores_total,
       externalUrl: `https://snapshot.org/#/${spaceId}/proposal/${p.id}`,
+      // Grants pipeline: full body (transient — stripped before caching) when
+      // the proposal matches the grants prefilter. Snapshot bodies carry the
+      // amounts/deadlines the classifier extracts.
+      firstPostText: p.body && matchGrantsKeywords(p.title, [], p.body).length > 0
+        ? p.body.slice(0, 8000)
+        : undefined,
     };
   });
 

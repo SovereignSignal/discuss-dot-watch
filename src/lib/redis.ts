@@ -231,11 +231,39 @@ export async function acquireRefreshLock(ttlSeconds = 300): Promise<boolean> {
 export async function releaseRefreshLock(): Promise<void> {
   const client = getRedis();
   if (!client) return;
-  
+
   try {
     await client.del(keys.refreshLock());
   } catch (err) {
     console.error('[Redis] Error releasing lock:', err);
+  }
+}
+
+/**
+ * Grants-scan lock — same semantics as the refresh lock, separate key so
+ * the classification pipeline never contends with the cache refresh.
+ */
+const GRANTS_SCAN_LOCK_KEY = 'grants:scan:lock';
+
+export async function acquireGrantsScanLock(ttlSeconds = 600): Promise<boolean> {
+  const client = getRedis();
+  if (!client) return true; // Allow if no Redis
+  try {
+    const result = await client.set(GRANTS_SCAN_LOCK_KEY, '1', 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  } catch (err) {
+    console.error('[Redis] Error acquiring grants-scan lock:', err);
+    return true;
+  }
+}
+
+export async function releaseGrantsScanLock(): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    await client.del(GRANTS_SCAN_LOCK_KEY);
+  } catch (err) {
+    console.error('[Redis] Error releasing grants-scan lock:', err);
   }
 }
 
