@@ -37,6 +37,7 @@ import {
   isDatabaseConfigured,
   upsertForum,
   bulkUpsertTopics,
+  bulkInsertTopicSnapshots,
   getForumByUrl,
   getRecentTopics,
   updateForumLastFetched,
@@ -543,7 +544,9 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
     }
     
     // Batch-upsert all topics in one round-trip (was a per-topic N+1).
-    await bulkUpsertTopics(forumId, topics.map((topic) => ({
+    // Returns { id, discourseId } mappings so the snapshot insert below can
+    // reference topics.id without an extra SELECT.
+    const upserted = await bulkUpsertTopics(forumId, topics.map((topic) => ({
       discourseId: topic.id,
       title: topic.title,
       slug: topic.slug,
@@ -559,6 +562,25 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
       createdAt: topic.createdAt,
       bumpedAt: topic.bumpedAt,
     })));
+
+    // Engagement time-series: at most ONE snapshot per topic per UTC day
+    // (idx_topic_snapshots_daily + ON CONFLICT DO NOTHING), so of the ~96
+    // daily refresh cycles only the first actually writes. One extra statement
+    // per forum per refresh; failures must never break the refresh.
+    try {
+      const byDiscourseId = new Map(topics.map((t) => [t.id, t]));
+      await bulkInsertTopicSnapshots(upserted.map(({ id, discourseId }) => {
+        const topic = byDiscourseId.get(discourseId);
+        return {
+          topicId: id,
+          views: topic?.views,
+          replyCount: topic?.replyCount,
+          likeCount: topic?.likeCount,
+        };
+      }));
+    } catch (error) {
+      console.error(`[Snapshots] Snapshot insert failed for ${forum.name}:`, error);
+    }
 
     // Update last fetched timestamp
     await updateForumLastFetched(forumId);

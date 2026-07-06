@@ -35,6 +35,11 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
 
   return (
     <div
+      // The mobile overlay is modal; the desktop pane is a complementary
+      // region alongside the feed (j/k in the feed navigates between topics).
+      role={isMobile ? 'dialog' : 'complementary'}
+      aria-modal={isMobile || undefined}
+      aria-label={`Discussion: ${topic.title}`}
       className={
         isMobile
           ? 'fixed inset-0 z-50 flex flex-col'

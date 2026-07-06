@@ -177,7 +177,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
           {currentStep === 2 && (
             <div className="space-y-3">
               {[
-                { n: '1', title: 'Set Up Keyword Alerts', desc: 'Use the right sidebar to add keywords. Discussions matching your keywords will be highlighted.' },
+                { n: '1', title: 'Set Up Keyword Alerts', desc: 'Use the "+ keyword" chip in the alerts strip above the feed. Discussions matching your keywords will be highlighted.' },
                 { n: '2', title: 'Bookmark Important Discussions', desc: 'Click the bookmark icon on any discussion to save it. Access saved discussions from the "Saved" view.' },
                 { n: '3', title: 'Add More Forums Anytime', desc: `Go to "Communities" in the sidebar to browse ${getTotalForumCount()} forums or add your own custom Discourse forum URL.` },
               ].map((tip) => (

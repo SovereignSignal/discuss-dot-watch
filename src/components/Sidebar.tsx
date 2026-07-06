@@ -153,7 +153,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
           <div className="px-3 py-2" style={{ borderTop: `1px solid var(--ds-border)` }}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--ds-fg-dim)' }}>
-                Density
+                Density · {density}
               </span>
               <div className="inline-flex rounded-md p-0.5" style={{ background: 'var(--ds-bg-elev)', border: `1px solid var(--ds-border)` }}>
                 {(['compact', 'standard', 'cozy'] as const).map((d) => (
@@ -165,8 +165,12 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
                       background: density === d ? 'var(--ds-bg-subtle)' : 'transparent',
                       color: density === d ? 'var(--ds-fg)' : 'var(--ds-fg-muted)',
                     }}
-                    title={d.charAt(0).toUpperCase() + d.slice(1)}
+                    title={`${d.charAt(0).toUpperCase() + d.slice(1)} density`}
+                    aria-label={`${d.charAt(0).toUpperCase() + d.slice(1)} density`}
+                    aria-pressed={density === d}
                   >
+                    {/* Fixed glyphs (no layout shift); the active mode's name
+                        lives in the Density label to the left */}
                     {d === 'compact' ? '≡' : d === 'standard' ? '▤' : '☰'}
                   </button>
                 ))}

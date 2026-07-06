@@ -25,14 +25,17 @@ const SIZE_STYLE: Record<ButtonSize, CSSProperties> = {
 
 /**
  * Primary, secondary, ghost, danger button variants.
- * No focus/disabled state styling beyond browser defaults yet; add as needed.
+ * Hover / active / focus-visible / disabled states come from the `.ds-btn`
+ * rules in globals.css (inline styles can't express pseudo-states).
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'secondary', size = 'md', fullWidth, style, children, ...rest }, ref) => {
+  ({ variant = 'secondary', size = 'md', fullWidth, style, className, children, ...rest }, ref) => {
     return (
       <button
         ref={ref}
         {...rest}
+        className={className ? `ds-btn ${className}` : 'ds-btn'}
+        data-variant={variant}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -40,7 +43,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           borderRadius: 'var(--ds-radius-md)',
           fontWeight: 500,
           fontFamily: 'var(--ds-font-sans)',
-          cursor: 'pointer',
+          cursor: rest.disabled ? 'not-allowed' : 'pointer',
           border: '1px solid',
           lineHeight: 1.2,
           width: fullWidth ? '100%' : undefined,
