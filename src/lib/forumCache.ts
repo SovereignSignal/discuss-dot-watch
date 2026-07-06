@@ -21,9 +21,10 @@ import { fetchSnapshotProposals } from './snapshotClient';
 import { fetchHackerNewsStories } from './hackerNewsClient';
 import { fetchLobstersStories } from './lobstersClient';
 import { safeFetch } from './safeFetch';
-import { 
-  getCachedTopics, 
-  setCachedTopics, 
+import {
+  getCachedTopics,
+  setCachedTopics,
+  getCachedForumUrls,
   setCachedForumUrls,
   setLastRefresh,
   acquireRefreshLock,
@@ -673,6 +674,10 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   const hasLock = await acquireRefreshLock(300);
   if (!hasLock) {
     console.log('[ForumCache] Another instance is refreshing (distributed lock), skipping');
+    // Deploy handoff: the outgoing instance can hold the lock while this
+    // fresh instance has an empty memory cache — without hydration the
+    // all-forums feed serves nothing until the next interval tick.
+    if (memoryCache.size === 0) await hydrateMemoryFromRedis();
     return;
   }
 
@@ -841,23 +846,63 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
 }
 
 /**
+ * Populate the memory cache from Redis without any upstream fetches.
+ * Covers the deploy-handoff window where the previous instance's data is
+ * sitting in Redis but this process's memory map is empty. Discourse
+ * forums only — external sources refresh on the next interval tick.
+ */
+async function hydrateMemoryFromRedis(): Promise<void> {
+  if (!isRedisConfigured()) return;
+  try {
+    const urls = await getCachedForumUrls();
+    if (urls.length === 0) return;
+    let hydrated = 0;
+    for (const url of urls) {
+      const topics = await getCachedTopics(url);
+      if (topics && topics.length > 0) {
+        memoryCache.set(normalizeUrl(url), { url, topics, fetchedAt: Date.now() });
+        hydrated++;
+      }
+    }
+    console.log(`[ForumCache] Hydrated ${hydrated}/${urls.length} forums from Redis`);
+  } catch (err) {
+    console.error('[ForumCache] Redis hydration failed:', err);
+  }
+}
+
+/**
  * Start the background refresh loop
  */
 let refreshInterval: NodeJS.Timeout | null = null;
+
+const INITIAL_REFRESH_RETRY_MS = 60 * 1000;
+const INITIAL_REFRESH_MAX_ATTEMPTS = 5;
 
 export function startBackgroundRefresh(): void {
   if (refreshInterval) {
     console.log('[ForumCache] Background refresh already running');
     return;
   }
-  
+
   console.log('[ForumCache] Starting background refresh loop');
-  
-  // Initial refresh
-  refreshCache([1, 2]).catch(err => {
-    console.error('[ForumCache] Initial refresh failed:', err);
-  });
-  
+
+  // Initial refresh. It can no-op when the outgoing instance still holds
+  // the distributed lock during a deploy handoff — Redis hydration covers
+  // that case, and the bounded retry covers a cold Redis, so the feed
+  // doesn't stay empty until the first interval tick.
+  const initialRefresh = (attempt: number) => {
+    refreshCache([1, 2])
+      .catch(err => {
+        console.error('[ForumCache] Initial refresh failed:', err);
+      })
+      .finally(() => {
+        if (memoryCache.size === 0 && attempt < INITIAL_REFRESH_MAX_ATTEMPTS) {
+          setTimeout(() => initialRefresh(attempt + 1), INITIAL_REFRESH_RETRY_MS);
+        }
+      });
+  };
+  initialRefresh(1);
+
   // Schedule periodic refresh
   refreshInterval = setInterval(() => {
     refreshCache([1, 2]).catch(err => {
