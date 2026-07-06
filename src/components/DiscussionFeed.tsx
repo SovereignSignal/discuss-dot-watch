@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, memo, useEffect } from 'react';
+import { useState, useMemo, memo, useEffect, useCallback } from 'react';
 import { RefreshCw, CheckCheck, MessageSquare } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert, DateRangeFilter, DateFilterMode, Forum, SortOption } from '@/types';
 import { getProtocolLogo } from '@/lib/logoUtils';
@@ -11,7 +11,8 @@ import { BriefsStrip } from './BriefsStrip';
 import { AlertsStrip } from './AlertsStrip';
 import { Search, X as XIcon } from 'lucide-react';
 import { ForumLoadingState } from '@/hooks/useDiscussions';
-import { format, isToday, isThisWeek, isThisMonth } from 'date-fns';
+import { format } from 'date-fns';
+import { isWithinDateRange } from '@/lib/dateWindows';
 import { c } from '@/lib/theme';
 
 const MemoizedDiscussionItem = memo(DiscussionItem);
@@ -104,7 +105,19 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [showReadItems, setShowReadItems] = useState(false);
+  // The refId of a topic that was UNREAD when the user opened it. Only that
+  // topic is exempt from the read-collapse below — an already-read topic
+  // opened from the read section stays in the read section.
+  const [freshlyReadRefId, setFreshlyReadRefId] = useState<string | null>(null);
   const t = c(isDark);
+
+  // isRead still reflects the pre-click state here: the parent marks the
+  // topic read in the same event and React batches that update.
+  const handleSelectTopic = useCallback((topic: DiscussionTopic) => {
+    setFreshlyReadRefId(isRead(topic.refId) ? null : topic.refId);
+    onSelectTopic?.(topic);
+  }, [isRead, onSelectTopic]);
+  const selectHandler = onSelectTopic ? handleSelectTopic : undefined;
 
   // Listen for command menu events
   useEffect(() => {
@@ -199,14 +212,8 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
             !topic.protocol.toLowerCase().includes(query) &&
             !topic.tags.some((tag) => tag.toLowerCase().includes(query))) return false;
       }
-      // Date range
-      if (dateRange !== 'all') {
-        const dateField = dateFilterMode === 'created' ? topic.createdAt : topic.bumpedAt;
-        const topicDate = new Date(dateField);
-        if (dateRange === 'today' && !isToday(topicDate)) return false;
-        if (dateRange === 'week' && !isThisWeek(topicDate)) return false;
-        if (dateRange === 'month' && !isThisMonth(topicDate)) return false;
-      }
+      // Date range (rolling windows — see lib/dateWindows)
+      if (!isWithinDateRange(dateFilterMode === 'created' ? topic.createdAt : topic.bumpedAt, dateRange)) return false;
       // Forum filter
       if (selectedForumId) {
         const forum = forums.find((f) => f.id === selectedForumId);
@@ -239,14 +246,18 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
     : displayCount < filteredAndSortedDiscussions.length;
 
   // Single-pass read/unread partition (was two .filter() scans per render).
+  // A topic that was unread when the user opened it is exempt from the read
+  // bucket while its reader is open, so the row the user just clicked
+  // doesn't vanish into "already-read" mid-read.
   const { unreadItems, readItems } = useMemo(() => {
+    const exemptRefId = freshlyReadRefId === selectedTopicRefId ? freshlyReadRefId : null;
     const unread: typeof displayedDiscussions = [];
     const read: typeof displayedDiscussions = [];
     for (const d of displayedDiscussions) {
-      (isRead(d.refId) ? read : unread).push(d);
+      (isRead(d.refId) && d.refId !== exemptRefId ? read : unread).push(d);
     }
     return { unreadItems: unread, readItems: read };
-  }, [displayedDiscussions, isRead]);
+  }, [displayedDiscussions, isRead, selectedTopicRefId, freshlyReadRefId]);
 
   // Compute filtered unread count when category/forum filters are active
   const filteredUnreadCount = useMemo(() => {
@@ -363,7 +374,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
         />
       )}
 
-      <BriefsStrip onSelectTopic={onSelectTopic} />
+      <BriefsStrip onSelectTopic={selectHandler} />
 
       {/* Loading progress */}
       {isLoading && !isServerMode && forumStates.length > 0 && (
@@ -408,7 +419,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
                     isSelected={selectedTopicRefId === topic.refId}
                     onToggleBookmark={onToggleBookmark}
                     onMarkAsRead={onMarkAsRead}
-                    onSelect={onSelectTopic}
+                    onSelect={selectHandler}
                     onTagClick={onTagClick}
                     forumLogoUrl={forumLogoMap.get(topic.protocol.toLowerCase())}
                     forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}

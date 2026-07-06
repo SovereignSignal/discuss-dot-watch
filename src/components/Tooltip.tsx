@@ -36,12 +36,15 @@ export function Tooltip({ content, children }: TooltipProps) {
 
   const tooltip = isVisible && isClient ? createPortal(
     <div
-      className="fixed z-[9999] px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded shadow-lg whitespace-nowrap pointer-events-none -translate-x-1/2 -translate-y-full"
-      style={{ top: position.top, left: position.left }}
+      className="fixed z-[9999] px-2 py-1 text-xs font-medium rounded shadow-lg whitespace-nowrap pointer-events-none -translate-x-1/2 -translate-y-full"
+      style={{ top: position.top, left: position.left, backgroundColor: 'var(--ds-fg)', color: 'var(--ds-bg-base)' }}
       role="tooltip"
     >
       {content}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-4 border-t-gray-900 border-x-transparent border-b-transparent" />
+      <div
+        className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-4 border-x-transparent border-b-transparent"
+        style={{ borderTopColor: 'var(--ds-fg)' }}
+      />
     </div>,
     document.body
   ) : null;

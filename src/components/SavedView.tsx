@@ -227,7 +227,7 @@ export function SavedView({ bookmarks, onRemoveBookmark, onSetFolder, isDark }: 
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 hover-action">
                 {onSetFolder && (
                   <button
                     onClick={() => setFolderPickerFor(folderPickerFor === bookmark.topicRefId ? null : bookmark.topicRefId)}

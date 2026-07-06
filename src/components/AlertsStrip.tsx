@@ -103,7 +103,7 @@ export function AlertsStrip({
             </Chip>
             <button
               onClick={(e) => { e.stopPropagation(); onRemoveAlert(a.id); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              className="hover-action"
               title="Remove alert"
               style={{
                 position: 'absolute',

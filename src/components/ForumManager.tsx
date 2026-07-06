@@ -292,7 +292,7 @@ export function ForumManager({
         </div>
         {isAdded && existingForum ? (
           <button onClick={() => setDeleteConfirm({ id: existingForum.id, name: existingForum.name })}
-            className="p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 hover:text-red-500"
+            className="p-2 rounded-lg hover-action hover:text-red-500"
             style={{ color: t.fgDim }}>
             <X className="w-4 h-4" />
           </button>
