@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Read state API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to mark as read' },
+      { error: 'Failed to mark as read' },
       { status: 500 }
     );
   }
@@ -72,6 +72,9 @@ export async function PUT(request: NextRequest) {
     if (!Array.isArray(topicRefIds)) {
       return NextResponse.json({ error: 'topicRefIds array is required' }, { status: 400 });
     }
+    if (topicRefIds.length > 5000) {
+      return NextResponse.json({ error: 'Too many topicRefIds in one sync (max 5000)' }, { status: 400 });
+    }
 
     const sql = getDb();
 
@@ -87,7 +90,9 @@ export async function PUT(request: NextRequest) {
     const userId = users[0].id;
 
     // Batch insert all read states in a transaction
-    const validIds = topicRefIds.filter(Boolean);
+    const validIds = topicRefIds.filter(
+      (id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 200
+    );
     let count = 0;
     if (validIds.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -108,7 +113,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Read state API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to bulk mark as read' },
+      { error: 'Failed to bulk mark as read' },
       { status: 500 }
     );
   }
@@ -161,7 +166,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Read state API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to clear read state' },
+      { error: 'Failed to clear read state' },
       { status: 500 }
     );
   }

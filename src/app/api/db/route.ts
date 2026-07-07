@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { clientSafeError } from '@/lib/apiError';
 import {
   initializeSchema,
   getDbStats,
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
       dbStatus = {
         configured: true,
         connected: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: clientSafeError(error, 'Unknown error'),
       };
     }
   }
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[DB] Schema initialization error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to initialize schema' },
+      { error: clientSafeError(error, 'Failed to initialize schema') },
       { status: 500 }
     );
   }

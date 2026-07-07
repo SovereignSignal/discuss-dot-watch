@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Alerts API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to add alert' },
+      { error: 'Failed to add alert' },
       { status: 500 }
     );
   }
@@ -134,7 +134,7 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error('Alerts API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update alert' },
+      { error: 'Failed to update alert' },
       { status: 500 }
     );
   }
@@ -183,7 +183,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Alerts API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete alert' },
+      { error: 'Failed to delete alert' },
       { status: 500 }
     );
   }
@@ -208,6 +208,8 @@ export async function PUT(request: NextRequest) {
     if (!Array.isArray(alerts)) {
       return NextResponse.json({ error: 'alerts array is required' }, { status: 400 });
     }
+    // Truncate rather than reject — same full-replace contract as bookmarks PUT.
+    const boundedAlerts = alerts.slice(0, 200);
 
     const sql = getDb();
 
@@ -227,8 +229,8 @@ export async function PUT(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await sql.begin(async (tx: any) => {
       await tx`DELETE FROM keyword_alerts WHERE user_id = ${userId}`;
-      for (const alert of alerts) {
-        const sanitizedKeyword = alert.keyword.trim().slice(0, 100);
+      for (const alert of boundedAlerts) {
+        const sanitizedKeyword = typeof alert?.keyword === 'string' ? alert.keyword.trim().slice(0, 100) : '';
         if (sanitizedKeyword) {
           const result = await tx`
             INSERT INTO keyword_alerts (user_id, keyword, is_enabled)
@@ -247,7 +249,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Alerts API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to bulk sync alerts' },
+      { error: 'Failed to bulk sync alerts' },
       { status: 500 }
     );
   }

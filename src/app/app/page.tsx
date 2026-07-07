@@ -55,9 +55,10 @@ export default function AppPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'your'>('your');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  // Legacy state retained for keyboard shortcuts that reference it; no UI now.
-  const [, setIsMobileAlertsOpen] = useState(false);
   const [activeKeywordFilter, setActiveKeywordFilter] = useState<string | null>(null);
+  // '/' may be pressed from any view; the search input only exists once the
+  // feed view has mounted, so focus happens in an effect after that render.
+  const [pendingSearchFocus, setPendingSearchFocus] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<DiscussionTopic | null>(null);
   // The refId of a topic that was UNREAD when opened — exempt from the feed's
@@ -282,13 +283,8 @@ export default function AppPage() {
       switch (e.key) {
         case '/':
           e.preventDefault();
-          if (window.innerWidth < 768) {
-            setIsMobileAlertsOpen(true);
-          }
-          setTimeout(() => {
-            const searchInput = document.getElementById('discussion-search') as HTMLInputElement;
-            searchInput?.focus();
-          }, 100);
+          setActiveView('feed');
+          setPendingSearchFocus(true);
           break;
         case 'j':
           if (activeView === 'feed') navigateReader(1);
@@ -301,7 +297,6 @@ export default function AppPage() {
             setSelectedTopic(null);
           } else {
             setIsMobileMenuOpen(false);
-            setIsMobileAlertsOpen(false);
             setIsCommandMenuOpen(false);
           }
           break;
@@ -311,6 +306,15 @@ export default function AppPage() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedTopic, activeView, navigateReader]);
+
+  // Runs after the commit that mounts the feed, so the input exists by now.
+  useEffect(() => {
+    if (!pendingSearchFocus) return;
+    if (activeView === 'feed') {
+      (document.getElementById('discussion-search') as HTMLInputElement | null)?.focus();
+    }
+    setPendingSearchFocus(false);
+  }, [pendingSearchFocus, activeView]);
 
   return (
     <AuthGate>

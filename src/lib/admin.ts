@@ -4,10 +4,15 @@
  * Controls who can access admin features
  */
 
-// Admin emails — read from ADMIN_EMAILS env var (comma-separated), falling back to hardcoded default
+// Admin emails — read from ADMIN_EMAILS env var (comma-separated). Fails closed:
+// unset means no email-based admins, so a deploy that forgets the var grants nothing.
 const ADMIN_EMAILS: string[] = process.env.ADMIN_EMAILS
   ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()).filter(Boolean)
-  : ['sov@sovereignsignal.com'];
+  : [];
+
+if (!process.env.ADMIN_EMAILS && !process.env.ADMIN_DIDS) {
+  console.warn('[Admin] Neither ADMIN_EMAILS nor ADMIN_DIDS is set — no user has admin access.');
+}
 
 // Admin Privy DIDs — read from ADMIN_DIDS env var (comma-separated).
 // A DID is cryptographically bound to the verified Privy access token, so this is

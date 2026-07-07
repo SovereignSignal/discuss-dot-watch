@@ -60,7 +60,7 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error('Preferences API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update preferences' },
+      { error: 'Failed to update preferences' },
       { status: 500 }
     );
   }
