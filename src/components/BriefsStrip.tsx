@@ -49,9 +49,12 @@ export function BriefsStrip({ onSelectTopic, onSeeAll, onTrendingRefIds }: Brief
   const [data, setData] = useState<BriefsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   // Ref indirection keeps the fetch effect's dep list empty regardless of
-  // whether the parent memoizes the callback.
+  // whether the parent memoizes the callback. Written in an effect, not during
+  // render — the React Compiler bails on render-phase ref writes.
   const onTrendingRefIdsRef = useRef(onTrendingRefIds);
-  onTrendingRefIdsRef.current = onTrendingRefIds;
+  useEffect(() => {
+    onTrendingRefIdsRef.current = onTrendingRefIds;
+  });
 
   useEffect(() => {
     let cancelled = false;

@@ -268,6 +268,10 @@ export default function AppPage() {
         return;
       }
 
+      // Browser/OS chords (Cmd+S, Cmd+O, ...) must never reach the single-key
+      // shortcuts below.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
       // Skip other shortcuts when in form fields or editable content
       // (select type-to-jump would otherwise drive j/k navigation).
       const target = e.target as HTMLElement;
@@ -292,20 +296,23 @@ export default function AppPage() {
         case 'k':
           if (activeView === 'feed') navigateReader(-1);
           break;
-        // Triage keys — act on the topic open in the reader.
+        // Triage keys — act on the topic open in the reader (feed or briefs).
+        // s/o guard against key auto-repeat: a held key must not toggle the
+        // bookmark per repeat or spawn a tab per repeat.
         case 's':
-          if (activeView === 'feed' && selectedTopic) handleToggleBookmark(selectedTopic);
+          if (!e.repeat && selectedTopic) handleToggleBookmark(selectedTopic);
           break;
         case 'o':
-          if (activeView === 'feed' && selectedTopic) {
+          if (!e.repeat && selectedTopic) {
             const url = selectedTopic.externalUrl || `${selectedTopic.forumUrl}/t/${selectedTopic.slug}/${selectedTopic.id}`;
             window.open(url, '_blank', 'noopener,noreferrer');
           }
           break;
         case 'e':
-          // "Done with this one": drop the read-collapse exemption so the row
-          // files away immediately, and close the reader.
-          if (activeView === 'feed' && selectedTopic) {
+          // "Done with this one" — an ergonomic Escape that lives next to
+          // j/k. Closing the reader drops the read-collapse exemption, so the
+          // row files away; clearing the refId is just state hygiene.
+          if (selectedTopic) {
             setFreshlyReadRefId(null);
             setSelectedTopic(null);
           }
@@ -503,6 +510,7 @@ export default function AppPage() {
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       />
                       <DiscussionReader
+                        showNavHint
                         topic={selectedTopic}
                         onClose={handleCloseReader}
                         isDark={isDark}
@@ -514,6 +522,7 @@ export default function AppPage() {
                   {selectedTopic && (
                     <div className="md:hidden">
                       <DiscussionReader
+                        showNavHint
                         topic={selectedTopic}
                         onClose={handleCloseReader}
                         isDark={isDark}

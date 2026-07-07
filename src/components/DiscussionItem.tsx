@@ -107,12 +107,17 @@ export function DiscussionItem({
   // Reason chips — say WHY a row deserves attention, not just what it is.
   const titleLower = topic.title.toLowerCase();
   const alertMatch = alerts.find(a => a.isEnabled && a.keyword && titleLower.includes(a.keyword.toLowerCase()))?.keyword ?? null;
-  const grantDeadline = grantChip?.deadline ? new Date(grantChip.deadline) : null;
-  const deadlineSoon = grantDeadline !== null &&
-    grantDeadline.getTime() > Date.now() &&
-    grantDeadline.getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
+  // The deadline is a calendar date (YYYY-MM-DD). Parse as LOCAL midnight
+  // (no trailing Z) so it renders as the same calendar day in every timezone,
+  // and keep the "due" label through the end of the deadline day.
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const grantDeadline = grantChip?.deadline ? new Date(`${grantChip.deadline.slice(0, 10)}T00:00:00`) : null;
+  const deadlineSoon = grantDeadline !== null && !Number.isNaN(grantDeadline.getTime()) &&
+    grantDeadline.getTime() + DAY_MS > Date.now() &&
+    grantDeadline.getTime() - Date.now() < 30 * DAY_MS;
+  const validDeadline = grantDeadline !== null && !Number.isNaN(grantDeadline.getTime());
   const grantTitle = grantChip
-    ? [grantChip.program, grantChip.amount, grantDeadline ? `deadline ${format(grantDeadline, 'MMM d, yyyy')}` : null, `${grantChip.confidence}% confidence`]
+    ? [grantChip.program, grantChip.amount, validDeadline ? `deadline ${format(grantDeadline!, 'MMM d, yyyy')}` : null, `${grantChip.confidence}% confidence`]
         .filter(Boolean).join(' · ')
     : undefined;
 
