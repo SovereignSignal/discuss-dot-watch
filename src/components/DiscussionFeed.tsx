@@ -12,6 +12,7 @@ import { AlertsStrip } from './AlertsStrip';
 import { Search, X as XIcon } from 'lucide-react';
 import { ForumLoadingState } from '@/hooks/useDiscussions';
 import { FeedFiltersController, normalizeForumUrl } from '@/hooks/useFeedFilters';
+import { useGrantChips } from '@/hooks/useGrantChips';
 import { format } from 'date-fns';
 import { isWithinDateRange } from '@/lib/dateWindows';
 import { Button } from './ui/Button';
@@ -115,6 +116,11 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
     sortBy, setSortBy,
   } = feedFilters;
   const [showReadItems, setShowReadItems] = useState(false);
+  // Reason-chip data: grants classifications (one cached fetch) and the
+  // trending set (piggybacks on BriefsStrip's own /api/briefs fetch).
+  const grantChips = useGrantChips();
+  const [trendingRefIds, setTrendingRefIds] = useState<ReadonlySet<string>>(() => new Set());
+  const handleTrendingRefIds = useCallback((refIds: string[]) => setTrendingRefIds(new Set(refIds)), []);
   const t = c(isDark);
 
   // Map protocol → category for filtering
@@ -345,7 +351,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
         />
       )}
 
-      <BriefsStrip onSelectTopic={onSelectTopic} onSeeAll={onSeeAllBriefs} />
+      <BriefsStrip onSelectTopic={onSelectTopic} onSeeAll={onSeeAllBriefs} onTrendingRefIds={handleTrendingRefIds} />
 
       {/* Loading progress */}
       {isLoading && !isServerMode && forumStates.length > 0 && (
@@ -396,6 +402,8 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
                     forumDisplayName={forumNameMap.get(topic.protocol.toLowerCase())}
                     vertical={vertical}
                     dateFilterMode={dateFilterMode}
+                    grantChip={grantChips[topic.refId]}
+                    isTrending={trendingRefIds.has(topic.refId)}
                   />
                 );
               };

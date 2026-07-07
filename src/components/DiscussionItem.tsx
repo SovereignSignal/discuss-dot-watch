@@ -1,8 +1,9 @@
 'use client';
 
 import { format, isToday, isYesterday } from 'date-fns';
-import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink, TrendingUp, User } from 'lucide-react';
+import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink, TrendingUp, User, Coins, Zap } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert, DateFilterMode } from '@/types';
+import type { GrantChip } from '@/hooks/useGrantChips';
 
 function isExternalSource(topic: DiscussionTopic): boolean {
   return !!topic.sourceType && topic.sourceType !== 'discourse';
@@ -30,6 +31,10 @@ interface DiscussionItemProps {
   /** Per-vertical accent for the forum chip — applied via --ds-ticker-* CSS vars. */
   vertical?: Vertical;
   dateFilterMode?: DateFilterMode;
+  /** Reason chips: this topic was classified as grants/funding by the scan. */
+  grantChip?: GrantChip;
+  /** Reason chips: this topic is in the cross-category trending (Briefs) set. */
+  isTrending?: boolean;
 }
 
 function tickerColors(v: Vertical) {
@@ -89,6 +94,7 @@ function highlightKeywords(text: string, alerts: KeywordAlert[]): React.ReactNod
 export function DiscussionItem({
   topic, alerts, isBookmarked, isRead = false, isSelected = false,
   onToggleBookmark, onMarkAsRead, onSelect, onTagClick, forumLogoUrl, forumDisplayName, vertical = 'neutral', dateFilterMode,
+  grantChip, isTrending,
 }: DiscussionItemProps) {
   const tc = tickerColors(vertical);
   const isExternal = isExternalSource(topic);
@@ -97,6 +103,21 @@ export function DiscussionItem({
     ? topic.externalUrl
     : `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
   const activity = getActivityLevel(topic);
+
+  // Reason chips — say WHY a row deserves attention, not just what it is.
+  const titleLower = topic.title.toLowerCase();
+  const alertMatch = alerts.find(a => a.isEnabled && a.keyword && titleLower.includes(a.keyword.toLowerCase()))?.keyword ?? null;
+  // The deadline is a calendar date (YYYY-MM-DD). Parse as LOCAL midnight
+  // (no trailing Z) so it renders as the same calendar day in every timezone.
+  // The time-dependent "due soon" flag comes precomputed from useGrantChips —
+  // render code can't call Date.now() under the React Compiler.
+  const grantDeadline = grantChip?.deadline ? new Date(`${grantChip.deadline.slice(0, 10)}T00:00:00`) : null;
+  const validDeadline = grantDeadline !== null && !Number.isNaN(grantDeadline.getTime());
+  const deadlineSoon = Boolean(grantChip?.dueSoon) && validDeadline;
+  const grantTitle = grantChip
+    ? [grantChip.program, grantChip.amount, validDeadline ? `deadline ${format(grantDeadline!, 'MMM d, yyyy')}` : null, `${grantChip.confidence}% confidence`]
+        .filter(Boolean).join(' · ')
+    : undefined;
 
   // Base/hover styles as token strings so the JS hover handlers and the
   // static style stay in one vocabulary (design-system CSS variables).
@@ -168,6 +189,48 @@ export function DiscussionItem({
               >
                 {forumDisplayName || topic.protocol}
               </span>
+              {grantChip && (
+                <span
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-semibold rounded flex-shrink-0"
+                  style={{
+                    color: 'var(--ds-success)',
+                    backgroundColor: 'color-mix(in srgb, var(--ds-success) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--ds-success) 35%, transparent)',
+                  }}
+                  title={grantTitle}
+                >
+                  <Coins className="w-3 h-3" />
+                  {deadlineSoon && grantDeadline ? `grant · due ${format(grantDeadline, 'MMM d')}` : 'grant'}
+                </span>
+              )}
+              {alertMatch && (
+                <span
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-medium rounded flex-shrink-0"
+                  style={{
+                    color: 'var(--ds-warn)',
+                    backgroundColor: 'color-mix(in srgb, var(--ds-warn) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--ds-warn) 30%, transparent)',
+                  }}
+                  title={`Matches your keyword alert “${alertMatch}”`}
+                >
+                  <Zap className="w-3 h-3" />
+                  {alertMatch.length > 18 ? `${alertMatch.slice(0, 18)}…` : alertMatch}
+                </span>
+              )}
+              {isTrending && (
+                <span
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-medium rounded flex-shrink-0"
+                  style={{
+                    color: 'var(--ds-info)',
+                    backgroundColor: 'color-mix(in srgb, var(--ds-info) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--ds-info) 30%, transparent)',
+                  }}
+                  title="In the top trending set across your categories right now"
+                >
+                  <TrendingUp className="w-3 h-3" />
+                  trending
+                </span>
+              )}
               {topic.tags.slice(0, 2).map((tag) => {
                 const tagName = typeof tag === 'string' ? tag : (tag as { name: string }).name;
                 if (!tagName) return null;

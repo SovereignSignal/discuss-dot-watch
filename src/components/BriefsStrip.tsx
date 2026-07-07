@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { DiscussionTopic } from '@/types';
 import { SectionHeader } from './ui/SectionHeader';
@@ -21,6 +21,9 @@ interface BriefsResponse {
 interface BriefsStripProps {
   onSelectTopic?: (topic: DiscussionTopic) => void;
   onSeeAll?: () => void;
+  /** Fires once with the refIds of the trending ("hot") set, so the feed can
+   *  badge matching rows without a second /api/briefs fetch. */
+  onTrendingRefIds?: (refIds: string[]) => void;
 }
 
 function verticalFor(cat?: string): Vertical {
@@ -42,9 +45,16 @@ function abbreviateCount(n?: number): string {
  * at the top of the Feed. Distills Briefs into a sticky module so users
  * don't have to leave the Feed view to discover what's hot.
  */
-export function BriefsStrip({ onSelectTopic, onSeeAll }: BriefsStripProps) {
+export function BriefsStrip({ onSelectTopic, onSeeAll, onTrendingRefIds }: BriefsStripProps) {
   const [data, setData] = useState<BriefsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  // Ref indirection keeps the fetch effect's dep list empty regardless of
+  // whether the parent memoizes the callback. Written in an effect, not during
+  // render — the React Compiler bails on render-phase ref writes.
+  const onTrendingRefIdsRef = useRef(onTrendingRefIds);
+  useEffect(() => {
+    onTrendingRefIdsRef.current = onTrendingRefIds;
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +64,9 @@ export function BriefsStrip({ onSelectTopic, onSeeAll }: BriefsStripProps) {
         if (!cancelled) {
           setData(json);
           setLoading(false);
+          if (json?.hot?.length) {
+            onTrendingRefIdsRef.current?.(json.hot.map((t) => t.refId));
+          }
         }
       })
       .catch(() => {

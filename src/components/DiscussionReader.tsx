@@ -11,6 +11,9 @@ interface DiscussionReaderProps {
   onClose: () => void;
   isDark?: boolean;
   isMobile?: boolean;
+  /** j/k walks the FEED's visible list — hide that hint segment when the
+   *  reader is mounted from a view where j/k does nothing (e.g. Briefs). */
+  showNavHint?: boolean;
 }
 
 /**
@@ -64,7 +67,7 @@ function PostSkeleton({ isDark }: { isDark: boolean }) {
   );
 }
 
-export function DiscussionReader({ topic, onClose, isDark = true, isMobile = false }: DiscussionReaderProps) {
+export function DiscussionReader({ topic, onClose, isDark = true, isMobile = false, showNavHint }: DiscussionReaderProps) {
   const { posts, isLoading, error, topicDetail } = useTopicDetail(topic.forumUrl, topic.id);
   const topicUrl = topic.externalUrl || `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -165,6 +168,17 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
             )}
           </div>
         </div>
+
+        {!isMobile && (
+          <span
+            className="hidden lg:flex items-center gap-1.5 text-[10px] flex-shrink-0 select-none"
+            style={{ color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}
+            aria-hidden="true"
+            title={`Keyboard: ${showNavHint ? 'j/k next/previous · ' : ''}s save · o open on forum · e done`}
+          >
+            {showNavHint && <><span>j/k</span>·</>}<span>s save</span>·<span>o open</span>·<span>e done</span>
+          </span>
+        )}
 
         <a
           href={topicUrl}
