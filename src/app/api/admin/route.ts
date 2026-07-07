@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { clientSafeError } from '@/lib/apiError';
 import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 import { getDb, isDatabaseConfigured, getDbStats, initializeSchema } from '@/lib/db';
 import { getCacheStats, clearCache } from '@/lib/redis';
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ users });
     } catch (error) {
       return NextResponse.json({ 
-        error: error instanceof Error ? error.message : 'Failed to get users' 
+        error: clientSafeError(error, 'Failed to get users') 
       }, { status: 500 });
     }
   }
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ forums });
     } catch (error) {
       return NextResponse.json({ 
-        error: error instanceof Error ? error.message : 'Failed to get forums' 
+        error: clientSafeError(error, 'Failed to get forums') 
       }, { status: 500 });
     }
   }
@@ -111,7 +112,7 @@ export async function GET(request: NextRequest) {
       stats.database = {
         configured: true,
         connected: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: clientSafeError(error, 'Unknown error'),
       };
     }
   } else {
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         return NextResponse.json({ 
-          error: error instanceof Error ? error.message : 'Failed to initialize schema' 
+          error: clientSafeError(error, 'Failed to initialize schema') 
         }, { status: 500 });
       }
     }
@@ -177,7 +178,7 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         return NextResponse.json({ 
-          error: error instanceof Error ? error.message : 'Failed to start refresh' 
+          error: clientSafeError(error, 'Failed to start refresh') 
         }, { status: 500 });
       }
     }
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         return NextResponse.json({ 
-          error: error instanceof Error ? error.message : 'Failed to clear cache' 
+          error: clientSafeError(error, 'Failed to clear cache') 
         }, { status: 500 });
       }
     }
@@ -246,7 +247,7 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         return NextResponse.json({ 
-          error: error instanceof Error ? error.message : 'Failed to sync users from Privy' 
+          error: clientSafeError(error, 'Failed to sync users from Privy') 
         }, { status: 500 });
       }
     }

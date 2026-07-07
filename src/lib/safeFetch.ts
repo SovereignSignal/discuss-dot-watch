@@ -14,6 +14,11 @@ import { isAllowedUrl, isAllowedRedirectUrl, isPrivateIP } from './url';
 
 export type SafeFetchInit = RequestInit & {
   maxRedirects?: number;
+  /** Restrict redirects to the original hostname (the stricter /api/discourse rule). */
+  sameHost?: boolean;
+  /** Per-hop timeout, applied only when the caller passes no signal of its own.
+   *  Bounds background refresh/backfill against hung upstream sockets. */
+  timeoutMs?: number;
   // Next.js fetch cache hint (passed through transparently)
   next?: { revalidate?: number | false; tags?: string[] };
 };
@@ -45,7 +50,7 @@ async function assertPublicHost(hostname: string): Promise<void> {
  * hosts, unsafe redirects, or too many redirects — callers should catch and degrade.
  */
 export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<Response> {
-  const { maxRedirects = 3, ...rest } = init;
+  const { maxRedirects = 3, sameHost = false, timeoutMs = 15_000, ...rest } = init;
   let currentUrl = url;
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
@@ -55,7 +60,11 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
     const parsed = new URL(currentUrl);
     await assertPublicHost(parsed.hostname);
 
-    const response = await fetch(currentUrl, { ...rest, redirect: 'manual' });
+    const response = await fetch(currentUrl, {
+      ...rest,
+      signal: rest.signal ?? AbortSignal.timeout(timeoutMs),
+      redirect: 'manual',
+    });
 
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
@@ -63,6 +72,9 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
       const nextUrl = new URL(location, currentUrl).toString();
       if (!isAllowedRedirectUrl(currentUrl, nextUrl)) {
         throw new Error('Unsafe redirect blocked');
+      }
+      if (sameHost && new URL(nextUrl).hostname !== parsed.hostname) {
+        throw new Error('Cross-host redirect blocked');
       }
       currentUrl = nextUrl;
       continue;

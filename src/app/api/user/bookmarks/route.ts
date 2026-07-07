@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Bookmarks API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to add bookmark' },
+      { error: 'Failed to add bookmark' },
       { status: 500 }
     );
   }
@@ -110,7 +110,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Bookmarks API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete bookmark' },
+      { error: 'Failed to delete bookmark' },
       { status: 500 }
     );
   }
@@ -135,6 +135,9 @@ export async function PUT(request: NextRequest) {
     if (!Array.isArray(bookmarks)) {
       return NextResponse.json({ error: 'bookmarks array is required' }, { status: 400 });
     }
+    if (bookmarks.length > 1000) {
+      return NextResponse.json({ error: 'Too many bookmarks in one sync (max 1000)' }, { status: 400 });
+    }
 
     const sql = getDb();
 
@@ -155,13 +158,16 @@ export async function PUT(request: NextRequest) {
     await sql.begin(async (tx: any) => {
       await tx`DELETE FROM bookmarks WHERE user_id = ${userId}`;
       for (const bookmark of bookmarks) {
-        if (bookmark.topicRefId && bookmark.topicTitle && bookmark.topicUrl && bookmark.protocol) {
+        if (typeof bookmark?.topicRefId === 'string' && bookmark.topicRefId &&
+            typeof bookmark?.topicTitle === 'string' && bookmark.topicTitle &&
+            typeof bookmark?.topicUrl === 'string' && bookmark.topicUrl &&
+            typeof bookmark?.protocol === 'string' && bookmark.protocol) {
           const folder = typeof bookmark.folder === 'string' && bookmark.folder.trim()
             ? bookmark.folder.trim().slice(0, 100)
             : null;
           await tx`
             INSERT INTO bookmarks (user_id, topic_ref_id, topic_title, topic_url, protocol, folder)
-            VALUES (${userId}, ${bookmark.topicRefId}, ${bookmark.topicTitle}, ${bookmark.topicUrl}, ${bookmark.protocol}, ${folder})
+            VALUES (${userId}, ${bookmark.topicRefId.slice(0, 200)}, ${bookmark.topicTitle.slice(0, 500)}, ${bookmark.topicUrl.slice(0, 2048)}, ${bookmark.protocol.slice(0, 200)}, ${folder})
             ON CONFLICT (user_id, topic_ref_id) DO NOTHING
           `;
           count++;
@@ -173,7 +179,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Bookmarks API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to bulk sync bookmarks' },
+      { error: 'Failed to bulk sync bookmarks' },
       { status: 500 }
     );
   }

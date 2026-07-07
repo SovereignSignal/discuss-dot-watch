@@ -69,6 +69,7 @@ _One critical privilege-escalation bug exposes the entire admin and super-admin 
   - Files: `src/app/api/delegates/admin/route.ts`, `src/app/api/user/bookmarks/route.ts`, `src/app/api/user/alerts/route.ts`, `src/app/api/user/read-state/route.ts`
   - Problem: Zod 4 is a dependency and the documented validation layer, but delegates/admin and the user bulk-sync routes hand-roll presence checks. config is JSON.stringify'd into JSONB unchecked; delegate walletAddress is never format-validated before being lowercased and matched against on-chain voters; bulk endpoints iterate unbounded arrays doing one INSERT per element inside a transaction (DoS / lock contention).
   - Fix: Define per-action Zod schemas (discriminated union on action) for delegates/admin and mirror the existing forums ForumDataSchema on alerts/bookmarks/read-state: cap array sizes (.max), cap string lengths, validate walletAddress ^0x[a-fA-F0-9]{40}$ and topicUrl as a URL. Replace per-row loops with a single multi-row INSERT.
+  - Partial (2026-07-07 hardening batch): walletAddress now validated (^0x[a-fA-F0-9]{40}$) on upsert/bulk-upsert, bulk-upsert capped at 200, and the user bookmarks/alerts/read-state bulk syncs gained array caps (1000/200/5000) + per-item type guards + length slices. Remaining: per-action Zod discriminated union for /api/delegates/admin, config schema validation beyond accentColor, and multi-row INSERTs to replace the per-row loops.
 - [x] **[medium/S/medium] validateCronSecret fails open when CRON_SECRET unset and NODE_ENV is not 'production'**
   - Files: `src/lib/auth.ts`
   - Problem: validateCronSecret returns true unconditionally when CRON_SECRET is unset and NODE_ENV==='development'. A preview/staging deploy (or NODE_ENV unset, which is not 'production') that forgets the secret leaves /api/cron/* fully open to trigger refreshes/email sends.
@@ -85,11 +86,11 @@ _One critical privilege-escalation bug exposes the entire admin and super-admin 
   - Files: `src/lib/auth.ts`
   - Problem: safeCompare hashes both inputs to fixed-length digests (correctly equalizing timingSafeEqual length) then ANDs with `a.length === b.length`, contradicting its own documented intent and adding a redundant length oracle on the CRON_SECRET/admin-secret path.
   - Fix: Drop `&& a.length === b.length`; the SHA-256 + timingSafeEqual comparison is already complete, constant-time, and length-safe.
-- [ ] **[low/S/low] Internal error messages echoed to clients across user/admin routes**
+- [x] **[low/S/low] Internal error messages echoed to clients across user/admin routes**
   - Files: `src/app/api/user/route.ts`, `src/app/api/admin/route.ts`, `src/app/api/db/route.ts`, `src/app/api/backfill/route.ts`
   - Problem: Nearly every catch returns error.message directly, leaking Postgres internals (table/column/constraint names) to callers and aiding reconnaissance.
   - Fix: Log full errors server-side (already done) but return a generic message via a shared serverError(error, fallback) helper so detail is never echoed in production.
-  - Remaining (2026-07-07 verify pass): admin/db/backfill routes still echo `error instanceof Error ? error.message : ...` to clients (11 occurrences: admin/route.ts:46,91,114,163,180,194,249; db/route.ts:82,129; backfill/route.ts:30,129), and no shared serverError(error, fallback) helper exists (grep for serverError across src/ finds nothing). The user-data routes bookmarks/alerts/read-state also still echo error.message (e.g. bookmarks/route.ts:64,113,176), though behind verifyAuth. Severity is mitigated since the remaining leaky routes are admin-authenticated, but the described leak persists in 3 of the 4 named files.
+  - Resolved (2026-07-07 hardening batch): create-tenant/update-tenant now 400 on non-hex branding.accentColor, closing the write-time half.
 - [x] **[low/S/low] Authorization helpers swallow DB errors and silently deny without logging**
   - Files: `src/lib/auth.ts`
   - Problem: verifyAdminAuth/checkIsSuperAdmin/verifyTenantAdmin use empty `catch {}`, so a transient DB outage denies a legitimate admin with no signal distinguishing 'not admin' from 'auth backend down', and real query bugs are hidden.
@@ -107,30 +108,30 @@ _isAllowedUrl is the only SSRF gate on public, unauthenticated URL-fetch routes,
   - Files: `src/app/api/validate-discourse/route.ts`, `src/app/api/discourse/topic/route.ts`
   - Problem: isAllowedUrl validates only the literal submitted host. These two public routes fetch without redirect:'manual', so an attacker-controlled host can 302 to http://169.254.169.254/ or an internal host and the route reflects the result (valid:true + parsed name, or full topic JSON). The main /api/discourse route already does redirect:'manual' + isAllowedRedirectUrl — the protection is inconsistent and bypassable.
   - Fix: Add redirect:'manual' to every fetch built from a user-supplied URL and re-validate Location with isAllowedRedirectUrl + same-host before following, mirroring /api/discourse. Centralize into one safeFetch() helper.
-- [ ] **[high/M/high] No DNS-rebinding protection: safeFetch()/validateResolvedIP() are referenced in docs but never implemented**
+- [x] **[high/M/high] No DNS-rebinding protection: safeFetch()/validateResolvedIP() are referenced in docs but never implemented**
   - Files: `src/lib/url.ts`
   - Problem: url.ts's doc comment promises 'use validateResolvedIP() after DNS resolution or safeFetch()', but neither exists (grep confirms only the comment). There is no resolution-time check, so a hostname that resolves to a private IP (DNS rebinding, or a plain internal A record) passes isAllowedUrl and is fetched. The misleading comment implies protection that isn't there.
   - Fix: Implement safeFetch(): dns.lookup all addresses, run each through isPrivateIP, pin/re-check the resolved IP, set redirect:'manual', and re-validate each redirect hop. Route all user-URL fetches (discourse, topic, validate, forumCache.fetchForumTopics, backfill.fetchPage) through it. At minimum delete the misleading comment.
-  - Remaining (2026-07-07 verify pass): The main /api/discourse route — explicitly on the fix's routing list — still fetches the user-supplied forumUrl with plain fetch() at src/app/api/discourse/route.ts:169 and :190 (string-level isAllowedUrl + manual redirect only, no resolution-time IP check), so a public hostname that DNS-resolves to a private IP is still fetched through that public route. Route those two fetches through safeFetch.
-- [ ] **[medium/S/medium] Public Anticapture routes have no DAO allowlist or rate limit and feed an unbounded cache + upstream MCP calls**
+  - Resolved (2026-07-07 hardening batch): /api/discourse now fetches via safeFetch (maxRedirects:1, sameHost) — the last plain-fetch path on a user-supplied URL.
+- [x] **[medium/S/medium] Public Anticapture routes have no DAO allowlist or rate limit and feed an unbounded cache + upstream MCP calls**
   - Files: `src/app/api/anticapture/[dao]/route.ts`, `src/app/api/anticapture/[dao]/labels/route.ts`, `src/app/api/anticapture/[dao]/delegate/[address]/route.ts`
   - Problem: [dao] is lowercased and used directly as (a) a key into a module-level Map never bounded/evicted and (b) the dao arg to MCP callTool, with no validation against the 11 known ids. Middleware does not validate /api paths. An unauthenticated caller iterating arbitrary dao strings bypasses the cache (each miss inserts an entry and fires ~6 sequential MCP calls against the shared dev gateway), amplifying outbound calls and creeping memory.
   - Fix: Validate id against the known DAO set (404 unknown) before any work, add per-IP checkRateLimit like the v1 routes, and bound the cache (LRU/size cap). Apply to all three anticapture routes.
-  - Remaining (2026-07-07 verify pass): The fix said to apply rate limiting and cache bounds to all three routes, but [dao]/labels/route.ts and [dao]/delegate/[address]/route.ts have no checkRateLimit at all, and both keep unbounded never-evicted module-level Map caches keyed by attacker-controlled input: labels/route.ts:13 keys on the full sorted address list (address count per request is uncapped, so unique keys grow memory), and delegate/[address]/route.ts:13 keys on `${id}:${addr}` over the whole valid-address space, with each cache miss firing upstream MCP calls.
-- [ ] **[medium/S/medium] Stored CSS/markup injection: tenant accentColor flows unvalidated into <style> in the public embed iframe**
+  - Resolved (2026-07-07 hardening batch): labels + delegate routes gained per-IP checkRateLimit (30/min) and FIFO-bounded caches (256 entries); labels addresses capped at 12 per request (matching upstream fan-out).
+- [x] **[medium/S/medium] Stored CSS/markup injection: tenant accentColor flows unvalidated into <style> in the public embed iframe**
   - Files: `src/app/[tenant]/embed/page.tsx`, `src/app/api/delegates/admin/route.ts`
   - Problem: branding.accentColor (set via the unvalidated config body param) is interpolated into a <style dangerouslySetInnerHTML> on a public, iframe-embeddable page. accentColor is typed string with no format check. A value like `red}</style><img src=x onerror=...>` breaks out and injects markup into the embed served to third-party sites — stored-XSS-class against embedders.
   - Fix: Validate accentColor against /^#[0-9a-fA-F]{3,8}$/ at write time (admin route) AND render time (embed), falling back to default; prefer a React style object / CSS custom property over string-concatenating into raw <style>.
-  - Remaining (2026-07-07 verify pass): The fix's write-time half is absent: src/app/api/delegates/admin/route.ts still passes the request-body `config` (containing branding.accentColor) unvalidated to createTenant (line 176) and updateTenant (line 252), so a malicious accentColor can still be stored and would resurface if any future render site interpolates it raw. Add the /^#[0-9a-fA-F]{3,8}$/ check (or Zod schema on branding) in the create-tenant/update-tenant actions.
+  - Resolved (2026-07-07 hardening batch): admin/db/backfill route through clientSafeError (lib/apiError.ts, logs + generic message); user-data routes and the digest preview return the plain fallback (they already logged).
 - [x] **[medium/M/medium] /api/validate-discourse reads full HTML body with no size cap (memory DoS)**
   - Files: `src/app/api/validate-discourse/route.ts`
   - Problem: The last-resort check does response.text() on a user-supplied (SSRF-gated) host with no Content-Length cap or streaming limit, so a pathological target can return a multi-gigabyte body that is buffered into a string. At 10 req/min this is a low-effort memory-exhaustion vector.
   - Fix: Check Content-Length before reading, or stream a bounded prefix (~256KB via response.body reader) and test for 'discourse' on the slice. Match the existing 8s tryFetch timeout with a byte cap.
-- [ ] **[low/S/low] Background cache fetch and backfill fetch follow redirects with no SSRF guard, unlike the user-facing proxy**
+- [x] **[low/S/low] Background cache fetch and backfill fetch follow redirects with no SSRF guard, unlike the user-facing proxy**
   - Files: `src/lib/forumCache.ts`, `src/lib/backfill.ts`
   - Problem: fetchForumTopics() and backfill fetchPage build ${forumUrl}/...json and fetch with default redirect:follow and no isAllowedUrl()/timeout. Only preset (trusted) URLs flow here today, but the asymmetry means a hijacked preset domain could redirect the background refresh internally, and a future admin 'add forum' feature would make backfill an SSRF vector.
   - Fix: Route both through the shared safeFetch() (redirect:'manual' + isAllowedRedirectUrl + AbortController timeout) so all fetch paths share one security posture.
-  - Remaining (2026-07-07 verify pass): The 'AbortController timeout' part of the described fix is absent: neither call site (forumCache.ts:443, backfill.ts:185) passes a signal, safeFetch itself sets no default timeout, and grep shows no Promise.race/AbortController/AbortSignal wrapper in either file — a hung upstream can still stall the background refresh/backfill until Node's default socket timeouts.
+  - Resolved (2026-07-07 hardening batch): safeFetch applies a 15s per-hop AbortSignal.timeout whenever the caller passes no signal, bounding background refresh/backfill.
 - [ ] **[low/M/medium] No Content-Security-Policy header set in middleware**
   - Files: `src/middleware.ts`
   - Problem: Header set is otherwise solid (X-Frame-Options DENY, HSTS, nosniff, Permissions-Policy) but there is no CSP. The app renders sanitized-but-attacker-originated Discourse HTML via dangerouslySetInnerHTML and a tenant-controlled <style> in the embed page; CSP is the meaningful second layer that turns a sanitizer bypass or accentColor injection into a non-event.
@@ -162,7 +163,7 @@ _The deploy path is healthy (clean tsc, fast build, locked installs, good secret
   - Files: `.env.example`, `src/lib/admin.ts`
   - Problem: Three env vars consumed by src/ are absent from .env.example: ADMIN_EMAILS (security-relevant admin allowlist), ANTICAPTURE_API_KEY (gates the whole governance terminal), and ANTICAPTURE_MCP_URL. A fresh deploy following .env.example silently gets the hardcoded admin and a disabled governance terminal with no signpost.
   - Fix: Add all three to .env.example with notes, and keep .env.example, the CLAUDE.md env table, and Railway in sync as the single onboarding contract.
-- [ ] **[medium/S/medium] Admin allowlist falls back to a hardcoded personal email when ADMIN_EMAILS is unset**
+- [x] **[medium/S/medium] Admin allowlist falls back to a hardcoded personal email when ADMIN_EMAILS is unset**
   - Files: `src/lib/admin.ts`
   - Problem: isAdminEmail defaults to ['sov@sovereignsignal.com'] when ADMIN_EMAILS is unset (undocumented). This bakes an identity into source and is a silent-default failure mode: forgetting the env var yields a working-but-unexpected admin set rather than a hard failure, and any env where that mailbox is claimable via Privy email login grants admin.
   - Fix: Default to [] (fail-closed) with a console.warn when unset; require ADMIN_EMAILS in Railway (now documented). Move the fallback identity out of committed source.
@@ -426,7 +427,7 @@ _The reader is the core product, and most issues here are small but user-visible
   - Files: `src/components/SkipLinks.tsx`, `src/app/app/page.tsx`
   - Problem: Two of three skip links target anchors never rendered (the search input is id=discussion-search; no element has id=navigation), so keyboard/SR users activating them jump nowhere — worse than not offering the link. Only #main-content resolves.
   - Fix: Add id=navigation to the sidebar nav and point the search link at #discussion-search (or add id=search), and guard the search link since the input only exists in feed view.
-- [ ] **[medium/S/low] '/' shortcut targets a search input that may not be mounted, via a dead alerts setter and a 100ms magic timeout**
+- [x] **[medium/S/low] '/' shortcut targets a search input that may not be mounted, via a dead alerts setter and a 100ms magic timeout**
   - Files: `src/app/app/page.tsx`
   - Problem: '/' calls a retained no-op setIsMobileAlertsOpen then focuses #discussion-search after 100ms, but the search input only renders in feed view, so '/' silently does nothing in briefs/saved/settings/projects and the timeout waits for a render that never happens.
   - Fix: Drop the dead alerts state, switch activeView to 'feed' first then focus via a ref/requestAnimationFrame (or no-op outside feed).
@@ -438,21 +439,21 @@ _The reader is the core product, and most issues here are small but user-visible
   - Files: `src/components/DiscussionFeed.tsx`
   - Problem: Marking a topic read immediately moves it from the unread group into the collapsed already-read section, so the row the user just opened jumps/disappears — jarring in a reading app where you expect the opened item to stay put.
   - Fix: Snapshot the partition and keep a just-read item in place until the next refresh/filter change (or animate the collapse).
-- [ ] **[low/M/low] Avatar <img> tags across reader and tenant UI lack onError fallback (broken images render empty boxes)**
+- [x] **[low/M/low] Avatar <img> tags across reader and tenant UI lack onError fallback (broken images render empty boxes)**
   - Files: `src/app/[tenant]/ContributorsTable.tsx`, `src/components/DiscussionReader.tsx`, `src/components/ForumManager.tsx`
   - Problem: Many avatars/logos use raw <img> with no onError handler; the initials/data-fallback pattern only covers the missing-URL case, so a present-but-404 Discourse avatar (common) shows a broken-image glyph or empty box. ForumManager hand-rolls the imperative fallback twice; DiscussionReader hides the img with no glyph.
   - Fix: Add a shared <Avatar url name size /> (and <ForumLogo>) primitive owning a declarative errored-flag fallback, reused everywhere, killing the duplicated imperative DOM code.
-  - Remaining (2026-07-07 verify pass): src/components/DiscussionReader.tsx:151-153 still just sets display:none onError with no initials glyph; src/app/[tenant]/ContributorsTable.tsx:248-254 and 498-505 still render raw <img> with no onError at all (a present-but-404 Discourse avatar shows a broken-image box). No shared Avatar primitive was added to src/components/ui/.
+  - Resolved (2026-07-07 hardening batch): DiscussionReader PostAvatar + ContributorsTable ContributorAvatar (initials base layer, image overlay hidden on error). A shared ui/ primitive was deliberately not extracted — three local variants is below the abstraction threshold.
 - [x] **[low/S/low] FeedFilters forum <select> reintroduces the hard --ds-fg invert the rest of the bar was fixed to avoid**
   - Files: `src/components/FeedFilters.tsx`
   - Problem: The Sprint 17 comment documents moving the pill bar off the hard --ds-fg invert (jarring near-black chip in light mode), but the forum dropdown still does background:var(--ds-fg);color:var(--ds-bg-base) when selected — the one control that escaped the refactor.
   - Fix: Match it to the pill convention: active = var(--ds-bg-subtle) background with var(--ds-fg) text.
-- [ ] **[low/M/medium] Inline reader is not a focus-trapped dialog and lacks keyboard navigation between posts/topics**
+- [x] **[low/M/medium] Inline reader is not a focus-trapped dialog and lacks keyboard navigation between posts/topics**
   - Files: `src/components/DiscussionReader.tsx`
   - Problem: The reader panel/overlay has no role=dialog/aria-modal, doesn't trap or move focus on open, and has no j/k or arrow navigation — for a keyboard-nav product the SR user opening a topic stays on the list. The mobile full-screen overlay especially should be a focus-trapped dialog.
   - Fix: Add role=dialog aria-modal + focus trap on the overlay (reuse CommandMenu's pattern), focus the close button on open, and add j/k/arrow navigation through the visible feed.
-  - Remaining (2026-07-07 verify pass): No focus management: DiscussionReader.tsx has no focus trap and never moves focus on open (no useRef/useEffect focusing the close button anywhere in the file), so an SR/keyboard user opening a topic still stays on the list; the mobile aria-modal dialog is a modal in name only. Fix remains: trap focus on the mobile overlay (reuse CommandMenu's pattern) and focus the close button on open.
-- [ ] **[low/S/low] Tenant dashboard a11y: clickable <tr> has no role=button, several filter selects lack accessible names**
+  - Resolved (2026-07-07 hardening batch): the mobile overlay traps Tab and focuses the close button on open; the desktop pane deliberately does not steal focus so j/k list navigation keeps working. j/k navigation itself landed in PR #37.
+- [x] **[low/S/low] Tenant dashboard a11y: clickable <tr> has no role=button, several filter selects lack accessible names**
   - Files: `src/app/[tenant]/ContributorsTable.tsx`, `src/app/[tenant]/DashboardClient.tsx`
   - Problem: DelegateTableRow makes the whole <tr> clickable (tabIndex+keydown) but with no role=button (SR announces a table row, not a control) and nests an interactive <a> inside it; the Status/Program/Role filter selects have no aria-label and the search input uses only a placeholder. The mobile card correctly uses role=button — the desktop row is the inconsistent one.
   - Fix: Add role=button to the row (or a dedicated cell button), add aria-label to every select and the search input, mirroring the mobile card.

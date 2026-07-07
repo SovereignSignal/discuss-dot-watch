@@ -171,6 +171,67 @@ function TrustLevelBadge({ trustLevel, t }: { trustLevel: number; t: ReturnType<
   );
 }
 
+// --- Contributor avatar (initials fallback) ---
+
+/**
+ * The initial is always the base layer; the image sits on top and only
+ * becomes visible once it actually loads (avatar URLs often 404, which used
+ * to render broken-image boxes). Same pattern as ForumAvatar in ForumManager.
+ */
+function ContributorAvatar({
+  avatarUrl,
+  displayName,
+  size,
+  t,
+}: {
+  avatarUrl?: string;
+  displayName?: string;
+  size: number;
+  t: ReturnType<typeof c>;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: t.bgActive,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: size >= 32 ? 13 : 12,
+        fontWeight: 600,
+        flexShrink: 0,
+        overflow: 'hidden',
+      }}
+    >
+      <span style={{ visibility: avatarUrl && loaded ? 'hidden' : 'visible' }}>
+        {displayName?.[0] || '?'}
+      </span>
+      {avatarUrl && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={avatarUrl}
+          alt=""
+          width={size}
+          height={size}
+          referrerPolicy="no-referrer"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            visibility: loaded ? 'visible' : 'hidden',
+          }}
+          onLoad={() => setLoaded(true)}
+          onError={() => setLoaded(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 // --- Desktop Table Row ---
 
 export function DelegateTableRow({
@@ -216,6 +277,7 @@ export function DelegateTableRow({
         }
       }}
       tabIndex={0}
+      role="button"
       aria-selected={isSelected}
       style={{
         borderBottom: `1px solid ${t.border}`,
@@ -243,33 +305,7 @@ export function DelegateTableRow({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {d.avatarUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={d.avatarUrl}
-              alt=""
-              width={28}
-              height={28}
-              style={{ borderRadius: '50%', flexShrink: 0 }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: t.bgActive,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                fontWeight: 600,
-                flexShrink: 0,
-              }}
-            >
-              {d.displayName?.[0] || '?'}
-            </div>
-          )}
+          <ContributorAvatar avatarUrl={d.avatarUrl} displayName={d.displayName} size={28} t={t} />
           <div>
             <div style={{ fontWeight: 500, fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
               <span>{d.displayName}</span>
@@ -493,33 +529,7 @@ export function MobileDelegateCard({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {d.avatarUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={d.avatarUrl}
-            alt=""
-            width={32}
-            height={32}
-            style={{ borderRadius: '50%', flexShrink: 0 }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: t.bgActive,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 13,
-              fontWeight: 600,
-              flexShrink: 0,
-            }}
-          >
-            {d.displayName?.[0] || '?'}
-          </div>
-        )}
+        <ContributorAvatar avatarUrl={d.avatarUrl} displayName={d.displayName} size={32} t={t} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 500, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { X, ExternalLink, ThumbsUp, ArrowLeft, MessageSquare, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { DiscussionTopic } from '@/types';
@@ -10,6 +11,40 @@ interface DiscussionReaderProps {
   onClose: () => void;
   isDark?: boolean;
   isMobile?: boolean;
+}
+
+/**
+ * Post avatar: the letter fallback is always the base layer; the image sits
+ * on top and only becomes visible once it actually loads (avatar URLs often
+ * 404, which used to leave a blank gap). Same pattern as ForumAvatar in
+ * ForumManager.
+ */
+function PostAvatar({ avatarUrl, username }: { avatarUrl: string; username: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div
+      className="relative w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
+      style={{ backgroundColor: 'var(--ds-bg-elev)' }}
+    >
+      <span
+        className="text-[11px] font-semibold"
+        style={{ color: 'var(--ds-fg-muted)', visibility: loaded ? 'hidden' : 'visible' }}
+      >
+        {(username[0] || '?').toUpperCase()}
+      </span>
+      {avatarUrl && (
+        <img
+          src={avatarUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ visibility: loaded ? 'visible' : 'hidden' }}
+          onLoad={() => setLoaded(true)}
+          onError={() => setLoaded(false)}
+        />
+      )}
+    </div>
+  );
 }
 
 function PostSkeleton({ isDark }: { isDark: boolean }) {
@@ -32,9 +67,41 @@ function PostSkeleton({ isDark }: { isDark: boolean }) {
 export function DiscussionReader({ topic, onClose, isDark = true, isMobile = false }: DiscussionReaderProps) {
   const { posts, isLoading, error, topicDetail } = useTopicDetail(topic.forumUrl, topic.id);
   const topicUrl = topic.externalUrl || `${topic.forumUrl}/t/${topic.slug}/${topic.id}`;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+
+  // The mobile overlay is modal (role="dialog"): move focus to the back
+  // button on open and trap Tab within it. The desktop pane is a
+  // complementary region and must NOT steal focus — j/k selection in the
+  // feed list would be disrupted.
+  useEffect(() => {
+    if (!isMobile) return;
+    backButtonRef.current?.focus();
+
+    const container = containerRef.current;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !container) return;
+      const focusable = container.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMobile]);
 
   return (
     <div
+      ref={containerRef}
       // The mobile overlay is modal; the desktop pane is a complementary
       // region alongside the feed (j/k in the feed navigates between topics).
       role={isMobile ? 'dialog' : 'complementary'}
@@ -56,7 +123,13 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
         style={{ borderColor: 'var(--ds-border)' }}
       >
         {isMobile && (
-          <button onClick={onClose} className="p-1.5 -ml-1" style={{ color: 'var(--ds-fg-muted)' }}>
+          <button
+            ref={backButtonRef}
+            onClick={onClose}
+            className="p-1.5 -ml-1"
+            style={{ color: 'var(--ds-fg-muted)' }}
+            aria-label="Close discussion"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
         )}
@@ -143,15 +216,7 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
             >
               {/* Post header */}
               <div className="flex items-center gap-2.5 mb-2.5">
-                <img
-                  src={post.avatarUrl}
-                  alt=""
-                  className="w-7 h-7 rounded-full flex-shrink-0"
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
+                <PostAvatar avatarUrl={post.avatarUrl} username={post.username} />
                 <span
                   className="text-[13px] font-medium"
                   style={{ color: 'var(--ds-fg)' }}

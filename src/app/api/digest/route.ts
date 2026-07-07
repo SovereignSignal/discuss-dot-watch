@@ -355,9 +355,8 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error generating digest preview:', error);
-    const msg = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { success: false, error: `Failed to generate digest preview: ${msg}` },
+      { success: false, error: 'Failed to generate digest preview' },
       { status: 500 }
     );
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { clientSafeError } from '@/lib/apiError';
 import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(status);
   } catch (error) {
     return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to get status',
+      error: clientSafeError(error, 'Failed to get status'),
     }, { status: 500 });
   }
 }
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to process action',
+      error: clientSafeError(error, 'Failed to process action'),
     }, { status: 500 });
   }
 }

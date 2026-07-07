@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DiscourseLatestResponse, DiscourseTopicResponse, DiscussionTopic } from '@/types';
-import { isAllowedUrl, isAllowedRedirectUrl } from '@/lib/url';
+import { isAllowedUrl } from '@/lib/url';
+import { safeFetch } from '@/lib/safeFetch';
 import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
 import { getCachedForum, startBackgroundRefresh } from '@/lib/forumCache';
 import { startDelegateRefreshLoop } from '@/lib/delegates/refreshEngine';
@@ -165,44 +166,18 @@ export async function GET(request: NextRequest) {
       apiUrl = `${baseUrl}/latest.json`;
     }
 
-    // Fetch with manual redirect handling for security
-    let response = await fetch(apiUrl, {
+    // safeFetch adds the DNS-resolution SSRF check the old inline fetch lacked;
+    // maxRedirects/sameHost preserve this route's original stricter redirect
+    // rule (one hop, same hostname only).
+    const response = await safeFetch(apiUrl, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'discuss.watch/1.0 (forum aggregator; https://discuss.watch)',
       },
       next: { revalidate: 600 }, // 10 minute cache
-      redirect: 'manual',
+      maxRedirects: 1,
+      sameHost: true,
     });
-
-    // Handle redirects
-    if (response.status >= 300 && response.status < 400) {
-      const redirectUrl = response.headers.get('location');
-
-      if (!redirectUrl || !isAllowedRedirectUrl(apiUrl, redirectUrl)) {
-        throw new Error('Forum redirected to a disallowed URL');
-      }
-
-      const originalHost = new URL(apiUrl).hostname;
-      const redirectHost = new URL(redirectUrl).hostname;
-
-      if (originalHost === redirectHost) {
-        response = await fetch(redirectUrl, {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'discuss.watch/1.0 (forum aggregator; https://discuss.watch)',
-          },
-          next: { revalidate: 600 },
-          redirect: 'manual',
-        });
-
-        if (response.status >= 300 && response.status < 400) {
-          throw new Error(`Forum has moved (multiple redirects from ${apiUrl})`);
-        }
-      } else {
-        throw new Error(`Forum has moved or shut down (redirects to ${redirectUrl})`);
-      }
-    }
 
     // Handle rate limiting from upstream
     if (response.status === 429) {

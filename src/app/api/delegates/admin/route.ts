@@ -87,6 +87,17 @@ function isAcceptableForumUrl(url: unknown): url is string {
   return typeof url === 'string' && isValidUrl(url) && isAllowedUrl(url);
 }
 
+const ACCENT_RE = /^#[0-9a-fA-F]{3,8}$/;
+const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
+
+/** branding.accentColor is interpolated into a <style> block on the public embed
+ *  page — reject anything that isn't a plain hex color at write time too, so a
+ *  hostile value can never be stored. */
+function hasInvalidAccentColor(config: unknown): boolean {
+  const accent = (config as { branding?: { accentColor?: unknown } } | null | undefined)?.branding?.accentColor;
+  return accent !== undefined && accent !== null && (typeof accent !== 'string' || !ACCENT_RE.test(accent));
+}
+
 /** Actions that require super admin (platform-level operations). */
 const SUPER_ADMIN_ACTIONS = new Set([
   'init-schema', 'create-tenant', 'update-tenant', 'delete-tenant', 'detect-capabilities',
@@ -155,6 +166,12 @@ export async function POST(request: NextRequest) {
         if (!isAcceptableForumUrl(forumUrl)) {
           return NextResponse.json(
             { error: 'Invalid or disallowed forumUrl' },
+            { status: 400 }
+          );
+        }
+        if (hasInvalidAccentColor(config)) {
+          return NextResponse.json(
+            { error: 'branding.accentColor must be a hex color like #3b82f6' },
             { status: 400 }
           );
         }
@@ -235,6 +252,12 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
+        if (config !== undefined && hasInvalidAccentColor(config)) {
+          return NextResponse.json(
+            { error: 'branding.accentColor must be a hex color like #3b82f6' },
+            { status: 400 }
+          );
+        }
 
         const updates: Parameters<typeof updateTenant>[1] = {};
         if (name !== undefined) updates.name = name;
@@ -279,6 +302,13 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        if (delegate.walletAddress && !WALLET_RE.test(delegate.walletAddress)) {
+          return NextResponse.json(
+            { error: 'walletAddress must be a 0x-prefixed 40-hex-char address' },
+            { status: 400 }
+          );
+        }
+
         const tenant = await getTenantBySlug(tenantSlug);
         if (!tenant) {
           return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
@@ -294,6 +324,12 @@ export async function POST(request: NextRequest) {
         if (!tenantSlug || !Array.isArray(delegates)) {
           return NextResponse.json(
             { error: 'Missing required fields: tenantSlug, delegates (array)' },
+            { status: 400 }
+          );
+        }
+        if (delegates.length > 200) {
+          return NextResponse.json(
+            { error: 'Too many delegates in one request (max 200)' },
             { status: 400 }
           );
         }
@@ -318,6 +354,10 @@ export async function POST(request: NextRequest) {
           try {
             if (!d.username) {
               errors.push({ username: 'unknown', error: 'Missing username' });
+              continue;
+            }
+            if (d.walletAddress && !WALLET_RE.test(d.walletAddress)) {
+              errors.push({ username: d.username, error: 'Invalid walletAddress (expected 0x + 40 hex chars)' });
               continue;
             }
 

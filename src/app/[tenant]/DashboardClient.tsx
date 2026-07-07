@@ -710,6 +710,7 @@ export default function TenantDashboardPage() {
                     fontSize: 13,
                     outline: 'none',
                   }}
+                  aria-label="Search contributors"
                 />
               </div>
 
@@ -725,6 +726,7 @@ export default function TenantDashboardPage() {
                   fontSize: 13,
                   cursor: 'pointer',
                 }}
+                aria-label="Filter by status"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -744,6 +746,7 @@ export default function TenantDashboardPage() {
                     fontSize: 13,
                     cursor: 'pointer',
                   }}
+                  aria-label="Filter by program"
                 >
                   <option value="all">All Programs</option>
                   {programs.map((p) => (
@@ -767,6 +770,7 @@ export default function TenantDashboardPage() {
                     fontSize: 13,
                     cursor: 'pointer',
                   }}
+                  aria-label="Filter by role"
                 >
                   <option value="all">All Roles</option>
                   {roles.map((r) => (
