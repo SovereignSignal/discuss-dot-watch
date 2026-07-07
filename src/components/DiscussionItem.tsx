@@ -108,14 +108,12 @@ export function DiscussionItem({
   const titleLower = topic.title.toLowerCase();
   const alertMatch = alerts.find(a => a.isEnabled && a.keyword && titleLower.includes(a.keyword.toLowerCase()))?.keyword ?? null;
   // The deadline is a calendar date (YYYY-MM-DD). Parse as LOCAL midnight
-  // (no trailing Z) so it renders as the same calendar day in every timezone,
-  // and keep the "due" label through the end of the deadline day.
-  const DAY_MS = 24 * 60 * 60 * 1000;
+  // (no trailing Z) so it renders as the same calendar day in every timezone.
+  // The time-dependent "due soon" flag comes precomputed from useGrantChips —
+  // render code can't call Date.now() under the React Compiler.
   const grantDeadline = grantChip?.deadline ? new Date(`${grantChip.deadline.slice(0, 10)}T00:00:00`) : null;
-  const deadlineSoon = grantDeadline !== null && !Number.isNaN(grantDeadline.getTime()) &&
-    grantDeadline.getTime() + DAY_MS > Date.now() &&
-    grantDeadline.getTime() - Date.now() < 30 * DAY_MS;
   const validDeadline = grantDeadline !== null && !Number.isNaN(grantDeadline.getTime());
+  const deadlineSoon = Boolean(grantChip?.dueSoon) && validDeadline;
   const grantTitle = grantChip
     ? [grantChip.program, grantChip.amount, validDeadline ? `deadline ${format(grantDeadline!, 'MMM d, yyyy')}` : null, `${grantChip.confidence}% confidence`]
         .filter(Boolean).join(' · ')
