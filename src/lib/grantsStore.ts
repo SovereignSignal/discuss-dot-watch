@@ -154,3 +154,32 @@ export async function queryGrantsItems(q: GrantsQuery): Promise<GrantsItemRow[]>
   `;
   return rows as unknown as GrantsItemRow[];
 }
+
+export interface GrantChipRow {
+  topic_ref_id: string;
+  confidence: number;
+  kind: string | null;
+  program: string | null;
+  amount_min: string | null;
+  amount_max: string | null;
+  currency: string | null;
+  deadline: Date | null;
+}
+
+/**
+ * Compact GRANT rows for the reader's reason chips — refId + just enough to
+ * label a feed row. Bounded to the most recent classifications; the feed only
+ * shows recent topics, so older rows can never match anyway.
+ */
+export async function getGrantChipRows(limit = 2000): Promise<GrantChipRow[]> {
+  if (!isDatabaseConfigured()) return [];
+  const db = getDb();
+  const rows = await db`
+    SELECT topic_ref_id, confidence, kind, program, amount_min, amount_max, currency, deadline
+    FROM grants_items
+    WHERE classification = 'GRANT' AND confidence >= 60
+    ORDER BY id DESC
+    LIMIT ${limit}
+  `;
+  return rows as unknown as GrantChipRow[];
+}

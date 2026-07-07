@@ -292,6 +292,24 @@ export default function AppPage() {
         case 'k':
           if (activeView === 'feed') navigateReader(-1);
           break;
+        // Triage keys — act on the topic open in the reader.
+        case 's':
+          if (activeView === 'feed' && selectedTopic) handleToggleBookmark(selectedTopic);
+          break;
+        case 'o':
+          if (activeView === 'feed' && selectedTopic) {
+            const url = selectedTopic.externalUrl || `${selectedTopic.forumUrl}/t/${selectedTopic.slug}/${selectedTopic.id}`;
+            window.open(url, '_blank', 'noopener,noreferrer');
+          }
+          break;
+        case 'e':
+          // "Done with this one": drop the read-collapse exemption so the row
+          // files away immediately, and close the reader.
+          if (activeView === 'feed' && selectedTopic) {
+            setFreshlyReadRefId(null);
+            setSelectedTopic(null);
+          }
+          break;
         case 'Escape':
           if (selectedTopic) {
             setSelectedTopic(null);
@@ -305,7 +323,7 @@ export default function AppPage() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTopic, activeView, navigateReader]);
+  }, [selectedTopic, activeView, navigateReader, handleToggleBookmark]);
 
   // Runs after the commit that mounts the feed, so the input exists by now.
   useEffect(() => {

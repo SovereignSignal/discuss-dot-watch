@@ -166,6 +166,17 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
           </div>
         </div>
 
+        {!isMobile && (
+          <span
+            className="hidden lg:flex items-center gap-1.5 text-[10px] flex-shrink-0 select-none"
+            style={{ color: 'var(--ds-fg-dim)', fontFamily: 'var(--ds-font-mono)' }}
+            aria-hidden="true"
+            title="Keyboard: j/k next/previous · s save · o open on forum · e done"
+          >
+            <span>j/k</span>·<span>s save</span>·<span>o open</span>·<span>e done</span>
+          </span>
+        )}
+
         <a
           href={topicUrl}
           target="_blank"
