@@ -135,9 +135,11 @@ export async function PUT(request: NextRequest) {
     if (!Array.isArray(bookmarks)) {
       return NextResponse.json({ error: 'bookmarks array is required' }, { status: 400 });
     }
-    if (bookmarks.length > 1000) {
-      return NextResponse.json({ error: 'Too many bookmarks in one sync (max 1000)' }, { status: 400 });
-    }
+    // Truncate rather than reject: the client PUTs its FULL list (delete +
+    // re-insert), so a 400 here would silently freeze sync for over-cap users.
+    // The array is newest-first, so this keeps the 1000 most recent.
+    const truncated = bookmarks.length > 1000;
+    const boundedBookmarks = truncated ? bookmarks.slice(0, 1000) : bookmarks;
 
     const sql = getDb();
 
@@ -157,7 +159,7 @@ export async function PUT(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await sql.begin(async (tx: any) => {
       await tx`DELETE FROM bookmarks WHERE user_id = ${userId}`;
-      for (const bookmark of bookmarks) {
+      for (const bookmark of boundedBookmarks) {
         if (typeof bookmark?.topicRefId === 'string' && bookmark.topicRefId &&
             typeof bookmark?.topicTitle === 'string' && bookmark.topicTitle &&
             typeof bookmark?.topicUrl === 'string' && bookmark.topicUrl &&
@@ -175,7 +177,7 @@ export async function PUT(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({ success: true, count });
+    return NextResponse.json({ success: true, count, truncated });
   } catch (error) {
     console.error('Bookmarks API error:', error);
     return NextResponse.json(

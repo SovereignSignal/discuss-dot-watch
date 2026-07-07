@@ -76,6 +76,7 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
   // feed list would be disrupted.
   useEffect(() => {
     if (!isMobile) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     backButtonRef.current?.focus();
 
     const container = containerRef.current;
@@ -96,7 +97,12 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
       }
     };
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      // Return focus to the row that opened the dialog — but only if the
+      // dialog actually owned focus (cleanup runs before the node detaches).
+      if (container?.contains(document.activeElement)) previouslyFocused?.focus();
+    };
   }, [isMobile]);
 
   return (

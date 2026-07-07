@@ -208,9 +208,8 @@ export async function PUT(request: NextRequest) {
     if (!Array.isArray(alerts)) {
       return NextResponse.json({ error: 'alerts array is required' }, { status: 400 });
     }
-    if (alerts.length > 200) {
-      return NextResponse.json({ error: 'Too many alerts in one sync (max 200)' }, { status: 400 });
-    }
+    // Truncate rather than reject — same full-replace contract as bookmarks PUT.
+    const boundedAlerts = alerts.slice(0, 200);
 
     const sql = getDb();
 
@@ -230,7 +229,7 @@ export async function PUT(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await sql.begin(async (tx: any) => {
       await tx`DELETE FROM keyword_alerts WHERE user_id = ${userId}`;
-      for (const alert of alerts) {
+      for (const alert of boundedAlerts) {
         const sanitizedKeyword = typeof alert?.keyword === 'string' ? alert.keyword.trim().slice(0, 100) : '';
         if (sanitizedKeyword) {
           const result = await tx`

@@ -277,7 +277,6 @@ export function DelegateTableRow({
         }
       }}
       tabIndex={0}
-      role="button"
       aria-selected={isSelected}
       style={{
         borderBottom: `1px solid ${t.border}`,

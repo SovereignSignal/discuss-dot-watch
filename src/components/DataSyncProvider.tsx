@@ -178,11 +178,22 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     if (!userId) return;
     (async () => {
       const authHeaders = await getAuthHeaders();
-      fetch('/api/user/read-state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ topicRefIds }),
-      }).catch(console.error);
+      // Chunk under the server's 5000-id cap — "Mark Read" across many enabled
+      // forums can exceed it in one click, and read-state PUT is upsert-only so
+      // sequential chunks are lossless.
+      const CHUNK = 2000;
+      for (let i = 0; i < topicRefIds.length; i += CHUNK) {
+        try {
+          const res = await fetch('/api/user/read-state', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({ topicRefIds: topicRefIds.slice(i, i + CHUNK) }),
+          });
+          if (!res.ok) console.error('[Sync] read-state bulk sync failed:', res.status);
+        } catch (err) {
+          console.error(err);
+        }
+      }
     })();
   }, [userId, getAuthHeaders]);
 
