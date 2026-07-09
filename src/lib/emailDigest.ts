@@ -67,8 +67,11 @@ Discussions:
 ${discussionList}
 
 Provide a brief, insightful summary focused on what community members need to know.`,
+    context: 'DigestSummary',
   });
-  return text || 'Summary temporarily unavailable';
+  // null = call failed; '' = successful call with no text (parity with main).
+  if (text === null) return 'Summary temporarily unavailable';
+  return text || 'Summary generation failed';
 }
 
 /**
@@ -97,9 +100,10 @@ Title: "${title}"
 Engagement: ${replies} replies, ${views} views
 
 Just respond with the sentence, no quotes or explanation.`,
+    context: `TopicInsight:"${title.slice(0, 60)}"`,
   });
-  if (text) return text;
-  // Engagement-based fallback
+  if (text !== null) return text.trim() || 'Active discussion.';
+  // Call failed — engagement-based fallback (parity with main's catch path)
   if (replies > 50) return 'Highly discussed topic generating significant community engagement.';
   if (views > 1000) return 'Popular topic attracting wide attention from the community.';
   return 'Active discussion.';

@@ -129,6 +129,7 @@ Plain text only, no markdown.`;
     maxTokens: 300,
     anthropicModel: 'claude-haiku-4-5-20251001',
     prompt,
+    context: `Brief:${tenant.slug}`,
   });
 
   if (text) {

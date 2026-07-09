@@ -7,11 +7,19 @@
  *                          OLLAMA_API_KEY + LLM_MODEL are set
  *   anything else        → Anthropic (per-task model chosen by the caller)
  *
- * Anthropic remains the instant rollback: flipping LLM_PROVIDER back changes
- * nothing else. Structured output uses a forced tool call on Anthropic and
- * the native JSON-schema `format` parameter on Ollama; Ollama results are
- * required-keys-validated with one retry (OSS models are less schema-reliable
- * than forced tool calls, so validation is load-bearing).
+ * An EXPLICIT LLM_PROVIDER=ollama with missing key/model fails closed
+ * (provider = null; callers degrade to their non-AI fallbacks) rather than
+ * silently swapping to Anthropic — a deliberate provider choice must never
+ * be quietly overridden. Flipping LLM_PROVIDER back to unset is the rollback.
+ *
+ * Semantics contract (parity with the pre-layer call sites):
+ *   - generateText returns the model's raw text on success ('' is possible —
+ *     callers own trimming and empty-fallbacks, as they always did), and
+ *     null ONLY when unconfigured or the call failed.
+ *   - generateStructured returns the schema-shaped object + the model id,
+ *     or null. Ollama output is required-keys-validated with one retry on
+ *     transient failures (parse errors, 429/5xx, timeouts); non-retryable
+ *     4xx aborts immediately.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -22,6 +30,8 @@ export interface TextRequest {
   /** Model for the Anthropic path (per-task Haiku/Sonnet). Ollama always
    *  uses LLM_MODEL — one env-swappable model for every task. */
   anthropicModel?: string;
+  /** Caller identity for error logs, e.g. 'GrantsClassifier', 'Brief:ens'. */
+  context?: string;
 }
 
 export interface StructuredRequest extends TextRequest {
@@ -47,10 +57,13 @@ let warnedMisconfig = false;
 export function activeProvider(): LLMProvider | null {
   if (process.env.LLM_PROVIDER === 'ollama') {
     if (process.env.OLLAMA_API_KEY && process.env.LLM_MODEL) return 'ollama';
+    // Fail closed: an explicit provider choice with broken config must not
+    // silently swap vendors. Callers degrade to their non-AI fallbacks.
     if (!warnedMisconfig) {
       warnedMisconfig = true;
-      console.warn('[LLM] LLM_PROVIDER=ollama but OLLAMA_API_KEY/LLM_MODEL missing — falling back to Anthropic');
+      console.error('[LLM] LLM_PROVIDER=ollama but OLLAMA_API_KEY/LLM_MODEL missing — LLM disabled (failing closed; unset LLM_PROVIDER to use Anthropic)');
     }
+    return null;
   }
   return process.env.ANTHROPIC_API_KEY ? 'anthropic' : null;
 }
@@ -67,7 +80,15 @@ function getAnthropic(): Anthropic {
 }
 
 function ollamaBase(): string {
-  return (process.env.OLLAMA_BASE_URL || 'https://ollama.com').replace(/\/$/, '');
+  const raw = process.env.OLLAMA_BASE_URL || 'https://ollama.com';
+  const parsed = new URL(raw);
+  const isLocal = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1';
+  if (parsed.protocol !== 'https:' && !isLocal) {
+    // The Authorization header carries the API key — never over plain http
+    // to a non-local host. Thrown errors surface via the callers' catch.
+    throw new Error('[LLM] OLLAMA_BASE_URL must be https (http allowed only for localhost)');
+  }
+  return raw.replace(/\/$/, '');
 }
 
 interface OllamaChatBody {
@@ -78,7 +99,11 @@ interface OllamaChatBody {
   format?: Record<string, unknown>;
 }
 
-async function ollamaChat(prompt: string, maxTokens: number, format?: Record<string, unknown>): Promise<string | null> {
+type OllamaOutcome =
+  | { ok: true; content: string }
+  | { ok: false; fatal: boolean };
+
+async function ollamaChat(prompt: string, maxTokens: number, format?: Record<string, unknown>): Promise<OllamaOutcome> {
   const body: OllamaChatBody = {
     model: process.env.LLM_MODEL!,
     messages: [{ role: 'user', content: prompt }],
@@ -87,45 +112,67 @@ async function ollamaChat(prompt: string, maxTokens: number, format?: Record<str
   };
   if (format) body.format = format;
 
-  const res = await fetch(`${ollamaBase()}/api/chat`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.OLLAMA_API_KEY}`,
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(OLLAMA_TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    // Never leak the response body into logs wholesale — status is enough.
-    console.error(`[LLM] Ollama chat failed: HTTP ${res.status}`);
-    return null;
+  let res: Response;
+  try {
+    res = await fetch(`${ollamaBase()}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.OLLAMA_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(OLLAMA_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // Timeouts and network errors are transient — a retry can fix them.
+    console.error(`[LLM] Ollama request error: ${error instanceof Error ? error.name : 'unknown'}`);
+    return { ok: false, fatal: false };
   }
-  const data = (await res.json()) as { message?: { content?: string } };
-  const content = data.message?.content;
-  return typeof content === 'string' && content.trim() ? content : null;
+
+  if (!res.ok) {
+    // Drain the body (connection reuse) but never let it reach the logs.
+    await res.text().catch(() => {});
+    console.error(`[LLM] Ollama chat failed: HTTP ${res.status}`);
+    // 429/5xx are worth retrying; other 4xx (401/403/400/404) are config
+    // errors a retry cannot fix — and would double-bill on a paid endpoint.
+    return { ok: false, fatal: res.status < 500 && res.status !== 429 };
+  }
+
+  try {
+    const data = (await res.json()) as { message?: { content?: string } };
+    const content = data.message?.content;
+    return { ok: true, content: typeof content === 'string' ? content : '' };
+  } catch {
+    // JSON.parse SyntaxErrors embed a snippet of the response body — log a
+    // constant message instead of the error.
+    console.error('[LLM] Ollama returned a non-JSON response body');
+    return { ok: false, fatal: false };
+  }
 }
 
-/** Plain text generation. Returns null when unconfigured or on failure —
- *  callers keep their existing non-AI fallbacks. */
+/** Plain text generation. Returns the raw text on success ('' possible —
+ *  callers own trim/empty fallbacks) and null when unconfigured or failed. */
 export async function generateText(req: TextRequest): Promise<string | null> {
   const provider = activeProvider();
   if (!provider) return null;
 
   try {
     if (provider === 'ollama') {
-      const out = await ollamaChat(req.prompt, req.maxTokens);
-      return out?.trim() || null;
+      const outcome = await ollamaChat(req.prompt, req.maxTokens);
+      return outcome.ok ? outcome.content : null;
     }
     const response = await getAnthropic().messages.create({
       model: req.anthropicModel || DEFAULT_ANTHROPIC_MODEL,
       max_tokens: req.maxTokens,
       messages: [{ role: 'user', content: req.prompt }],
     });
-    const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-    return textBlock?.text?.trim() || null;
+    // Join ALL text blocks (matches the most conservative pre-layer caller).
+    return response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('');
   } catch (error) {
-    console.error('[LLM] generateText failed:', error instanceof Error ? error.message : error);
+    console.error(`[LLM] generateText failed${req.context ? ` (${req.context})` : ''}:`, error);
     return null;
   }
 }
@@ -142,7 +189,7 @@ function parseStructured(raw: string, schema: Record<string, unknown>): Record<s
       return parsed as Record<string, unknown>;
     }
   } catch {
-    // fall through — caller retries once
+    // fall through — transient, the loop may retry
   }
   return null;
 }
@@ -156,10 +203,16 @@ export async function generateStructured(req: StructuredRequest): Promise<Struct
   try {
     if (provider === 'ollama') {
       const model = process.env.LLM_MODEL!;
+      // The schema-adherence nudge lives HERE, not in caller prompts, so the
+      // Anthropic path's prompts stay byte-identical to the pre-layer code.
+      const prompt = `${req.prompt}\n\nRespond ONLY with a JSON object matching the required schema (${req.toolName}).`;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const raw = await ollamaChat(req.prompt, req.maxTokens, req.schema);
-        if (!raw) continue;
-        const output = parseStructured(raw, req.schema);
+        const outcome = await ollamaChat(prompt, req.maxTokens, req.schema);
+        if (!outcome.ok) {
+          if (outcome.fatal) return null;
+          continue;
+        }
+        const output = parseStructured(outcome.content, req.schema);
         if (output) return { output, model };
         console.warn(`[LLM] Ollama structured output failed validation (attempt ${attempt + 1})`);
       }
@@ -182,7 +235,7 @@ export async function generateStructured(req: StructuredRequest): Promise<Struct
     if (!toolUse) return null;
     return { output: toolUse.input as Record<string, unknown>, model };
   } catch (error) {
-    console.error('[LLM] generateStructured failed:', error instanceof Error ? error.message : error);
+    console.error(`[LLM] generateStructured failed${req.context ? ` (${req.context})` : ''}:`, error);
     return null;
   }
 }

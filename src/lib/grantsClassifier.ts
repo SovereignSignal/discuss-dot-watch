@@ -102,9 +102,8 @@ Tags: ${input.tags.join(', ') || '(none)'}
 
 ${body ? `First post:\n${body}` : '(first post text unavailable — classify from the title and tags)'}
 
-Extract only what the text states — never invent amounts or deadlines. Amounts: prefer the program/opportunity size over incidental figures.
-
-Respond by recording the classification with the ${CLASSIFY_TOOL_NAME} schema.`,
+Extract only what the text states — never invent amounts or deadlines. Amounts: prefer the program/opportunity size over incidental figures.`,
+      context: 'GrantsClassifier',
     });
 
     if (!result) return null;

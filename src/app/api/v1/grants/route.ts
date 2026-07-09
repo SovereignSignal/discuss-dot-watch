@@ -52,6 +52,7 @@ function toPublicItem(row: GrantsItemRow) {
     classification: row.classification,
     kind: row.kind,
     confidence: row.confidence,
+    model: row.model,
     program: row.program,
     amountMin: row.amount_min != null ? Number(row.amount_min) : null,
     amountMax: row.amount_max != null ? Number(row.amount_max) : null,

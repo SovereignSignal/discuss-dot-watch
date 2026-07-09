@@ -98,8 +98,10 @@ Discussions:
 ${lines.join('\n')}
 
 Respond with just the summary, no preamble.`,
+    context: 'GrantsBrief',
   });
-  return text || 'Summary temporarily unavailable.';
+  if (text === null) return 'Summary temporarily unavailable.';
+  return text.trim() || 'Summary unavailable.';
 }
 
 // Pre-compute at module level — FORUM_CATEGORIES and EXTERNAL_SOURCES are static
