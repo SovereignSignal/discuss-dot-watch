@@ -5,15 +5,9 @@
  * forum using Haiku 4.5. Cached in Redis per refresh cycle.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, isLLMConfigured } from '@/lib/llm';
 import { getRedis } from '@/lib/redis';
 import type { DashboardSummary, DelegateRow } from '@/types/delegates';
-
-function getAnthropicClient(): Anthropic | null {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
-  return new Anthropic({ apiKey });
-}
 
 /** Build a Redis cache key tied to the last refresh timestamp */
 function briefCacheKey(slug: string, lastRefreshAt: string | null): string {
@@ -68,8 +62,7 @@ export async function generateDelegateBrief(
   const cached = await getCachedBrief(tenant.slug, lastRefreshAt);
   if (cached) return cached;
 
-  const client = getAnthropicClient();
-  if (!client) return null;
+  if (!isLLMConfigured()) return null;
 
   const hasMonthly = summary.hasMonthlyData;
 
@@ -132,25 +125,15 @@ Data:
 Describe the forum's recent activity pattern — who's contributing, how engagement is distributed, and any notable patterns. Do not judge, diagnose, or prescribe. Do not use words like "concerning", "alarming", "critical", "severe", or "healthy/unhealthy". Just describe what the data shows.
 Plain text only, no markdown.`;
 
-  try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: prompt }],
-    });
+  const text = await generateText({
+    maxTokens: 300,
+    anthropicModel: 'claude-haiku-4-5-20251001',
+    prompt,
+  });
 
-    const text = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map(block => block.text)
-      .join('');
-
-    if (text) {
-      await cacheBrief(tenant.slug, lastRefreshAt, text);
-      return text;
-    }
-    return null;
-  } catch (err) {
-    console.error(`[Brief] Failed to generate brief for ${tenant.slug}:`, err);
-    return null;
+  if (text) {
+    await cacheBrief(tenant.slug, lastRefreshAt, text);
+    return text;
   }
+  return null;
 }

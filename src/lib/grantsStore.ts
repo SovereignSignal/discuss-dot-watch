@@ -81,14 +81,14 @@ export async function upsertGrantsItem(item: GrantsItemInput): Promise<void> {
       topic_ref_id, forum_url, protocol, vertical, title, url,
       first_post_text, signal, classification, kind, confidence,
       program, amount_min, amount_max, currency, deadline, chain, status, apply_url,
-      replies, views, likes, topic_created_at, last_activity_at, updated_at
+      model, replies, views, likes, topic_created_at, last_activity_at, updated_at
     ) VALUES (
       ${item.topicRefId}, ${item.forumUrl}, ${item.protocol}, ${item.vertical},
       ${item.title}, ${item.url}, ${firstPostText}, ${item.signal},
       ${e.classification}, ${e.kind}, ${e.confidence},
       ${e.program}, ${e.amountMin}, ${e.amountMax}, ${e.currency},
       ${deadline}, ${e.chain}, ${e.status}, ${e.applyUrl},
-      ${item.replies}, ${item.views}, ${item.likes},
+      ${e.model}, ${item.replies}, ${item.views}, ${item.likes},
       ${item.topicCreatedAt}, ${item.lastActivityAt}, NOW()
     )
     ON CONFLICT (topic_ref_id) DO UPDATE SET

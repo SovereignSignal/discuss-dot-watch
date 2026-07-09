@@ -379,7 +379,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
     return;
   }
   if (!isClassifierConfigured()) {
-    console.log('[GrantsScan] ANTHROPIC_API_KEY not configured, skipping');
+    console.log('[GrantsScan] No LLM provider configured (ANTHROPIC_API_KEY or LLM_PROVIDER=ollama), skipping');
     return;
   }
   const hasLock = await acquireGrantsScanLock(600);

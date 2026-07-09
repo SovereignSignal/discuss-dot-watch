@@ -1,13 +1,13 @@
 /**
- * Grants classifier — one Haiku call per candidate topic that both
+ * Grants classifier — one model call per candidate topic that both
  * classifies (GRANT / ROLE / NEWS / NOISE — GRANT/NEWS/NOISE mirror the
  * Grant Wire Refinery's taxonomy; ROLE covers paid governance positions)
  * and extracts structured fields (program, amounts, deadline, status).
- * Tool-use with a forced tool choice so the output is schema-validated
- * JSON rather than free text.
+ * Schema-forced output via the LLM provider layer (lib/llm.ts): a forced
+ * tool call on Anthropic, native JSON-schema format on Ollama Cloud.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { generateStructured, isLLMConfigured } from './llm';
 import { isAllowedUrl } from './url';
 
 export type GrantsClassification = 'GRANT' | 'ROLE' | 'NEWS' | 'NOISE';
@@ -24,6 +24,8 @@ export interface GrantsExtraction {
   chain: string | null;
   status: string | null;
   applyUrl: string | null;
+  /** The model that produced this classification (attribution/bake-offs). */
+  model: string;
 }
 
 export interface GrantsCandidateInput {
@@ -39,10 +41,9 @@ export interface GrantsCandidateInput {
 
 const MAX_BODY_CHARS = 6000;
 
-const CLASSIFY_TOOL: Anthropic.Tool = {
-  name: 'record_grants_classification',
-  description: 'Record the classification and extracted fields for a forum discussion about grants/funding.',
-  input_schema: {
+const CLASSIFY_TOOL_NAME = 'record_grants_classification';
+const CLASSIFY_TOOL_DESCRIPTION = 'Record the classification and extracted fields for a forum discussion about grants/funding.';
+const CLASSIFY_SCHEMA: Record<string, unknown> = {
     type: 'object',
     properties: {
       classification: {
@@ -70,39 +71,29 @@ const CLASSIFY_TOOL: Anthropic.Tool = {
       apply_url: { type: ['string', 'null'], description: 'Application URL if present in the text.' },
     },
     required: ['classification', 'kind', 'confidence'],
-  },
 };
 
-let client: Anthropic | null = null;
-
+/** Kept name for existing callers — configuration now lives in lib/llm.ts. */
 export function isClassifierConfigured(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
-}
-
-function getClient(): Anthropic | null {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-  if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return client;
+  return isLLMConfigured();
 }
 
 export async function classifyGrantsCandidate(
   input: GrantsCandidateInput,
 ): Promise<GrantsExtraction | null> {
-  const anthropic = getClient();
-  if (!anthropic) return null;
+  if (!isLLMConfigured()) return null;
 
   const body = (input.body || '').slice(0, MAX_BODY_CHARS);
   const today = new Date().toISOString().slice(0, 10);
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 500,
-      tools: [CLASSIFY_TOOL],
-      tool_choice: { type: 'tool', name: 'record_grants_classification' },
-      messages: [{
-        role: 'user',
-        content: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = a paid position or seat with a currently open (or announced) application/nomination/election window someone could act on now (elections, council seats, steward nominations, delegate incentive enrollment, service-provider mandates). A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. Today is ${today}.
+    const result = await generateStructured({
+      maxTokens: 500,
+      anthropicModel: 'claude-haiku-4-5-20251001',
+      schema: CLASSIFY_SCHEMA,
+      toolName: CLASSIFY_TOOL_NAME,
+      toolDescription: CLASSIFY_TOOL_DESCRIPTION,
+      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = a paid position or seat with a currently open (or announced) application/nomination/election window someone could act on now (elections, council seats, steward nominations, delegate incentive enrollment, service-provider mandates). A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. Today is ${today}.
 
 Forum: ${input.protocol} (${input.vertical})
 Selected because: ${input.signal}
@@ -111,15 +102,13 @@ Tags: ${input.tags.join(', ') || '(none)'}
 
 ${body ? `First post:\n${body}` : '(first post text unavailable — classify from the title and tags)'}
 
-Extract only what the text states — never invent amounts or deadlines. Amounts: prefer the program/opportunity size over incidental figures.`,
-      }],
+Extract only what the text states — never invent amounts or deadlines. Amounts: prefer the program/opportunity size over incidental figures.
+
+Respond by recording the classification with the ${CLASSIFY_TOOL_NAME} schema.`,
     });
 
-    const toolUse = response.content.find(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-    );
-    if (!toolUse) return null;
-    const out = toolUse.input as Record<string, unknown>;
+    if (!result) return null;
+    const out = result.output;
 
     const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
     const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -151,6 +140,7 @@ Extract only what the text states — never invent amounts or deadlines. Amounts
       chain: str(out.chain),
       status: str(out.status),
       applyUrl: safeUrl(out.apply_url),
+      model: result.model,
     };
   } catch (error) {
     console.error('[GrantsClassifier] Classification failed:', error);

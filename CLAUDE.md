@@ -20,7 +20,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 | Icons | Lucide React |
 | Auth | Privy (`@privy-io/react-auth` client, `@privy-io/node` server) |
 | Email | Resend |
-| AI | Anthropic Claude via @anthropic-ai/sdk (Haiku 4.5 + Sonnet 4.5) |
+| AI | Provider layer `lib/llm.ts`: Anthropic Claude (Haiku 4.5 + Sonnet 4.5, default) or Ollama Cloud (`LLM_PROVIDER=ollama`, any hosted OSS model via `LLM_MODEL`) |
 | Validation | Zod 4 |
 | Sanitization | sanitize-html |
 | Cache | Redis (ioredis) |
@@ -57,7 +57,8 @@ src/
 │   ├── grantsBrief.ts      # Grants & funding brief generation (daily email)
 │   ├── grantsDetect.ts     # Shared grants + roles keyword prefilters (brief uses grants only; scan uses both)
 │   ├── grantsScan.ts       # Grants classification pipeline (runs after each cache refresh; Discourse RSS bodies, grants categories, EA funding tag)
-│   ├── grantsClassifier.ts # Haiku classify+extract (GRANT/ROLE/NEWS/NOISE + program/amounts/deadline)
+│   ├── llm.ts              # LLM provider layer — ALL model calls route here (Anthropic default; Ollama Cloud via LLM_PROVIDER=ollama)
+│   ├── grantsClassifier.ts # classify+extract via lib/llm.ts (GRANT/ROLE/NEWS/NOISE + program/amounts/deadline; model stamped on grants_items)
 │   ├── grantsStore.ts      # grants_items persistence + /api/v1/grants queries + roles-email watermark
 │   ├── rolesBrief.ts       # Daily Roles & Positions email formatting (ROLE items; no LLM)
 │   ├── emailDigest.ts      # AI email digest generation
@@ -374,7 +375,11 @@ Tags in raw API response can be strings OR objects — handle both.
 |----------|---------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
-| `ANTHROPIC_API_KEY` | Claude API for AI digests |
+| `ANTHROPIC_API_KEY` | Claude API for AI digests (default LLM provider) |
+| `LLM_PROVIDER` | `ollama` routes all model calls to Ollama Cloud; unset/anything else = Anthropic (instant rollback) |
+| `OLLAMA_API_KEY` | Ollama Cloud API key (required when `LLM_PROVIDER=ollama`) |
+| `OLLAMA_BASE_URL` | Ollama endpoint (default `https://ollama.com`) |
+| `LLM_MODEL` | Ollama model for all tasks, e.g. `glm-5.2` (required when `LLM_PROVIDER=ollama`) |
 | `RESEND_API_KEY` | Email service |
 | `RESEND_FROM_EMAIL` | Sender address |
 | `CRON_SECRET` | Bearer token for cron endpoints |
