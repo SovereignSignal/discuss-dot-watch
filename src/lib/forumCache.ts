@@ -18,7 +18,7 @@ import { getEnabledExternalSources } from './externalSources';
 import { fetchEAForumPosts } from './eaForumClient';
 import { fetchGitHubDiscussions, isGitHubConfigured } from './githubDiscussionsClient';
 import { fetchSnapshotProposals } from './snapshotClient';
-import { fetchRealmsProposals } from './realmsClient';
+import { fetchRealmsProposals, isRealmsEnabled } from './realmsClient';
 import { fetchHackerNewsStories } from './hackerNewsClient';
 import { fetchLobstersStories } from './lobstersClient';
 import { safeFetch } from './safeFetch';
@@ -615,7 +615,8 @@ async function refreshExternalSources(): Promise<void> {
       } else if (source.sourceType === 'lobsters' && source.lobstersTags) {
         result = await fetchLobstersStories(source.lobstersTags, 30);
       } else if (source.sourceType === 'realms' && source.realmsDaoId) {
-        // Self-throttled client (serialized gPA queue + long per-DAO cache) —
+        if (!isRealmsEnabled()) continue; // REALMS_DISABLED=true kill switch
+        // Self-throttled client (serialized RPC queue + long per-DAO cache) —
         // most cycles this returns instantly from cache.
         result = await fetchRealmsProposals(source.realmsDaoId);
       } else {

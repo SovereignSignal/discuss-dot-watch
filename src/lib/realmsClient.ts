@@ -63,11 +63,35 @@ export function getRealmsDao(id: string): RealmsDaoConfig | undefined {
 
 // ── RPC plumbing ─────────────────────────────────────────────────────
 
-const GPA_DELAY_MS = 6_000;          // free public RPC limits gPA per ~10s window
+const RPC_DELAY_MS = 4_000;          // free public RPC limits gPA per ~10s window
+const RPC_TIMEOUT_MS = 20_000;       // web3.js has NO default request timeout
 const GOV_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const POSTS_CACHE_TTL_MS = 45 * 60 * 1000;
-const PROPOSAL_WINDOW_MS = 180 * 24 * 60 * 60 * 1000; // keep ~6 months of history
+const PROPOSAL_WINDOW_MS = 180 * 24 * 60 * 60 * 1000; // ~6 months of voting activity
 const MAX_PROPOSALS_PER_DAO = 15;
+
+/** Kill switch: set REALMS_DISABLED=true to skip all Realms fetching. */
+export function isRealmsEnabled(): boolean {
+  return process.env.REALMS_DISABLED !== 'true';
+}
+
+// Serialize every outgoing RPC request through one queue with a fixed
+// inter-request delay. This throttles at the TRANSPORT because
+// spl-governance's getGovernanceAccounts fans out into one
+// getProgramAccounts HTTP request per account type internally (8 for
+// Governance, 2 for Proposal) — pacing around the library call would let
+// those bursts through and 429 the free public RPC.
+let rpcQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueRpc<T>(fn: () => Promise<T>): Promise<T> {
+  const run = rpcQueue.then(fn);
+  // Pace after BOTH success and failure — a rejected call must not let the
+  // next one fire immediately into the same rate-limit window.
+  rpcQueue = run.then(() => {}, () => {}).then(
+    () => new Promise((r) => setTimeout(r, RPC_DELAY_MS)),
+  );
+  return run;
+}
 
 let connection: Connection | null = null;
 
@@ -75,25 +99,16 @@ function getConnection(): Connection {
   if (!connection) {
     connection = new Connection(
       process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
-      'confirmed',
+      {
+        commitment: 'confirmed',
+        // Route every RPC POST through the pacing queue and bound it with a
+        // timeout so a hung RPC can never stall the whole refresh loop.
+        fetch: ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
+          enqueueRpc(() => fetch(input, { ...init, signal: AbortSignal.timeout(RPC_TIMEOUT_MS) }))) as typeof fetch,
+      },
     );
   }
   return connection;
-}
-
-// Serialize every gPA call through one queue with a fixed delay so
-// concurrent DAO fetches can never burst past the public RPC's window.
-let gpaQueue: Promise<unknown> = Promise.resolve();
-
-function enqueueGpa<T>(fn: () => Promise<T>): Promise<T> {
-  const run = gpaQueue.then(async () => {
-    const result = await fn();
-    await new Promise((r) => setTimeout(r, GPA_DELAY_MS));
-    return result;
-  });
-  // The queue must survive failures — chain on settled, not on success.
-  gpaQueue = run.catch(() => {});
-  return run;
 }
 
 const govCache = new Map<string, { at: number; govs: PublicKey[] }>();
@@ -104,9 +119,8 @@ async function getGovernancePubkeys(dao: RealmsDaoConfig): Promise<PublicKey[]> 
   if (cached && Date.now() - cached.at < GOV_CACHE_TTL_MS) return cached.govs;
 
   const filter = pubkeyFilter(1, new PublicKey(dao.realmId));
-  const govs = await enqueueGpa(() =>
-    getGovernanceAccounts(getConnection(), new PublicKey(dao.programId), Governance, filter ? [filter] : []),
-  );
+  // Pacing happens at the Connection's fetch — no wrapper needed here.
+  const govs = await getGovernanceAccounts(getConnection(), new PublicKey(dao.programId), Governance, filter ? [filter] : []);
   const pubkeys = govs.map((g) => g.pubkey);
   govCache.set(dao.realmId, { at: Date.now(), govs: pubkeys });
   return pubkeys;
@@ -137,6 +151,20 @@ const TERMINAL_STATES = new Set<ProposalState>([
   ProposalState.Vetoed,
 ]);
 
+// Only proposals the DAO's own process has advanced get surfaced. Draft is
+// a single-actor state (any token holder can create one — unvetted,
+// attacker-influenceable text) and Cancelled is noise.
+const SURFACED_STATES = new Set<ProposalState>([
+  ProposalState.SigningOff,
+  ProposalState.Voting,
+  ProposalState.Succeeded,
+  ProposalState.Executing,
+  ProposalState.ExecutingWithErrors,
+  ProposalState.Completed,
+  ProposalState.Defeated,
+  ProposalState.Vetoed,
+]);
+
 interface ParsedProposal {
   pubkey: string;
   name: string;
@@ -149,9 +177,12 @@ interface ParsedProposal {
 
 function toBnMs(v: unknown): number | null {
   // spl-governance timestamps are BN seconds (or null for unreached stages).
+  // Upper-bounded (year 2100): a garbage on-chain value like i64-max would
+  // survive Number() as finite, then THROW in Date#toISOString and poison
+  // the whole DAO's fetch. Out-of-range reads as missing instead.
   if (v == null) return null;
   const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n * 1000 : null;
+  return Number.isFinite(n) && n > 0 && n < 4102444800 ? n * 1000 : null;
 }
 
 function parseProposal(pubkey: PublicKey, account: InstanceType<typeof Proposal>): ParsedProposal | null {
@@ -217,10 +248,46 @@ function toTopic(dao: RealmsDaoConfig, p: ParsedProposal): DiscussionTopic {
 
 // ── Main entry ───────────────────────────────────────────────────────
 
+const inflight = new Map<string, Promise<void>>();
+const lastError = new Map<string, string>();
+
+/** Does the actual paced RPC work and fills postsCache. Minutes-slow on a
+ *  cold cache by design (every request rides the 4s pacing queue). */
+async function refreshDao(dao: RealmsDaoConfig): Promise<void> {
+  const governances = await getGovernancePubkeys(dao);
+  const parsed: ParsedProposal[] = [];
+  for (const gov of governances) {
+    const filter = pubkeyFilter(1, gov);
+    const proposals = await getGovernanceAccounts(getConnection(), new PublicKey(dao.programId), Proposal, filter ? [filter] : []);
+    for (const p of proposals) {
+      const row = parseProposal(p.pubkey, p.account);
+      if (row) parsed.push(row);
+    }
+  }
+
+  const cutoff = Date.now() - PROPOSAL_WINDOW_MS;
+  // Recency by last voting activity (the same field the sort uses) so a
+  // long-running proposal that concluded recently isn't dropped for having
+  // an old draft date.
+  const posts = parsed
+    .filter((p) => SURFACED_STATES.has(p.state) && (p.state === ProposalState.Voting || p.bumpedAtMs >= cutoff))
+    .sort((a, b) => b.bumpedAtMs - a.bumpedAtMs)
+    .slice(0, MAX_PROPOSALS_PER_DAO)
+    .map((p) => toTopic(dao, p));
+
+  postsCache.set(dao.id, { at: Date.now(), posts });
+  lastError.delete(dao.id);
+}
+
 /**
- * Fetch recent proposals for one Realms DAO. Serves a cached result for
- * ~45min (+ per-DAO jitter so the fleet staggers across refresh cycles);
- * on RPC failure the last good result is served instead of an error.
+ * Fetch recent proposals for one Realms DAO — NEVER blocks the caller on
+ * RPC. Fresh cache serves directly; an expired/missing cache kicks a
+ * deduplicated background refresh (all RPC rides the pacing queue) and
+ * serves whatever exists now. A cold start therefore returns empty for a
+ * cycle or two while the queue fills — the refresh loop must not stall for
+ * the ~10 minutes a full cold fill takes on the free public RPC. The last
+ * refresh error is surfaced alongside stale/empty results so forum health
+ * tracks a persistently failing source.
  */
 export async function fetchRealmsProposals(
   daoId: string,
@@ -230,39 +297,24 @@ export async function fetchRealmsProposals(
 
   const cached = postsCache.get(dao.id);
   const daoIndex = REALMS_DAOS.findIndex((d) => d.id === dao.id);
-  const ttl = POSTS_CACHE_TTL_MS + daoIndex * 5 * 60 * 1000; // stagger expiries
+  // Stagger expiries by at least the ~15-min refresh cadence so the DAOs
+  // land in different refresh ticks instead of all expiring together.
+  const ttl = POSTS_CACHE_TTL_MS + daoIndex * 15 * 60 * 1000;
   if (cached && Date.now() - cached.at < ttl) {
     return { posts: cached.posts };
   }
 
-  try {
-    const governances = await getGovernancePubkeys(dao);
-    const parsed: ParsedProposal[] = [];
-    for (const gov of governances) {
-      const filter = pubkeyFilter(1, gov);
-      const proposals = await enqueueGpa(() =>
-        getGovernanceAccounts(getConnection(), new PublicKey(dao.programId), Proposal, filter ? [filter] : []),
-      );
-      for (const p of proposals) {
-        const row = parseProposal(p.pubkey, p.account);
-        if (row) parsed.push(row);
-      }
-    }
-
-    const cutoff = Date.now() - PROPOSAL_WINDOW_MS;
-    const posts = parsed
-      .filter((p) => p.state === ProposalState.Voting || p.draftAtMs >= cutoff)
-      .sort((a, b) => b.bumpedAtMs - a.bumpedAtMs)
-      .slice(0, MAX_PROPOSALS_PER_DAO)
-      .map((p) => toTopic(dao, p));
-
-    postsCache.set(dao.id, { at: Date.now(), posts });
-    return { posts };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Realms RPC error';
-    console.error(`[Realms] ${dao.id} fetch failed:`, message);
-    // Stale-if-error: last good result beats an empty forum card.
-    if (cached) return { posts: cached.posts };
-    return { posts: [], error: message };
+  if (!inflight.has(dao.id)) {
+    const run = refreshDao(dao)
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : 'Realms RPC error';
+        lastError.set(dao.id, message);
+        console.error(`[Realms] ${dao.id} refresh failed:`, message);
+      })
+      .finally(() => inflight.delete(dao.id));
+    inflight.set(dao.id, run);
   }
+
+  // Stale-if-refreshing: last good result beats an empty forum card.
+  return { posts: cached?.posts ?? [], error: lastError.get(dao.id) };
 }
