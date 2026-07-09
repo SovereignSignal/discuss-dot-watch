@@ -52,6 +52,8 @@ export interface GrantsItemRow {
   first_seen_at: Date;
   updated_at: Date;
   first_post_text?: string | null;
+  /** Which model classified the row (frozen at classification). */
+  model: string | null;
 }
 
 /** RefIds already classified — used to skip re-classification. */
@@ -81,14 +83,14 @@ export async function upsertGrantsItem(item: GrantsItemInput): Promise<void> {
       topic_ref_id, forum_url, protocol, vertical, title, url,
       first_post_text, signal, classification, kind, confidence,
       program, amount_min, amount_max, currency, deadline, chain, status, apply_url,
-      replies, views, likes, topic_created_at, last_activity_at, updated_at
+      model, replies, views, likes, topic_created_at, last_activity_at, updated_at
     ) VALUES (
       ${item.topicRefId}, ${item.forumUrl}, ${item.protocol}, ${item.vertical},
       ${item.title}, ${item.url}, ${firstPostText}, ${item.signal},
       ${e.classification}, ${e.kind}, ${e.confidence},
       ${e.program}, ${e.amountMin}, ${e.amountMax}, ${e.currency},
       ${deadline}, ${e.chain}, ${e.status}, ${e.applyUrl},
-      ${item.replies}, ${item.views}, ${item.likes},
+      ${e.model}, ${item.replies}, ${item.views}, ${item.likes},
       ${item.topicCreatedAt}, ${item.lastActivityAt}, NOW()
     )
     ON CONFLICT (topic_ref_id) DO UPDATE SET
@@ -139,7 +141,7 @@ export async function queryGrantsItems(q: GrantsQuery): Promise<GrantsItemRow[]>
   const rows = await db`
     SELECT id, topic_ref_id, forum_url, protocol, vertical, title, url, signal,
            classification, kind, confidence, program, amount_min, amount_max,
-           currency, deadline, chain, status, apply_url, replies, views, likes,
+           currency, deadline, chain, status, apply_url, model, replies, views, likes,
            topic_created_at, last_activity_at, first_seen_at, updated_at,
            LEFT(first_post_text, 400) AS first_post_text
     FROM grants_items

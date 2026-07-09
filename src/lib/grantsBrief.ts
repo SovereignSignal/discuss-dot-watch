@@ -12,7 +12,7 @@ import { generateTopicInsight } from './emailDigest';
 import { escapeHtml } from './sanitize';
 import { matchGrantsKeywords } from './grantsDetect';
 import { DiscussionTopic } from '@/types';
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, isLLMConfigured } from './llm';
 
 // Keyword lists live in grantsDetect.ts (shared with the grants scan).
 
@@ -82,36 +82,26 @@ async function generateExecutiveSummary(
   newTopics: GrantsTopic[],
   activeTopics: GrantsTopic[],
 ): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return 'AI summary unavailable.';
+  if (!isLLMConfigured()) return 'AI summary unavailable.';
 
   const lines: string[] = [];
   for (const t of [...newTopics, ...activeTopics].slice(0, 15)) {
     lines.push(`[${t.protocol}] "${t.title}" — ${t.replies} replies, ${t.views} views (${t.matchedKeywords.join(', ')})`);
   }
 
-  try {
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 300,
-      messages: [{
-        role: 'user',
-        content: `You are a grants & funding analyst for crypto, AI, and open source communities. Write 2-3 concise sentences summarizing today's grants and funding activity based on these discussions. Focus on the most significant developments, amounts mentioned, and cross-community trends. Be specific about which communities are active.
+  const text = await generateText({
+    maxTokens: 300,
+    anthropicModel: 'claude-sonnet-4-5-20250929',
+    prompt: `You are a grants & funding analyst for crypto, AI, and open source communities. Write 2-3 concise sentences summarizing today's grants and funding activity based on these discussions. Focus on the most significant developments, amounts mentioned, and cross-community trends. Be specific about which communities are active.
 
 Discussions:
 ${lines.join('\n')}
 
 Respond with just the summary, no preamble.`,
-      }],
-    });
-
-    const text = response.content.find(b => b.type === 'text');
-    return text?.text?.trim() || 'Summary unavailable.';
-  } catch (error) {
-    console.error('[GrantsBrief] Executive summary error:', error);
-    return 'Summary temporarily unavailable.';
-  }
+    context: 'GrantsBrief',
+  });
+  if (text === null) return 'Summary temporarily unavailable.';
+  return text.trim() || 'Summary unavailable.';
 }
 
 // Pre-compute at module level — FORUM_CATEGORIES and EXTERNAL_SOURCES are static

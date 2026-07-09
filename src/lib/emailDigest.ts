@@ -3,7 +3,7 @@
  * Generates AI-powered forum summaries and sends via Resend
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, isLLMConfigured } from './llm';
 import { escapeHtml } from './sanitize';
 
 export interface TopicSummary {
@@ -34,15 +34,6 @@ export interface DigestContent {
   };
 }
 
-// Initialize Anthropic client
-function getAnthropicClient(): Anthropic | null {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    console.error('ANTHROPIC_API_KEY not configured');
-    return null;
-  }
-  return new Anthropic({ apiKey });
-}
 
 /**
  * Generate AI summary of forum discussions
@@ -58,9 +49,8 @@ export async function generateDiscussionSummary(
     tags: string[];
   }>
 ): Promise<string> {
-  const client = getAnthropicClient();
-  if (!client) {
-    return 'AI summary unavailable - API key not configured';
+  if (!isLLMConfigured()) {
+    return 'AI summary unavailable - no LLM provider configured';
   }
 
   const discussionList = discussions
@@ -68,29 +58,20 @@ export async function generateDiscussionSummary(
     .map((d, i) => `${i + 1}. [${d.protocol}] "${d.title}" - ${d.replies} replies, ${d.views} views`)
     .join('\n');
 
-  try {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a community discussion analyst. Summarize the following forum discussions into a concise 2-3 paragraph overview. Highlight the most important topics, any active debates, and key themes across communities. Be specific about topic names and which forum they're from.
+  const text = await generateText({
+    maxTokens: 1024,
+    anthropicModel: 'claude-sonnet-4-5-20250929',
+    prompt: `You are a community discussion analyst. Summarize the following forum discussions into a concise 2-3 paragraph overview. Highlight the most important topics, any active debates, and key themes across communities. Be specific about topic names and which forum they're from.
 
 Discussions:
 ${discussionList}
 
-Provide a brief, insightful summary focused on what community members need to know.`
-        }
-      ]
-    });
-
-    const textBlock = response.content.find(block => block.type === 'text');
-    return textBlock ? textBlock.text : 'Summary generation failed';
-  } catch (error) {
-    console.error('Error generating summary:', error);
-    return 'Summary temporarily unavailable';
-  }
+Provide a brief, insightful summary focused on what community members need to know.`,
+    context: 'DigestSummary',
+  });
+  // null = call failed; '' = successful call with no text (parity with main).
+  if (text === null) return 'Summary temporarily unavailable';
+  return text || 'Summary generation failed';
 }
 
 /**
@@ -102,42 +83,30 @@ export async function generateTopicInsight(
   replies: number,
   views: number
 ): Promise<string> {
-  const client = getAnthropicClient();
-  if (!client) {
+  if (!isLLMConfigured()) {
     // Fallback: generate a simple insight without AI
     if (replies > 50) return 'Highly discussed topic generating significant community engagement.';
     if (views > 1000) return 'Popular topic attracting wide attention from the community.';
     return 'Active discussion in progress.';
   }
 
-  try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 100,
-      messages: [
-        {
-          role: 'user',
-          content: `Write ONE short sentence (max 15 words) explaining what this forum discussion is about based on its title. Be specific and informative.
+  const text = await generateText({
+    maxTokens: 100,
+    anthropicModel: 'claude-haiku-4-5-20251001',
+    prompt: `Write ONE short sentence (max 15 words) explaining what this forum discussion is about based on its title. Be specific and informative.
 
 Forum: ${protocol}
 Title: "${title}"
 Engagement: ${replies} replies, ${views} views
 
-Just respond with the sentence, no quotes or explanation.`
-        }
-      ]
-    });
-
-    const textBlock = response.content.find(block => block.type === 'text');
-    return textBlock?.text?.trim() || 'Active discussion.';
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error(`Error generating topic insight for "${title}":`, msg);
-    // Return engagement-based fallback
-    if (replies > 50) return 'Highly discussed topic generating significant community engagement.';
-    if (views > 1000) return 'Popular topic attracting wide attention from the community.';
-    return 'Active discussion.';
-  }
+Just respond with the sentence, no quotes or explanation.`,
+    context: `TopicInsight:"${title.slice(0, 60)}"`,
+  });
+  if (text !== null) return text.trim() || 'Active discussion.';
+  // Call failed — engagement-based fallback (parity with main's catch path)
+  if (replies > 50) return 'Highly discussed topic generating significant community engagement.';
+  if (views > 1000) return 'Popular topic attracting wide attention from the community.';
+  return 'Active discussion.';
 }
 
 /**
