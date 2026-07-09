@@ -5,12 +5,14 @@ import { safeFetch } from '@/lib/safeFetch';
 import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
 import { getCachedForum, startBackgroundRefresh } from '@/lib/forumCache';
 import { startDelegateRefreshLoop } from '@/lib/delegates/refreshEngine';
+import { startDailyBriefLoop } from '@/lib/dailyBriefLoop';
 import { initializeSchema, isDatabaseConfigured } from '@/lib/db';
 
 // Start background refresh on first import (server startup)
 if (typeof window === 'undefined') {
   startBackgroundRefresh();
   startDelegateRefreshLoop();
+  startDailyBriefLoop();
   // Run forward-compatible schema migrations at boot. Previously these only
   // ran via admin endpoints, so ALTER TABLE migrations (e.g. the density
   // column) never reached production and the queries using them 500'd.

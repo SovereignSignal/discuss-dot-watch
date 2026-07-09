@@ -189,9 +189,9 @@ export async function getGrantChipRows(limit = 2000): Promise<GrantChipRow[]> {
   return rows as unknown as GrantChipRow[];
 }
 
-// ── Roles email (daily notification) ─────────────────────────────────
+// ── Daily brief (email notification watermark) ──────────────────────
 
-export interface RoleItemRow {
+export interface BriefItemRow {
   id: number;
   topic_ref_id: string;
   protocol: string | null;
@@ -209,31 +209,59 @@ export interface RoleItemRow {
 }
 
 /**
- * ROLE items that haven't been emailed yet — the daily roles email marks
+ * Classified items that haven't been emailed yet — the daily brief marks
  * them notified after a successful send, so each item mails exactly once.
  * Ordering is deadline-aware FIFO (urgent application windows first, then
  * oldest-classified) so the daily cap can never starve an imminent deadline
  * behind newer arrivals. Items already closed or past their deadline are
  * skipped — no point notifying about a window that can't be acted on.
+ * The 7-day freshness window keeps the brief about NEW discoveries: it
+ * also prevents the pre-watermark GRANT backlog (hundreds of rows with
+ * notified_at NULL) from dripping into the email for weeks, while giving
+ * cap-deferred items ample grace to mail on later days.
  */
-export async function getUnnotifiedRoleItems(minConfidence = 60, limit = 25): Promise<RoleItemRow[]> {
+export async function getUnnotifiedItems(
+  classification: 'GRANT' | 'ROLE',
+  minConfidence = 60,
+  limit = 25,
+): Promise<BriefItemRow[]> {
   if (!isDatabaseConfigured()) return [];
   const db = getDb();
   const rows = await db`
     SELECT id, topic_ref_id, protocol, vertical, title, url, kind, confidence,
            program, amount_min, amount_max, currency, deadline, first_seen_at
     FROM grants_items
-    WHERE classification = 'ROLE' AND confidence >= ${minConfidence} AND notified_at IS NULL
+    WHERE classification = ${classification} AND confidence >= ${minConfidence} AND notified_at IS NULL
+      AND first_seen_at > NOW() - INTERVAL '7 days'
       AND (status IS DISTINCT FROM 'closed')
       AND (deadline IS NULL OR deadline >= date_trunc('day', NOW()))
     ORDER BY deadline ASC NULLS LAST, id ASC
     LIMIT ${limit}
   `;
-  return rows as unknown as RoleItemRow[];
+  return rows as unknown as BriefItemRow[];
 }
 
-export async function markRoleItemsNotified(ids: number[]): Promise<void> {
+export async function markItemsNotified(ids: number[]): Promise<void> {
   if (!isDatabaseConfigured() || ids.length === 0) return;
   const db = getDb();
   await db`UPDATE grants_items SET notified_at = NOW() WHERE id = ANY(${ids})`;
+}
+
+/**
+ * Stamp brief-eligible items that aged past the freshness window without
+ * ever mailing (cap deferrals during a flood, or a send outage) so they
+ * stop matching the query AND the drop is observable. Returns the ids so
+ * the caller can log them loudly. Only stamps rows the brief would
+ * otherwise have mailed (confidence ≥ 60, open, GRANT/ROLE).
+ */
+export async function markExpiredUnnotified(): Promise<number[]> {
+  if (!isDatabaseConfigured()) return [];
+  const db = getDb();
+  const rows = await db`
+    UPDATE grants_items SET notified_at = NOW()
+    WHERE classification IN ('GRANT', 'ROLE') AND confidence >= 60 AND notified_at IS NULL
+      AND first_seen_at <= NOW() - INTERVAL '7 days'
+    RETURNING id
+  `;
+  return Array.from(rows, (r) => (r as { id: number }).id);
 }
