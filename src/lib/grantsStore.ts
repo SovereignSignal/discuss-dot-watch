@@ -206,6 +206,7 @@ export interface BriefItemRow {
   amount_max: string | null;
   currency: string | null;
   deadline: Date | null;
+  topic_created_at: Date | null;
   first_seen_at: Date;
 }
 
@@ -216,6 +217,9 @@ export interface BriefItemRow {
  * oldest-classified) so the daily cap can never starve an imminent deadline
  * behind newer arrivals. Items already closed or past their deadline are
  * skipped — no point notifying about a window that can't be acted on.
+ * Recency is judged by when the TOPIC was posted (owner feedback: comments
+ * bump old threads and are mostly noise) — items must be created within 60
+ * days, and a model-extracted deadline never overrides topic age.
  * The 7-day freshness window keeps the brief about NEW discoveries: it
  * also prevents the pre-watermark GRANT backlog (hundreds of rows with
  * notified_at NULL) from dripping into the email for weeks, while giving
@@ -230,13 +234,13 @@ export async function getUnnotifiedItems(
   const db = getDb();
   const rows = await db`
     SELECT id, topic_ref_id, protocol, vertical, title, url, kind, confidence,
-           program, amount_min, amount_max, currency, deadline, first_seen_at
+           program, amount_min, amount_max, currency, deadline, topic_created_at, first_seen_at
     FROM grants_items
     WHERE classification = ${classification} AND confidence >= ${minConfidence} AND notified_at IS NULL
       AND first_seen_at > NOW() - INTERVAL '7 days'
       AND (status IS DISTINCT FROM 'closed')
       AND (deadline IS NULL OR deadline >= date_trunc('day', NOW()))
-      AND (deadline IS NOT NULL OR topic_created_at IS NULL OR topic_created_at > NOW() - INTERVAL '60 days')
+      AND topic_created_at > NOW() - INTERVAL '60 days'
     ORDER BY deadline ASC NULLS LAST, id ASC
     LIMIT ${limit}
   `;
