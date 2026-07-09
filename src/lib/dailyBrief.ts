@@ -115,6 +115,7 @@ function itemFacts(item: BriefItemRow, kind: 'role' | 'grant'): string[] {
     item.program,
     amount ? (kind === 'role' ? `Compensation: ${amount}` : `Amount: ${amount}`) : null,
     deadline ? `Deadline: ${deadline}` : null,
+    item.topic_created_at ? `Posted: ${item.topic_created_at.toISOString().slice(0, 10)}` : null,
     `${item.confidence}% confidence`,
   ].filter((f): f is string => Boolean(f));
 }

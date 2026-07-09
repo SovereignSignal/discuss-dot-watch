@@ -147,6 +147,20 @@ Extract only what the text states — never invent amounts or deadlines. Amounts
       classification = 'NEWS';
     }
 
+    // Deadline plausibility: models infer missing years, so an old post
+    // saying "deadline October 1" becomes a FUTURE date (a 2024 Gitcoin RFP
+    // was extracted with deadline 2026-10-01). Forum opportunity windows
+    // run weeks-to-months — a deadline >180 days after the topic was posted
+    // (or before it) is a hallucination, not a window.
+    let deadline = isoDate(out.deadline);
+    const createdMs = input.createdAt ? Date.parse(input.createdAt) : NaN;
+    if (deadline && !Number.isNaN(createdMs)) {
+      const deadlineMs = Date.parse(deadline);
+      if (deadlineMs < createdMs || deadlineMs > createdMs + 180 * 86_400_000) {
+        deadline = null;
+      }
+    }
+
     return {
       classification,
       kind: str(out.kind),
@@ -155,7 +169,7 @@ Extract only what the text states — never invent amounts or deadlines. Amounts
       amountMin: num(out.amount_min),
       amountMax: num(out.amount_max),
       currency: str(out.currency),
-      deadline: isoDate(out.deadline),
+      deadline,
       chain: str(out.chain),
       status: str(out.status),
       applyUrl: safeUrl(out.apply_url),

@@ -266,6 +266,14 @@ export async function initializeSchema() {
       AND (deadline IS NULL OR deadline < NOW())
       AND topic_created_at < NOW() - INTERVAL '90 days'
   `;
+  // Deadlines >180d after (or before) the topic's posting are model
+  // year-inference hallucinations (2026-07-09 owner feedback: a 2024 RFP
+  // carried deadline 2026-10-01) — null them so nothing downstream trusts them.
+  await db`
+    UPDATE grants_items SET deadline = NULL
+    WHERE deadline IS NOT NULL AND topic_created_at IS NOT NULL
+      AND (deadline < topic_created_at OR deadline > topic_created_at + INTERVAL '180 days')
+  `;
 
   // Create indexes for common queries
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;
