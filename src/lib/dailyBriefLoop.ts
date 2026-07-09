@@ -3,8 +3,9 @@
  * had NO scheduler at all (the cron endpoint existed but nothing called
  * it). Same pattern as the delegate refresh loop: registered as a
  * side-effect of the first /api/discourse import, hourly ticks, and
- * claimOncePerDay (Redis, UTC-day-keyed) makes it exactly-once per day
- * even across instance restarts or a racing external pinger.
+ * the Postgres day-claim in dailyBrief.ts (atomic INSERT, fail-closed) makes
+ * it exactly-once per day even across instance restarts or a racing
+ * external pinger.
  *
  * Sends at or after SEND_HOUR_UTC (14:00 UTC ≈ 7am PT) on the first
  * hourly tick of the window.
@@ -18,9 +19,19 @@ const INITIAL_DELAY_MS = 5 * 60 * 1000;   // let the process settle after boot
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // hourly
 
 let started = false;
+let warnedNoResend = false;
 
 async function tick(): Promise<void> {
-  if (!isDatabaseConfigured() || !process.env.RESEND_API_KEY) return;
+  if (!isDatabaseConfigured()) return;
+  if (!process.env.RESEND_API_KEY) {
+    // Loud once: a silently-skipping loop looks identical to a healthy one,
+    // and a week of silence permanently expires items past the freshness window.
+    if (!warnedNoResend) {
+      warnedNoResend = true;
+      console.error('[DailyBrief] RESEND_API_KEY not configured — daily brief will NOT send');
+    }
+    return;
+  }
   if (new Date().getUTCHours() < SEND_HOUR_UTC) return;
   try {
     const result = await runDailyBrief();

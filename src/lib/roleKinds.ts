@@ -15,7 +15,7 @@ export const ROLE_KIND_LABELS: Record<string, string> = {
 };
 
 export function roleKindLabel(kind: string | null | undefined): string {
-  return (kind && ROLE_KIND_LABELS[kind]) || 'Position';
+  return (kind && Object.hasOwn(ROLE_KIND_LABELS, kind) && ROLE_KIND_LABELS[kind]) || 'Position';
 }
 
 export const GRANT_KIND_LABELS: Record<string, string> = {
@@ -29,5 +29,5 @@ export const GRANT_KIND_LABELS: Record<string, string> = {
 };
 
 export function grantKindLabel(kind: string | null | undefined): string {
-  return (kind && GRANT_KIND_LABELS[kind]) || 'Grant';
+  return (kind && Object.hasOwn(GRANT_KIND_LABELS, kind) && GRANT_KIND_LABELS[kind]) || 'Grant';
 }

@@ -397,7 +397,7 @@ The app functions without these in development (gracefully degrades).
 
 ## Database Schema
 
-- **Core**: `src/lib/db.ts` (in `initializeSchema()`) — forums, topics, topic_snapshots, backfill_jobs, users, user_preferences, keyword_alerts, bookmarks, user_forums, user_forums_data, custom_forums, read_state
+- **Core**: `src/lib/db.ts` (in `initializeSchema()`) — forums, topics, topic_snapshots, backfill_jobs, users, user_preferences, keyword_alerts, bookmarks, user_forums, user_forums_data, custom_forums, read_state, grants_items, daily_sends
 - **Delegates**: `src/lib/delegates/db.ts` (in `initializeDelegateSchema()`) — delegate_tenants, delegates, delegate_snapshots, tenant_admins, tenant_invites
 - Reference DDL: `src/lib/delegates/schema.sql` (base tables only; `tenant_admins` and `tenant_invites` are defined in code)
 - All schemas use `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for forward-compatible migrations. Schema runs on first API call, not as a separate migration step.

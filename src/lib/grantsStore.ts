@@ -246,3 +246,22 @@ export async function markItemsNotified(ids: number[]): Promise<void> {
   const db = getDb();
   await db`UPDATE grants_items SET notified_at = NOW() WHERE id = ANY(${ids})`;
 }
+
+/**
+ * Stamp brief-eligible items that aged past the freshness window without
+ * ever mailing (cap deferrals during a flood, or a send outage) so they
+ * stop matching the query AND the drop is observable. Returns the ids so
+ * the caller can log them loudly. Only stamps rows the brief would
+ * otherwise have mailed (confidence ≥ 60, open, GRANT/ROLE).
+ */
+export async function markExpiredUnnotified(): Promise<number[]> {
+  if (!isDatabaseConfigured()) return [];
+  const db = getDb();
+  const rows = await db`
+    UPDATE grants_items SET notified_at = NOW()
+    WHERE classification IN ('GRANT', 'ROLE') AND confidence >= 60 AND notified_at IS NULL
+      AND first_seen_at <= NOW() - INTERVAL '7 days'
+    RETURNING id
+  `;
+  return Array.from(rows, (r) => (r as { id: number }).id);
+}

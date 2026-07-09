@@ -242,6 +242,18 @@ export async function initializeSchema() {
   await db`CREATE INDEX IF NOT EXISTS idx_grants_items_classification ON grants_items(classification)`;
   // Roles email watermark: ROLE rows mail once, then stamp notified_at.
   await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP WITH TIME ZONE`;
+  // Daily-brief day claim: authoritative, fail-closed, race-safe across the
+  // in-process scheduler, the cron endpoint, and multiple instances. Redis
+  // claimOncePerDay fails OPEN (by design for jobs that must not block),
+  // which is wrong for an email gate polled hourly.
+  await db`
+    CREATE TABLE IF NOT EXISTS daily_sends (
+      name TEXT NOT NULL,
+      day DATE NOT NULL,
+      sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      PRIMARY KEY (name, day)
+    )
+  `;
   // Which model classified the row (frozen at classification; bake-off attribution).
   await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS model TEXT`;
 
