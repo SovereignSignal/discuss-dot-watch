@@ -183,6 +183,7 @@ export async function getGrantChipRows(limit = 2000): Promise<GrantChipRow[]> {
     SELECT topic_ref_id, classification, confidence, kind, program, amount_min, amount_max, currency, deadline
     FROM grants_items
     WHERE classification IN ('GRANT', 'ROLE') AND confidence >= 60
+      AND (status IS DISTINCT FROM 'closed')
     ORDER BY id DESC
     LIMIT ${limit}
   `;
@@ -235,6 +236,7 @@ export async function getUnnotifiedItems(
       AND first_seen_at > NOW() - INTERVAL '7 days'
       AND (status IS DISTINCT FROM 'closed')
       AND (deadline IS NULL OR deadline >= date_trunc('day', NOW()))
+      AND (deadline IS NOT NULL OR topic_created_at IS NULL OR topic_created_at > NOW() - INTERVAL '60 days')
     ORDER BY deadline ASC NULLS LAST, id ASC
     LIMIT ${limit}
   `;

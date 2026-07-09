@@ -37,7 +37,16 @@ export interface GrantsCandidateInput {
   body?: string;
   /** Why this candidate was selected (keywords, grants category, funding tag). */
   signal: string;
+  /** Topic creation time (ISO) — lets the model judge whether an
+   *  application/nomination window is plausibly still open. */
+  createdAt?: string | null;
 }
+
+/** Individual delegate accountability/reporting threads ("<name> Delegate
+ *  Thread") pattern-match delegate-incentive ROLEs but are people reporting
+ *  their own work under an existing program — never an open seat. Enforced
+ *  deterministically so it survives model swaps. */
+const DELEGATE_REPORT_RE = /delegate\s+(thread|communication|report|update)s?\b/i;
 
 const MAX_BODY_CHARS = 6000;
 
@@ -93,12 +102,17 @@ export async function classifyGrantsCandidate(
       schema: CLASSIFY_SCHEMA,
       toolName: CLASSIFY_TOOL_NAME,
       toolDescription: CLASSIFY_TOOL_DESCRIPTION,
-      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = a paid position or seat with a currently open (or announced) application/nomination/election window someone could act on now (elections, council seats, steward nominations, delegate incentive enrollment, service-provider mandates). A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. Today is ${today}.
+      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = a paid position or seat with a currently open (or announced) application/nomination/election window someone could act on now (elections, council seats, steward nominations, delegate incentive enrollment, service-provider mandates). A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. An individual's own accountability/reporting thread under a program (e.g. "<name> Delegate Thread", voting-rationale threads) is that person reporting their work — NEWS or NOISE, never ROLE. If the posting is months old, its application/nomination window has almost certainly passed: classify NEWS with status "closed" unless the text states a still-future deadline. Today is ${today}.
 
 Forum: ${input.protocol} (${input.vertical})
 Selected because: ${input.signal}
 Title: ${input.title}
-Tags: ${input.tags.join(', ') || '(none)'}
+Tags: ${input.tags.join(', ') || '(none)'}${(() => {
+          const t = input.createdAt ? Date.parse(input.createdAt) : NaN;
+          if (Number.isNaN(t)) return '';
+          const days = Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+          return `\nPosted: ${input.createdAt!.slice(0, 10)} (${days} days ago)`;
+        })()}
 
 ${body ? `First post:\n${body}` : '(first post text unavailable — classify from the title and tags)'}
 
@@ -124,8 +138,14 @@ Extract only what the text states — never invent amounts or deadlines. Amounts
       return s && s.length <= 2048 && isAllowedUrl(s) ? s : null;
     };
 
-    const classification = out.classification;
-    if (classification !== 'GRANT' && classification !== 'ROLE' && classification !== 'NEWS' && classification !== 'NOISE') return null;
+    const rawClassification = out.classification;
+    if (rawClassification !== 'GRANT' && rawClassification !== 'ROLE' && rawClassification !== 'NEWS' && rawClassification !== 'NOISE') return null;
+    let classification: GrantsClassification = rawClassification;
+    // Deterministic guard: personal delegate reporting threads are never
+    // open positions, whatever the model says.
+    if (classification === 'ROLE' && DELEGATE_REPORT_RE.test(input.title)) {
+      classification = 'NEWS';
+    }
 
     return {
       classification,
