@@ -224,7 +224,7 @@ All protected by `Authorization: Bearer ${CRON_SECRET}`. Triggered by an externa
 | `/api/cron/delegates` | per-tenant (default every 4h, enforced in-route) | Refresh delegate/contributor stats |
 | `/api/cron/grants-brief` | Daily | Send grants & funding brief email |
 
-Note: Discussion digest sending is invoked via `POST /api/digest` (admin-only), not a separate cron route.
+Note: the Daily Brief (the system's one outbound email — new GRANT+ROLE items) is sent by the in-process scheduler in `lib/dailyBriefLoop.ts`; `GET /api/cron/grants-brief` is a compatible secondary trigger.
 
 ---
 

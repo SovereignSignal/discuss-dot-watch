@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Realms/SPL Governance, Hacker News, Lobsters), **330+ forums + 150+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, per-DAO governance terminals (Anticapture: delegate accountability, per-delegate voting records, forum-linked votes), MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Realms/SPL Governance, Hacker News, Lobsters), **330+ forums + 150+ external sources**, one Daily Brief email (new grants + roles from classified data, Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, per-DAO governance terminals (Anticapture: delegate accountability, per-delegate voting records, forum-linked votes), MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -20,7 +20,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 | Icons | Lucide React |
 | Auth | Privy (`@privy-io/react-auth` client, `@privy-io/node` server) |
 | Email | Resend |
-| AI | Provider layer `lib/llm.ts`: Anthropic Claude (Haiku 4.5 + Sonnet 4.5, default) or Ollama Cloud (`LLM_PROVIDER=ollama`, any hosted OSS model via `LLM_MODEL`) |
+| AI | Provider layer `lib/llm.ts`: Anthropic Claude (Haiku 4.5 classify + Sonnet 4.5 summary, default) or Ollama Cloud (`LLM_PROVIDER=ollama`, any hosted OSS model via `LLM_MODEL`) |
 | Validation | Zod 4 |
 | Sanitization | sanitize-html |
 | Cache | Redis (ioredis) |
@@ -33,7 +33,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 src/
 ├── middleware.ts            # Security headers, bare domain redirect, [tenant] slug validation
 ├── app/                    # Next.js App Router
-│   ├── api/                # API routes (discourse, digest, briefs, delegates, anticapture, user, admin, v1, mcp, cron, health, discussions)
+│   ├── api/                # API routes (discourse, briefs, delegates, anticapture, user, admin, v1, mcp, cron, health, discussions)
 │   ├── [tenant]/           # Multi-tenant forum analytics dashboards
 │   ├── admin/              # Admin dashboard
 │   ├── app/                # Main app page (client-side, authenticated)
@@ -54,14 +54,13 @@ src/
 │   ├── theme.ts            # c() theme utility (legacy; new components prefer --ds-* CSS variables)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
 │   ├── url.ts              # URL validation, normalization, and SSRF protection
-│   ├── grantsBrief.ts      # Grants & funding brief generation (daily email)
 │   ├── grantsDetect.ts     # Shared grants + roles keyword prefilters (brief uses grants only; scan uses both)
 │   ├── grantsScan.ts       # Grants classification pipeline (runs after each cache refresh; Discourse RSS bodies, grants categories, EA funding tag)
 │   ├── llm.ts              # LLM provider layer — ALL model calls route here (Anthropic default; Ollama Cloud via LLM_PROVIDER=ollama)
 │   ├── grantsClassifier.ts # classify+extract via lib/llm.ts (GRANT/ROLE/NEWS/NOISE + program/amounts/deadline; model stamped on grants_items)
-│   ├── grantsStore.ts      # grants_items persistence + /api/v1/grants queries + roles-email watermark
-│   ├── rolesBrief.ts       # Daily Roles & Positions email formatting (ROLE items; no LLM)
-│   ├── emailDigest.ts      # AI email digest generation
+│   ├── grantsStore.ts      # grants_items persistence + /api/v1/grants queries + daily-brief watermark
+│   ├── dailyBrief.ts       # THE outbound email: Daily Brief (new GRANT+ROLE items, one Sonnet summary)
+│   ├── dailyBriefLoop.ts   # In-process daily scheduler (hourly ticks, 14:00 UTC window, claimOncePerDay)
 │   ├── emailService.ts     # Resend email delivery
 │   ├── eaForumClient.ts    # EA Forum / LessWrong GraphQL client
 │   ├── githubDiscussionsClient.ts  # GitHub Discussions GraphQL client
@@ -124,7 +123,6 @@ npm run lint     # Run ESLint
 | `/api/external-sources` | GET | Fetch from non-Discourse sources |
 | `/api/forum-stats` | GET | Public per-forum activity (topic count + last activity timestamp) for ForumManager cards |
 | `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
-| `/api/digest` | GET/POST | AI digest retrieval / generation (admin) |
 
 ### User Data (requires Privy auth via `verifyAuth`)
 | Route | Method | Purpose |
@@ -171,7 +169,7 @@ npm run lint     # Run ESLint
 |-------|--------|---------|
 | `/api/health` | GET | Unauthenticated health check (DB + Redis status) |
 | `/api/cron/delegates` | GET | Cron: delegate data refresh |
-| `/api/cron/grants-brief` | GET | Cron: grants & funding brief email + daily Roles & Positions email |
+| `/api/cron/grants-brief` | GET | Cron: the Daily Brief email (new grants + roles; also fired by the in-process scheduler) |
 | `/api/v1/*` | GET | Public API v1 (forums, discussions, categories, search) |
 | `/api/v1/grants` | GET | Classified grants & funding items (grants scan pipeline; `since` watermark for external ingesters like the Grant Wire; `classification=ROLE` exposes the paid-positions lane — never in the default GRANT pull) |
 | `/api/mcp` | GET | MCP tool definitions |
@@ -377,7 +375,7 @@ Tags in raw API response can be strings OR objects — handle both.
 |----------|---------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
-| `ANTHROPIC_API_KEY` | Claude API for AI digests (default LLM provider) |
+| `ANTHROPIC_API_KEY` | Claude API for classification + the brief summary (default LLM provider) |
 | `LLM_PROVIDER` | `ollama` routes all model calls to Ollama Cloud; unset/anything else = Anthropic (instant rollback) |
 | `OLLAMA_API_KEY` | Ollama Cloud API key (required when `LLM_PROVIDER=ollama`) |
 | `OLLAMA_BASE_URL` | Ollama endpoint (default `https://ollama.com`) |
@@ -393,7 +391,7 @@ Tags in raw API response can be strings OR objects — handle both.
 | `REALMS_DISABLED` | `true` disables all Realms fetching (kill switch) |
 | `ANTICAPTURE_API_KEY` | Anticapture governance terminal (`/governance`); optional — dashboards degrade gracefully when unset. Currently a temporary dev key. |
 | `ENCRYPTION_KEY` | AES-256-GCM for delegate API keys |
-| `NEXT_PUBLIC_APP_URL` | Public app URL (digest email links) |
+| `NEXT_PUBLIC_APP_URL` | Public app URL (brief email links) |
 
 The app functions without these in development (gracefully degrades).
 
@@ -411,6 +409,6 @@ All protected by `CRON_SECRET` (constant-time comparison via `validateCronSecret
 | Endpoint | Schedule | Purpose |
 |----------|----------|---------|
 | `/api/cron/delegates` | Per-tenant (default 4h) | Refresh delegate/contributor stats |
-| `/api/cron/grants-brief` | Daily | Grants & funding brief email + Roles & Positions email (unnotified ROLE items) |
+| `/api/cron/grants-brief` | Daily | Daily Brief email — unnotified GRANT+ROLE items (primary trigger: in-process scheduler at 14:00 UTC) |
 
-Note: Digest sending is handled via `/api/digest` (POST, admin-only), not a separate cron route.
+Note: the Daily Brief's primary trigger is the in-process scheduler (`lib/dailyBriefLoop.ts`); the cron endpoint is a compatible secondary trigger (both race-safe via `claimOncePerDay`).
