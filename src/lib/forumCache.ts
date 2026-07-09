@@ -21,7 +21,7 @@ import { fetchSnapshotProposals } from './snapshotClient';
 import { fetchHackerNewsStories } from './hackerNewsClient';
 import { fetchLobstersStories } from './lobstersClient';
 import { safeFetch } from './safeFetch';
-import { matchGrantsKeywords } from './grantsDetect';
+import { matchGrantsKeywords, matchRolesKeywords } from './grantsDetect';
 import { queueGrantsCandidate, runGrantsScan } from './grantsScan';
 import {
   getCachedTopics,
@@ -623,13 +623,21 @@ async function refreshExternalSources(): Promise<void> {
         ? source.category
         : null;
       for (const post of result.posts) {
-        if (vertical && (post.firstPostText || matchGrantsKeywords(post.title, post.tags || [], post.excerpt).length > 0)) {
-          queueGrantsCandidate(
-            post,
-            vertical,
-            post.firstPostText || post.excerpt,
-            post.firstPostText ? 'external body match' : 'external title/excerpt match',
-          );
+        if (vertical) {
+          const grantsMatch = post.firstPostText || matchGrantsKeywords(post.title, post.tags || [], post.excerpt).length > 0;
+          // Role keywords open the gate too (the classifier owns precision);
+          // the 'roles:' signal prefix keeps grants-first ordering downstream.
+          const rolesMatch = !grantsMatch && matchRolesKeywords(post.title, post.tags || [], post.excerpt).length > 0;
+          if (grantsMatch || rolesMatch) {
+            queueGrantsCandidate(
+              post,
+              vertical,
+              post.firstPostText || post.excerpt,
+              rolesMatch
+                ? 'roles: external title/excerpt match'
+                : post.firstPostText ? 'external body match' : 'external title/excerpt match',
+            );
+          }
         }
         delete post.firstPostText;
       }

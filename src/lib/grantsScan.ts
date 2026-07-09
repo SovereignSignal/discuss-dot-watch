@@ -258,22 +258,45 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
 
   let rssFetches = 0;
 
-  // Bodies for fresh keyword candidates: one /latest.rss per involved forum
-  for (const [forumUrl, cands] of forumsNeedingBodies) {
+  // Bodies for fresh keyword candidates: one /latest.rss per involved forum.
+  // Grants-signal forums spend the bounded RSS budget first so the (larger,
+  // noisier) role-keyword surface can never starve grant bodies — mirroring
+  // the grants-first ordering of the classification cap below.
+  const forumEntries = [...forumsNeedingBodies.entries()].sort(([, a], [, b]) => {
+    const aGrants = a.some(c => !c.signal.startsWith('roles:')) ? 0 : 1;
+    const bGrants = b.some(c => !c.signal.startsWith('roles:')) ? 0 : 1;
+    return aGrants - bGrants;
+  });
+  let budgetExhausted = false;
+  for (const [forumUrl, cands] of forumEntries) {
     const fresh = cands.filter(c => !preClassified.has(c.refId));
     if (fresh.length === 0) continue;
     if (rssFetches >= MAX_RSS_FETCHES_PER_RUN) {
-      console.log('[GrantsScan] /latest.rss budget reached — remaining bodies deferred to next cycle');
-      break;
+      budgetExhausted = true;
+      // Classification is permanent (dedup tombstones): a candidate whose
+      // body fetch was budget-starved must NOT classify body-less this
+      // cycle — pull it and let it re-enter from the cache next cycle.
+      let deferred = 0;
+      for (const cand of fresh) {
+        candidates.delete(cand.refId);
+        deferred++;
+      }
+      if (deferred) console.log(`[GrantsScan] /latest.rss budget reached — ${deferred} candidate(s) from ${forumUrl} deferred to next cycle`);
+      continue;
     }
     rssFetches++;
     const items = await fetchDiscourseRss(`${forumUrl.replace(/\/$/, '')}/latest.rss`);
     const byId = new Map(items.map(i => [i.topicId, i]));
     for (const cand of fresh) {
       const item = cand.topicId != null ? byId.get(cand.topicId) : undefined;
+      // A candidate whose forum WAS fetched but whose topic fell outside
+      // the RSS window still classifies now (deferring would retry forever).
       if (item) cand.body = item.body;
     }
     await new Promise(r => setTimeout(r, RSS_FETCH_DELAY_MS));
+  }
+  if (budgetExhausted) {
+    console.log('[GrantsScan] Body-fetch budget exhausted this cycle — deferred forums retry next cycle');
   }
 
   // 3. Dedicated grants categories (hourly — they move slowly).

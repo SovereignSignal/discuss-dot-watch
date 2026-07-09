@@ -26,7 +26,9 @@ export function useGrantChips(): Record<string, GrantChip> {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/grants-chips')
+    // include=roles is the post-roles-lane contract; bundles without it
+    // (pre-deploy, CDN-cached) keep receiving grants-only payloads.
+    fetch('/api/grants-chips?include=roles')
       .then(res => (res.ok ? res.json() : null))
       .then((data: { chips?: Record<string, GrantChip> } | null) => {
         if (cancelled || !data?.chips) return;

@@ -51,7 +51,19 @@ async function sendRolesEmail(): Promise<{ sent: boolean; count: number; reason?
     throw new Error(`Roles email send failed: ${result.error}`);
   }
 
-  await markRoleItemsNotified(items.map(i => i.id));
+  // The email is out — a watermark-stamp failure must not masquerade as a
+  // send failure (which would re-mail the same items tomorrow AND report
+  // an error for a delivered email). Retry once, then log the ids loudly.
+  const ids = items.map(i => i.id);
+  try {
+    await markRoleItemsNotified(ids);
+  } catch {
+    try {
+      await markRoleItemsNotified(ids);
+    } catch (err) {
+      console.error(`[Cron RolesEmail] SENT but failed to stamp notified_at for ids [${ids.join(', ')}] — stamp manually or expect re-notification tomorrow:`, err);
+    }
+  }
   console.log(`[Cron RolesEmail] Sent ${items.length} role item(s) to ${RECIPIENT}`);
   return { sent: true, count: items.length };
 }
@@ -129,6 +141,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Cron GrantsBrief] Fatal error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', roles }, { status: 500 });
   }
 }

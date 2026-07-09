@@ -121,7 +121,9 @@ export interface GrantsQuery {
   since?: string;
   wire?: 'crypto' | 'ai' | 'oss';
   minConfidence?: number;
-  classification?: string;
+  /** One or more classifications; undefined = no filter. A list (not a
+   *  single value) so 'all' can mean the wire classes WITHOUT ROLE. */
+  classifications?: string[];
   status?: string;
   limit: number;
   cursor?: number;
@@ -145,7 +147,7 @@ export async function queryGrantsItems(q: GrantsQuery): Promise<GrantsItemRow[]>
       ${q.since ? db`AND first_seen_at > ${q.since}` : db``}
       ${q.wire ? db`AND vertical = ${q.wire}` : db``}
       ${q.minConfidence != null ? db`AND confidence >= ${q.minConfidence}` : db``}
-      ${q.classification ? db`AND classification = ${q.classification}` : db``}
+      ${q.classifications?.length ? db`AND classification = ANY(${q.classifications})` : db``}
       ${q.status ? db`AND status = ${q.status}` : db``}
       ${q.status === 'open' ? db`AND (deadline IS NULL OR deadline >= NOW())` : db``}
       ${q.cursor != null ? db`AND id < ${q.cursor}` : db``}
@@ -207,6 +209,10 @@ export interface RoleItemRow {
 /**
  * ROLE items that haven't been emailed yet — the daily roles email marks
  * them notified after a successful send, so each item mails exactly once.
+ * Ordering is deadline-aware FIFO (urgent application windows first, then
+ * oldest-classified) so the daily cap can never starve an imminent deadline
+ * behind newer arrivals. Items already closed or past their deadline are
+ * skipped — no point notifying about a window that can't be acted on.
  */
 export async function getUnnotifiedRoleItems(minConfidence = 60, limit = 25): Promise<RoleItemRow[]> {
   if (!isDatabaseConfigured()) return [];
@@ -216,7 +222,9 @@ export async function getUnnotifiedRoleItems(minConfidence = 60, limit = 25): Pr
            program, amount_min, amount_max, currency, deadline, first_seen_at
     FROM grants_items
     WHERE classification = 'ROLE' AND confidence >= ${minConfidence} AND notified_at IS NULL
-    ORDER BY id DESC
+      AND (status IS DISTINCT FROM 'closed')
+      AND (deadline IS NULL OR deadline >= date_trunc('day', NOW()))
+    ORDER BY deadline ASC NULLS LAST, id ASC
     LIMIT ${limit}
   `;
   return rows as unknown as RoleItemRow[];

@@ -9,21 +9,9 @@
  */
 
 import { escapeHtml } from './sanitize';
+import { isAllowedUrl } from './url';
+import { roleKindLabel as kindLabel } from './roleKinds';
 import type { RoleItemRow } from './grantsStore';
-
-const KIND_LABELS: Record<string, string> = {
-  council_seat: 'Council seat',
-  steward: 'Steward',
-  working_group: 'Working group',
-  election: 'Election',
-  delegate_incentive: 'Delegate incentives',
-  service_provider: 'Service provider',
-  other: 'Position',
-};
-
-function kindLabel(kind: string | null): string {
-  return (kind && KIND_LABELS[kind]) || 'Position';
-}
 
 function formatCompensation(row: RoleItemRow): string | null {
   const min = row.amount_min != null ? Number(row.amount_min) : null;
@@ -58,6 +46,14 @@ export function formatRolesEmailHtml(items: RoleItemRow[], date: Date): string {
       `${item.confidence}% confidence`,
     ].filter(Boolean).map(f => escapeHtml(String(f)));
 
+    // item.url is model output over attacker-controlled forum text —
+    // escapeHtml alone can't block javascript:/data: schemes in an href,
+    // so only URLs passing the app's allowlist become links.
+    const safeHref = item.url && isAllowedUrl(item.url) ? escapeHtml(item.url) : null;
+    const titleHtml = safeHref
+      ? `<a href="${safeHref}" style="color: #18181b; text-decoration: none;" target="_blank">${escapeHtml(item.title)}</a>`
+      : escapeHtml(item.title);
+
     return `
     <tr>
       <td style="padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
@@ -65,7 +61,7 @@ export function formatRolesEmailHtml(items: RoleItemRow[], date: Date): string {
           <span style="color: #18181b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: #ede9fe; padding: 2px 8px; border-radius: 4px;">${escapeHtml(item.protocol || 'Unknown')}</span>
         </div>
         <div style="font-weight: 600; font-size: 15px; margin-bottom: 8px;">
-          <a href="${escapeHtml(item.url)}" style="color: #18181b; text-decoration: none;" target="_blank">${escapeHtml(item.title)}</a>
+          ${titleHtml}
         </div>
         <div style="font-size: 12px; color: #5b21b6; background: #f5f3ff; padding: 4px 8px; border-radius: 4px; display: inline-block;">
           ${facts.join(' &middot; ')}
@@ -135,7 +131,8 @@ ${items.length} new paid position${items.length === 1 ? '' : 's'} spotted on the
       deadline ? `Deadline: ${deadline}` : null,
       `${item.confidence}% confidence`,
     ].filter(Boolean).join(' · ')}\n`;
-    text += `  ${item.url}\n\n`;
+    if (item.url && isAllowedUrl(item.url)) text += `  ${item.url}\n`;
+    text += '\n';
   }
 
   text += `---\nView all: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app\n\ndiscuss.watch — Roles & Positions`;

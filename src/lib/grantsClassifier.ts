@@ -48,7 +48,7 @@ const CLASSIFY_TOOL: Anthropic.Tool = {
       classification: {
         type: 'string',
         enum: ['GRANT', 'ROLE', 'NEWS', 'NOISE'],
-        description: 'GRANT: an actionable funding opportunity, program, RFP for project work, or grant-round discussion. ROLE: a paid position, seat, or ongoing service engagement a person or team can apply for — council/committee seats, steward or working-group nominations, elections, delegate incentive/compensation programs, multisig signers, service-provider mandates. NEWS: grants/funding/governance-role information without a direct opportunity (results, reports, policy debates). NOISE: not meaningfully about grants, funding, or paid positions.',
+        description: 'GRANT: an actionable funding opportunity, program, RFP for project work, or grant-round discussion. ROLE: a paid position or seat with a CURRENTLY OPEN (or announced) application, nomination, or election window that a person or team can act on — council/committee seats, steward or working-group nominations, elections, delegate incentive program enrollment, multisig signers, service-provider mandates. Discussions that administer, review, renew, or debate an existing program or seat WITHOUT an open application window are NEWS, not ROLE. NEWS: grants/funding/governance-role information without a direct opportunity (results, reports, policy debates, program administration). NOISE: not meaningfully about grants, funding, or paid positions.',
       },
       kind: {
         type: 'string',
@@ -102,7 +102,7 @@ export async function classifyGrantsCandidate(
       tool_choice: { type: 'tool', name: 'record_grants_classification' },
       messages: [{
         role: 'user',
-        content: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects; ROLE = a paid position or seat a person/team can apply for (elections, council seats, steward nominations, delegate incentive programs, service-provider mandates). A discussion that merely mentions a council/committee without an open opportunity is NEWS or NOISE, not ROLE. Today is ${today}.
+        content: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = a paid position or seat with a currently open (or announced) application/nomination/election window someone could act on now (elections, council seats, steward nominations, delegate incentive enrollment, service-provider mandates). A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. Today is ${today}.
 
 Forum: ${input.protocol} (${input.vertical})
 Selected because: ${input.signal}

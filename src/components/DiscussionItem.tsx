@@ -4,6 +4,7 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink, TrendingUp, User, Coins, Zap, Briefcase } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert, DateFilterMode } from '@/types';
 import type { GrantChip } from '@/hooks/useGrantChips';
+import { roleKindLabel } from '@/lib/roleKinds';
 
 function isExternalSource(topic: DiscussionTopic): boolean {
   return !!topic.sourceType && topic.sourceType !== 'discourse';
@@ -120,8 +121,13 @@ export function DiscussionItem({
   const chipLabel = isRoleChip ? 'role' : 'grant';
   const chipAccent = isRoleChip ? 'var(--ds-role)' : 'var(--ds-success)';
   const grantTitle = grantChip
-    ? [grantChip.program, grantChip.amount, validDeadline ? `deadline ${format(grantDeadline!, 'MMM d, yyyy')}` : null, `${grantChip.confidence}% confidence`]
-        .filter(Boolean).join(' · ')
+    ? [
+        isRoleChip ? roleKindLabel(grantChip.kind) : null,
+        grantChip.program,
+        grantChip.amount,
+        validDeadline ? `deadline ${format(grantDeadline!, 'MMM d, yyyy')}` : null,
+        `${grantChip.confidence}% confidence`,
+      ].filter(Boolean).join(' · ')
     : undefined;
 
   // Base/hover styles as token strings so the JS hover handlers and the
