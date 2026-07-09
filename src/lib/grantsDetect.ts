@@ -24,6 +24,55 @@ export const GRANTS_TAG_PATTERNS = new Set([
 ]);
 
 /**
+ * Paid-position / role detection — councils, steward and working-group
+ * nominations, elections, delegate incentive programs, service-provider
+ * RFPs. Consumed by the grants SCAN only (the daily grants brief stays
+ * funding-only), feeding the ROLE classification. Recall-tuned like the
+ * grants list above; the LLM classifier owns precision.
+ */
+export const ROLES_TITLE_PATTERNS = [
+  'election', 'nomination', 'nominee', 'steward',
+  'council', 'committee', 'working group',
+  'call for applicants', 'call for candidates', 'call for delegates',
+  'applications open', 'apply to join', 'now hiring', 'open role',
+  'delegate incentive', 'delegate program', 'delegate compensation',
+  'contributor program', 'ambassador program',
+  'multisig signer', 'security council', 'service provider',
+  'mandate', 'compensation',
+];
+
+export const ROLES_TAG_PATTERNS = new Set([
+  'election', 'elections', 'nominations', 'steward', 'stewards',
+  'council', 'committee', 'working-group', 'delegates',
+  'delegate-incentives', 'compensation',
+]);
+
+function matchPatterns(
+  title: string,
+  tags: string[],
+  text: string | undefined,
+  titlePatterns: readonly string[],
+  tagPatterns: Set<string>,
+): string[] {
+  const matched = new Set<string>();
+  const searchText = `${title} ${text || ''}`.toLowerCase();
+
+  for (const pattern of titlePatterns) {
+    if (searchText.includes(pattern)) {
+      matched.add(pattern);
+    }
+  }
+
+  for (const tag of tags) {
+    if (typeof tag === 'string' && tagPatterns.has(tag.toLowerCase())) {
+      matched.add(tag.toLowerCase());
+    }
+  }
+
+  return Array.from(matched);
+}
+
+/**
  * Match grants keywords against title + optional excerpt/body text and tags.
  * Returns the matched keywords (empty array = no match).
  */
@@ -32,20 +81,14 @@ export function matchGrantsKeywords(
   tags: string[],
   text?: string,
 ): string[] {
-  const matched = new Set<string>();
-  const searchText = `${title} ${text || ''}`.toLowerCase();
+  return matchPatterns(title, tags, text, GRANTS_TITLE_PATTERNS, GRANTS_TAG_PATTERNS);
+}
 
-  for (const pattern of GRANTS_TITLE_PATTERNS) {
-    if (searchText.includes(pattern)) {
-      matched.add(pattern);
-    }
-  }
-
-  for (const tag of tags) {
-    if (typeof tag === 'string' && GRANTS_TAG_PATTERNS.has(tag.toLowerCase())) {
-      matched.add(tag.toLowerCase());
-    }
-  }
-
-  return Array.from(matched);
+/** Match role/position keywords — same contract as matchGrantsKeywords. */
+export function matchRolesKeywords(
+  title: string,
+  tags: string[],
+  text?: string,
+): string[] {
+  return matchPatterns(title, tags, text, ROLES_TITLE_PATTERNS, ROLES_TAG_PATTERNS);
 }

@@ -11,6 +11,8 @@ import { isDatabaseConfigured } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 export interface GrantChipPayload {
+  /** 'grant' (funding opportunity) or 'role' (paid position/seat). */
+  cls: 'grant' | 'role';
   confidence: number;
   kind?: string;
   program?: string;
@@ -45,6 +47,7 @@ export async function GET() {
     const chips: Record<string, GrantChipPayload> = {};
     for (const row of rows) {
       chips[row.topic_ref_id] = {
+        cls: row.classification === 'ROLE' ? 'role' : 'grant',
         confidence: row.confidence,
         kind: row.kind ?? undefined,
         program: row.program ?? undefined,

@@ -1,15 +1,16 @@
 /**
  * Grants classifier — one Haiku call per candidate topic that both
- * classifies (GRANT / NEWS / NOISE, mirroring the Grant Wire Refinery's
- * taxonomy) and extracts structured fields (program, amounts, deadline,
- * status). Tool-use with a forced tool choice so the output is schema-
- * validated JSON rather than free text.
+ * classifies (GRANT / ROLE / NEWS / NOISE — GRANT/NEWS/NOISE mirror the
+ * Grant Wire Refinery's taxonomy; ROLE covers paid governance positions)
+ * and extracts structured fields (program, amounts, deadline, status).
+ * Tool-use with a forced tool choice so the output is schema-validated
+ * JSON rather than free text.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { isAllowedUrl } from './url';
 
-export type GrantsClassification = 'GRANT' | 'NEWS' | 'NOISE';
+export type GrantsClassification = 'GRANT' | 'ROLE' | 'NEWS' | 'NOISE';
 
 export interface GrantsExtraction {
   classification: GrantsClassification;
@@ -46,20 +47,20 @@ const CLASSIFY_TOOL: Anthropic.Tool = {
     properties: {
       classification: {
         type: 'string',
-        enum: ['GRANT', 'NEWS', 'NOISE'],
-        description: 'GRANT: an actionable funding opportunity, program, RFP, or grant-round discussion. NEWS: grants/funding-related information without a direct opportunity (results, reports, policy debates). NOISE: not meaningfully about grants or funding.',
+        enum: ['GRANT', 'ROLE', 'NEWS', 'NOISE'],
+        description: 'GRANT: an actionable funding opportunity, program, RFP for project work, or grant-round discussion. ROLE: a paid position, seat, or ongoing service engagement a person or team can apply for — council/committee seats, steward or working-group nominations, elections, delegate incentive/compensation programs, multisig signers, service-provider mandates. NEWS: grants/funding/governance-role information without a direct opportunity (results, reports, policy debates). NOISE: not meaningfully about grants, funding, or paid positions.',
       },
       kind: {
         type: 'string',
-        enum: ['program_launch', 'rfp', 'application', 'milestone_report', 'budget_debate', 'retro_round', 'other'],
-        description: 'The kind of grants item. Use "application" for individual grant applications/proposals seeking funds.',
+        enum: ['program_launch', 'rfp', 'application', 'milestone_report', 'budget_debate', 'retro_round', 'council_seat', 'steward', 'working_group', 'election', 'delegate_incentive', 'service_provider', 'other'],
+        description: 'The kind of item. For GRANT items use the funding kinds ("application" = an individual grant application seeking funds). For ROLE items use the role kinds: council_seat, steward, working_group, election, delegate_incentive, service_provider.',
       },
       confidence: { type: 'integer', minimum: 0, maximum: 100, description: 'Confidence in the classification.' },
-      program: { type: ['string', 'null'], description: 'Grant program name if identifiable, e.g. "Optimism Grants Council Season 8".' },
-      amount_min: { type: ['number', 'null'], description: 'Minimum funding amount mentioned, numeric only.' },
-      amount_max: { type: ['number', 'null'], description: 'Maximum or total funding amount mentioned, numeric only.' },
+      program: { type: ['string', 'null'], description: 'Program or role name if identifiable, e.g. "Optimism Grants Council Season 8"; for ROLE items, the position + body, e.g. "ENS MetaGov Steward".' },
+      amount_min: { type: ['number', 'null'], description: 'Minimum funding amount mentioned, numeric only. For ROLE items: compensation, if stated.', },
+      amount_max: { type: ['number', 'null'], description: 'Maximum or total funding amount mentioned, numeric only. For ROLE items: compensation, if stated.' },
       currency: { type: ['string', 'null'], description: 'Currency/token of the amounts, e.g. "USD", "OP", "ARB", "ETH".' },
-      deadline: { type: ['string', 'null'], description: 'Application or decision deadline as ISO date (YYYY-MM-DD) if stated.' },
+      deadline: { type: ['string', 'null'], description: 'Application, nomination, or decision deadline as ISO date (YYYY-MM-DD) if stated.' },
       chain: { type: ['string', 'null'], description: 'Blockchain/ecosystem if applicable, e.g. "Optimism", "Arbitrum". Null for AI/OSS items.' },
       status: {
         type: ['string', 'null'],
@@ -101,7 +102,7 @@ export async function classifyGrantsCandidate(
       tool_choice: { type: 'tool', name: 'record_grants_classification' },
       messages: [{
         role: 'user',
-        content: `You are a grants intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding details. Today is ${today}.
+        content: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects; ROLE = a paid position or seat a person/team can apply for (elections, council seats, steward nominations, delegate incentive programs, service-provider mandates). A discussion that merely mentions a council/committee without an open opportunity is NEWS or NOISE, not ROLE. Today is ${today}.
 
 Forum: ${input.protocol} (${input.vertical})
 Selected because: ${input.signal}
@@ -136,7 +137,7 @@ Extract only what the text states — never invent amounts or deadlines. Amounts
     };
 
     const classification = out.classification;
-    if (classification !== 'GRANT' && classification !== 'NEWS' && classification !== 'NOISE') return null;
+    if (classification !== 'GRANT' && classification !== 'ROLE' && classification !== 'NEWS' && classification !== 'NOISE') return null;
 
     return {
       classification,

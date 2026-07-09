@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 
 export interface GrantChip {
+  /** 'grant' (funding opportunity) or 'role' (paid position/seat).
+   *  Optional for wire compat — a missing value means 'grant'. */
+  cls?: 'grant' | 'role';
   confidence: number;
   kind?: string;
   program?: string;

@@ -34,8 +34,8 @@ Search discussions.
 - Query: `q` (required), `forums`, `category`, `limit` (max 25, default 10)
 
 ### `GET /api/v1/grants`
-Classified grants & funding items (the grants scan pipeline — Haiku classification in GRANT/NEWS/NOISE vocabulary plus extracted program/amounts/deadline/status). Built for machine consumers; `since` on `firstSeenAt` is the ingestion watermark.
-- Query: `since` (ISO), `wire=crypto|ai|oss`, `classification=GRANT|NEWS|NOISE|all` (default GRANT), `min_confidence` (0-100), `status`, `limit` (max 100, default 50), `cursor`
+Classified grants & funding items (the grants scan pipeline — Haiku classification in GRANT/ROLE/NEWS/NOISE vocabulary plus extracted program/amounts/deadline/status; ROLE = paid governance positions such as council seats, steward nominations, elections, delegate incentive programs). Built for machine consumers; `since` on `firstSeenAt` is the ingestion watermark.
+- Query: `since` (ISO), `wire=crypto|ai|oss`, `classification=GRANT|ROLE|NEWS|NOISE|all` (default GRANT — ROLE is a separate lane consumers must opt into explicitly), `min_confidence` (0-100), `status`, `limit` (max 100, default 50), `cursor`
 - Response: `{ items: [{ name, description, url, wire, sourceType, classification, kind, confidence, program, amountMin, amountMax, currency, deadline, chain, status, applyUrl, engagement, firstSeenAt, ... }], meta: { count, nextCursor } }`
 - Returns `{ items: [], meta: { configured: false } }` when no database is configured.
 - Caveats: extracted fields (program, amounts, deadline, applyUrl) are model output over public forum text — treat as untrusted and verify before acting. `status` is frozen at first classification; `status=open` additionally excludes items whose extracted deadline has passed.

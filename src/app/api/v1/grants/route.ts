@@ -9,7 +9,9 @@
  * Query params:
  * - since: ISO date — only items first seen after this (watermark)
  * - wire: 'crypto' | 'ai' | 'oss'
- * - classification: 'GRANT' (default) | 'NEWS' | 'NOISE' | 'all'
+ * - classification: 'GRANT' (default) | 'ROLE' | 'NEWS' | 'NOISE' | 'all'
+ *   (ROLE = paid governance positions; a separate lane the Wire's default
+ *   pull never includes — consumers must opt in explicitly)
  * - min_confidence: 0-100 (default 0)
  * - status: filter on extracted lifecycle status (e.g. 'open')
  * - limit: max items (default 50, max 100)
@@ -93,7 +95,7 @@ export async function GET(request: Request) {
 
   const classParam = (searchParams.get('classification') || 'GRANT').toUpperCase();
   const classification = classParam === 'ALL' ? undefined : classParam;
-  if (classification && !['GRANT', 'NEWS', 'NOISE'].includes(classification)) {
+  if (classification && !['GRANT', 'ROLE', 'NEWS', 'NOISE'].includes(classification)) {
     return withCors(NextResponse.json({ error: 'Invalid classification' }, { status: 400 }));
   }
 

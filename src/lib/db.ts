@@ -240,6 +240,8 @@ export async function initializeSchema() {
   await db`CREATE INDEX IF NOT EXISTS idx_grants_items_first_seen ON grants_items(first_seen_at DESC)`;
   await db`CREATE INDEX IF NOT EXISTS idx_grants_items_vertical ON grants_items(vertical)`;
   await db`CREATE INDEX IF NOT EXISTS idx_grants_items_classification ON grants_items(classification)`;
+  // Roles email watermark: ROLE rows mail once, then stamp notified_at.
+  await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP WITH TIME ZONE`;
 
   // Create indexes for common queries
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;

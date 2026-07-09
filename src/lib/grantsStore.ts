@@ -157,6 +157,7 @@ export async function queryGrantsItems(q: GrantsQuery): Promise<GrantsItemRow[]>
 
 export interface GrantChipRow {
   topic_ref_id: string;
+  classification: string;
   confidence: number;
   kind: string | null;
   program: string | null;
@@ -167,19 +168,62 @@ export interface GrantChipRow {
 }
 
 /**
- * Compact GRANT rows for the reader's reason chips — refId + just enough to
- * label a feed row. Bounded to the most recent classifications; the feed only
- * shows recent topics, so older rows can never match anyway.
+ * Compact GRANT + ROLE rows for the reader's reason chips — refId + just
+ * enough to label a feed row. Bounded to the most recent classifications;
+ * the feed only shows recent topics, so older rows can never match anyway.
  */
 export async function getGrantChipRows(limit = 2000): Promise<GrantChipRow[]> {
   if (!isDatabaseConfigured()) return [];
   const db = getDb();
   const rows = await db`
-    SELECT topic_ref_id, confidence, kind, program, amount_min, amount_max, currency, deadline
+    SELECT topic_ref_id, classification, confidence, kind, program, amount_min, amount_max, currency, deadline
     FROM grants_items
-    WHERE classification = 'GRANT' AND confidence >= 60
+    WHERE classification IN ('GRANT', 'ROLE') AND confidence >= 60
     ORDER BY id DESC
     LIMIT ${limit}
   `;
   return rows as unknown as GrantChipRow[];
+}
+
+// ── Roles email (daily notification) ─────────────────────────────────
+
+export interface RoleItemRow {
+  id: number;
+  topic_ref_id: string;
+  protocol: string | null;
+  vertical: string | null;
+  title: string;
+  url: string;
+  kind: string | null;
+  confidence: number;
+  program: string | null;
+  amount_min: string | null;
+  amount_max: string | null;
+  currency: string | null;
+  deadline: Date | null;
+  first_seen_at: Date;
+}
+
+/**
+ * ROLE items that haven't been emailed yet — the daily roles email marks
+ * them notified after a successful send, so each item mails exactly once.
+ */
+export async function getUnnotifiedRoleItems(minConfidence = 60, limit = 25): Promise<RoleItemRow[]> {
+  if (!isDatabaseConfigured()) return [];
+  const db = getDb();
+  const rows = await db`
+    SELECT id, topic_ref_id, protocol, vertical, title, url, kind, confidence,
+           program, amount_min, amount_max, currency, deadline, first_seen_at
+    FROM grants_items
+    WHERE classification = 'ROLE' AND confidence >= ${minConfidence} AND notified_at IS NULL
+    ORDER BY id DESC
+    LIMIT ${limit}
+  `;
+  return rows as unknown as RoleItemRow[];
+}
+
+export async function markRoleItemsNotified(ids: number[]): Promise<void> {
+  if (!isDatabaseConfigured() || ids.length === 0) return;
+  const db = getDb();
+  await db`UPDATE grants_items SET notified_at = NOW() WHERE id = ANY(${ids})`;
 }
