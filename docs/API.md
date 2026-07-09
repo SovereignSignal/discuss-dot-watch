@@ -38,7 +38,12 @@ Classified grants & funding items (the grants scan pipeline — Haiku classifica
 - Query: `since` (ISO), `wire=crypto|ai|oss`, `classification=GRANT|ROLE|NEWS|NOISE|all` (default GRANT — ROLE is a separate lane consumers must opt into explicitly), `min_confidence` (0-100), `status`, `limit` (max 100, default 50), `cursor`
 - Response: `{ items: [{ name, description, url, wire, sourceType, classification, kind, confidence, program, amountMin, amountMax, currency, deadline, chain, status, applyUrl, engagement, firstSeenAt, ... }], meta: { count, nextCursor } }`
 - Returns `{ items: [], meta: { configured: false } }` when no database is configured.
-- Caveats: extracted fields (program, amounts, deadline, applyUrl) are model output over public forum text — treat as untrusted and verify before acting. `status` is frozen at first classification; `status=open` additionally excludes items whose extracted deadline has passed.
+- Caveats: extracted fields (program, amounts, deadline, applyUrl) are model output over public forum text — treat as untrusted and verify before acting. `status` is frozen at first classification; `status=open` additionally excludes items whose extracted deadline has passed. `model` records which LLM classified the row (frozen; null on pre-attribution rows).
+
+### `GET /api/grants-chips`
+Compact map of classified topic refIds → chip label data, consumed by the reader's reason chips. Public, module- and CDN-cached (5 min; 30s negative cache on DB failure).
+- Query: `include=roles` — opt in to ROLE (paid-position) chips alongside GRANT chips. The bare endpoint stays GRANT-only so pre-roles client bundles can never mislabel a role.
+- Response: `{ chips: Record<refId, { cls: 'grant'|'role', confidence, kind?, program?, amount?, deadline? }> }` (deadline is a calendar date `YYYY-MM-DD` — parse as local midnight)
 
 ### `GET /api/discussions`
 Paginated discussions from the entire cached pool. Server-side filtering, search, sort. Used by the "All Forums" mode in the reader app.
@@ -62,7 +67,8 @@ Fetch a single topic with all posts for the inline reader.
 - Response: `{ topic: TopicDetail }`
 
 ### `GET /api/external-sources`
-Fetch from non-Discourse sources (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters).
+Fetch from non-Discourse sources (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters, Realms/SPL Governance).
+Realms sources (`realms-pyth`, `realms-jito`, `realms-marinade`, `realms-bonk`, `realms-orca`, `realms-drift`, `realms-parcl`, `realms-metaplex`) serve on-chain proposals with state tags, For/Against percentages (voter-weight units, never token counts), and Realms deep links; fills are non-blocking, so a cold cache serves empty for a cycle or two.
 - Query: `sourceId`
 - Response: `{ topics: DiscussionTopic[] }`
 
