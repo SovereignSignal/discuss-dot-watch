@@ -21,6 +21,7 @@ export interface ExternalSource {
   hnQuery?: string; // HN topic terms, used as query + optionalWords (for sourceType: 'hackernews')
   minPoints?: number; // HN points quality threshold (for sourceType: 'hackernews'; default 75)
   lobstersTags?: string; // Comma-separated Lobsters tags (for sourceType: 'lobsters')
+  realmsDaoId?: string; // Realms DAO id from lib/realmsClient REALMS_DAOS (for sourceType: 'realms')
 }
 
 export const EXTERNAL_SOURCES: ExternalSource[] = [
@@ -1713,6 +1714,95 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     tier: 2,
     enabled: true,
     lobstersTags: 'programming,rust,go,python,javascript,web,devops,compsci',
+  },
+  // Realms (SPL Governance) — on-chain Solana DAO proposals
+  {
+    id: 'realms-pyth',
+    name: 'Pyth Governance (Realms)',
+    sourceType: 'realms',
+    category: 'crypto',
+    description: 'Pyth Network on-chain governance proposals',
+    logoUrl: 'https://icons.llama.fi/pyth-network.jpg',
+    tier: 1,
+    enabled: true,
+    realmsDaoId: 'pyth',
+  },
+  {
+    id: 'realms-jito',
+    name: 'Jito DAO (Realms)',
+    sourceType: 'realms',
+    category: 'crypto',
+    description: 'Jito DAO on-chain governance proposals (JIPs)',
+    logoUrl: 'https://icons.llama.fi/jito-liquid-staking.jpg',
+    tier: 1,
+    enabled: true,
+    realmsDaoId: 'jito',
+  },
+  {
+    id: 'realms-marinade',
+    name: 'Marinade DAO (Realms)',
+    sourceType: 'realms',
+    category: 'crypto',
+    description: 'Marinade on-chain governance proposals',
+    logoUrl: 'https://icons.llama.fi/marinade-finance.jpg',
+    tier: 1,
+    enabled: true,
+    realmsDaoId: 'marinade',
+  },
+  {
+    id: 'realms-bonk',
+    name: 'BonkDAO (Realms)',
+    sourceType: 'realms',
+    category: 'crypto',
+    description: 'BonkDAO on-chain governance proposals',
+    logoUrl: 'https://icons.llama.fi/bonkswap.jpg',
+    tier: 2,
+    enabled: true,
+    realmsDaoId: 'bonk',
+  },
+  {
+    id: 'realms-orca',
+    name: 'Orca DAO (Realms)',
+    sourceType: 'realms',
+    category: 'crypto',
+    description: 'Orca DAO on-chain governance proposals',
+    logoUrl: 'https://icons.llama.fi/orca.jpg',
+    tier: 2,
+    enabled: true,
+    realmsDaoId: 'orca',
+  },
+  {
+    id: 'realms-drift',
+    name: 'Drift DAO (Realms)',
+    sourceType: 'realms',
+    category: 'crypto',
+    description: 'Drift Protocol on-chain governance proposals',
+    logoUrl: 'https://icons.llama.fi/drift-trade.jpg',
+    tier: 2,
+    enabled: true,
+    realmsDaoId: 'drift',
+  },
+  {
+    id: 'realms-parcl',
+    name: 'Parcl DAO (Realms)',
+    sourceType: 'realms',
+    category: 'crypto',
+    description: 'Parcl DAO on-chain governance proposals',
+    logoUrl: 'https://icons.llama.fi/parcl.jpg',
+    tier: 2,
+    enabled: true,
+    realmsDaoId: 'parcl',
+  },
+  {
+    id: 'realms-metaplex',
+    name: 'Metaplex DAO (Realms)',
+    sourceType: 'realms',
+    category: 'crypto',
+    description: 'Metaplex DAO on-chain governance proposals',
+    logoUrl: 'https://icons.llama.fi/metaplex.png',
+    tier: 2,
+    enabled: true,
+    realmsDaoId: 'metaplex',
   },
 ];
 
