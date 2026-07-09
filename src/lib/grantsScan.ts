@@ -442,6 +442,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
             tags: cand.tags,
             body: cand.body,
             signal: cand.signal,
+            createdAt: cand.createdAt,
           });
           if (!extraction) return;
           await upsertGrantsItem({

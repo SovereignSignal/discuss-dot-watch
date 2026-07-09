@@ -256,6 +256,16 @@ export async function initializeSchema() {
   `;
   // Which model classified the row (frozen at classification; bake-off attribution).
   await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS model TEXT`;
+  // Data hygiene (idempotent): personal delegate reporting threads are never
+  // open positions (owner feedback 2026-07-09), and ROLE items on old topics
+  // with no live deadline are windows that have long closed.
+  await db`UPDATE grants_items SET classification = 'NEWS' WHERE classification = 'ROLE' AND title ~* 'delegate\s+(thread|communication|report|update)s?'`;
+  await db`
+    UPDATE grants_items SET status = 'closed'
+    WHERE classification = 'ROLE' AND status IS DISTINCT FROM 'closed'
+      AND (deadline IS NULL OR deadline < NOW())
+      AND topic_created_at < NOW() - INTERVAL '90 days'
+  `;
 
   // Create indexes for common queries
   await db`CREATE INDEX IF NOT EXISTS idx_topics_forum_id ON topics(forum_id)`;
