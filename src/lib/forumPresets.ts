@@ -343,14 +343,9 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         logoUrl: 'https://assets.coingecko.com/coins/images/34188/small/jup.png',
         tier: 1,
       },
-      {
-        name: 'Metaplex',
-        url: 'https://forum.metaplex.com/',
-        description: 'Solana NFT protocol governance',
-        token: 'MPLX',
-        logoUrl: 'https://assets.coingecko.com/coins/images/27344/small/mplx.png',
-        tier: 2,
-      },
+      // Metaplex (forum.metaplex.com) intentionally absent: login-gated
+      // Discourse — anonymous /latest.json returns the HTML app shell.
+      // Its governance is covered on-chain via Realms instead.
       {
         name: 'Sanctum',
         url: 'https://research.sanctum.so/',
