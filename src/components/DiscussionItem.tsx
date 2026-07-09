@@ -1,9 +1,10 @@
 'use client';
 
 import { format, isToday, isYesterday } from 'date-fns';
-import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink, TrendingUp, User, Coins, Zap } from 'lucide-react';
+import { MessageSquare, Eye, ThumbsUp, Pin, Lock, Archive, Bookmark, BookmarkCheck, Clock, Sparkles, ExternalLink, TrendingUp, User, Coins, Zap, Briefcase } from 'lucide-react';
 import { DiscussionTopic, KeywordAlert, DateFilterMode } from '@/types';
 import type { GrantChip } from '@/hooks/useGrantChips';
+import { roleKindLabel } from '@/lib/roleKinds';
 
 function isExternalSource(topic: DiscussionTopic): boolean {
   return !!topic.sourceType && topic.sourceType !== 'discourse';
@@ -114,9 +115,19 @@ export function DiscussionItem({
   const grantDeadline = grantChip?.deadline ? new Date(`${grantChip.deadline.slice(0, 10)}T00:00:00`) : null;
   const validDeadline = grantDeadline !== null && !Number.isNaN(grantDeadline.getTime());
   const deadlineSoon = Boolean(grantChip?.dueSoon) && validDeadline;
+  // One chip payload, two chip identities: 'role' = paid position/seat
+  // (violet, briefcase), anything else = grant (green, coins).
+  const isRoleChip = grantChip?.cls === 'role';
+  const chipLabel = isRoleChip ? 'role' : 'grant';
+  const chipAccent = isRoleChip ? 'var(--ds-role)' : 'var(--ds-success)';
   const grantTitle = grantChip
-    ? [grantChip.program, grantChip.amount, validDeadline ? `deadline ${format(grantDeadline!, 'MMM d, yyyy')}` : null, `${grantChip.confidence}% confidence`]
-        .filter(Boolean).join(' · ')
+    ? [
+        isRoleChip ? roleKindLabel(grantChip.kind) : null,
+        grantChip.program,
+        grantChip.amount,
+        validDeadline ? `deadline ${format(grantDeadline!, 'MMM d, yyyy')}` : null,
+        `${grantChip.confidence}% confidence`,
+      ].filter(Boolean).join(' · ')
     : undefined;
 
   // Base/hover styles as token strings so the JS hover handlers and the
@@ -193,14 +204,14 @@ export function DiscussionItem({
                 <span
                   className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-semibold rounded flex-shrink-0"
                   style={{
-                    color: 'var(--ds-success)',
-                    backgroundColor: 'color-mix(in srgb, var(--ds-success) 12%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--ds-success) 35%, transparent)',
+                    color: chipAccent,
+                    backgroundColor: `color-mix(in srgb, ${chipAccent} 12%, transparent)`,
+                    border: `1px solid color-mix(in srgb, ${chipAccent} 35%, transparent)`,
                   }}
                   title={grantTitle}
                 >
-                  <Coins className="w-3 h-3" />
-                  {deadlineSoon && grantDeadline ? `grant · due ${format(grantDeadline, 'MMM d')}` : 'grant'}
+                  {isRoleChip ? <Briefcase className="w-3 h-3" /> : <Coins className="w-3 h-3" />}
+                  {deadlineSoon && grantDeadline ? `${chipLabel} · due ${format(grantDeadline, 'MMM d')}` : chipLabel}
                 </span>
               )}
               {alertMatch && (

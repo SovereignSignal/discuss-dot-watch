@@ -15,14 +15,17 @@
  *   4. The EA Forum "Funding opportunities" tag (the AI vertical's main
  *      funding firehose).
  *
- * Every candidate is classified once by Haiku (GRANT/NEWS/NOISE + field
- * extraction — the Grant Wire Refinery's vocabulary) and upserted on
+ * Every candidate is classified once by Haiku (GRANT/ROLE/NEWS/NOISE +
+ * field extraction — GRANT/NEWS/NOISE mirror the Grant Wire Refinery's
+ * vocabulary; ROLE covers paid governance positions) and upserted on
  * topic_ref_id, so items never re-classify and never duplicate across days.
+ * Role-keyword candidates (matchRolesKeywords) enter through the same
+ * Discourse keyword path with a `roles:` signal prefix.
  */
 
 import { DiscussionTopic } from '@/types';
 import type { CachedForum } from './forumCache';
-import { matchGrantsKeywords } from './grantsDetect';
+import { matchGrantsKeywords, matchRolesKeywords } from './grantsDetect';
 import { classifyGrantsCandidate, isClassifierConfigured } from './grantsClassifier';
 import { getClassifiedRefIds, upsertGrantsItem, updateGrantsEngagement } from './grantsStore';
 import { isDatabaseConfigured } from './db';
@@ -217,7 +220,12 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
     for (const topic of cached.topics) {
       if (topic.pinned) continue;
       const matched = matchGrantsKeywords(topic.title, topic.tags || [], topic.excerpt);
-      if (matched.length === 0) continue;
+      // Role/position keywords feed the same classifier (ROLE class). Grants
+      // matches take signal precedence so downstream ordering can prioritize.
+      const matchedRoles = matched.length === 0
+        ? matchRolesKeywords(topic.title, topic.tags || [], topic.excerpt)
+        : [];
+      if (matched.length === 0 && matchedRoles.length === 0) continue;
       const cand: Candidate = {
         refId: topic.refId,
         forumUrl: preset.url,
@@ -226,7 +234,9 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
         title: topic.title,
         url: `${preset.url.replace(/\/$/, '')}/t/${topic.slug}/${topic.id}`,
         tags: topic.tags || [],
-        signal: `keywords: ${matched.slice(0, 4).join(', ')}`,
+        signal: matched.length > 0
+          ? `keywords: ${matched.slice(0, 4).join(', ')}`
+          : `roles: ${matchedRoles.slice(0, 4).join(', ')}`,
         replies: topic.replyCount || 0,
         views: topic.views || 0,
         likes: topic.likeCount || 0,
@@ -248,22 +258,45 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
 
   let rssFetches = 0;
 
-  // Bodies for fresh keyword candidates: one /latest.rss per involved forum
-  for (const [forumUrl, cands] of forumsNeedingBodies) {
+  // Bodies for fresh keyword candidates: one /latest.rss per involved forum.
+  // Grants-signal forums spend the bounded RSS budget first so the (larger,
+  // noisier) role-keyword surface can never starve grant bodies — mirroring
+  // the grants-first ordering of the classification cap below.
+  const forumEntries = [...forumsNeedingBodies.entries()].sort(([, a], [, b]) => {
+    const aGrants = a.some(c => !c.signal.startsWith('roles:')) ? 0 : 1;
+    const bGrants = b.some(c => !c.signal.startsWith('roles:')) ? 0 : 1;
+    return aGrants - bGrants;
+  });
+  let budgetExhausted = false;
+  for (const [forumUrl, cands] of forumEntries) {
     const fresh = cands.filter(c => !preClassified.has(c.refId));
     if (fresh.length === 0) continue;
     if (rssFetches >= MAX_RSS_FETCHES_PER_RUN) {
-      console.log('[GrantsScan] /latest.rss budget reached — remaining bodies deferred to next cycle');
-      break;
+      budgetExhausted = true;
+      // Classification is permanent (dedup tombstones): a candidate whose
+      // body fetch was budget-starved must NOT classify body-less this
+      // cycle — pull it and let it re-enter from the cache next cycle.
+      let deferred = 0;
+      for (const cand of fresh) {
+        candidates.delete(cand.refId);
+        deferred++;
+      }
+      if (deferred) console.log(`[GrantsScan] /latest.rss budget reached — ${deferred} candidate(s) from ${forumUrl} deferred to next cycle`);
+      continue;
     }
     rssFetches++;
     const items = await fetchDiscourseRss(`${forumUrl.replace(/\/$/, '')}/latest.rss`);
     const byId = new Map(items.map(i => [i.topicId, i]));
     for (const cand of fresh) {
       const item = cand.topicId != null ? byId.get(cand.topicId) : undefined;
+      // A candidate whose forum WAS fetched but whose topic fell outside
+      // the RSS window still classifies now (deferring would retry forever).
       if (item) cand.body = item.body;
     }
     await new Promise(r => setTimeout(r, RSS_FETCH_DELAY_MS));
+  }
+  if (budgetExhausted) {
+    console.log('[GrantsScan] Body-fetch budget exhausted this cycle — deferred forums retry next cycle');
   }
 
   // 3. Dedicated grants categories (hourly — they move slowly).
@@ -381,13 +414,21 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
         })),
     );
 
-    const toClassify = fresh.slice(0, MAX_CLASSIFY_PER_RUN);
+    // Grants-signal candidates classify before role-signal ones so the
+    // one-time role-keyword backlog (and any future role flood) can never
+    // starve grant classification within the per-run cap. Stable partition.
+    const ordered = [
+      ...fresh.filter(c => !c.signal.startsWith('roles:')),
+      ...fresh.filter(c => c.signal.startsWith('roles:')),
+    ];
+    const toClassify = ordered.slice(0, MAX_CLASSIFY_PER_RUN);
     if (fresh.length > toClassify.length) {
       console.log(`[GrantsScan] Capping classification at ${MAX_CLASSIFY_PER_RUN} (${fresh.length - toClassify.length} deferred to next cycle)`);
     }
 
     let stored = 0;
     let grants = 0;
+    let roles = 0;
     let failed = 0;
     for (let i = 0; i < toClassify.length; i += CLASSIFY_CONCURRENCY) {
       const batch = toClassify.slice(i, i + CLASSIFY_CONCURRENCY);
@@ -421,6 +462,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
           });
           stored++;
           if (extraction.classification === 'GRANT') grants++;
+          if (extraction.classification === 'ROLE') roles++;
         } catch (err) {
           failed++;
           console.error(`[GrantsScan] Failed to classify/store ${cand.refId}:`, err);
@@ -430,7 +472,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
 
     console.log(
       `[GrantsScan] Done in ${Date.now() - started}ms: ${candidates.length} candidates, ` +
-      `${known.length} known, ${toClassify.length} classified, ${stored} stored (${grants} GRANT)` +
+      `${known.length} known, ${toClassify.length} classified, ${stored} stored (${grants} GRANT, ${roles} ROLE)` +
       (failed ? `, ${failed} failed` : ''),
     );
   } catch (error) {

@@ -769,6 +769,7 @@ html, html.dark {
   --ds-warn: #f59e0b;
   --ds-error: #ef4444;
   --ds-info: #3b82f6;
+  --ds-role: #f472b6; /* paid-position chips (rose — violet collided with the AI vertical accent) */
 
   /* Emphasized border for hover/selected surfaces — one step above
      --ds-border, far softer than using a foreground token as a border. */
@@ -804,6 +805,7 @@ html.light {
   --ds-warn: #b45309;
   --ds-error: #dc2626;
   --ds-info: #0284c7;
+  --ds-role: #be185d;
   --ds-border-strong: #d6d3d1;
 }
 

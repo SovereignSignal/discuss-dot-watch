@@ -328,10 +328,31 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Solana',
         url: 'https://forum.solana.com/',
-        description: 'SIMD proposals and validator policies',
+        description: 'SIMD proposals, SGP governance, and validator policies',
         token: 'SOL',
         logoUrl: 'https://assets.coingecko.com/coins/images/4128/small/solana.png',
         tier: 1,
+        // RFP category verified against /categories.json on 2026-07-09.
+        grantsCategories: [{ slug: 'rfp', id: 10 }],
+      },
+      {
+        name: 'Jupiter',
+        url: 'https://discuss.jup.ag/',
+        description: 'Solana DEX aggregator DAO — ASR, tokenomics, grants',
+        token: 'JUP',
+        logoUrl: 'https://assets.coingecko.com/coins/images/34188/small/jup.png',
+        tier: 1,
+      },
+      // Metaplex (forum.metaplex.com) intentionally absent: login-gated
+      // Discourse — anonymous /latest.json returns the HTML app shell.
+      // Its governance is covered on-chain via Realms instead.
+      {
+        name: 'Sanctum',
+        url: 'https://research.sanctum.so/',
+        description: 'Solana liquid staking research and governance',
+        token: 'CLOUD',
+        logoUrl: 'https://icons.llama.fi/sanctum.jpg',
+        tier: 2,
       },
       {
         name: 'Tezos Agora',

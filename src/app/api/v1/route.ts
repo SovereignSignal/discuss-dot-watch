@@ -65,7 +65,7 @@ export async function GET() {
         params: {
           since: 'ISO date watermark on firstSeenAt',
           wire: 'crypto | ai | oss',
-          classification: 'GRANT (default) | NEWS | NOISE | all',
+          classification: 'GRANT (default) | ROLE | NEWS | NOISE | all (all = GRANT+NEWS+NOISE; ROLE only when named explicitly)',
           min_confidence: '0-100',
           status: 'Lifecycle status at classification time (open additionally excludes past-deadline items)',
           limit: 'Max items (default 50, max 100)',
