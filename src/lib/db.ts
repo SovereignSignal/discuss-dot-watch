@@ -259,7 +259,7 @@ export async function initializeSchema() {
   // Data hygiene (idempotent): personal delegate reporting threads are never
   // open positions (owner feedback 2026-07-09), and ROLE items on old topics
   // with no live deadline are windows that have long closed.
-  await db`UPDATE grants_items SET classification = 'NEWS' WHERE classification = 'ROLE' AND title ~* 'delegate\s+(thread|communication|report|update)s?'`;
+  await db`UPDATE grants_items SET classification = 'NEWS' WHERE classification = 'ROLE' AND title ~* 'delegate[[:space:]]+(thread|communication|report|update)s?'`;
   await db`
     UPDATE grants_items SET status = 'closed'
     WHERE classification = 'ROLE' AND status IS DISTINCT FROM 'closed'
