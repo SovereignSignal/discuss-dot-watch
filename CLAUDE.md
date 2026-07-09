@@ -120,6 +120,7 @@ npm run lint     # Run ESLint
 | `/api/discourse/topic` | GET | Fetch individual topic posts for inline reader |
 | `/api/discussions` | GET | Paginated discussions from ALL cached forums (server-side filtering, search, sort) |
 | `/api/briefs` | GET | Zero-cost discovery (trending + new from cache) |
+| `/api/grants-chips` | GET | refId → reason-chip map for the reader (GRANT default; `?include=roles` adds ROLE chips) |
 | `/api/external-sources` | GET | Fetch from non-Discourse sources |
 | `/api/forum-stats` | GET | Public per-forum activity (topic count + last activity timestamp) for ForumManager cards |
 | `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
@@ -389,6 +390,7 @@ Tags in raw API response can be strings OR objects — handle both.
 | `GITHUB_TOKEN` | GitHub Discussions (optional) |
 | `SNAPSHOT_API_KEY` | Snapshot governance (optional) |
 | `SOLANA_RPC_URL` | Solana RPC for the Realms client (optional; defaults to the free public RPC — set a free-tier Helius URL to lift getProgramAccounts limits) |
+| `REALMS_DISABLED` | `true` disables all Realms fetching (kill switch) |
 | `ANTICAPTURE_API_KEY` | Anticapture governance terminal (`/governance`); optional — dashboards degrade gracefully when unset. Currently a temporary dev key. |
 | `ENCRYPTION_KEY` | AES-256-GCM for delegate API keys |
 | `NEXT_PUBLIC_APP_URL` | Public app URL (digest email links) |

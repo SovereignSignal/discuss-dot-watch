@@ -14,6 +14,9 @@
 - ✅ Keyword alerts with body-match-style filtering, surfaced as clickable chips above the feed (Sprint 16)
 - ✅ Email digests with AI summaries (Claude Sonnet)
 - ✅ Daily Grants & Funding email brief
+- ✅ **Roles lane (July 2026)** — ROLE classification for paid governance positions (council seats, steward/WG nominations, elections, delegate incentives, service-provider mandates), 💼 role chips in the reader, daily Roles & Positions email, `classification=ROLE` on the public API (separate lane — never in the Grant Wire's default pull)
+- ✅ **Realms / SPL Governance (July 2026)** — on-chain Solana DAO proposals (Pyth, Jito, Marinade, Bonk, Orca, Drift, Parcl, Metaplex) as feed topics with state + vote percentages
+- ✅ **LLM provider layer (July 2026)** — every model call routes through `lib/llm.ts`; Anthropic default, Ollama Cloud (any hosted OSS model) via `LLM_PROVIDER=ollama`; per-classification model attribution
 - ✅ Activity badges (Hot, Active, NEW)
 - ✅ Privy authentication (email, wallet)
 - ✅ Light/dark theme support — token-driven via `--ds-*` CSS variables (Sprint 12)
