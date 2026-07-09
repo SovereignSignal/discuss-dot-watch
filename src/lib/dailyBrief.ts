@@ -59,12 +59,38 @@ export interface DailyBriefContent {
   summary: string | null;
 }
 
+/**
+ * Highlight = the items worth leading with (owner spec, 2026-07-09):
+ * every paid/delegate role, grant PROGRAMS launching (not individual
+ * applications), RFPs, retro rounds, big tickets, and imminent deadlines.
+ * Everything else lands in the compact "Also new" list.
+ */
+function isHighlightGrant(g: BriefItemRow): boolean {
+  if (['program_launch', 'rfp', 'retro_round'].includes(g.kind || '')) return true;
+  const maxN = g.amount_max != null ? Number(g.amount_max) : null;
+  if (maxN != null && Number.isFinite(maxN) && maxN >= 100_000) return true;
+  if (g.deadline) {
+    const days = (g.deadline.getTime() - Date.now()) / 86_400_000;
+    if (days >= 0 && days <= 14) return true;
+  }
+  return false;
+}
+
+function splitHighlights(grants: BriefItemRow[]): { highlights: BriefItemRow[]; rest: BriefItemRow[] } {
+  const highlights: BriefItemRow[] = [];
+  const rest: BriefItemRow[] = [];
+  for (const g of grants) (isHighlightGrant(g) ? highlights : rest).push(g);
+  return { highlights, rest };
+}
+
 // ── Content assembly ─────────────────────────────────────────────────
 
 async function generateSummary(roles: BriefItemRow[], grants: BriefItemRow[]): Promise<string | null> {
+  const { highlights, rest } = splitHighlights(grants);
   const lines = [
     ...roles.map(r => `[ROLE] [${safeTitle(r.protocol || '?')}] ${safeTitle(r.title)}${r.deadline ? ` (deadline ${r.deadline.toISOString().slice(0, 10)})` : ''}`),
-    ...grants.map(g => `[GRANT] [${safeTitle(g.protocol || '?')}] ${safeTitle(g.title)}${g.amount_max ? ` (~${g.amount_max} ${g.currency || ''})` : ''}`),
+    ...highlights.map(g => `[GRANT] [${safeTitle(g.protocol || '?')}] ${safeTitle(g.title)}${g.amount_max ? ` (~${g.amount_max} ${g.currency || ''})` : ''}`),
+    ...rest.map(g => `[GRANT] [${safeTitle(g.protocol || '?')}] ${safeTitle(g.title)}`),
   ].slice(0, 20);
   if (lines.length < 3) return null; // too little signal to be worth a summary
 
@@ -155,6 +181,28 @@ function itemCardHtml(item: BriefItemRow, kind: 'role' | 'grant'): string {
     <tr><td style="height: 8px;"></td></tr>`;
 }
 
+/** One-line row for the "Also new" list — protocol, title, inline facts. */
+function compactRowHtml(item: BriefItemRow): string {
+  const bits = [
+    formatAmount(item),
+    formatDeadline(item.deadline) ? `due ${formatDeadline(item.deadline)}` : null,
+    item.topic_created_at ? `posted ${item.topic_created_at.toISOString().slice(0, 10)}` : null,
+  ].filter(Boolean).map(f => escapeHtml(String(f))).join(' &middot; ');
+  const safeHref = item.url && isAllowedUrl(item.url) ? escapeHtml(item.url) : null;
+  const title = escapeHtml(safeTitle(item.title));
+  const titleHtml = safeHref
+    ? `<a href="${safeHref}" style="color: #18181b; text-decoration: none;" target="_blank">${title}</a>`
+    : title;
+  return `
+    <tr>
+      <td class="card" style="padding: 10px 4px; border-bottom: 1px solid #f3f4f6; font-size: 13px; line-height: 1.5;">
+        <span style="color: #71717a; font-size: 11px; font-weight: 600; text-transform: uppercase;">${escapeHtml(safeTitle(item.protocol || '?'))}</span>
+        &nbsp;<span style="font-weight: 600;">${titleHtml}</span>
+        ${bits ? `<br><span style="color: #71717a; font-size: 12px;">${bits}</span>` : ''}
+      </td>
+    </tr>`;
+}
+
 function sectionHtml(title: string, emoji: string, items: BriefItemRow[], kind: 'role' | 'grant'): string {
   if (items.length === 0) return '';
   return `
@@ -172,9 +220,11 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
   const dateStr = brief.date.toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
+  const { highlights, rest } = splitHighlights(brief.grants);
+  const highlightCount = brief.roles.length + highlights.length;
   const counts = [
-    brief.roles.length ? `${brief.roles.length} role${brief.roles.length === 1 ? '' : 's'}` : null,
-    brief.grants.length ? `${brief.grants.length} grant${brief.grants.length === 1 ? '' : 's'}` : null,
+    highlightCount ? `${highlightCount} highlight${highlightCount === 1 ? '' : 's'}` : null,
+    rest.length ? `${rest.length} more` : null,
   ].filter(Boolean).join(' · ');
 
   return `<!DOCTYPE html>
@@ -211,8 +261,21 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
     </p>
   </div>` : ''}
 
-  ${sectionHtml('Roles & Positions', '&#x1F4BC;', brief.roles, 'role')}
-  ${sectionHtml('Grants & Funding', '&#x1F4B0;', brief.grants, 'grant')}
+  ${sectionHtml('Highlights — Roles & Positions', '&#x1F4BC;', brief.roles, 'role')}
+  ${sectionHtml('Highlights — Grants & Programs', '&#x1F4B0;', splitHighlights(brief.grants).highlights, 'grant')}
+  ${(() => {
+    const rest = splitHighlights(brief.grants).rest;
+    if (rest.length === 0) return '';
+    return `
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 14px; font-weight: 700; color: #71717a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+      Also new
+    </h2>
+    <table style="width: 100%; border-collapse: collapse;">
+      ${rest.map(compactRowHtml).join('')}
+    </table>
+  </div>`;
+  })()}
 
   <div style="text-align: center; margin: 32px 0;">
     <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app"
@@ -251,8 +314,18 @@ export function formatDailyBriefText(brief: DailyBriefContent): string {
     return s;
   };
 
-  text += section('ROLES & POSITIONS', brief.roles, 'role');
-  text += section('GRANTS & FUNDING', brief.grants, 'grant');
+  const { highlights, rest } = splitHighlights(brief.grants);
+  text += section('HIGHLIGHTS — ROLES & POSITIONS', brief.roles, 'role');
+  text += section('HIGHLIGHTS — GRANTS & PROGRAMS', highlights, 'grant');
+  if (rest.length > 0) {
+    text += `ALSO NEW\n${'─'.repeat(30)}\n`;
+    for (const item of rest) {
+      const bits = [formatAmount(item), formatDeadline(item.deadline) ? `due ${formatDeadline(item.deadline)}` : null].filter(Boolean).join(' · ');
+      text += `[${safeTitle(item.protocol || '?')}] ${safeTitle(item.title)}${bits ? ` — ${bits}` : ''}\n`;
+      if (item.url && isAllowedUrl(item.url)) text += `  ${item.url}\n`;
+    }
+    text += '\n';
+  }
   text += `---\nOpen: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app\n\ndiscuss.watch — Daily Brief`;
   return text;
 }
@@ -300,9 +373,11 @@ export async function runDailyBrief(): Promise<DailyBriefResult> {
     summary: await generateSummary(roles, grants).catch(() => null),
   };
 
+  const hl = brief.roles.length + splitHighlights(brief.grants).highlights.length;
+  const more = splitHighlights(brief.grants).rest.length;
   const counts = [
-    brief.roles.length ? `${brief.roles.length} role${brief.roles.length === 1 ? '' : 's'}` : null,
-    brief.grants.length ? `${brief.grants.length} grant${brief.grants.length === 1 ? '' : 's'}` : null,
+    hl ? `${hl} highlight${hl === 1 ? '' : 's'}` : null,
+    more ? `${more} more` : null,
   ].filter(Boolean).join(' · ');
   const dateStr = brief.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
