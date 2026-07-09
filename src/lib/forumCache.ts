@@ -18,6 +18,7 @@ import { getEnabledExternalSources } from './externalSources';
 import { fetchEAForumPosts } from './eaForumClient';
 import { fetchGitHubDiscussions, isGitHubConfigured } from './githubDiscussionsClient';
 import { fetchSnapshotProposals } from './snapshotClient';
+import { fetchRealmsProposals } from './realmsClient';
 import { fetchHackerNewsStories } from './hackerNewsClient';
 import { fetchLobstersStories } from './lobstersClient';
 import { safeFetch } from './safeFetch';
@@ -613,6 +614,10 @@ async function refreshExternalSources(): Promise<void> {
         result = await fetchHackerNewsStories(source.hnQuery, source.minPoints ?? 75, 30);
       } else if (source.sourceType === 'lobsters' && source.lobstersTags) {
         result = await fetchLobstersStories(source.lobstersTags, 30);
+      } else if (source.sourceType === 'realms' && source.realmsDaoId) {
+        // Self-throttled client (serialized gPA queue + long per-DAO cache) —
+        // most cycles this returns instantly from cache.
+        result = await fetchRealmsProposals(source.realmsDaoId);
       } else {
         continue;
       }
@@ -743,7 +748,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   
   try {
     // Get all Discourse forums from specified tiers (skip external sources like EA Forum, LessWrong)
-    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews', 'lobsters']);
+    const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews', 'lobsters', 'realms']);
     const forumsWithCategory = FORUM_CATEGORIES.flatMap(cat => 
       cat.forums
         .filter(f => tiers.includes(f.tier) && (!f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType)))

@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Hacker News, Lobsters), **330+ forums + 150+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, per-DAO governance terminals (Anticapture: delegate accountability, per-delegate voting records, forum-linked votes), MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Realms/SPL Governance, Hacker News, Lobsters), **330+ forums + 150+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, per-DAO governance terminals (Anticapture: delegate accountability, per-delegate voting records, forum-linked votes), MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -50,7 +50,7 @@ src/
 │   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres) + getForumHealthFromCache
 │   ├── forumPresets.ts     # 330+ pre-configured forum & source presets by category (Discourse + dual-registered GitHub/HN/Lobsters)
-│   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters) — 150+ entries
+│   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters, Realms) — 150+ entries
 │   ├── theme.ts            # c() theme utility (legacy; new components prefer --ds-* CSS variables)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
 │   ├── url.ts              # URL validation, normalization, and SSRF protection
@@ -66,6 +66,7 @@ src/
 │   ├── eaForumClient.ts    # EA Forum / LessWrong GraphQL client
 │   ├── githubDiscussionsClient.ts  # GitHub Discussions GraphQL client
 │   ├── snapshotClient.ts   # Snapshot voting client (feed-side; separate from delegates/snapshotClient.ts)
+│   ├── realmsClient.ts     # Realms/SPL Governance client (on-chain Solana DAO proposals; 8 DAOs via @solana/spl-governance; free-RPC-safe pacing)
 │   ├── hackerNewsClient.ts # Hacker News client (Algolia Search API; per-vertical topic feeds, links to comment threads)
 │   ├── lobstersClient.ts   # Lobsters client (public tag JSON feeds; AI + OSS)
 │   ├── logoUtils.ts        # Per-protocol logo URL resolver
@@ -190,7 +191,7 @@ npm run lint     # Run ESLint
 Types are defined in `src/types/index.ts` and `src/types/delegates.ts`. Key types to know:
 
 - **`ForumCategoryId`**: `'crypto' | 'ai' | 'oss' | 'custom'` (plus legacy aliases)
-- **`SourceType`**: `'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews' | 'lobsters'`
+- **`SourceType`**: `'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews' | 'lobsters' | 'realms'`
 - **`Forum`**: Forum config with `id`, `cname`, `name`, `sourceType`, `discourseForum.url`, `isEnabled`
 - **`DiscussionTopic`**: Transformed topic with `refId` (protocol-id), `excerpt`, optional `sourceType`/`externalUrl`
 - **`DiscussionPost`**: Individual post within a topic (used by inline reader)
@@ -387,6 +388,7 @@ Tags in raw API response can be strings OR objects — handle both.
 | `PRIVY_APP_SECRET` | Privy server-side secret |
 | `GITHUB_TOKEN` | GitHub Discussions (optional) |
 | `SNAPSHOT_API_KEY` | Snapshot governance (optional) |
+| `SOLANA_RPC_URL` | Solana RPC for the Realms client (optional; defaults to the free public RPC — set a free-tier Helius URL to lift getProgramAccounts limits) |
 | `ANTICAPTURE_API_KEY` | Anticapture governance terminal (`/governance`); optional — dashboards degrade gracefully when unset. Currently a temporary dev key. |
 | `ENCRYPTION_KEY` | AES-256-GCM for delegate API keys |
 | `NEXT_PUBLIC_APP_URL` | Public app URL (digest email links) |
