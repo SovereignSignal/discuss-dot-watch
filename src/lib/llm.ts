@@ -104,11 +104,13 @@ type OllamaOutcome =
   | { ok: false; fatal: boolean };
 
 async function ollamaChat(prompt: string, maxTokens: number, format?: Record<string, unknown>): Promise<OllamaOutcome> {
+  // Reasoning models spend generation budget on thinking before the answer —
+  // give headroom (cost is subscription-flat on Ollama Cloud).
   const body: OllamaChatBody = {
     model: process.env.LLM_MODEL!,
     messages: [{ role: 'user', content: prompt }],
     stream: false,
-    options: { num_predict: maxTokens },
+    options: { num_predict: Math.max(maxTokens * 3, 1500) },
   };
   if (format) body.format = format;
 
@@ -182,14 +184,46 @@ function hasRequiredKeys(obj: Record<string, unknown>, schema: Record<string, un
   return required.every((k) => obj[k] !== undefined);
 }
 
-function parseStructured(raw: string, schema: Record<string, unknown>): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && hasRequiredKeys(parsed as Record<string, unknown>, schema)) {
-      return parsed as Record<string, unknown>;
+/** Ollama Cloud honors the \`format\` grammar only intermittently (observed
+ *  with glm-5.2: identical schemas alternate between constrained JSON and
+ *  prose). Recover the object from whatever came back: pure JSON, a fenced
+ *  \`\`\`json block, or the first balanced {...} inside prose. */
+function extractJsonObject(raw: string): unknown {
+  const tryParse = (t: string): unknown => {
+    try { return JSON.parse(t); } catch { return undefined; }
+  };
+  const direct = tryParse(raw.trim());
+  if (direct !== undefined) return direct;
+  const fenced = raw.match(/\u0060\u0060\u0060(?:json)?\s*([\s\S]*?)\u0060\u0060\u0060/);
+  if (fenced) {
+    const parsed = tryParse(fenced[1].trim());
+    if (parsed !== undefined) return parsed;
+  }
+  // First balanced top-level object anywhere in the text.
+  const start = raw.indexOf('{');
+  if (start === -1) return undefined;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') inString = !inString;
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return tryParse(raw.slice(start, i + 1));
     }
-  } catch {
-    // fall through — transient, the loop may retry
+  }
+  return undefined;
+}
+
+function parseStructured(raw: string, schema: Record<string, unknown>): Record<string, unknown> | null {
+  const parsed = extractJsonObject(raw);
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && hasRequiredKeys(parsed as Record<string, unknown>, schema)) {
+    return parsed as Record<string, unknown>;
   }
   return null;
 }
@@ -205,7 +239,9 @@ export async function generateStructured(req: StructuredRequest): Promise<Struct
       const model = process.env.LLM_MODEL!;
       // The schema-adherence nudge lives HERE, not in caller prompts, so the
       // Anthropic path's prompts stay byte-identical to the pre-layer code.
-      const prompt = `${req.prompt}\n\nRespond ONLY with a JSON object matching the required schema (${req.toolName}).`;
+      // The full schema is inlined because Ollama Cloud applies the \`format\`
+      // grammar only intermittently — the prompt must carry the contract.
+      const prompt = `${req.prompt}\n\nRespond with ONLY a single JSON object (no prose, no markdown fences) matching this JSON schema (${req.toolName}):\n${JSON.stringify(req.schema)}`;
       for (let attempt = 0; attempt < 2; attempt++) {
         const outcome = await ollamaChat(prompt, req.maxTokens, req.schema);
         if (!outcome.ok) {
