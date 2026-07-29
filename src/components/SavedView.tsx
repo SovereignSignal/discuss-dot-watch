@@ -23,7 +23,7 @@ interface SavedViewProps {
   isDark: boolean;
 }
 
-export function SavedView({ bookmarks, onRemoveBookmark, onSetFolder, isDark }: SavedViewProps) {
+export function SavedView({ bookmarks, onRemoveBookmark, onSetFolder }: SavedViewProps) {
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('recent');
   const [activeFolder, setActiveFolder] = useState<string>(ALL_FOLDER);
@@ -270,7 +270,6 @@ export function SavedView({ bookmarks, onRemoveBookmark, onSetFolder, isDark }: 
           onNewFolderInputChange={setNewFolderInput}
           onAssign={(folder) => handleAssignFolder(folderPickerFor, folder)}
           onClose={() => { setFolderPickerFor(null); setNewFolderInput(''); }}
-          isDark={isDark}
         />
       )}
     </div>
@@ -308,7 +307,6 @@ function FolderPicker({
   onNewFolderInputChange,
   onAssign,
   onClose,
-  isDark,
 }: {
   existingFolders: string[];
   currentFolder: string | null;
@@ -316,7 +314,6 @@ function FolderPicker({
   onNewFolderInputChange: (v: string) => void;
   onAssign: (folder: string | null) => void;
   onClose: () => void;
-  isDark: boolean;
 }) {
   return (
     <div

@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN), **220+ Discourse forums + 75+ external sources**, AI email digests (Claude + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN, Lobsters, Realms), **337 Discourse forums + 162 external sources**, AI email briefs (shared LLM provider + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, governance terminals, MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -31,7 +31,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 
 ```text
 src/
-├── middleware.ts            # Security headers, bare domain redirect, [tenant] slug validation
+├── proxy.ts                 # Security headers, bare domain redirect, [tenant] slug validation
 ├── app/                    # Next.js App Router
 │   ├── api/                # API routes (discourse, digest, briefs, delegates, user, admin, v1, mcp, cron, health, discussions)
 │   ├── [tenant]/           # Multi-tenant forum analytics dashboards
@@ -48,8 +48,8 @@ src/
 │   ├── auth.ts             # Server-side auth (verifyAuth, verifyAdminAuth, verifyTenantAdmin, checkIsSuperAdmin)
 │   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres) + getForumHealthFromCache
-│   ├── forumPresets.ts     # 220+ pre-configured Discourse forum presets by category
-│   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, HN) — 75+ entries
+│   ├── forumPresets.ts     # 337 pre-configured Discourse forum presets by category
+│   ├── externalSources.ts  # External source registry — 162 entries
 │   ├── theme.ts            # c() theme utility (legacy; new components prefer --ds-* CSS variables)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
 │   ├── url.ts              # URL validation, normalization, and SSRF protection
@@ -94,7 +94,7 @@ npm run lint     # Run ESLint
    - `verifyTenantAdmin()` — CRON_SECRET or super admin or tenant-scoped admin (via `tenant_admins` table) for per-tenant operations
 5. **Custom Hooks** — Client-side state management, data fetching, localStorage persistence
 6. **Server Sync** (`/api/user/*`) — Optional authenticated sync of user data to Postgres via Privy
-7. **Middleware** (`middleware.ts`) — Security headers, bare domain redirect (`discuss.watch` -> `www.discuss.watch`), [tenant] slug validation with `/_not-found` rewrite for invalid slugs
+7. **Proxy** (`proxy.ts`) — Security headers, bare domain redirect (`discuss.watch` -> `www.discuss.watch`), [tenant] slug validation with `/_not-found` rewrite for invalid slugs
 
 ### State Management
 - No external state library — custom hooks with `useState` + `useEffect`
@@ -113,7 +113,7 @@ npm run lint     # Run ESLint
 | `/api/external-sources` | GET | Fetch from non-Discourse sources |
 | `/api/forum-stats` | GET | Public per-forum activity (topic count + last activity timestamp) for ForumManager cards |
 | `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
-| `/api/digest` | GET/POST | AI digest retrieval / generation (admin) |
+| `/api/anticapture/[dao]` | GET | Cached DAO governance snapshot |
 
 ### User Data (requires Privy auth via `verifyAuth`)
 | Route | Method | Purpose |
@@ -245,7 +245,7 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 
 **Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — fetches current user's admin roles from `/api/user/tenant-roles`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
 
-Tenant slugs are guarded against the platform's own routes via `STATIC_ROUTES` in `middleware.ts`: `admin, api, app, feed, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
+Tenant slugs are guarded against the platform's own routes via `STATIC_ROUTES` in `proxy.ts`: `admin, api, app, feed, governance, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
 
 ## Code Conventions
 
@@ -316,7 +316,7 @@ The feed view is built from a stack of components in `src/components/DiscussionF
 The density toggle (Compact / Standard / Cozy) sits in the left sidebar and re-flows every `DiscussionItem` via CSS variables.
 
 ### Middleware 404 Handling for [tenant]
-`notFound()` in async server components returns HTTP 200 (not 404) because Next.js RSC streaming commits the status before async code resolves. Fix: `middleware.ts` validates the slug format and rewrites to `/_not-found` for invalid slugs, ensuring a proper 404 status code.
+`notFound()` in async server components returns HTTP 200 (not 404) because Next.js RSC streaming commits the status before async code resolves. Fix: `proxy.ts` validates the slug format and rewrites to `/_not-found` for invalid slugs, ensuring a proper 404 status code.
 
 ### Discourse Tags
 Tags in raw API response can be strings OR objects — handle both.
@@ -368,4 +368,4 @@ All protected by `CRON_SECRET` (constant-time comparison via `validateCronSecret
 | `/api/cron/delegates` | Per-tenant (default 4h) | Refresh delegate/contributor stats |
 | `/api/cron/grants-brief` | Daily | Grants & funding brief email |
 
-Note: Digest sending is handled via `/api/digest` (POST, admin-only), not a separate cron route.
+Daily grants and roles briefs are generated through the cron routes and the shared `lib/llm.ts` provider layer.

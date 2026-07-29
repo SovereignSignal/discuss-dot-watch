@@ -57,7 +57,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
   );
 
   const handleToggleForum = useCallback((forumUrl: string) => {
-    setSelectedForums((prev) => { const s = new Set(prev); s.has(forumUrl) ? s.delete(forumUrl) : s.add(forumUrl); return s; });
+    setSelectedForums((prev) => { const s = new Set(prev); if (s.has(forumUrl)) s.delete(forumUrl); else s.add(forumUrl); return s; });
   }, []);
 
   const returnFocus = useCallback(() => {

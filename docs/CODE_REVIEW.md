@@ -6,9 +6,11 @@ _Generated 2026-06-13 from a 16-unit multi-agent review (13 subsystem slices + s
 
 _Reconciled 2026-07-07 against HEAD by an 11-agent verify pass: of the 81 tracked detailed findings, 29 were already fixed by the June–July remediation batches (checkboxes ticked below), 17 are partially fixed (see the dated "Remaining" bullet under each), and 35 remain open. Unticked items are verified still-present as of this date; partial items list exactly what is left._
 
+_Closed out 2026-07-17 on `codex/site-closeout-019f7191`: every medium-severity checkbox, the Next 16 proxy migration, the standing lint backlog, and the missing regression-test lane are resolved. Historical problem statements and earlier "Remaining" notes are retained as audit context. Unticked detailed findings are lower-priority follow-ups; future platform integrations remain in `docs/ROADMAP.md`._
+
 ## Executive summary
 
-discuss.watch is a well-architected, security-conscious aggregator with genuinely strong fundamentals: parameterized SQL throughout, AES-256-GCM for tenant secrets, correct Privy token verification, per-user IDOR-safe scoping, a resilient three-tier forum cache, constant-time secret comparison, and a thoughtful design-system token layer. The codebase is clean enough that `tsc --noEmit` and the production build both pass, and many subsystems (delegate two-phase refresh, the daoForums proposal-linker, brief caching, focus-trapped modals) reflect real operational care. However, two classes of issue need urgent attention: (1) a critical privilege-escalation hole where any logged-in user can self-grant platform admin by POSTing their email, and (2) a cluster of SSRF gaps (IPv6-mapped bypass, auto-followed redirects, no DNS-resolution check) on public unauthenticated URL-fetch routes, compounded by an outdated Next.js with HIGH middleware-bypass advisories. Beyond security, the dominant themes are performance (N+1 DB writes, full-corpus rescans per request, sequential upstream fetches) and maintainability (legacy `c()` theme threading, 2,500-line components, and ~6 families of duplicated logic). None of the architecture is wrong-headed; it mostly needs hardening, batching, and decomposition.
+The current closeout removes the known medium-risk product debt without expanding into speculative platform work. Admin mutations now have strict Zod contracts and batched writes; cold instances hydrate from shared cache; hot list and governance paths are bounded, memoized, parallelized, and Redis-backed; theme selection no longer blanks or mismatches public SSR; the legacy palette resolves through design tokens; and the two largest route shells have been split into focused components. Privy is current, the Next edge layer uses `proxy.ts`, lint is clean, and CI now runs deterministic Node tests before typecheck, lint, build, and high-severity audit.
 
 ## Strengths (don't break these)
 
@@ -24,15 +26,9 @@ discuss.watch is a well-architected, security-conscious aggregator with genuinel
 - Strong defensive patterns are consistent: Promise.allSettled for parallel calls, AbortController + cancelled-flag cleanup in async hooks, Discourse string-or-object tag handling everywhere, focus-trapped accessible modals, and graceful degradation when env/DB/Redis are unconfigured
 - bulkUpsertDirectoryContributors already proves the batched multi-row INSERT pattern, getLatestSnapshots uses an indexed DISTINCT ON, and the daoForums proposal-linker is a well-engineered 3-tier cost ladder with 429-aware throttling — good models for the batching/concurrency work elsewhere
 
-## Top risks
+## Remaining lower-priority work
 
-- Privilege escalation: any logged-in user can self-grant platform admin via POST /api/user email — full admin + cross-tenant takeover
-- SSRF cluster (IPv6-mapped bypass + auto-followed redirects + no DNS-resolution check) on public unauthenticated routes reaching cloud metadata / internal hosts
-- next@16.1.6 HIGH middleware/proxy-bypass advisories against an app whose entire edge security lives in middleware.ts
-- No CI / typecheck on an auto-deploy Railway repo — a typo or lint regression ships to production unguarded
-- Per-topic upsert N+1 (~10k sequential DB round-trips per 15-min refresh) plus full-corpus rescan per /api/discussions request will throttle DB and origin as the corpus and forum list grow
-- Cold-instance getAllCachedForums returns an empty reader feed with HTTP 200 right after every deploy / on new replicas
-- Stored CSS/markup injection via unvalidated tenant accentColor in the public cross-origin embed iframe
+The unchecked review items are lower-severity hardening and consolidation work. The most material are a full nonce-based CSP with an embed-specific framing policy, stricter imported-config and Snapshot payload validation, and continued consolidation of duplicated Discourse, slug, email-layout, and query scaffolding. They are intentionally outside this medium-severity closeout and remain visible below.
 
 ## Quick wins
 
@@ -44,8 +40,8 @@ discuss.watch is a well-architected, security-conscious aggregator with genuinel
 - [x] Grants-brief cron has no idempotency guard — retries/overlaps send duplicate emails
 - [x] error.tsx and not-found.tsx hardcode bg-zinc-950 with no light-mode override (full dark page in light theme)
 - [x] create-tenant/update-tenant persist unvalidated slug and forumUrl (no format check, no SSRF guard)
-- [ ] Snapshot ?include=votes refetches the entire dashboard just to read wallet addresses
-- [ ] getRecentTopics / category queries lack supporting composite indexes
+- [x] Snapshot ?include=votes refetches the entire dashboard just to read wallet addresses
+- [x] getRecentTopics / category queries lack supporting composite indexes
 - [x] .env.example omits ADMIN_EMAILS, ANTICAPTURE_API_KEY, ANTICAPTURE_MCP_URL that the code reads
 
 ---
@@ -65,7 +61,7 @@ _One critical privilege-escalation bug exposes the entire admin and super-admin 
   - Files: `src/app/api/delegates/admin/route.ts`
   - Problem: slug and forumUrl are stored with only a presence check; forumUrl is then fetched server-side by detectCapabilities/search/sync. isAllowedUrl() exists but is never called here, so a super (or self-escalated) admin can point a tenant at http://169.254.169.254/ for SSRF, and a malformed slug persists an unreachable tenant the public routes 400 on.
   - Fix: Validate slug against ^[a-zA-Z0-9_-]{1,100}$ and run isAllowedUrl(forumUrl) (400 on failure) in both actions before persisting/fetching; prefer a safeFetch wrapper that re-checks the resolved IP.
-- [ ] **[medium/M/medium] Admin POST body is `any` with no Zod schema; config/wallet/forumUrl trusted ad hoc**
+- [x] **[medium/M/medium] Admin POST body is `any` with no Zod schema; config/wallet/forumUrl trusted ad hoc**
   - Files: `src/app/api/delegates/admin/route.ts`, `src/app/api/user/bookmarks/route.ts`, `src/app/api/user/alerts/route.ts`, `src/app/api/user/read-state/route.ts`
   - Problem: Zod 4 is a dependency and the documented validation layer, but delegates/admin and the user bulk-sync routes hand-roll presence checks. config is JSON.stringify'd into JSONB unchecked; delegate walletAddress is never format-validated before being lowercased and matched against on-chain voters; bulk endpoints iterate unbounded arrays doing one INSERT per element inside a transaction (DoS / lock contention).
   - Fix: Define per-action Zod schemas (discriminated union on action) for delegates/admin and mirror the existing forums ForumDataSchema on alerts/bookmarks/read-state: cap array sizes (.max), cap string lengths, validate walletAddress ^0x[a-fA-F0-9]{40}$ and topicUrl as a URL. Replace per-row loops with a single multi-row INSERT.
@@ -154,7 +150,7 @@ _The deploy path is healthy (clean tsc, fast build, locked installs, good secret
   - Files: `package.json`, `eslint.config.mjs`
   - Problem: No .github/workflows and scripts have only dev/build/start/lint/smoke. next build (Turbopack) does not run ESLint or fail on warnings, so type errors in unreached paths and the 49 standing lint warnings are only caught when a human remembers to run them locally — and Railway auto-deploys.
   - Fix: Add a `typecheck`: `tsc --noEmit` script and a minimal GitHub Actions workflow (npm ci, lint, typecheck, build) on PRs to main; optionally gate lint warnings to fail once the 49 are burned down.
-- [ ] **[medium/M/medium] 43 of 47 audit vulns flow from @privy-io/react-auth's WalletConnect/reown stack and wallet login is enabled**
+- [x] **[medium/M/medium] 43 of 47 audit vulns flow from @privy-io/react-auth's WalletConnect/reown stack and wallet login is enabled**
   - Files: `package.json`, `src/components/AuthProvider.tsx`
   - Problem: Almost all vulns (axios, ws, elliptic, hono, lodash, @reown/@walletconnect) are transitive under @privy-io/react-auth@3.13.1. loginMethods:['email','wallet'] means the WalletConnect/reown path is actually loaded. npm audit fix cannot fix them; Current 3.13.1 vs Latest 3.30.0 is a same-major upgrade likely refreshing the chain.
   - Fix: Upgrade @privy-io/react-auth to ^3.30.0 in a branch, rebuild, re-run npm audit; add a package.json overrides block for any residual axios/ws/hono/js-cookie. If wallet login isn't required, dropping 'wallet' from loginMethods shrinks the surface immediately.
@@ -167,7 +163,7 @@ _The deploy path is healthy (clean tsc, fast build, locked installs, good secret
   - Files: `src/lib/admin.ts`
   - Problem: isAdminEmail defaults to ['sov@sovereignsignal.com'] when ADMIN_EMAILS is unset (undocumented). This bakes an identity into source and is a silent-default failure mode: forgetting the env var yields a working-but-unexpected admin set rather than a hard failure, and any env where that mailbox is claimable via Privy email login grants admin.
   - Fix: Default to [] (fail-closed) with a console.warn when unset; require ADMIN_EMAILS in Railway (now documented). Move the fallback identity out of committed source.
-- [ ] **[low/M/medium] Next 16 deprecates the 'middleware' file convention in favor of 'proxy' — the whole edge security layer lives there**
+- [x] **[low/M/medium] Next 16 deprecates the 'middleware' file convention in favor of 'proxy' — the whole edge security layer lives there**
   - Files: `src/middleware.ts`
   - Problem: The build warns 'middleware file convention is deprecated, use proxy instead'. All edge security (headers, www redirect, [tenant] slug validation/404 rewrite) is in middleware.ts; leaving it on the deprecated path risks a silent behavior change across a minor upgrade in a security-critical file.
   - Fix: Track the middleware→proxy migration guide and plan the rename (proxy.ts) under test, coupled with the next@16.2.9 bump; verify headers, redirect, and the /_not-found rewrite still apply.
@@ -193,16 +189,16 @@ _The deploy path is healthy (clean tsc, fast build, locked installs, good secret
 
 _The hot paths repeat expensive work that batching, memoization, and concurrency would eliminate: N+1 DB writes per refresh, full-corpus rescans per page request, sequential upstream fetches, and a context value that re-renders every consumer. The cache layering itself is excellent; the issue is how it is populated and read._
 
-- [ ] **[medium/M/high] Per-topic upsert N+1: ~10,000 sequential Postgres round-trips per 15-min refresh (also in backfill)**
+- [x] **[medium/M/high] Per-topic upsert N+1: ~10,000 sequential Postgres round-trips per 15-min refresh (also in backfill)**
   - Files: `src/lib/forumCache.ts`, `src/lib/backfill.ts`
   - Problem: persistToDatabase and backfill processJob both await one upsertTopic per topic in a for-loop (~30 topics × 319 forums ≈ 10k INSERT round-trips every refresh, plus a getForumByUrl SELECT per forum) against a max:10 pool. bulkUpsertDirectoryContributors already proves the batched pattern.
   - Fix: Batch the page's topics into one multi-row INSERT...ON CONFLICT via the postgres.js db(rows, ...cols) helper (~30 round-trips → 1 per forum), and cache forum.url→id in a module Map to skip the per-forum lookup. Apply to both persistToDatabase and backfill.
   - Remaining (2026-07-07 verify pass): The described 'plus a getForumByUrl SELECT per forum' sub-problem remains: persistToDatabase still calls getForumByUrl(forum.url) on every refresh pass (src/lib/forumCache.ts:531); the suggested module-level forum.url→id Map cache was never added. Minor residual (~320 small indexed SELECTs per 15-min refresh vs the eliminated ~10k INSERTs).
-- [ ] **[medium/M/high] /api/discussions rebuilds, filters, and sorts the entire ~10k-topic corpus on every page request**
+- [x] **[medium/M/high] /api/discussions rebuilds, filters, and sorts the entire ~10k-topic corpus on every page request**
   - Files: `src/app/api/discussions/route.ts`
   - Problem: Every call (including each loadMore page) runs getAllCachedForums (~319 forums × ~30 topics), spreads each match into a new object, pushes, sorts the whole array, then slices one page — O(N log N) with N≈10k and ~10k allocations per request, repeated for every paginated page.
   - Fix: Memoize the flattened+sorted result keyed by a cache-refresh generation counter + filter signature in a small module LRU (invalidated when forumCache writes), so pagination becomes a slice. Even a 30-60s TTL keyed on the query string eliminates the loadMore-burst rescan. Add an optional following=true param to skip non-followed forums for the common authenticated case.
-- [ ] **[medium/M/high] Reader feed re-scans the list 2x with isRead() per render and never virtualizes; the virtualizer is dead code**
+- [x] **[medium/M/high] Reader feed re-scans the list 2x with isRead() per render and never virtualizes; the virtualizer is dead code**
   - Files: `src/components/DiscussionFeed.tsx`, `src/components/VirtualizedDiscussionList.tsx`, `src/hooks/useVirtualList.ts`
   - Problem: On every render the feed runs two unmemoized O(n) isRead filters (plus a third for the count), and in server 'all' mode loadMore appends unboundedly so the DOM grows to hundreds/thousands of rows. VirtualizedDiscussionList/useVirtualList exist to solve this but are orphaned (and assume a fixed 120px height incompatible with density rows). The default per-forum path is capped via slice, so this bites the opt-in All-Forums mode after repeated load-more.
   - Fix: Memoize the unread/read partition in a useMemo keyed on [displayedDiscussions, readStateVersion]; render the read list only when expanded. Delete the dead virtualizer files, or replace with a measured virtualizer / DOM cap for large server-mode lists.
@@ -211,12 +207,12 @@ _The hot paths repeat expensive work that batching, memoization, and concurrency
   - Files: `src/components/DataSyncProvider.tsx`
   - Problem: The context value is a fresh object literal each render, so any provider state change (serverData load, loading toggle) forces every useDataSync consumer to re-render. useReadState consumes this and drives isRead() for every feed row, cascading into list re-renders.
   - Fix: Wrap value in useMemo over its already-stable useCallback deps, or split into a stable-actions context and a data context so action consumers don't re-render on data changes.
-- [ ] **[medium/M/high] Governance terminal: sequential 6-8 MCP calls + uncapped attachDiscussions + no fetch timeout per /governance/[dao]**
+- [x] **[medium/M/high] Governance terminal: sequential 6-8 MCP calls + uncapped attachDiscussions + no fetch timeout per /governance/[dao]**
   - Files: `src/lib/delegates/anticaptureClient.ts`, `src/lib/delegates/daoForums.ts`, `src/app/api/anticapture/[dao]/route.ts`
   - Problem: getGovernanceSnapshot awaits ~6-8 independent-then-dependent MCP tool calls strictly sequentially (post() has no AbortSignal, so a hung dev gateway hangs the request indefinitely and the cache never populates), and attachDiscussions is called with cap=proposals.length so every unlinked proposal triggers a 1.1s-throttled, 429-backed Discourse search (~22s+ on cold cache). The 5-min in-memory cache hides it from most but every TTL boundary / cold instance pays it.
   - Fix: Add signal:AbortSignal.timeout(8000) to post(); cap attachDiscussions at the ~8 actually rendered (the delegate route already caps at 12); run the independent MCP calls across a small session pool with Promise.all; and back the snapshot with Redis (the codebase's existing layer) so the cost amortizes across instances and restarts.
   - Remaining (2026-07-07 verify pass): Three described sub-problems remain: (1) the ~6-8 MCP tool calls in getGovernanceSnapshot are still strictly sequential (anticaptureClient.ts:300-319, deliberately — comment says a streamable-HTTP MCP session handles one request at a time; no session pool + Promise.all); (2) attachDiscussions is still called with cap=snapshot.proposals.length (route.ts:51), so on a cold discussionCache every unlinked proposal without a Snapshot match still triggers a throttled Discourse search; (3) the snapshot cache is still a per-process in-memory Map with 5-min TTL (route.ts:14-15), not Redis-backed.
-- [ ] **[medium/S/medium] Snapshot ?include=votes refetches the entire dashboard just to read wallet addresses**
+- [x] **[medium/S/medium] Snapshot ?include=votes refetches the entire dashboard just to read wallet addresses**
   - Files: `src/app/api/delegates/[tenant]/snapshot/route.ts`
   - Problem: The votes path calls getDashboardData (full tenant + all delegates + getLatestSnapshots DISTINCT ON + full row mapping + summary) solely to extract d.walletAddress, on every cached-miss.
   - Fix: Add a focused getDelegateWalletsByTenant (SELECT wallet_address WHERE tenant_id=$1 AND wallet_address IS NOT NULL, lowercased) and use it instead.
@@ -224,21 +220,21 @@ _The hot paths repeat expensive work that batching, memoization, and concurrency
   - Files: `src/lib/forumCache.ts`
   - Problem: getCachedDiscussions loops `for (const url of urls) await getCachedForum(url)`, serializing dozens of independent Redis/Postgres round-trips for a multi-forum digest.
   - Fix: Fetch concurrently with Promise.all over the URLs (or MGET the Redis keys in one round-trip), then flatten.
-- [ ] **[medium/S/medium] getRecentTopics / category queries lack supporting composite indexes**
+- [x] **[medium/S/medium] getRecentTopics / category queries lack supporting composite indexes**
   - Files: `src/lib/db.ts`
   - Problem: The forum-scoped and category recent-topic queries sort by bumped_at with only single-column indexes, so 'WHERE forum_id=X ORDER BY bumped_at DESC LIMIT 30' needs an index scan + sort; searchTopics uses title ILIKE '%q%' with no trigram index (full scan). These degrade as the topics table grows (the point of backfill).
   - Fix: Add idx_topics_forum_bumped ON topics(forum_id, bumped_at DESC) and a pg_trgm GIN index on title (both via the existing IF NOT EXISTS migration style); measure with EXPLAIN on production-sized data first.
   - Remaining (2026-07-07 verify pass): searchTopics (src/lib/db.ts:561-576) still runs t.title ILIKE '%q%' (db.ts:572) with no trigram GIN index on topics.title, so title search remains a full table scan as the topics table grows. Wildcard escaping was added (db.ts:565) but that's a correctness fix, not the index.
-- [ ] **[medium/M/medium] Digest makes one Haiku call per topic (~18 per digest), sections awaited sequentially**
+- [x] **[medium/M/medium] Digest makes one Haiku call per topic (~18 per digest), sections awaited sequentially**
   - Files: `src/app/api/digest/route.ts`
   - Problem: Every digest topic gets its own generateTopicInsight Haiku call (up to 18 round-trips), and the four sections are awaited section-after-section — slow and cost-inefficient versus one batched prompt.
   - Fix: Batch all selected topics into one Claude call returning a url→one-liner JSON map (or at least Promise.all all four sections), and persist insights in Redis keyed by url+refresh-hour like brief.ts.
-- [ ] **[medium/M/medium] getAllCachedForums (process memory only) returns empty right after deploy / on a cold instance**
+- [x] **[medium/M/medium] getAllCachedForums (process memory only) returns empty right after deploy / on a cold instance**
   - Files: `src/lib/forumCache.ts`, `src/app/api/discussions/route.ts`, `src/app/api/briefs/route.ts`, `src/app/feed/[vertical]/route.ts`
   - Problem: getAllCachedForums reads only the in-process Map with no Redis/Postgres fallback (unlike getCachedForum). On a fresh deploy/restart/new replica the reader feed and feeds return empty topics with HTTP 200 for the multi-minute window until the first refresh pass completes, and results vary per replica.
   - Fix: Pre-hydrate memoryCache from Redis on cold start (instrumentation.ts register hook), or detect an under-populated cache and warm from Redis before filtering. At minimum surface a warming:true flag in meta so the client shows loading instead of empty.
   - Remaining (2026-07-07 verify pass): getAllCachedForums itself is still memory-only with no fallback (forumCache.ts:188-190), and hydration only runs on the lock-skip branch (line 721): a cold start that WINS the lock (lock free after crash/plain restart) does a full upstream refresh with an empty cache, so /api/discussions (route.ts:58), /api/briefs (route.ts:38) and /feed/[vertical] (route.ts:25) still serve empty/partial results with HTTP 200 while it fills. No warming:true flag was added to response meta, and the whole path still depends on /api/discourse being imported first (see finding at doc line 237).
-- [ ] **[medium/M/medium] Four independent in-memory rate limiters per Discourse host can collectively exceed the limit**
+- [x] **[medium/M/medium] Four independent in-memory rate limiters per Discourse host can collectively exceed the limit**
   - Files: `src/lib/delegates/discourseClient.ts`, `src/lib/delegates/proposalTracker.ts`, `src/lib/delegates/featuredThreads.ts`
   - Problem: discourseClient/proposalTracker/featuredThreads each declare their own module-level requestTimestamps Map, so a single tenant refresh can issue 60+30+30=120 req/min to one host while each limiter thinks it's under its budget; on multi-instance each process has its own Map (N× the limit), risking 429s/bans.
   - Fix: Extract one shared rate limiter keyed by hostname imported everywhere, summing all call sites under one budget; back it with Redis (sliding window) for multi-instance correctness.
@@ -279,11 +275,11 @@ _A handful of genuine, user-reproducible defects: bookmark folders silently drop
   - Files: `src/app/api/cron/grants-brief/route.ts`
   - Problem: The cron generates and unconditionally sends on every GET with no 'already sent today' guard, so a scheduler retry, manual re-hit, or overlapping invocation double-sends. The delegates cron has isRefreshDue(); this has no equivalent.
   - Fix: SET a Redis key grants-brief:sent:<YYYY-MM-DD> with NX and ~25h TTL before sending; bail if it exists.
-- [ ] **[medium/S/medium] Cron + digest routes lack maxDuration/runtime config despite long LLM + multi-forum work**
+- [x] **[medium/S/medium] Cron + digest routes lack maxDuration/runtime config despite long LLM + multi-forum work**
   - Files: `src/app/api/cron/grants-brief/route.ts`, `src/app/api/cron/delegates/route.ts`, `src/app/api/digest/route.ts`
   - Problem: These routes scan all cached forums and issue ~20+ sequential Claude calls then send email within one request, but declare no maxDuration/runtime, so a platform timeout can kill them mid-flight (after spending tokens, before/while sending).
   - Fix: Add export const maxDuration=120, dynamic='force-dynamic', runtime='nodejs'; pair with the idempotency guard so a timeout-retry can't double-send.
-- [ ] **[medium/S/medium] Snapshot 'did not vote' list silently drops voters with no tracked/wallet-linked delegate, under-reporting non-participation**
+- [x] **[medium/S/medium] Snapshot 'did not vote' list silently drops voters with no tracked/wallet-linked delegate, under-reporting non-participation**
   - Files: `src/app/[tenant]/ProposalsView.tsx`
   - Problem: walletToDelegate is built only for delegates that are both isTracked AND have a walletAddress, so the per-proposal participation ratio counts only that subset — a verified delegate without a linked wallet is invisible, making the accountability story read e.g. 3/3 (100%) while others abstained.
   - Fix: Compute participation over all wallet-linked delegates regardless of isTracked, surface a 'no wallet linked' bucket, and label the ratio explicitly rather than conflating unmeasurable with non-voting.
@@ -291,15 +287,15 @@ _A handful of genuine, user-reproducible defects: bookmark folders silently drop
   - Files: `src/app/api/v1/discussions/route.ts`, `src/app/api/v1/search/route.ts`
   - Problem: limit=Math.min(parseInt(...??'20'),50) returns NaN for limit=abc, so slice(0,NaN) returns [] with a 200 — the API silently returns zero instead of the documented default of 20. /api/discussions correctly guards.
   - Fix: Mirror the discussions guard: parse radix-10, Number.isFinite check, clamp Math.max(1,raw) to 50, default 20.
-- [ ] **[medium/S/medium] saveForums/saveAlerts/saveBookmarks return value ignored — silent data loss on quota exceed**
+- [x] **[medium/S/medium] saveForums/saveAlerts/saveBookmarks return value ignored — silent data loss on quota exceed**
   - Files: `src/lib/storage.ts`, `src/hooks/useForums.ts`, `src/hooks/useAlerts.ts`, `src/hooks/useBookmarks.ts`
   - Problem: safeSetItem returns false on QuotaExceededError and save* propagate it, but the hooks call them fire-and-forget. If the storage-error callback isn't wired, a failed write is invisible: in-memory state shows the item, reload loses it.
   - Fix: Have the hooks check the boolean and toast on false, ensure setStorageErrorCallback is registered at app mount, and make addForum/addAlert return null/throw on persist failure.
-- [ ] **[medium/M/medium] useAlerts maintains a divergent dual source of truth (storage helpers + React state)**
+- [x] **[medium/M/medium] useAlerts maintains a divergent dual source of truth (storage helpers + React state)**
   - Files: `src/hooks/useAlerts.ts`
   - Problem: add/remove/toggleAlert call storage helpers that re-read localStorage and save, then separately setAlerts(prev=>...). The two compute from different sources; on any divergence (cross-tab write, hydration merge, failed safeSetItem) the persisted and in-memory lists disagree and the next mutation resurrects/drops alerts. Double-writes localStorage per mutation.
   - Fix: Make useAlerts the single source of truth like useBookmarks/useReadState: compute next from prev, persist once with saveAlerts(updated), drop the per-item helpers.
-- [ ] **[medium/M/low] useTheme never calls syncTheme — theme isn't synced cross-device though the plumbing exists**
+- [x] **[medium/M/low] useTheme never calls syncTheme — theme isn't synced cross-device though the plumbing exists**
   - Files: `src/hooks/useTheme.ts`, `src/components/DataSyncProvider.tsx`
   - Problem: DataSyncProvider exposes syncTheme and persists/loads preferences.theme, and useDensity consumes its equivalent, but useTheme only writes localStorage — so theme (unlike density) is never pushed to or hydrated from the server, contradicting the documented cross-device sync. syncTheme is entirely unused.
   - Fix: Mirror useDensity in useTheme (consume useDataSync, call syncTheme after hydration, hydrate from serverData.preferences.theme), or remove the unused syncTheme plumbing.
@@ -344,20 +340,20 @@ _A handful of genuine, user-reproducible defects: bookmark folders silently drop
 
 _The app works but carries a heavy maintenance tax: the legacy c(isDark) theme helper is prop-threaded through the most-rendered components (defeating memoization and density), two 1,100-2,500-line components concentrate state and JSX, and ~7 families of logic (Discourse client scaffold, slug regex, email chrome, source utils, theme palette, rate limiters, recent-topics SELECT) are duplicated and already drifting. None is a bug today; each makes the next change riskier._
 
-- [ ] **[medium/L/high] Migrate the legacy c(isDark) theme helper to --ds-* CSS variables across the app (reader, tenant, admin, shell)**
+- [x] **[medium/L/high] Migrate the legacy c(isDark) theme helper to --ds-* CSS variables across the app (reader, tenant, admin, shell)**
   - Files: `src/components/DiscussionItem.tsx`, `src/app/[tenant]/DashboardClient.tsx`, `src/app/admin/page.tsx`, `src/components/ConfigExportImport.tsx`, `src/app/[tenant]/ProposalsView.tsx`
   - Problem: c(isDark) is threaded as a prop through the most-rendered components (DiscussionItem, the whole 15-file tenant subsystem, the admin page, several shell components). Beyond contradicting the documented --ds-* convention, passing isDark into memoized DiscussionItem changes a prop on every row each theme toggle (defeating memo), recomputes t=c(isDark) per render, provides no density support, and the palette is hand-duplicated in 3+ places (admin) plus a re-declared ThemeColors interface (ProposalsView) that can drift from c()'s return.
   - Fix: Migrate opportunistically per the documented policy, starting with DiscussionItem (highest leverage — drops the isDark prop so memo holds across theme changes and density tokens apply). Replace the admin/tenant palette blocks with var(--ds-*) and delete the manual classList toggling; at minimum type ProposalsView's ThemeColors as ReturnType<typeof c>.
   - Remaining (2026-07-07 verify pass): Remaining c(isDark) users: src/app/[tenant]/DashboardClient.tsx:63,1039,1106,1144; src/app/admin/page.tsx:150-158 (hand-duplicated palette); src/components/ConfigExportImport.tsx:33; src/app/[tenant]/ProposalsView.tsx:21 (re-declared ThemeColors interface, still not typed as ReturnType<typeof c>); ~20 other components still import c from @/lib/theme.
-- [ ] **[medium/L/high] Decompose the 2,491-line admin page and the 1,164-line tenant DashboardClient**
+- [x] **[medium/L/high] Decompose the 2,491-line admin page and the 1,164-line tenant DashboardClient**
   - Files: `src/app/admin/page.tsx`, `src/app/[tenant]/DashboardClient.tsx`
   - Problem: admin/page.tsx is one file holding AdminPage + a ~1,900-line ForumAnalyticsSection (~44 useState, inline CSV parsing, a ~780-line tenant .map), and DashboardClient holds 20+ useState slices plus the full contributors table inline. Any change forces loading the whole file and risks unrelated regressions; the contributors-table render is the biggest re-render surface (every search keystroke re-renders the page).
   - Fix: Extract into src/components/admin/ (SystemStatsCards, UsersTable, ForumPresetPicker, AddForumForm, TenantRow + sub-panels, lib/admin/parseDelegateCsv.ts with a test) and a ContributorsTab owning its filter/sort/search state; consider useReducer for the filter clusters.
-- [ ] **[medium/S/medium] Card/Btn/StatusBadge defined inside AdminPage render body remount their subtrees every render**
+- [x] **[medium/S/medium] Card/Btn/StatusBadge defined inside AdminPage render body remount their subtrees every render**
   - Files: `src/app/admin/page.tsx`
   - Problem: Card/Btn/StatusBadge are declared inside AdminPage's render, so each render (every 30s refetch) creates new component identities and React unmounts/remounts the entire subtree rendered through them, losing local state/focus. React Compiler cannot memoize a re-created component type.
   - Fix: Hoist them to module scope (or files) and pass theme via props/CSS vars; with --ds-* tokens they need no props and become static.
-- [ ] **[medium/M/low] Consolidate the two unrelated rate-limiter implementations; the client token-bucket gives no upstream protection**
+- [x] **[medium/M/low] Consolidate the two unrelated rate-limiter implementations; the client token-bucket gives no upstream protection**
   - Files: `src/lib/rateLimiter.ts`, `src/lib/rateLimit.ts`, `src/lib/fetchWithRetry.ts`
   - Problem: rateLimiter.ts (token-bucket) is used only by fetchWithRetry → the client hook useDiscussions, where it's per-tab and protects nothing upstream; rateLimit.ts (sliding window, per-domain) is the real server-side throttle. Two implementations with different semantics create a 'which limiter?' tax, and the client one is effectively dead weight.
   - Fix: Route client fetches through /api/discourse (already server-rate-limited) and delete the client token-bucket, or at minimum document it as client-only UX smoothing.
@@ -365,7 +361,7 @@ _The app works but carries a heavy maintenance tax: the legacy c(isDark) theme h
   - Files: `src/hooks/useUserSync.ts`, `src/hooks/useUrlState.ts`, `src/hooks/useKeyboardNavigation.ts`
   - Problem: All three have zero importers. useUserSync is a near-complete duplicate of the live DataSyncProvider sync logic (drift-prone second copy of the server-sync contract), useUrlState's view union is already stale (missing 'briefs'), and useKeyboardNavigation unconditionally preventDefaults Space/Enter/j/k globally with no input guard — a latent input-breaking bug if revived.
   - Fix: Delete the three files (and useUserSync's interfaces); if any is reserved for upcoming work, add a single consumer or a TODO.
-- [ ] **[medium/S/medium] ProposalsView re-fetches the entire dashboard DashboardClient already holds**
+- [x] **[medium/S/medium] ProposalsView re-fetches the entire dashboard DashboardClient already holds**
   - Files: `src/app/[tenant]/ProposalsView.tsx`, `src/app/[tenant]/DashboardClient.tsx`
   - Problem: Opening the Proposals tab issues a third fetch to /api/delegates/${slug} solely to read delegates for the wallet map, duplicating the payload DashboardClient already holds and re-running the route's full dashboard+snapshot+voter-participation path; it can also show a roster divergent from the rest of the page.
   - Fix: Pass dashboard.delegates (the tracked, wallet-bearing subset) down as a prop and drop the third fetch.
@@ -415,11 +411,11 @@ _The reader is the core product, and most issues here are small but user-visible
   - Files: `src/app/error.tsx`, `src/app/not-found.tsx`
   - Problem: globals.css overrides bg-gray-*/bg-neutral-* for light mode but not bg-zinc-950 globally, so a light-theme user hitting an error or 404 sees a full-screen dark page with low-contrast text — the documented stays-dark-in-light-mode class.
   - Fix: Switch both to --ds-* variables (var(--ds-bg-base)/var(--ds-fg)/var(--ds-fg-muted)); global-error.tsx is a valid exception since it replaces <html>.
-- [ ] **[medium/M/medium] Landing, governance, and invite pages bypass the SSR theme bootstrap → light-mode flash / hydration mismatch**
+- [x] **[medium/M/medium] Landing, governance, and invite pages bypass the SSR theme bootstrap → light-mode flash / hydration mismatch**
   - Files: `src/app/page.tsx`, `src/app/governance/[dao]/page.tsx`, `src/app/invite/[token]/page.tsx`
   - Problem: layout.tsx already sets html.light/.dark pre-paint, but the landing page re-implements its own dark-default theme state with hardcoded hex and reads localStorage post-mount (flash for light users); the governance pages toggle the class in a useEffect (FOUC the main app already fixed); the invite page reads localStorage during render (classic hydration divergence).
   - Fix: Drive the landing page from --ds-* tokens (or read the class synchronously), and have governance/invite reuse the SSR-safe useTheme() hook instead of bespoke theme state.
-- [ ] **[medium/M/medium] AuthProvider returns null during SSR for every route, discarding server-rendered HTML on public pages**
+- [x] **[medium/M/medium] AuthProvider returns null during SSR for every route, discarding server-rendered HTML on public pages**
   - Files: `src/components/AuthProvider.tsx`, `src/app/layout.tsx`
   - Problem: When Privy is configured, AuthProvider gates children on a post-mount `mounted` flag, so the server renders null for ALL routes including auth-independent SEO pages (/privacy, /terms). The gate exists only to pick the Privy modal theme, but it blanks SSR output and causes a blank-to-content flash app-wide.
   - Fix: Render PrivyProvider with a server-default theme (reuse the value the inline layout script already computed) and adjust appearance post-mount; do not gate children on mounted.

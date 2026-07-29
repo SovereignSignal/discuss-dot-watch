@@ -100,11 +100,12 @@ export function useBookmarks() {
     }
   }, [serverData, bookmarks, syncBookmarks]);
 
-  const persistBookmarks = useCallback((updated: Bookmark[]) => {
-    saveBookmarksToStorage(updated);
+  const persistBookmarks = useCallback((updated: Bookmark[]): boolean => {
+    if (!saveBookmarksToStorage(updated)) return false;
     if (hydratedRef.current) {
       syncBookmarks(updated);
     }
+    return true;
   }, [syncBookmarks]);
 
   const addBookmark = useCallback((topic: {
@@ -129,16 +130,14 @@ export function useBookmarks() {
         createdAt: new Date().toISOString(),
       };
       const updated = [newBookmark, ...prev];
-      persistBookmarks(updated);
-      return updated;
+      return persistBookmarks(updated) ? updated : prev;
     });
   }, [persistBookmarks]);
 
   const removeBookmark = useCallback((topicRefId: string) => {
     setBookmarks(prev => {
       const updated = prev.filter(b => b.topicRefId !== topicRefId);
-      persistBookmarks(updated);
-      return updated;
+      return persistBookmarks(updated) ? updated : prev;
     });
   }, [persistBookmarks]);
 
@@ -146,8 +145,7 @@ export function useBookmarks() {
     setBookmarks(prev => {
       const sanitized = folder && folder.trim() ? folder.trim().slice(0, 100) : null;
       const updated = prev.map(b => b.topicRefId === topicRefId ? { ...b, folder: sanitized } : b);
-      persistBookmarks(updated);
-      return updated;
+      return persistBookmarks(updated) ? updated : prev;
     });
   }, [persistBookmarks]);
 
@@ -163,14 +161,12 @@ export function useBookmarks() {
   const importBookmarks = useCallback((newBookmarks: Bookmark[], replace = false) => {
     setBookmarks(prev => {
       if (replace) {
-        persistBookmarks(newBookmarks);
-        return newBookmarks;
+        return persistBookmarks(newBookmarks) ? newBookmarks : prev;
       }
       const existingRefs = new Set(prev.map(b => b.topicRefId));
       const toAdd = newBookmarks.filter(b => !existingRefs.has(b.topicRefId));
       const updated = [...prev, ...toAdd];
-      persistBookmarks(updated);
-      return updated;
+      return persistBookmarks(updated) ? updated : prev;
     });
   }, [persistBookmarks]);
 

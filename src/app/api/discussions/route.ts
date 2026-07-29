@@ -18,7 +18,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllCachedForums } from '@/lib/forumCache';
+import { getAllCachedForumsReady, getForumCacheVersion } from '@/lib/forumCache';
 import { buildUrlCategoryMap, buildUrlForumNameMap } from '@/lib/forumPresets';
 import { EXTERNAL_SOURCES } from '@/lib/externalSources';
 import { DiscussionTopic } from '@/types';
@@ -26,11 +26,34 @@ import { isWithinDateRange } from '@/lib/dateWindows';
 
 const urlCategoryMap = buildUrlCategoryMap(EXTERNAL_SOURCES);
 const urlForumNameMap = buildUrlForumNameMap();
+const RESPONSE_CACHE_TTL_MS = 45_000;
+const RESPONSE_CACHE_MAX = 32;
 
 interface AllDiscussionsTopic extends DiscussionTopic {
   isFollowing: boolean;
   category: string;
   forumName: string;
+}
+
+const responseCache = new Map<string, {
+  version: number;
+  expiresAt: number;
+  topics: AllDiscussionsTopic[];
+  cachedForumCount: number;
+}>();
+
+function parsePositiveInt(value: string | null, fallback: number, max?: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return max ? Math.min(max, parsed) : parsed;
+}
+
+function setResponseCache(key: string, value: Omit<NonNullable<ReturnType<typeof responseCache.get>>, 'expiresAt'>) {
+  if (responseCache.size >= RESPONSE_CACHE_MAX) {
+    const oldest = responseCache.keys().next().value;
+    if (oldest) responseCache.delete(oldest);
+  }
+  responseCache.set(key, { ...value, expiresAt: Date.now() + RESPONSE_CACHE_TTL_MS });
 }
 
 export async function GET(request: NextRequest) {
@@ -41,8 +64,8 @@ export async function GET(request: NextRequest) {
   const dateRange = searchParams.get('dateRange') || 'week';
   const dateMode = searchParams.get('dateMode') || 'created';
   const sort = searchParams.get('sort') || 'recent';
-  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '40', 10)));
+  const page = parsePositiveInt(searchParams.get('page'), 1);
+  const limit = parsePositiveInt(searchParams.get('limit'), 40, 100);
   const forumUrlsParam = searchParams.get('forumUrls') || '';
   const keyword = searchParams.get('keyword')?.toLowerCase() || '';
   const forumFilter = searchParams.get('forum')?.replace(/\/$/, '').toLowerCase() || '';
@@ -55,10 +78,25 @@ export async function GET(request: NextRequest) {
       .filter(Boolean)
   );
 
-  const allCached = getAllCachedForums();
-  const allTopics: AllDiscussionsTopic[] = [];
+  const allCached = await getAllCachedForumsReady();
+  const filterParams = new URLSearchParams(searchParams);
+  filterParams.delete('page');
+  filterParams.delete('limit');
+  filterParams.sort();
+  const cacheKey = filterParams.toString();
+  const version = getForumCacheVersion();
+  const cachedResponse = responseCache.get(cacheKey);
+  let allTopics: AllDiscussionsTopic[];
+  let cachedForumCount: number;
 
-  for (const cached of allCached) {
+  if (cachedResponse && cachedResponse.version === version && cachedResponse.expiresAt > Date.now()) {
+    allTopics = cachedResponse.topics;
+    cachedForumCount = cachedResponse.cachedForumCount;
+  } else {
+    allTopics = [];
+    cachedForumCount = allCached.filter(c => !c.error && c.topics.length > 0).length;
+
+    for (const cached of allCached) {
     if (cached.error || !cached.topics || cached.topics.length === 0) continue;
 
     const normalizedKey = cached.url.replace(/\/$/, '').toLowerCase();
@@ -100,17 +138,19 @@ export async function GET(request: NextRequest) {
         forumName,
       });
     }
-  }
+    }
 
   // Sort
-  allTopics.sort((a, b) => {
+    allTopics.sort((a, b) => {
     switch (sort) {
       case 'replies': return b.replyCount - a.replyCount;
       case 'views': return b.views - a.views;
       case 'likes': return b.likeCount - a.likeCount;
       default: return new Date(b.bumpedAt).getTime() - new Date(a.bumpedAt).getTime();
     }
-  });
+    });
+    setResponseCache(cacheKey, { version, topics: allTopics, cachedForumCount });
+  }
 
   // Paginate
   const total = allTopics.length;
@@ -125,7 +165,8 @@ export async function GET(request: NextRequest) {
       page,
       limit,
       totalPages,
-      cachedForumCount: allCached.filter(c => !c.error && c.topics.length > 0).length,
+      cachedForumCount,
+      warming: allCached.length === 0,
     },
   });
 }

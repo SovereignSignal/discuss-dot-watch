@@ -53,6 +53,29 @@ export function isRedisConfigured(): boolean {
   return !!process.env.REDIS_URL;
 }
 
+/** Small generic JSON cache for cross-instance route responses. */
+export async function getCachedJson<T>(key: string): Promise<T | null> {
+  const client = getRedis();
+  if (!client) return null;
+  try {
+    const value = await client.get(key);
+    return value ? JSON.parse(value) as T : null;
+  } catch (error) {
+    console.error(`[Redis] Error reading ${key}:`, error);
+    return null;
+  }
+}
+
+export async function setCachedJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    await client.setex(key, ttlSeconds, JSON.stringify(value));
+  } catch (error) {
+    console.error(`[Redis] Error writing ${key}:`, error);
+  }
+}
+
 /**
  * Cache key helpers
  */

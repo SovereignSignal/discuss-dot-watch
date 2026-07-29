@@ -20,13 +20,27 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 });
     }
 
-    const dashboard = await getDashboardData(slug);
+    const [dashboard, snapshotData] = await Promise.all([
+      getDashboardData(slug),
+      fetchTenantSnapshotData(slug).catch((err) => {
+        console.error(`[API] Snapshot fetch failed for ${slug}:`, err);
+        return null;
+      }),
+    ]);
     if (!dashboard) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     // Try to get cached brief first (fast path)
-    const brief = await getCachedBrief(slug, dashboard.lastRefreshAt);
+    const [brief, voterParticipation] = await Promise.all([
+      getCachedBrief(slug, dashboard.lastRefreshAt),
+      snapshotData && snapshotData.totalProposals > 0
+        ? fetchVoterParticipation(snapshotData.space).catch((err) => {
+            console.error(`[API] Voter participation failed for ${slug}:`, err);
+            return new Map<string, number>();
+          })
+        : Promise.resolve(new Map<string, number>()),
+    ]);
 
     if (!brief) {
       // Generate in the background — don't block the response
@@ -45,11 +59,7 @@ export async function GET(
     // Compute governance scores (best-effort — don't block on failure)
     let governanceScores: GovernanceScore[] = [];
     try {
-      const snapshotData = await fetchTenantSnapshotData(slug);
       if (snapshotData && snapshotData.totalProposals > 0) {
-        const voterParticipation = await fetchVoterParticipation(
-          snapshotData.space,
-        );
         governanceScores = computeGovernanceScores(
           dashboard.delegates,
           voterParticipation,

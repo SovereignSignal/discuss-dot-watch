@@ -74,12 +74,6 @@ export default function DelegatePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = localStorage.getItem('discuss-watch-theme');
-    document.documentElement.classList.toggle('light', t === 'light');
-    document.documentElement.classList.toggle('dark', t !== 'light');
-  }, []);
-
-  useEffect(() => {
     setLoading(true); setError(null); setData(null);
     fetch(`/api/anticapture/${id}/delegate/${address}`)
       .then((r) => r.json())

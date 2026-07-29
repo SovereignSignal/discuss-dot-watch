@@ -1,90 +1,47 @@
 /**
- * Theme utilities for discuss.watch
- * 
- * Single source of truth for all colors. Components import `c(isDark)` and use the result.
+ * Legacy compatibility adapter. The palette now resolves entirely through the
+ * design-system CSS variables, so callers inherit the SSR-selected theme and
+ * density without branching in JavaScript.
  */
-
-export const colors = {
-  dark: {
-    // Text
-    fg: '#fafafa',
-    fgSecondary: '#e4e4e7',
-    fgMuted: '#a1a1aa',
-    fgDim: '#71717a',
-    
-    // Backgrounds
-    bg: '#09090b',
-    bgSidebar: '#111111',
-    bgCard: '#18181b',
-    bgCardHover: '#1f1f23',
-    bgInput: '#18181b',
-    bgActive: 'rgba(255,255,255,0.08)',
-    bgActiveStrong: 'rgba(255,255,255,0.1)',
-    bgSubtle: 'rgba(255,255,255,0.04)',
-    bgBadge: '#1f1f23',
-    
-    // Borders
-    border: '#27272a',
-    borderSubtle: 'rgba(255,255,255,0.08)',
-    borderActive: 'rgba(255,255,255,0.15)',
-    
-    // Hover states
-    hoverBg: '#18181b',
-    hoverBorder: '#333333',
-    
-    // Read state
-    readFg: 'rgba(250,250,250,0.4)',
-    readBorder: 'rgba(255,255,255,0.03)',
-  },
-  light: {
-    // Text
-    fg: '#09090b',
-    fgSecondary: '#3f3f46',
-    fgMuted: '#4b5563',
-    fgDim: '#6b7280',
-    
-    // Backgrounds
-    bg: '#f8f9fa',
-    bgSidebar: '#ffffff',
-    bgCard: '#ffffff',
-    bgCardHover: '#f5f5f5',
-    bgInput: 'rgba(0,0,0,0.03)',
-    bgActive: 'rgba(0,0,0,0.06)',
-    bgActiveStrong: 'rgba(0,0,0,0.08)',
-    bgSubtle: 'rgba(0,0,0,0.02)',
-    bgBadge: 'rgba(0,0,0,0.05)',
-    
-    // Borders
-    border: 'rgba(0,0,0,0.08)',
-    borderSubtle: 'rgba(0,0,0,0.06)',
-    borderActive: 'rgba(0,0,0,0.15)',
-    
-    // Hover states
-    hoverBg: 'rgba(0,0,0,0.02)',
-    hoverBorder: 'rgba(0,0,0,0.12)',
-    
-    // Read state
-    readFg: 'rgba(9,9,11,0.4)',
-    readBorder: 'rgba(0,0,0,0.03)',
-  },
+const tokenColors = {
+  fg: 'var(--ds-fg)',
+  fgSecondary: 'var(--ds-fg-muted)',
+  fgMuted: 'var(--ds-fg-muted)',
+  fgDim: 'var(--ds-fg-dim)',
+  bg: 'var(--ds-bg-base)',
+  bgSidebar: 'var(--ds-bg-card)',
+  bgCard: 'var(--ds-bg-card)',
+  bgCardHover: 'var(--ds-bg-elev)',
+  bgInput: 'var(--ds-bg-elev)',
+  bgActive: 'var(--ds-bg-subtle)',
+  bgActiveStrong: 'var(--ds-bg-elev)',
+  bgSubtle: 'var(--ds-bg-subtle)',
+  bgBadge: 'var(--ds-bg-elev)',
+  border: 'var(--ds-border)',
+  borderSubtle: 'var(--ds-border-subtle)',
+  borderActive: 'var(--ds-border-strong)',
+  hoverBg: 'var(--ds-bg-elev)',
+  hoverBorder: 'var(--ds-border-strong)',
+  readFg: 'var(--ds-fg-dim)',
+  readBorder: 'var(--ds-border-subtle)',
 } as const;
 
-/** Get theme colors for current mode */
-export function c(isDark: boolean) {
-  return isDark ? colors.dark : colors.light;
+/** @deprecated Prefer `var(--ds-*)` directly in new and touched components. */
+export function c(_isDark?: boolean) {
+  void _isDark;
+  return tokenColors;
 }
 
-/** CSS variable references for components that can use them */
 export const cssVars = {
-  bg: 'var(--background)',
-  cardBg: 'var(--card-bg)',
-  text: 'var(--text-primary)',
-  textSecondary: 'var(--text-secondary)',
-  textMuted: 'var(--text-muted)',
-  border: 'var(--card-border)',
-  accent: 'var(--accent)',
-  success: 'var(--success)',
-  warning: 'var(--warning)',
-  danger: 'var(--danger)',
-  info: 'var(--info)',
+  bg: 'var(--ds-bg-base)',
+  cardBg: 'var(--ds-bg-card)',
+  text: 'var(--ds-fg)',
+  textSecondary: 'var(--ds-fg-muted)',
+  textMuted: 'var(--ds-fg-dim)',
+  border: 'var(--ds-border)',
+  accent: 'var(--ds-info)',
+  success: 'var(--ds-success)',
+  warning: 'var(--ds-warn)',
+  danger: 'var(--ds-error)',
+  info: 'var(--ds-info)',
 } as const;

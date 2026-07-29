@@ -168,7 +168,7 @@ export interface DelegateActivity {
   offchainPool?: OffchainProposal[]; // Snapshot proposals, for proposal→forum linking
 }
 
-/** Combined per-DAO governance snapshot — one MCP session powers all panels. */
+/** Combined per-DAO governance snapshot. */
 export interface GovernanceSnapshot {
   dao: string;
   votingPowers: VotingPowerEntry[];
@@ -261,6 +261,12 @@ async function callTool<T = unknown>(sessionId: string, name: string, args: Reco
   return (textPart ? (JSON.parse(textPart) as T) : (r.data.result as T));
 }
 
+/** Use an independent session so unrelated tools can execute concurrently. */
+async function callToolWithSession<T = unknown>(name: string, args: Record<string, unknown>): Promise<T> {
+  const sessionId = await openSession();
+  return callTool<T>(sessionId, name, args);
+}
+
 /** List every DAO Anticapture supports (note: DAO ids are lowercase in tool args). */
 export async function getDaos(): Promise<AnticaptureDao[]> {
   const sid = await openSession();
@@ -294,16 +300,15 @@ export async function getGovernanceSnapshot(
   dao: string,
   opts: { topDelegates?: number; treasuryWindow?: TreasuryWindow } = {},
 ): Promise<GovernanceSnapshot> {
-  const sid = await openSession();
   const id = dao.toLowerCase();
-  // Sequential: a streamable-HTTP MCP session handles one request at a time.
-  const vp = await safeCall(`votingPowers(${id})`, () => callTool<ItemsEnvelope<VotingPowerEntry>>(sid, 'votingPowers', { dao: id, params: {} }), { items: [] });
-  const fe = await safeCall(`feedEvents(${id})`, () => callTool<ItemsEnvelope<FeedEvent>>(sid, 'feedEvents', { dao: id, params: {} }), { items: [] });
-  const tre = await safeCall(`getTotalTreasury(${id})`, () => callTool<ItemsEnvelope<TreasuryPoint>>(sid, 'getTotalTreasury', { dao: id, params: { days: opts.treasuryWindow ?? '90d' } }), { items: [] });
-  const prop = await safeCall<ItemsEnvelope<AnticaptureProposal> | AnticaptureProposal[]>(`proposals(${id})`, () => callTool(sid, 'proposals', { dao: id, params: {} }), { items: [] });
-  // Fetch a generous pool (UI shows 6) so the proposal→forum linker can match
-  // on-chain proposals to a Snapshot proposal's canonical discussion link.
-  const off = await safeCall(`offchainProposals(${id})`, () => callTool<ItemsEnvelope<OffchainProposal>>(sid, 'offchainProposals', { dao: id, params: { limit: 40, lean: true } }), { items: [] });
+  const [vp, fe, tre, prop, off] = await Promise.all([
+    safeCall(`votingPowers(${id})`, () => callToolWithSession<ItemsEnvelope<VotingPowerEntry>>('votingPowers', { dao: id, params: {} }), { items: [] }),
+    safeCall(`feedEvents(${id})`, () => callToolWithSession<ItemsEnvelope<FeedEvent>>('feedEvents', { dao: id, params: {} }), { items: [] }),
+    safeCall(`getTotalTreasury(${id})`, () => callToolWithSession<ItemsEnvelope<TreasuryPoint>>('getTotalTreasury', { dao: id, params: { days: opts.treasuryWindow ?? '90d' } }), { items: [] }),
+    safeCall<ItemsEnvelope<AnticaptureProposal> | AnticaptureProposal[]>(`proposals(${id})`, () => callToolWithSession('proposals', { dao: id, params: {} }), { items: [] }),
+    // Fetch a generous pool so the proposal linker can use canonical Snapshot discussions.
+    safeCall(`offchainProposals(${id})`, () => callToolWithSession<ItemsEnvelope<OffchainProposal>>('offchainProposals', { dao: id, params: { limit: 40, lean: true } }), { items: [] }),
+  ]);
   // Sort newest-first by timestamp so both the UI list and the "latest proposal"
   // accountability pick below are correct regardless of the order the tool returns.
   const proposals = (Array.isArray(prop) ? prop : prop.items || [])
@@ -315,8 +320,10 @@ export async function getGovernanceSnapshot(
   const latest = proposals[0];
   if (latest?.id) {
     const pid = String(latest.id);
-    const votes = await safeCall(`votesByProposalId(${id},${pid})`, () => callTool<ItemsEnvelope<ProposalVote>>(sid, 'votesByProposalId', { dao: id, id: pid, params: { limit: 200 } }), { items: [] });
-    const nonV = await safeCall(`proposalNonVoters(${id},${pid})`, () => callTool<ItemsEnvelope<ProposalNonVoter>>(sid, 'proposalNonVoters', { dao: id, id: pid, params: { limit: 12, orderDirection: 'desc' } }), { items: [] });
+    const [votes, nonV] = await Promise.all([
+      safeCall(`votesByProposalId(${id},${pid})`, () => callToolWithSession<ItemsEnvelope<ProposalVote>>('votesByProposalId', { dao: id, id: pid, params: { limit: 200 } }), { items: [] }),
+      safeCall(`proposalNonVoters(${id},${pid})`, () => callToolWithSession<ItemsEnvelope<ProposalNonVoter>>('proposalNonVoters', { dao: id, id: pid, params: { limit: 12, orderDirection: 'desc' } }), { items: [] }),
+    ]);
     accountability = { proposalId: pid, proposalTitle: latest.title, votes: votes.items, nonVoters: nonV.items };
   }
 

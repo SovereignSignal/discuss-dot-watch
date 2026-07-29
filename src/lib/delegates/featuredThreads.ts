@@ -9,6 +9,7 @@
 import type { FeaturedThread } from '@/types/delegates';
 import { decrypt } from './encryption';
 import { getTenantBySlug } from './db';
+import { waitForDiscourseRateLimit } from './discourseRateLimit';
 
 interface DiscourseClientConfig {
   baseUrl: string;
@@ -16,28 +17,11 @@ interface DiscourseClientConfig {
   apiUsername: string;
 }
 
-const requestTimestamps = new Map<string, number[]>();
-const RATE_LIMIT = 30;
-const RATE_WINDOW_MS = 60_000;
-
-async function rateLimitWait(tenantKey: string): Promise<void> {
-  const now = Date.now();
-  const timestamps = requestTimestamps.get(tenantKey) || [];
-  const recent = timestamps.filter((t) => now - t < RATE_WINDOW_MS);
-  if (recent.length >= RATE_LIMIT) {
-    const waitMs = RATE_WINDOW_MS - (now - recent[0]) + 50;
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-  }
-  recent.push(Date.now());
-  requestTimestamps.set(tenantKey, recent);
-}
-
 async function discourseGet(
   config: DiscourseClientConfig,
   path: string,
 ): Promise<Response> {
-  const tenantKey = `featured:${new URL(config.baseUrl).hostname}`;
-  await rateLimitWait(tenantKey);
+  await waitForDiscourseRateLimit(config.baseUrl);
 
   const url = `${config.baseUrl.replace(/\/$/, '')}${path}`;
   const headers: Record<string, string> = {
@@ -50,6 +34,7 @@ async function discourseGet(
   return fetch(url, {
     headers,
     next: { revalidate: 0 },
+    signal: AbortSignal.timeout(15_000),
   });
 }
 

@@ -13,13 +13,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAuth, verifyTenantAdmin, isAuthError } from '@/lib/auth';
-import { isValidUrl, isAllowedUrl } from '@/lib/url';
 import {
   initializeDelegateSchema,
   createTenant,
   getTenantBySlug,
   getAllTenants,
   upsertDelegate,
+  bulkUpsertTrackedDelegates,
   deleteDelegate,
   getDelegatesByTenant,
   updateTenant,
@@ -37,6 +37,7 @@ import {
   revokeTenantInvite,
 } from '@/lib/delegates';
 import { decrypt } from '@/lib/delegates/encryption';
+import { AdminActionSchema, formatAdminValidationError } from '@/lib/delegates/adminSchemas';
 
 export async function GET(request: NextRequest) {
   const tenantSlug = request.nextUrl.searchParams.get('tenant');
@@ -79,54 +80,32 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** Tenant slug format: alphanumeric, dash and underscore, 1-100 chars. */
-const SLUG_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/;
-
-/** Validate a tenant forum URL: well-formed http(s) AND not an SSRF target. */
-function isAcceptableForumUrl(url: unknown): url is string {
-  return typeof url === 'string' && isValidUrl(url) && isAllowedUrl(url);
-}
-
-const ACCENT_RE = /^#[0-9a-fA-F]{3,8}$/;
-const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
-
-/** branding.accentColor is interpolated into a <style> block on the public embed
- *  page — reject anything that isn't a plain hex color at write time too, so a
- *  hostile value can never be stored. */
-function hasInvalidAccentColor(config: unknown): boolean {
-  const accent = (config as { branding?: { accentColor?: unknown } } | null | undefined)?.branding?.accentColor;
-  return accent !== undefined && accent !== null && (typeof accent !== 'string' || !ACCENT_RE.test(accent));
-}
-
-/** Actions that require super admin (platform-level operations). */
-const SUPER_ADMIN_ACTIONS = new Set([
-  'init-schema', 'create-tenant', 'update-tenant', 'delete-tenant', 'detect-capabilities',
-  'add-tenant-admin', 'remove-tenant-admin', 'list-tenant-admins', 'create-tenant-invite',
-  'list-tenant-invites', 'revoke-tenant-invite',
-]);
-
 /** Actions scoped to a tenant (tenant admins can perform these on their own tenant). */
 const TENANT_SCOPED_ACTIONS = new Set([
   'upsert-delegate', 'bulk-upsert-delegates', 'delete-delegate',
 ]);
 
 export async function POST(request: NextRequest) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let body: any;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
+  const parsed = AdminActionSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid request', details: formatAdminValidationError(parsed.error) },
+      { status: 400 },
+    );
+  }
+  const body = parsed.data;
   const { action } = body;
 
   // Route auth based on action type
   let actingUserId = 'unknown';
   if (TENANT_SCOPED_ACTIONS.has(action as string)) {
-    const tenantSlug = body.tenantSlug as string;
-    if (!tenantSlug) {
-      return NextResponse.json({ error: 'Missing tenantSlug' }, { status: 400 });
-    }
+    const tenantSlug = 'tenantSlug' in body ? body.tenantSlug : '';
     const auth = await verifyTenantAdmin(request, tenantSlug);
     if (isAuthError(auth)) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -150,31 +129,6 @@ export async function POST(request: NextRequest) {
 
       case 'create-tenant': {
         const { slug, name, forumUrl, apiKey, apiUsername, config } = body;
-        if (!slug || !name || !forumUrl || !apiKey || !apiUsername) {
-          return NextResponse.json(
-            { error: 'Missing required fields: slug, name, forumUrl, apiKey, apiUsername' },
-            { status: 400 }
-          );
-        }
-
-        if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
-          return NextResponse.json(
-            { error: 'Invalid slug: use 1-100 letters, numbers, dashes or underscores' },
-            { status: 400 }
-          );
-        }
-        if (!isAcceptableForumUrl(forumUrl)) {
-          return NextResponse.json(
-            { error: 'Invalid or disallowed forumUrl' },
-            { status: 400 }
-          );
-        }
-        if (hasInvalidAccentColor(config)) {
-          return NextResponse.json(
-            { error: 'branding.accentColor must be a hex color like #3b82f6' },
-            { status: 400 }
-          );
-        }
 
         if (!isEncryptionConfigured()) {
           return NextResponse.json(
@@ -237,26 +191,9 @@ export async function POST(request: NextRequest) {
 
       case 'update-tenant': {
         const { tenantSlug, apiKey, apiUsername, name, forumUrl, config } = body;
-        if (!tenantSlug) {
-          return NextResponse.json({ error: 'Missing tenantSlug' }, { status: 400 });
-        }
-
         const tenant = await getTenantBySlug(tenantSlug);
         if (!tenant) {
           return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-        }
-
-        if (forumUrl !== undefined && !isAcceptableForumUrl(forumUrl)) {
-          return NextResponse.json(
-            { error: 'Invalid or disallowed forumUrl' },
-            { status: 400 }
-          );
-        }
-        if (config !== undefined && hasInvalidAccentColor(config)) {
-          return NextResponse.json(
-            { error: 'branding.accentColor must be a hex color like #3b82f6' },
-            { status: 400 }
-          );
         }
 
         const updates: Parameters<typeof updateTenant>[1] = {};
@@ -295,20 +232,6 @@ export async function POST(request: NextRequest) {
 
       case 'upsert-delegate': {
         const { tenantSlug, delegate } = body;
-        if (!tenantSlug || !delegate?.username || !delegate?.displayName) {
-          return NextResponse.json(
-            { error: 'Missing required fields: tenantSlug, delegate.username, delegate.displayName' },
-            { status: 400 }
-          );
-        }
-
-        if (delegate.walletAddress && !WALLET_RE.test(delegate.walletAddress)) {
-          return NextResponse.json(
-            { error: 'walletAddress must be a 0x-prefixed 40-hex-char address' },
-            { status: 400 }
-          );
-        }
-
         const tenant = await getTenantBySlug(tenantSlug);
         if (!tenant) {
           return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
@@ -321,19 +244,6 @@ export async function POST(request: NextRequest) {
 
       case 'bulk-upsert-delegates': {
         const { tenantSlug, delegates } = body;
-        if (!tenantSlug || !Array.isArray(delegates)) {
-          return NextResponse.json(
-            { error: 'Missing required fields: tenantSlug, delegates (array)' },
-            { status: 400 }
-          );
-        }
-        if (delegates.length > 200) {
-          return NextResponse.json(
-            { error: 'Too many delegates in one request (max 200)' },
-            { status: 400 }
-          );
-        }
-
         const tenant = await getTenantBySlug(tenantSlug);
         if (!tenant) {
           return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
@@ -348,35 +258,24 @@ export async function POST(request: NextRequest) {
           // If decryption fails, we just won't auto-resolve
         }
 
-        const results = [];
+        const resolvedDelegates = [];
         const errors = [];
         for (const d of delegates) {
           try {
-            if (!d.username) {
-              errors.push({ username: 'unknown', error: 'Missing username' });
-              continue;
-            }
-            if (d.walletAddress && !WALLET_RE.test(d.walletAddress)) {
-              errors.push({ username: d.username, error: 'Invalid walletAddress (expected 0x + 40 hex chars)' });
-              continue;
-            }
-
             // Auto-resolve displayName from Discourse if not provided
+            let displayName = d.displayName;
             if (!d.displayName && discourseConfig) {
               const info = await lookupUsername(discourseConfig, d.username);
               if (info) {
-                d.displayName = info.name || d.username;
+                displayName = info.name || d.username;
               } else {
-                d.displayName = d.username;
+                displayName = d.username;
                 errors.push({ username: d.username, error: 'Username not found on forum — added with username as display name' });
               }
-            } else if (!d.displayName) {
-              d.displayName = d.username;
+            } else if (!displayName) {
+              displayName = d.username;
             }
-
-            // Admin-added delegates are always tracked
-            const result = await upsertDelegate(tenant.id, { ...d, isTracked: true });
-            results.push(result);
+            resolvedDelegates.push({ ...d, displayName });
           } catch (err) {
             errors.push({
               username: d.username || 'unknown',
@@ -385,9 +284,11 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        const created = await bulkUpsertTrackedDelegates(tenant.id, resolvedDelegates);
+
         return NextResponse.json({
           success: true,
-          created: results.length,
+          created,
           errors,
         });
       }

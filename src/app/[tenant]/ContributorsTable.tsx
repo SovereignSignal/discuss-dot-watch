@@ -89,7 +89,7 @@ export function SortHeader({
 
 // --- Percentile pill (shown inline next to post count) ---
 
-function PercentilePill({ percentile, t }: { percentile: number; t: ReturnType<typeof c> }) {
+function PercentilePill({ percentile }: { percentile: number; t: ReturnType<typeof c> }) {
   const rank = 100 - percentile;
   if (rank > 25) return null; // Only show for top 25%
   const color = rank <= 5 ? '#10b981' : rank <= 10 ? '#22c55e' : '#3b82f6';
@@ -211,7 +211,7 @@ function ContributorAvatar({
         {displayName?.[0] || '?'}
       </span>
       {avatarUrl && (
-        /* eslint-disable-next-line @next/next/no-img-element */
+
         <img
           src={avatarUrl}
           alt=""

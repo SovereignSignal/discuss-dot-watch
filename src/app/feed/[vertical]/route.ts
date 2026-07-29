@@ -9,7 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import { FORUM_CATEGORIES, ALL_FORUM_PRESETS, ForumPreset } from '@/lib/forumPresets';
-import { getAllCachedForums } from '@/lib/forumCache';
+import { getAllCachedForumsReady } from '@/lib/forumCache';
 
 interface FeedItem {
   title: string;
@@ -21,8 +21,8 @@ interface FeedItem {
   views: number;
 }
 
-function getItemsFromCache(forumUrls: Set<string>): FeedItem[] {
-  const cachedForums = getAllCachedForums();
+async function getItemsFromCache(forumUrls: Set<string>): Promise<FeedItem[]> {
+  const cachedForums = await getAllCachedForumsReady();
   const items: FeedItem[] = [];
 
   for (const cached of cachedForums) {
@@ -146,7 +146,7 @@ export async function GET(
   // Build set of forum URLs to match against cache
   const forumUrls = new Set(forums.map(f => f.url.replace(/\/$/, '').toLowerCase()));
 
-  const items = getItemsFromCache(forumUrls)
+  const items = (await getItemsFromCache(forumUrls))
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 50);
 

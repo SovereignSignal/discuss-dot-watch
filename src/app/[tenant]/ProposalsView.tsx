@@ -15,24 +15,11 @@ import {
   Circle,
   Users,
 } from 'lucide-react';
-import type { GovernanceProposal, ProposalStatus, ProposalTimeline, TenantBranding, SnapshotProposalSummary, DelegateRow } from '@/types/delegates';
+import type { GovernanceProposal, ProposalStatus, ProposalTimeline, SnapshotProposalSummary, DelegateRow } from '@/types/delegates';
 import { formatDistanceToNow } from 'date-fns';
+import type { c } from '@/lib/theme';
 
-interface ThemeColors {
-  fg: string;
-  fgSecondary: string;
-  fgMuted: string;
-  fgDim: string;
-  bg: string;
-  bgCard: string;
-  bgCardHover: string;
-  bgInput: string;
-  bgActive: string;
-  bgSubtle: string;
-  bgBadge: string;
-  border: string;
-  borderSubtle: string;
-}
+type ThemeColors = ReturnType<typeof c>;
 
 interface BrandedColors {
   accent: string;
@@ -49,6 +36,7 @@ interface ProposalsViewProps {
   bc: BrandedColors | null;
   isMobile: boolean;
   forumUrl: string;
+  delegates: DelegateRow[];
 }
 
 const STATUS_CONFIG: Record<ProposalStatus, { label: string; color: string; icon: typeof Circle }> = {
@@ -65,14 +53,13 @@ interface SnapshotDataWithVotes {
   delegateVotes?: Record<string, string[]>;
 }
 
-export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: ProposalsViewProps) {
+export default function ProposalsView({ slug, t, bc, isMobile, forumUrl, delegates }: ProposalsViewProps) {
   const [timeline, setTimeline] = useState<ProposalTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [snapshotWithVotes, setSnapshotWithVotes] = useState<SnapshotDataWithVotes | null>(null);
-  const [delegates, setDelegates] = useState<DelegateRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,9 +74,7 @@ export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: Propo
         }),
       fetch(`/api/delegates/${encodeURIComponent(slug)}/snapshot?include=votes`)
         .then((res) => res.ok ? res.json() : null),
-      fetch(`/api/delegates/${encodeURIComponent(slug)}`)
-        .then((res) => res.ok ? res.json() : null),
-    ]).then(([proposalsResult, snapshotResult, dashboardResult]) => {
+    ]).then(([proposalsResult, snapshotResult]) => {
       if (cancelled) return;
 
       if (proposalsResult.status === 'fulfilled') {
@@ -102,9 +87,6 @@ export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: Propo
         setSnapshotWithVotes(snapshotResult.value);
       }
 
-      if (dashboardResult.status === 'fulfilled' && dashboardResult.value?.delegates) {
-        setDelegates(dashboardResult.value.delegates);
-      }
     }).finally(() => {
       if (!cancelled) setLoading(false);
     });
@@ -145,10 +127,11 @@ export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: Propo
   // Build wallet -> delegate mapping for vote participation display
   const walletToDelegate = new Map<string, DelegateRow>();
   for (const d of delegates) {
-    if (d.walletAddress && d.isTracked) {
+    if (d.walletAddress) {
       walletToDelegate.set(d.walletAddress.toLowerCase(), d);
     }
   }
+  const unlinkedDelegates = delegates.filter((d) => !d.walletAddress);
 
   return (
     <div>
@@ -175,7 +158,8 @@ export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: Propo
             <span style={{ fontSize: 14, fontWeight: 600 }}>Snapshot Proposals</span>
             {walletToDelegate.size > 0 && (
               <span style={{ fontSize: 11, color: t.fgDim }}>
-                ({walletToDelegate.size} tracked delegate{walletToDelegate.size !== 1 ? 's' : ''} with wallets)
+                ({walletToDelegate.size} wallet-linked member{walletToDelegate.size !== 1 ? 's' : ''}
+                {unlinkedDelegates.length > 0 ? ` · ${unlinkedDelegates.length} without wallets` : ''})
               </span>
             )}
           </div>
@@ -194,6 +178,7 @@ export default function ProposalsView({ slug, t, bc, isMobile, forumUrl }: Propo
                   proposal={sp}
                   votedDelegates={votedDelegates}
                   nonVotedDelegates={nonVotedDelegates}
+                  unlinkedDelegates={unlinkedDelegates}
                   hasWalletData={walletToDelegate.size > 0}
                   t={t}
                   accent={accent}
@@ -267,6 +252,7 @@ function SnapshotProposalCard({
   proposal: sp,
   votedDelegates,
   nonVotedDelegates,
+  unlinkedDelegates,
   hasWalletData,
   t,
   accent,
@@ -274,6 +260,7 @@ function SnapshotProposalCard({
   proposal: SnapshotProposalSummary;
   votedDelegates: DelegateRow[];
   nonVotedDelegates: DelegateRow[];
+  unlinkedDelegates: DelegateRow[];
   hasWalletData: boolean;
   t: ThemeColors;
   accent: string;
@@ -323,7 +310,7 @@ function SnapshotProposalCard({
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <Users size={12} style={{ color: t.fgDim }} />
             <span style={{ fontSize: 11, color: votedDelegates.length > 0 ? '#10b981' : '#f59e0b' }}>
-              {votedDelegates.length}/{votedDelegates.length + nonVotedDelegates.length}
+              {votedDelegates.length}/{votedDelegates.length + nonVotedDelegates.length} wallet linked
             </span>
           </div>
         )}
@@ -369,6 +356,11 @@ function SnapshotProposalCard({
                 <span style={{ color: t.fgDim, fontSize: 10 }}>did not vote</span>
               </div>
             ))}
+            {unlinkedDelegates.length > 0 && (
+              <div style={{ marginTop: 6, color: t.fgDim, fontSize: 11 }}>
+                {unlinkedDelegates.length} member{unlinkedDelegates.length === 1 ? '' : 's'} cannot be measured because no wallet is linked.
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -30,7 +30,7 @@ function addSecurityHeaders(response: NextResponse) {
   return response;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const host = request.headers.get('host') ?? '';
 
   // Redirect bare domain to www (only for the exact production domain)

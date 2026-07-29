@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       status: 'ok',
       message: 'Cache refresh started',
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to start refresh' },
       { status: 500 }

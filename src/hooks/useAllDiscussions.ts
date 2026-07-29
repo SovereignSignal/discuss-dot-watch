@@ -37,6 +37,8 @@ interface UseAllDiscussionsResult {
   hasMore: boolean;
 }
 
+const MAX_LOADED_DISCUSSIONS = 400;
+
 export function useAllDiscussions(
   enabled: boolean,
   filters: AllDiscussionsFilters,
@@ -74,9 +76,9 @@ export function useAllDiscussions(
       if (signal.aborted) return;
 
       if (append) {
-        setDiscussions(prev => [...prev, ...data.topics]);
+        setDiscussions(prev => [...prev, ...data.topics].slice(0, MAX_LOADED_DISCUSSIONS));
       } else {
-        setDiscussions(data.topics);
+        setDiscussions(data.topics.slice(0, MAX_LOADED_DISCUSSIONS));
       }
       setMeta(data.meta);
     } catch (err) {
@@ -122,14 +124,13 @@ export function useAllDiscussions(
     doFetchRef.current(page, page > 1 && !filtersChanged, controller.signal);
 
     return () => controller.abort();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, filtersKey, page, refreshCount]);
 
   const loadMore = useCallback(() => {
-    if (meta && page < meta.totalPages && !isLoading) {
+    if (meta && page < meta.totalPages && discussions.length < MAX_LOADED_DISCUSSIONS && !isLoading) {
       setPage(p => p + 1);
     }
-  }, [meta, page, isLoading]);
+  }, [meta, page, discussions.length, isLoading]);
 
   const refresh = useCallback(() => {
     setPage(1);
@@ -139,7 +140,7 @@ export function useAllDiscussions(
     setRefreshCount(c => c + 1);
   }, []);
 
-  const hasMore = meta ? page < meta.totalPages : false;
+  const hasMore = meta ? page < meta.totalPages && discussions.length < MAX_LOADED_DISCUSSIONS : false;
 
   return { discussions, isLoading, meta, error, loadMore, refresh, hasMore };
 }

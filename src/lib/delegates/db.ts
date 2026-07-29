@@ -538,12 +538,87 @@ export async function bulkUpsertDirectoryContributors(
   return result.count ?? contributors.length;
 }
 
+/** Bulk upsert admin-managed delegates after request validation and name resolution. */
+export async function bulkUpsertTrackedDelegates(
+  tenantId: number,
+  delegates: Array<{
+    username: string;
+    displayName: string;
+    walletAddress?: string;
+    kycStatus?: 'verified' | 'pending' | 'not_required' | null;
+    verifiedStatus?: boolean;
+    programs?: string[];
+    role?: string;
+    isActive?: boolean;
+    votesCast?: number;
+    votesTotal?: number;
+    votingPower?: string;
+    notes?: string;
+  }>,
+): Promise<number> {
+  if (delegates.length === 0) return 0;
+  await ensureSchema();
+  const db = getDb();
+  const rows = delegates.map((delegate) => ({
+    tenant_id: tenantId,
+    username: delegate.username,
+    display_name: delegate.displayName,
+    is_tracked: true,
+    wallet_address: delegate.walletAddress ?? null,
+    kyc_status: delegate.kycStatus ?? null,
+    verified_status: delegate.verifiedStatus ?? null,
+    programs: delegate.programs ?? [],
+    role: delegate.role ?? null,
+    is_active: delegate.isActive ?? true,
+    votes_cast: delegate.votesCast ?? null,
+    votes_total: delegate.votesTotal ?? null,
+    voting_power: delegate.votingPower ?? null,
+    notes: delegate.notes ?? null,
+  }));
+  const result = await db`
+    INSERT INTO delegates ${db(rows,
+      'tenant_id', 'username', 'display_name', 'is_tracked', 'wallet_address',
+      'kyc_status', 'verified_status', 'programs', 'role', 'is_active',
+      'votes_cast', 'votes_total', 'voting_power', 'notes')}
+    ON CONFLICT (tenant_id, username) DO UPDATE SET
+      display_name = EXCLUDED.display_name,
+      is_tracked = true,
+      wallet_address = COALESCE(EXCLUDED.wallet_address, delegates.wallet_address),
+      kyc_status = COALESCE(EXCLUDED.kyc_status, delegates.kyc_status),
+      verified_status = COALESCE(EXCLUDED.verified_status, delegates.verified_status),
+      programs = CASE WHEN cardinality(EXCLUDED.programs) > 0 THEN EXCLUDED.programs ELSE delegates.programs END,
+      role = COALESCE(EXCLUDED.role, delegates.role),
+      is_active = EXCLUDED.is_active,
+      votes_cast = COALESCE(EXCLUDED.votes_cast, delegates.votes_cast),
+      votes_total = COALESCE(EXCLUDED.votes_total, delegates.votes_total),
+      voting_power = COALESCE(EXCLUDED.voting_power, delegates.voting_power),
+      notes = COALESCE(EXCLUDED.notes, delegates.notes),
+      updated_at = NOW()
+  `;
+  return result.count ?? delegates.length;
+}
+
 export async function getDelegatesByTenant(tenantId: number, opts?: { trackedOnly?: boolean }): Promise<Delegate[]> {
   const db = getDb();
   const rows = opts?.trackedOnly
     ? await db`SELECT * FROM delegates WHERE tenant_id = ${tenantId} AND is_tracked = true ORDER BY display_name`
     : await db`SELECT * FROM delegates WHERE tenant_id = ${tenantId} ORDER BY display_name`;
   return rows.map(mapDelegateRow);
+}
+
+/** Wallet-only projection for Snapshot vote attribution. */
+export async function getDelegateWalletsByTenantSlug(slug: string): Promise<string[]> {
+  await ensureSchema();
+  const db = getDb();
+  const rows = await db`
+    SELECT DISTINCT LOWER(d.wallet_address) AS wallet_address
+    FROM delegates d
+    JOIN delegate_tenants t ON t.id = d.tenant_id
+    WHERE t.slug = ${slug}
+      AND t.is_active = true
+      AND d.wallet_address IS NOT NULL
+  `;
+  return rows.map((row) => row.wallet_address as string);
 }
 
 export async function getDelegateByUsername(

@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllCachedForums } from '@/lib/forumCache';
+import { getAllCachedForumsReady } from '@/lib/forumCache';
 import { buildUrlCategoryMap } from '@/lib/forumPresets';
 import { EXTERNAL_SOURCES } from '@/lib/externalSources';
 import { DiscussionTopic } from '@/types';
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       .map(u => u.trim().replace(/\/$/, '').toLowerCase())
       .filter(Boolean)
   );
-  const allCached = getAllCachedForums();
+  const allCached = await getAllCachedForumsReady();
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const allTopics: BriefsTopic[] = [];

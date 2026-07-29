@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidTenantSlug } from '@/lib/tenantSlug';
-import { fetchTenantSnapshotData, fetchProposalVoters, getDashboardData } from '@/lib/delegates';
+import { fetchTenantSnapshotData, fetchProposalVoters, getDelegateWalletsByTenantSlug } from '@/lib/delegates';
 
 export async function GET(
   request: NextRequest,
@@ -32,19 +32,13 @@ export async function GET(
 
     if (include === 'votes') {
       try {
-        const [proposalVoters, dashboard] = await Promise.all([
+        const [proposalVoters, walletAddresses] = await Promise.all([
           fetchProposalVoters(data.space),
-          getDashboardData(slug),
+          getDelegateWalletsByTenantSlug(slug),
         ]);
 
-        if (dashboard) {
-          // Set of all tracked delegate wallet addresses (lowercased)
-          const delegateWallets = new Set<string>();
-          for (const d of dashboard.delegates) {
-            if (d.walletAddress) {
-              delegateWallets.add(d.walletAddress.toLowerCase());
-            }
-          }
+        {
+          const delegateWallets = new Set(walletAddresses);
 
           // For each proposal, return only the delegate wallets that actually
           // voted on THAT proposal (intersection of proposal voters and delegate wallets).

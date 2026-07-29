@@ -7,7 +7,7 @@ import { getForums, saveForums } from '@/lib/storage';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useForums() {
-  const { user, authenticated, ready, getAccessToken } = usePrivy();
+  const { authenticated, ready, getAccessToken } = usePrivy();
   const [forums, setForums] = useState<Forum[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -116,6 +116,13 @@ export function useForums() {
     }, 1000);
   }, [authenticated, getAuthHeaders]);
 
+  const commitForums = useCallback((updated: Forum[]): boolean => {
+    if (!saveForums(updated)) return false;
+    setForums(updated);
+    syncToDatabase(updated);
+    return true;
+  }, [syncToDatabase]);
+
   const addForum = useCallback((forum: Omit<Forum, 'id' | 'createdAt'>) => {
     const newForum: Forum = {
       ...forum,
@@ -123,70 +130,33 @@ export function useForums() {
       createdAt: new Date().toISOString(),
     };
 
-    setForums(prev => {
-      const updated = [...prev, newForum];
-      saveForums(updated); // Always save to localStorage as backup
-      syncToDatabase(updated);
-      return updated;
-    });
-
-    return newForum;
-  }, [syncToDatabase]);
+    return commitForums([...forums, newForum]) ? newForum : null;
+  }, [commitForums, forums]);
 
   const removeForum = useCallback((id: string) => {
-    setForums(prev => {
-      const updated = prev.filter(f => f.id !== id);
-      saveForums(updated);
-      syncToDatabase(updated);
-      return updated;
-    });
-    return true;
-  }, [syncToDatabase]);
+    const updated = forums.filter(f => f.id !== id);
+    return updated.length !== forums.length && commitForums(updated);
+  }, [commitForums, forums]);
 
   const toggleForum = useCallback((id: string) => {
-    let updatedForum: Forum | null = null;
-
-    setForums(prev => {
-      const updated = prev.map(f => {
-        if (f.id === id) {
-          updatedForum = { ...f, isEnabled: !f.isEnabled };
-          return updatedForum;
-        }
-        return f;
-      });
-      saveForums(updated);
-      syncToDatabase(updated);
-      return updated;
-    });
-
-    return updatedForum;
-  }, [syncToDatabase]);
+    const current = forums.find(f => f.id === id);
+    if (!current) return null;
+    const updatedForum = { ...current, isEnabled: !current.isEnabled };
+    const updated = forums.map(f => f.id === id ? updatedForum : f);
+    return commitForums(updated) ? updatedForum : null;
+  }, [commitForums, forums]);
 
   const updateForum = useCallback((id: string, updates: Partial<Forum>) => {
-    setForums(prev => {
-      const updated = prev.map(f => f.id === id ? { ...f, ...updates } : f);
-      saveForums(updated);
-      syncToDatabase(updated);
-      return updated;
-    });
-  }, [syncToDatabase]);
+    if (!forums.some(f => f.id === id)) return false;
+    return commitForums(forums.map(f => f.id === id ? { ...f, ...updates } : f));
+  }, [commitForums, forums]);
 
   const importForums = useCallback((newForums: Forum[], replace = false) => {
-    setForums(prev => {
-      let updated: Forum[];
-      if (replace) {
-        updated = newForums;
-      } else {
-        // Merge: add forums that don't already exist (by URL)
-        const existingUrls = new Set(prev.map(f => f.discourseForum.url));
-        const toAdd = newForums.filter(f => !existingUrls.has(f.discourseForum.url));
-        updated = [...prev, ...toAdd];
-      }
-      saveForums(updated);
-      syncToDatabase(updated);
-      return updated;
-    });
-  }, [syncToDatabase]);
+    if (replace) return commitForums(newForums);
+    const existingUrls = new Set(forums.map(f => f.discourseForum.url));
+    const toAdd = newForums.filter(f => f.discourseForum?.url && !existingUrls.has(f.discourseForum.url));
+    return commitForums([...forums, ...toAdd]);
+  }, [commitForums, forums]);
 
   // Cleanup timeout on unmount
   useEffect(() => {

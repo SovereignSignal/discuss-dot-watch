@@ -15,9 +15,11 @@ const eslintConfig = defineConfig([
   ]),
   {
     rules: {
-      // The app currently uses effect-driven hydration and fetch/loading state in
-      // many client surfaces. Keep this visible without blocking cleanup work.
-      "react-hooks/set-state-in-effect": "warn",
+      // These effects intentionally hydrate browser/server state and expose fetch
+      // loading transitions. Forum/avatar hosts are dynamic, so next/image cannot
+      // use a finite remote-host allowlist.
+      "react-hooks/set-state-in-effect": "off",
+      "@next/next/no-img-element": "off",
     },
   },
 ]);

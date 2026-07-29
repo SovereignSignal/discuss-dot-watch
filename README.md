@@ -21,8 +21,8 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 
 ## Features
 
-- **Multi-Platform Aggregation** — **220+ Discourse forums + 75+ external sources** across crypto, AI, and OSS
-- **AI-Powered Digests** — Daily/weekly email summaries with Claude (Haiku 4.5 + Sonnet 4.5)
+- **Multi-Platform Aggregation** — **337 Discourse forums + 162 external sources** across crypto, AI, and OSS
+- **AI-Powered Briefs** — Daily grants and roles email briefs through the shared LLM provider layer (Anthropic default, Ollama Cloud optional)
 - **On-Site Briefs** — Browsable AI digest within the app; top 3 trending also surfaced as a strip on the main Feed
 - **Inline Discussion Reader** — Read posts without leaving the app
 - **Keyword Alerts** — Track terms with highlighting; alerts surface as clickable chips above the feed
@@ -42,6 +42,7 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 - **Governance Proposal Tracking** — Parse forum categories for proposals with status tracking (open/voting/closed/implemented); per-proposal Snapshot voter attribution
 - **Snapshot Voting Integration** — Per-tenant Snapshot space data, vote breakdown bars, governance scores
 - **Embeddable Governance Widget** — Iframe-friendly widget and CORS-enabled JSON API for external dApps
+- **Governance Terminals** — Anticapture-backed treasury, delegation, proposal, turnout, and delegate-accountability views for 11 DAOs
 - **Public API** — REST API at `/api/v1/`, MCP endpoint, RSS/Atom feeds by vertical
 
 ---
@@ -49,15 +50,16 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 ## Supported Platforms
 
 ### Live Now
-- **Discourse (Crypto)** — ~100 forums: Uniswap Governance, Aave, Arbitrum, Optimism, ENS, Compound, Gitcoin, Polkadot, Cosmos Hub, plus the long tail
-- **Discourse (AI)** — ~25 forums: OpenAI Developer, Hugging Face, Modular (Mojo), Cursor, Weights & Biases, Streamlit, CrewAI, Weaviate, Ray, etc.
-- **Discourse (OSS)** — ~50 forums: Rust, Swift, NixOS, Django, Caddy, Traefik, GitLab, Vercel Community, Gradle, Ziggit, Fly.io, etc.
+- **Discourse (Crypto)** — 124 forums: Uniswap Governance, Aave, Arbitrum, Optimism, ENS, Compound, Gitcoin, Polkadot, Cosmos Hub, plus the long tail
+- **Discourse (AI)** — 61 forums: OpenAI Developer, Hugging Face, Modular (Mojo), Cursor, Weights & Biases, Streamlit, CrewAI, Weaviate, Ray, etc.
+- **Discourse (OSS)** — 152 forums: Rust, Swift, NixOS, Django, Caddy, Traefik, GitLab, Vercel Community, Gradle, Ziggit, Fly.io, etc.
 - **EA Forum / LessWrong** — GraphQL integration for AI safety and alignment communities
 - **GitHub Discussions** — 60+ repos including LlamaIndex, Argo CD, Cilium, OpenTelemetry, Vite, TanStack Query, Neovim, DuckDB, ClickHouse, Supabase
 - **Snapshot** — On-chain governance voting data (17 spaces)
-- **Hacker News** — Tech community discussions
+- **Hacker News + Lobsters** — Per-vertical technology and open-source discussion feeds
+- **Realms / SPL Governance** — On-chain Solana governance proposals for eight DAO programs
 
-The authoritative live count is in `src/lib/forumPresets.ts` (220+ Discourse presets) and `src/lib/externalSources.ts` (75+ external sources). See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for a curated thematic view.
+The authoritative count is derived from `src/lib/forumPresets.ts` and `src/lib/externalSources.ts`. See [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for a curated thematic view.
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for implementation timeline.
 
 ---
@@ -107,7 +109,7 @@ The app functions without these in development (gracefully degrades).
 | UI | React 19 + Tailwind CSS 4 |
 | Icons | Lucide React |
 | Auth | Privy |
-| AI | Anthropic Claude (Haiku 4.5 + Sonnet 4.5) |
+| AI | Shared LLM provider layer (Anthropic default, Ollama Cloud optional) |
 | Email | Resend |
 | Validation | Zod 4 |
 | Cache | Redis (ioredis) |
@@ -119,13 +121,13 @@ The app functions without these in development (gracefully degrades).
 
 ```
 src/
-├── middleware.ts            # Security headers, bare domain redirect, tenant slug validation
+├── proxy.ts                 # Security headers, bare domain redirect, tenant slug validation
 ├── app/
 │   ├── api/                # API routes
 │   │   ├── discourse/      # Discourse proxy + topic fetching
 │   │   ├── discussions/    # Paginated cross-forum discussions
 │   │   ├── briefs/         # AI-powered trending briefs
-│   │   ├── digest/         # Email digest generation
+│   │   ├── anticapture/    # DAO governance analytics
 │   │   ├── delegates/      # Forum analytics / delegate monitoring
 │   │   ├── external-sources/ # EA Forum, GitHub, Snapshot, HN
 │   │   ├── user/           # User data sync (forums, alerts, bookmarks, read state)
@@ -139,6 +141,7 @@ src/
 │   ├── admin/              # Admin dashboard UI
 │   ├── app/                # Main application (client-side, authenticated)
 │   ├── invite/[token]/     # Tenant admin invite claim page
+│   ├── governance/         # DAO terminal and delegate profiles
 │   ├── feed/               # RSS/Atom feed generator
 │   └── page.tsx            # Landing page
 ├── components/             # React components
@@ -148,9 +151,9 @@ src/
 │   ├── db.ts               # PostgreSQL client and queries
 │   ├── auth.ts             # Server-side auth middleware
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres)
-│   ├── forumPresets.ts     # 220+ pre-configured forum presets
+│   ├── forumPresets.ts     # 337 pre-configured Discourse forums
 │   ├── externalSources.ts  # External source registry
-│   ├── theme.ts            # c() theme utility
+│   ├── theme.ts            # Legacy adapter to --ds-* design tokens
 │   ├── emailDigest.ts      # AI summarization
 │   ├── emailService.ts     # Resend integration
 │   ├── grantsBrief.ts      # Grants & funding brief generation
@@ -178,7 +181,7 @@ docs/
 | `/api/briefs` | GET | Zero-cost discovery (trending + new from cache) |
 | `/api/external-sources` | GET | Fetch from non-Discourse sources |
 | `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
-| `/api/digest` | GET/POST | AI digest retrieval / generation (admin) |
+| `/api/anticapture/[dao]` | GET | Cached DAO governance snapshot |
 
 ### User Data (requires Privy auth)
 | Route | Method | Purpose |

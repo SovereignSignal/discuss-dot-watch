@@ -55,6 +55,9 @@ export interface CachedForum {
 
 // In-memory fallback cache (used when Redis unavailable)
 const memoryCache = new Map<string, CachedForum>();
+const forumIdCache = new Map<string, number>();
+let cacheVersion = 0;
+let hydrationPromise: Promise<void> | null = null;
 
 // Persistent health tracking across refresh cycles
 interface ForumHealthState {
@@ -188,6 +191,21 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
  */
 export function getAllCachedForums(): CachedForum[] {
   return Array.from(memoryCache.values());
+}
+
+/** Hydrate a cold process from shared Redis before serving all-forum routes. */
+export async function getAllCachedForumsReady(): Promise<CachedForum[]> {
+  if (memoryCache.size === 0) {
+    hydrationPromise ??= hydrateMemoryFromRedis().finally(() => {
+      hydrationPromise = null;
+    });
+    await hydrationPromise;
+  }
+  return getAllCachedForums();
+}
+
+export function getForumCacheVersion(): number {
+  return cacheVersion;
 }
 
 /**
@@ -529,10 +547,15 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
   
   try {
     // Get or create forum record
-    const forumRecord = await getForumByUrl(forum.url);
-    let forumId: number;
+    const normalizedForumUrl = normalizeUrl(forum.url);
+    let forumId = forumIdCache.get(normalizedForumUrl);
     
-    if (!forumRecord) {
+    if (!forumId) {
+      const forumRecord = await getForumByUrl(forum.url);
+      forumId = forumRecord?.id;
+    }
+
+    if (!forumId) {
       forumId = await upsertForum({
         url: forum.url,
         name: forum.name,
@@ -540,9 +563,9 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
         tier: forum.tier,
         logoUrl: forum.logoUrl,
       });
-    } else {
-      forumId = forumRecord.id;
     }
+    if (!forumId) throw new Error(`Failed to resolve database forum id for ${forum.url}`);
+    forumIdCache.set(normalizedForumUrl, forumId);
     
     // Batch-upsert all topics in one round-trip (was a per-topic N+1).
     // Returns { id, discourseId } mappings so the snapshot insert below can
@@ -725,6 +748,10 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
     return;
   }
 
+  // A cold process should serve shared cached data even when it wins the lock
+  // and begins a slow upstream refresh.
+  if (memoryCache.size === 0) await getAllCachedForumsReady();
+
   // Distributed lock for multi-instance deployments (authoritative)
   const hasLock = await acquireRefreshLock(300);
   if (!hasLock) {
@@ -892,6 +919,8 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
     // Refresh external sources (EA Forum, LessWrong, etc.)
     await refreshExternalSources();
 
+    cacheVersion++;
+
     console.log(`[ForumCache] Refresh complete`);
 
     // Grants classification pipeline — fire-and-forget with its own lock,
@@ -915,17 +944,19 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
 async function hydrateMemoryFromRedis(): Promise<void> {
   if (!isRedisConfigured()) return;
   try {
-    const urls = await getCachedForumUrls();
-    if (urls.length === 0) return;
+    const discourseUrls = await getCachedForumUrls();
+    const externalKeys = getEnabledExternalSources().map((source) => `external:${source.id}`);
+    const keys = [...discourseUrls, ...externalKeys];
+    if (keys.length === 0) return;
+    const cached = await Promise.all(keys.map(async (url) => ({ url, topics: await getCachedTopics(url) })));
     let hydrated = 0;
-    for (const url of urls) {
-      const topics = await getCachedTopics(url);
-      if (topics && topics.length > 0) {
-        memoryCache.set(normalizeUrl(url), { url, topics, fetchedAt: Date.now() });
-        hydrated++;
-      }
+    for (const { url, topics } of cached) {
+      if (!topics || topics.length === 0) continue;
+      memoryCache.set(normalizeUrl(url), { url, topics, fetchedAt: Date.now() });
+      hydrated++;
     }
-    console.log(`[ForumCache] Hydrated ${hydrated}/${urls.length} forums from Redis`);
+    if (hydrated > 0) cacheVersion++;
+    console.log(`[ForumCache] Hydrated ${hydrated}/${keys.length} sources from Redis`);
   } catch (err) {
     console.error('[ForumCache] Redis hydration failed:', err);
   }

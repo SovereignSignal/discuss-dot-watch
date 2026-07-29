@@ -1,6 +1,6 @@
 # API Reference
 
-> Complete reference for all HTTP endpoints. Generated from the route handlers in [`src/app/api/`](../src/app/api/). Last regenerated 2026-05-21.
+> Complete reference for all HTTP endpoints. Generated from the route handlers in [`src/app/api/`](../src/app/api/). Last regenerated 2026-07-17.
 
 ## Conventions
 
@@ -211,7 +211,7 @@ Per-DAO on-chain governance analytics, powered by [Anticapture](https://mcp.anti
 | `/api/anticapture/[dao]/labels?addresses=0x..,0x..` | GET | Arkham/ENS labels for delegate addresses (progressive enrichment; 30-min cache) |
 | `/api/anticapture/[dao]/delegate/[address]` | GET | One delegate's record — participation, win/yes rate, avg vote timing, full per-proposal voting history with forum-discussion links. 10-min cache. |
 
-Pages: `/governance/[dao]` (terminal) and `/governance/[dao]/[address]` (delegate profile). Client: `src/lib/delegates/anticaptureClient.ts` (MCP-gateway transport); proposal→forum linking in `src/lib/delegates/daoForums.ts`. `governance` is reserved in `middleware.ts` `STATIC_ROUTES`.
+Pages: `/governance/[dao]` (terminal) and `/governance/[dao]/[address]` (delegate profile). Client: `src/lib/delegates/anticaptureClient.ts` (MCP-gateway transport); proposal→forum linking in `src/lib/delegates/daoForums.ts`. `governance` is reserved in `proxy.ts` `STATIC_ROUTES`.
 
 ---
 

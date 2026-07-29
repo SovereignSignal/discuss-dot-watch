@@ -53,12 +53,6 @@ export default function DaoGovernancePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = localStorage.getItem('discuss-watch-theme');
-    document.documentElement.classList.toggle('light', t === 'light');
-    document.documentElement.classList.toggle('dark', t !== 'light');
-  }, []);
-
-  useEffect(() => {
     setLoading(true); setError(null); setSnap(null); setLabels({});
     fetch(`/api/anticapture/${id}`)
       .then((r) => r.json())

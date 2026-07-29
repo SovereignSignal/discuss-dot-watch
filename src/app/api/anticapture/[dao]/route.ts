@@ -7,12 +7,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAnticaptureConfigured, isKnownDao, getGovernanceSnapshot } from '@/lib/delegates/anticaptureClient';
 import { getDaoForumTopics, attachDiscussions } from '@/lib/delegates/daoForums';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
+import { getCachedJson, setCachedJson } from '@/lib/redis';
 
 export const dynamic = 'force-dynamic';
 
-// Light in-memory cache — the upstream MCP calls are sequential and slow-ish.
+// L1 memory plus Redis L2 keeps cold instances from repeating expensive MCP work.
 const cache = new Map<string, { at: number; data: unknown }>();
 const TTL_MS = 5 * 60 * 1000;
+const TTL_SECONDS = TTL_MS / 1000;
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ dao: string }> }) {
   const { dao } = await params;
@@ -37,6 +39,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(hit.data);
   }
 
+  const redisKey = `anticapture:snapshot:${id}`;
+  const redisHit = await getCachedJson<unknown>(redisKey);
+  if (redisHit) {
+    cache.set(id, { at: Date.now(), data: redisHit });
+    return NextResponse.json(redisHit);
+  }
+
   try {
     // The Anticapture snapshot (MCP) and the forum topics (Discourse) are
     // independent upstreams — fetch them concurrently. Forum failure is
@@ -48,9 +57,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Link on-chain proposals to their forum threads — Snapshot-discussion fallback
     // first (free), then Discourse search. Match against the full Snapshot pool, but
     // only return a handful for the off-chain UI panel.
-    await attachDiscussions(id, snapshot.proposals, snapshot.offchainProposals, snapshot.proposals.length);
+    await attachDiscussions(id, snapshot.proposals, snapshot.offchainProposals, 8);
     const data = { configured: true, ...snapshot, offchainProposals: snapshot.offchainProposals.slice(0, 8), forumTopics };
     cache.set(id, { at: Date.now(), data });
+    await setCachedJson(redisKey, data, TTL_SECONDS);
     return NextResponse.json(data);
   } catch (e) {
     console.error('[anticapture] snapshot error:', e);

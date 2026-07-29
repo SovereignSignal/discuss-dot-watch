@@ -11,6 +11,7 @@ import type {
   DirectoryItem,
   TenantCapabilities,
 } from '@/types/delegates';
+import { waitForDiscourseRateLimit } from './discourseRateLimit';
 
 interface DiscourseClientConfig {
   baseUrl: string;
@@ -18,35 +19,11 @@ interface DiscourseClientConfig {
   apiUsername: string;
 }
 
-// Rate limiter: 60 requests per minute per tenant
-const requestTimestamps = new Map<string, number[]>();
-const RATE_LIMIT = 60;
-const RATE_WINDOW_MS = 60_000;
-
-async function rateLimitWait(tenantKey: string): Promise<void> {
-  const now = Date.now();
-  const timestamps = requestTimestamps.get(tenantKey) || [];
-  
-  // Remove timestamps outside the window
-  const recent = timestamps.filter((t) => now - t < RATE_WINDOW_MS);
-  
-  if (recent.length >= RATE_LIMIT) {
-    // Wait until the oldest request in the window expires
-    const waitMs = RATE_WINDOW_MS - (now - recent[0]) + 50;
-    console.log(`[Discourse] Rate limit reached for ${tenantKey}, waiting ${waitMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-  }
-  
-  recent.push(Date.now());
-  requestTimestamps.set(tenantKey, recent);
-}
-
 async function discourseGet(
   config: DiscourseClientConfig,
   path: string
 ): Promise<Response> {
-  const tenantKey = new URL(config.baseUrl).hostname;
-  await rateLimitWait(tenantKey);
+  await waitForDiscourseRateLimit(config.baseUrl);
 
   const url = `${config.baseUrl.replace(/\/$/, '')}${path}`;
   const headers: Record<string, string> = {
@@ -60,6 +37,7 @@ async function discourseGet(
   const response = await fetch(url, {
     headers,
     next: { revalidate: 0 }, // No Next.js caching for authenticated requests
+    signal: AbortSignal.timeout(15_000),
   });
 
   return response;

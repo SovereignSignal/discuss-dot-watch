@@ -104,7 +104,7 @@ export function GovernanceLeaderboard({
                 {i + 1}
               </span>
               {d.avatarUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
+
                 <img src={d.avatarUrl} alt="" width={28} height={28} style={{ borderRadius: '50%', flexShrink: 0 }} />
               ) : (
                 <div

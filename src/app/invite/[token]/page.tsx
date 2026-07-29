@@ -70,13 +70,12 @@ export default function InvitePage() {
     })();
   }, [isAuthenticated, invite, token, getAccessToken, router, claiming, success]);
 
-  const isDark = typeof window !== 'undefined' && localStorage.getItem('discuss-watch-theme') !== 'light';
-  const bg = isDark ? '#000000' : '#f5f5f5';
-  const cardBg = isDark ? '#18181b' : '#ffffff';
-  const cardBorder = isDark ? '#27272a' : 'rgba(0,0,0,0.08)';
-  const textPrimary = isDark ? '#ffffff' : '#09090b';
-  const textSecondary = isDark ? '#e5e5e5' : '#3f3f46';
-  const textMuted = isDark ? '#a3a3a3' : '#52525b';
+  const bg = 'var(--ds-bg-base)';
+  const cardBg = 'var(--ds-bg-card)';
+  const cardBorder = 'var(--ds-border)';
+  const textPrimary = 'var(--ds-fg)';
+  const textSecondary = 'var(--ds-fg-muted)';
+  const textMuted = 'var(--ds-fg-dim)';
 
   if (loading || authLoading) {
     return (
@@ -155,7 +154,7 @@ export default function InvitePage() {
         </p>
         <button onClick={login}
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg"
-          style={{ backgroundColor: isDark ? '#ffffff' : '#18181b', color: isDark ? '#09090b' : '#fafafa' }}>
+          style={{ backgroundColor: 'var(--ds-fg)', color: 'var(--ds-bg-base)' }}>
           <LogIn className="w-4 h-4" />
           Log in to accept
         </button>

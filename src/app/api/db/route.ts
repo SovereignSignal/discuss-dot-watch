@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     try {
       const results = await searchTopics(query, 50);
       return NextResponse.json({ results });
-    } catch (error) {
+    } catch {
       return NextResponse.json({ error: 'Search failed' }, { status: 500 });
     }
   }
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         category: category || undefined 
       });
       return NextResponse.json({ topics });
-    } catch (error) {
+    } catch {
       return NextResponse.json({ error: 'Failed to get topics' }, { status: 500 });
     }
   }
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
   try {
     const cacheStats = await getCacheStats();
     status.redis = cacheStats || { configured: false };
-  } catch (error) {
+  } catch {
     status.redis = { configured: false, error: 'Failed to get Redis stats' };
   }
   

@@ -1,7 +1,7 @@
 'use client';
 
 import { PrivyProvider, usePrivy, useLogin, useLogout } from '@privy-io/react-auth';
-import { createContext, useContext, ReactNode, useCallback, useState, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useCallback, useState, useEffect, useMemo } from 'react';
 
 // Auth context types
 export interface AuthUser {
@@ -43,14 +43,6 @@ function PrivyAuthInner({ children }: { children: ReactNode }) {
   const { ready, authenticated, user: privyUser, getAccessToken: privyGetAccessToken } = usePrivy();
   const { login: privyLogin } = useLogin();
   const { logout: privyLogout } = useLogout();
-
-  const user: AuthUser | null = privyUser
-    ? {
-        id: privyUser.id,
-        email: privyUser.email?.address,
-        walletAddress: privyUser.wallet?.address,
-      }
-    : null;
 
   // Sync user to database on login
   useEffect(() => {
@@ -95,15 +87,19 @@ function PrivyAuthInner({ children }: { children: ReactNode }) {
     }
   }, [privyGetAccessToken]);
 
-  const value: AuthContextType = {
-    user,
+  const value = useMemo<AuthContextType>(() => ({
+    user: privyUser ? {
+      id: privyUser.id,
+      email: privyUser.email?.address,
+      walletAddress: privyUser.wallet?.address,
+    } : null,
     isAuthenticated: authenticated,
     isLoading: !ready,
     isConfigured: true,
     login,
     logout,
     getAccessToken,
-  };
+  }), [privyUser, authenticated, ready, login, logout, getAccessToken]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -114,16 +110,10 @@ function PrivyAuthInner({ children }: { children: ReactNode }) {
 
 // Fallback provider when Privy is not configured
 function NoAuthProvider({ children }: { children: ReactNode }) {
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
   const value: AuthContextType = {
     user: null,
     isAuthenticated: false,
-    isLoading: !isHydrated,
+    isLoading: false,
     isConfigured: false,
     login: () => {
       console.warn('Authentication is not configured. Set NEXT_PUBLIC_PRIVY_APP_ID to enable.');
@@ -147,12 +137,10 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [mounted, setMounted] = useState(false);
 
   // Read theme from localStorage on mount and listen for changes
   useEffect(() => {
     setTheme(getInitialTheme());
-    setMounted(true);
 
     // Listen for theme changes via storage event (cross-tab) and custom event (same tab)
     const handleStorageChange = (e: StorageEvent) => {
@@ -177,11 +165,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // If Privy is not configured, use fallback provider
   if (!appId) {
     return <NoAuthProvider>{children}</NoAuthProvider>;
-  }
-
-  // Don't render Privy until we know the theme (prevents flash)
-  if (!mounted) {
-    return null;
   }
 
   return (

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -19,44 +18,25 @@ import {
   Flame,
 } from 'lucide-react';
 import { getTotalForumCount, getForumsByCategory } from '@/lib/forumPresets';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function LandingPage() {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('discuss-watch-theme') as 'dark' | 'light' | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle('light', savedTheme === 'light');
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
-    localStorage.setItem('discuss-watch-theme', newTheme);
-    document.documentElement.classList.toggle('light', newTheme === 'light');
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
-    window.dispatchEvent(new Event('themechange'));
-  };
-
-  const isDark = theme === 'dark';
+  const { isDark, toggleTheme } = useTheme();
 
   return (
     <div 
       className="min-h-screen transition-colors duration-200"
       style={{ 
-        backgroundColor: isDark ? '#09090b' : '#f5f5f5',
-        color: isDark ? '#fafafa' : '#09090b'
+        backgroundColor: 'var(--ds-bg-base)',
+        color: 'var(--ds-fg)'
       }}
     >
       {/* Nav */}
       <nav 
         className="sticky top-0 z-50 border-b backdrop-blur-sm"
         style={{ 
-          backgroundColor: isDark ? 'rgba(9, 9, 11, 0.8)' : 'rgba(245, 245, 245, 0.8)',
-          borderColor: isDark ? '#27272a' : '#e4e4e7'
+          backgroundColor: 'color-mix(in srgb, var(--ds-bg-base) 82%, transparent)',
+          borderColor: 'var(--ds-border)'
         }}
       >
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
@@ -68,7 +48,7 @@ export default function LandingPage() {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg transition-colors"
-              style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+              style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
               aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -77,8 +57,8 @@ export default function LandingPage() {
               href="/app"
               className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               style={{
-                backgroundColor: isDark ? '#fafafa' : '#09090b',
-                color: isDark ? '#09090b' : '#fafafa',
+                backgroundColor: 'var(--ds-fg)',
+                color: 'var(--ds-bg-base)',
               }}
             >
               Open App
@@ -93,8 +73,8 @@ export default function LandingPage() {
           <div 
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-8"
             style={{
-              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-              color: isDark ? '#a1a1aa' : '#6b7280'
+              backgroundColor: 'var(--ds-bg-subtle)',
+              color: 'var(--ds-fg-muted)'
             }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -104,12 +84,12 @@ export default function LandingPage() {
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-[1.1] tracking-tight">
             All your forums.
             <br />
-            <span style={{ color: isDark ? '#71717a' : '#9ca3af' }}>One feed.</span>
+            <span style={{ color: 'var(--ds-fg-dim)' }}>One feed.</span>
           </h1>
           
           <p 
             className="text-lg mb-10 max-w-xl mx-auto leading-relaxed"
-            style={{ color: isDark ? '#a1a1aa' : '#6b7280' }}
+            style={{ color: 'var(--ds-fg-muted)' }}
           >
             Stop tab-hopping. Aggregate discussions from crypto, AI, and open source 
             communities into a single stream.
@@ -120,8 +100,8 @@ export default function LandingPage() {
               href="/app"
               className="inline-flex items-center gap-2 px-6 py-3 font-medium rounded-lg transition-colors"
               style={{
-                backgroundColor: isDark ? '#fafafa' : '#09090b',
-                color: isDark ? '#09090b' : '#fafafa',
+                backgroundColor: 'var(--ds-fg)',
+                color: 'var(--ds-bg-base)',
               }}
             >
               Start Reading
@@ -130,7 +110,7 @@ export default function LandingPage() {
             <a
               href="#coverage"
               className="inline-flex items-center gap-2 px-6 py-3 font-medium rounded-lg transition-colors"
-              style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+              style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
             >
               See Coverage
             </a>
@@ -144,14 +124,14 @@ export default function LandingPage() {
         id="coverage" 
         className="py-20 border-t"
         style={{ 
-          backgroundColor: isDark ? '#0a0a0a' : '#fafafa',
-          borderColor: isDark ? '#1a1a1a' : '#e4e4e7'
+          backgroundColor: 'var(--ds-bg-card)',
+          borderColor: 'var(--ds-border)'
         }}
       >
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold mb-3">Three verticals. One inbox.</h2>
-            <p style={{ color: isDark ? '#71717a' : '#6b7280' }}>
+            <p style={{ color: 'var(--ds-fg-dim)' }}>
               The communities shaping technology.
             </p>
           </div>
@@ -162,32 +142,29 @@ export default function LandingPage() {
               title="Crypto"
               count={getForumsByCategory('crypto').length}
               examples={['Arbitrum', 'Uniswap', 'Aave', 'ENS', 'Optimism', 'Lido']}
-              isDark={isDark}
             />
             <VerticalCard
               icon={<Bot className="w-5 h-5" />}
               title="AI"
               count={getForumsByCategory('ai').length}
               examples={['OpenAI', 'EA Forum', 'PyTorch', 'HuggingFace', 'LangChain']}
-              isDark={isDark}
             />
             <VerticalCard
               icon={<Code2 className="w-5 h-5" />}
               title="Open Source"
               count={getForumsByCategory('oss').length}
               examples={['Rust', 'Swift', 'NixOS', 'Godot', 'Next.js', 'Node.js']}
-              isDark={isDark}
             />
           </div>
         </div>
       </section>
 
       {/* Preview */}
-      <section className="py-20 border-t" style={{ borderColor: isDark ? '#1a1a1a' : '#e4e4e7' }}>
+      <section className="py-20 border-t" style={{ borderColor: 'var(--ds-border)' }}>
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold mb-3">A feed that works</h2>
-            <p style={{ color: isDark ? '#71717a' : '#6b7280' }}>
+            <p style={{ color: 'var(--ds-fg-dim)' }}>
               Filter by community, search across everything, track what you&apos;ve read.
             </p>
           </div>
@@ -195,20 +172,20 @@ export default function LandingPage() {
           <div 
             className="max-w-3xl mx-auto rounded-xl overflow-hidden shadow-2xl"
             style={{
-              backgroundColor: isDark ? '#111111' : '#ffffff',
-              border: `1px solid ${isDark ? '#262626' : '#e4e4e7'}`
+              backgroundColor: 'var(--ds-bg-card)',
+              border: '1px solid var(--ds-border)'
             }}
           >
             <div 
               className="flex items-center gap-2 px-4 py-3 border-b"
-              style={{ borderColor: isDark ? '#262626' : '#e4e4e7' }}
+              style={{ borderColor: 'var(--ds-border)' }}
             >
               <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: isDark ? '#3f3f46' : '#d4d4d8' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: isDark ? '#3f3f46' : '#d4d4d8' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: isDark ? '#3f3f46' : '#d4d4d8' }} />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--ds-border-strong)' }} />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--ds-border-strong)' }} />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--ds-border-strong)' }} />
               </div>
-              <span className="text-xs ml-2" style={{ color: isDark ? '#52525b' : '#9ca3af' }}>discuss.watch</span>
+              <span className="text-xs ml-2" style={{ color: 'var(--ds-fg-dim)' }}>discuss.watch</span>
             </div>
             <div className="p-4 space-y-3">
               <MockFeedItem 
@@ -218,7 +195,6 @@ export default function LandingPage() {
                 replies={24}
                 views={1847}
                 isHot
-                isDark={isDark}
               />
               <MockFeedItem 
                 protocol="PyTorch" 
@@ -227,7 +203,6 @@ export default function LandingPage() {
                 replies={18}
                 views={2420}
                 isNew
-                isDark={isDark}
               />
               <MockFeedItem 
                 protocol="NixOS" 
@@ -235,7 +210,6 @@ export default function LandingPage() {
                 category="OSS"
                 replies={42}
                 views={1203}
-                isDark={isDark}
               />
             </div>
           </div>
@@ -246,31 +220,31 @@ export default function LandingPage() {
       <section 
         className="py-20 border-t"
         style={{ 
-          backgroundColor: isDark ? '#0a0a0a' : '#fafafa',
-          borderColor: isDark ? '#1a1a1a' : '#e4e4e7'
+          backgroundColor: 'var(--ds-bg-card)',
+          borderColor: 'var(--ds-border)'
         }}
       >
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold mb-3">Built for power readers</h2>
-            <p style={{ color: isDark ? '#71717a' : '#6b7280' }}>
+            <p style={{ color: 'var(--ds-fg-dim)' }}>
               Stay on top of fast-moving communities.
             </p>
           </div>
           
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <FeatureCard icon={<Search />} title="Unified Search" description="Search all forums at once" isDark={isDark} />
-            <FeatureCard icon={<Bell />} title="Keyword Alerts" description="Filter the feed to topics you care about" isDark={isDark} />
-            <FeatureCard icon={<Bookmark />} title="Bookmarks" description="Save discussions to read later" isDark={isDark} />
-            <FeatureCard icon={<Eye />} title="Read Tracking" description="Know what you've already seen" isDark={isDark} />
-            <FeatureCard icon={<TrendingUp />} title="Hot & Active" description="Spot trending discussions" isDark={isDark} />
-            <FeatureCard icon={<Keyboard />} title="Keyboard Nav" description="Navigate without the mouse" isDark={isDark} />
+            <FeatureCard icon={<Search />} title="Unified Search" description="Search all forums at once" />
+            <FeatureCard icon={<Bell />} title="Keyword Alerts" description="Filter the feed to topics you care about" />
+            <FeatureCard icon={<Bookmark />} title="Bookmarks" description="Save discussions to read later" />
+            <FeatureCard icon={<Eye />} title="Read Tracking" description="Know what you've already seen" />
+            <FeatureCard icon={<TrendingUp />} title="Hot & Active" description="Spot trending discussions" />
+            <FeatureCard icon={<Keyboard />} title="Keyboard Nav" description="Navigate without the mouse" />
           </div>
         </div>
       </section>
 
       {/* For Agents */}
-      <section className="py-20 border-t" style={{ borderColor: isDark ? '#1a1a1a' : '#e4e4e7' }}>
+      <section className="py-20 border-t" style={{ borderColor: 'var(--ds-border)' }}>
         <div className="max-w-5xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
@@ -287,9 +261,9 @@ export default function LandingPage() {
               <h2 className="text-2xl md:text-3xl font-bold mb-4">
                 Built for humans.
                 <br />
-                <span style={{ color: isDark ? '#71717a' : '#9ca3af' }}>Ready for agents.</span>
+                <span style={{ color: 'var(--ds-fg-dim)' }}>Ready for agents.</span>
               </h2>
-              <p className="mb-6" style={{ color: isDark ? '#a1a1aa' : '#6b7280' }}>
+              <p className="mb-6" style={{ color: 'var(--ds-fg-muted)' }}>
                 AI agents can search, monitor, and subscribe to forum discussions. 
                 REST API and RSS feeds available.
               </p>
@@ -297,7 +271,7 @@ export default function LandingPage() {
                 <Link
                   href="/api/v1"
                   className="inline-flex items-center gap-2 px-4 py-2 font-medium rounded-lg text-sm"
-                  style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+                  style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
                 >
                   API Docs
                 </Link>
@@ -306,20 +280,20 @@ export default function LandingPage() {
             <div 
               className="rounded-xl p-6 font-mono text-sm"
               style={{ 
-                backgroundColor: isDark ? '#111111' : '#ffffff',
-                border: `1px solid ${isDark ? '#262626' : '#e4e4e7'}`
+                backgroundColor: 'var(--ds-bg-card)',
+                border: '1px solid var(--ds-border)'
               }}
             >
-              <div className="mb-2" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}># Search discussions</div>
-              <div className="mb-4" style={{ color: isDark ? '#a1a1aa' : '#52525b' }}>
+              <div className="mb-2" style={{ color: 'var(--ds-fg-dim)' }}># Search discussions</div>
+              <div className="mb-4" style={{ color: 'var(--ds-fg-muted)' }}>
                 curl discuss.watch/api/v1/search?q=grants
               </div>
-              <div className="mb-2" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}># Get hot topics</div>
-              <div className="mb-4" style={{ color: isDark ? '#a1a1aa' : '#52525b' }}>
+              <div className="mb-2" style={{ color: 'var(--ds-fg-dim)' }}># Get hot topics</div>
+              <div className="mb-4" style={{ color: 'var(--ds-fg-muted)' }}>
                 curl discuss.watch/api/v1/discussions?hot=true
               </div>
-              <div className="mb-2" style={{ color: isDark ? '#52525b' : '#a1a1aa' }}># Subscribe to feed</div>
-              <div style={{ color: isDark ? '#a1a1aa' : '#52525b' }}>
+              <div className="mb-2" style={{ color: 'var(--ds-fg-dim)' }}># Subscribe to feed</div>
+              <div style={{ color: 'var(--ds-fg-muted)' }}>
                 discuss.watch/feed/crypto.xml
               </div>
             </div>
@@ -331,23 +305,23 @@ export default function LandingPage() {
       <section 
         className="py-20 border-t"
         style={{ 
-          backgroundColor: isDark ? '#0a0a0a' : '#fafafa',
-          borderColor: isDark ? '#1a1a1a' : '#e4e4e7'
+          backgroundColor: 'var(--ds-bg-card)',
+          borderColor: 'var(--ds-border)'
         }}
       >
         <div className="max-w-xl mx-auto px-6 text-center">
           <h2 className="text-2xl md:text-3xl font-bold mb-4">
             Ready to simplify your reading?
           </h2>
-          <p className="mb-8" style={{ color: isDark ? '#71717a' : '#6b7280' }}>
+          <p className="mb-8" style={{ color: 'var(--ds-fg-dim)' }}>
             Free — sign in with email or wallet.
           </p>
           <Link
             href="/app"
             className="inline-flex items-center gap-2 px-8 py-4 font-medium rounded-lg transition-colors"
             style={{
-              backgroundColor: isDark ? '#fafafa' : '#09090b',
-              color: isDark ? '#09090b' : '#fafafa',
+              backgroundColor: 'var(--ds-fg)',
+              color: 'var(--ds-bg-base)',
             }}
           >
             Open App
@@ -359,7 +333,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer 
         className="py-8 border-t"
-        style={{ borderColor: isDark ? '#1a1a1a' : '#e4e4e7' }}
+        style={{ borderColor: 'var(--ds-border)' }}
       >
         <div className="max-w-5xl mx-auto px-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -367,7 +341,7 @@ export default function LandingPage() {
               <span className="text-lg">👁️‍🗨️</span>
               <span className="text-sm font-medium">discuss.watch</span>
             </div>
-            <p className="text-sm" style={{ color: isDark ? '#52525b' : '#9ca3af' }}>
+            <p className="text-sm" style={{ color: 'var(--ds-fg-dim)' }}>
               Part of the{' '}
               <a
                 href="https://sovereignsignal.substack.com"
@@ -380,7 +354,7 @@ export default function LandingPage() {
               {' '}ecosystem
             </p>
           </div>
-          <div className="flex items-center justify-center gap-4 mt-4 text-xs" style={{ color: isDark ? '#52525b' : '#9ca3af' }}>
+          <div className="flex items-center justify-center gap-4 mt-4 text-xs" style={{ color: 'var(--ds-fg-dim)' }}>
             <Link href="/terms" className="hover:underline underline-offset-2">Terms</Link>
             <span>·</span>
             <Link href="/privacy" className="hover:underline underline-offset-2">Privacy</Link>
@@ -391,33 +365,32 @@ export default function LandingPage() {
   );
 }
 
-function VerticalCard({ icon, title, count, examples, isDark }: {
+function VerticalCard({ icon, title, count, examples }: {
   icon: React.ReactNode;
   title: string;
   count: number;
   examples: string[];
-  isDark: boolean;
 }) {
   return (
     <div 
       className="p-6 rounded-xl"
       style={{ 
-        backgroundColor: isDark ? '#111111' : '#ffffff',
-        border: `1px solid ${isDark ? '#262626' : '#e4e4e7'}`
+        backgroundColor: 'var(--ds-bg-card)',
+        border: '1px solid var(--ds-border)'
       }}
     >
       <div 
         className="inline-flex items-center justify-center w-10 h-10 rounded-lg mb-4"
         style={{ 
-          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-          color: isDark ? '#fafafa' : '#09090b'
+          backgroundColor: 'var(--ds-bg-subtle)',
+          color: 'var(--ds-fg)'
         }}
       >
         {icon}
       </div>
       <div className="flex items-baseline gap-2 mb-3">
         <h3 className="font-semibold text-lg">{title}</h3>
-        <span className="text-sm" style={{ color: isDark ? '#52525b' : '#6b7280' }}>{count} forums</span>
+        <span className="text-sm" style={{ color: 'var(--ds-fg-dim)' }}>{count} forums</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {examples.map((name) => (
@@ -425,8 +398,8 @@ function VerticalCard({ icon, title, count, examples, isDark }: {
             key={name} 
             className="px-2 py-1 text-xs rounded-md"
             style={{ 
-              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-              color: isDark ? '#a1a1aa' : '#6b7280'
+              backgroundColor: 'var(--ds-bg-subtle)',
+              color: 'var(--ds-fg-muted)'
             }}
           >
             {name}
@@ -437,7 +410,7 @@ function VerticalCard({ icon, title, count, examples, isDark }: {
   );
 }
 
-function MockFeedItem({ protocol, title, category, replies, views, isHot, isNew, isDark }: {
+function MockFeedItem({ protocol, title, category, replies, views, isHot, isNew }: {
   protocol: string;
   title: string;
   category: string;
@@ -445,26 +418,25 @@ function MockFeedItem({ protocol, title, category, replies, views, isHot, isNew,
   views: number;
   isHot?: boolean;
   isNew?: boolean;
-  isDark: boolean;
 }) {
   return (
     <div 
       className="p-3 rounded-lg flex items-start gap-3"
-      style={{ backgroundColor: isDark ? '#171717' : '#f5f5f5' }}
+      style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
     >
       <div 
         className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold"
         style={{ 
-          backgroundColor: isDark ? '#262626' : '#e4e4e7',
-          color: isDark ? '#a1a1aa' : '#52525b'
+          backgroundColor: 'var(--ds-bg-elev)',
+          color: 'var(--ds-fg-muted)'
         }}
       >
         {protocol.slice(0, 2).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium mb-1 leading-snug">{title}</p>
-        <div className="flex items-center flex-wrap gap-2 text-xs" style={{ color: isDark ? '#71717a' : '#9ca3af' }}>
-          <span style={{ color: isDark ? '#a1a1aa' : '#6b7280' }}>{protocol}</span>
+        <div className="flex items-center flex-wrap gap-2 text-xs" style={{ color: 'var(--ds-fg-dim)' }}>
+          <span style={{ color: 'var(--ds-fg-muted)' }}>{protocol}</span>
           <span>·</span>
           <span>{category}</span>
           {isNew && (
@@ -489,31 +461,30 @@ function MockFeedItem({ protocol, title, category, replies, views, isHot, isNew,
   );
 }
 
-function FeatureCard({ icon, title, description, isDark }: {
+function FeatureCard({ icon, title, description }: {
   icon: React.ReactNode;
   title: string;
   description: string;
-  isDark: boolean;
 }) {
   return (
     <div 
       className="p-5 rounded-xl"
       style={{
-        backgroundColor: isDark ? '#111111' : '#ffffff',
-        border: `1px solid ${isDark ? '#262626' : '#e4e4e7'}`
+        backgroundColor: 'var(--ds-bg-card)',
+        border: '1px solid var(--ds-border)'
       }}
     >
       <div 
         className="inline-flex items-center justify-center w-9 h-9 rounded-lg mb-3"
         style={{ 
-          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-          color: isDark ? '#a1a1aa' : '#52525b'
+          backgroundColor: 'var(--ds-bg-subtle)',
+          color: 'var(--ds-fg-muted)'
         }}
       >
         {icon}
       </div>
       <h3 className="font-medium mb-1">{title}</h3>
-      <p className="text-sm" style={{ color: isDark ? '#71717a' : '#6b7280' }}>{description}</p>
+      <p className="text-sm" style={{ color: 'var(--ds-fg-dim)' }}>{description}</p>
     </div>
   );
 }

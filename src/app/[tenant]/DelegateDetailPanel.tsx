@@ -185,7 +185,7 @@ export default function DelegateDetailPanel({
               </button>
             )}
             {d.avatarUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
+
               <img src={d.avatarUrl} alt="" width={36} height={36} style={{ borderRadius: '50%' }} />
             ) : (
               <div

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo, useEffect, useCallback } from 'react';
 import { RefreshCw, CheckCheck, MessageSquare } from 'lucide-react';
-import { DiscussionTopic, KeywordAlert, Forum, SortOption } from '@/types';
+import { DiscussionTopic, KeywordAlert, Forum } from '@/types';
 import { getProtocolLogo } from '@/lib/logoUtils';
 import { DiscussionItem } from './DiscussionItem';
 import { DiscussionSkeletonList } from './DiscussionSkeleton';
@@ -98,7 +98,7 @@ export function DiscussionFeed(props: DiscussionFeedProps) {
     discussions, isLoading, lastUpdated, onRefresh,
     alerts, searchQuery, searchInputValue, enabledForumIds, forumStates, forums,
     isBookmarked, isRead, onToggleBookmark, onMarkAsRead, onMarkAllAsRead,
-    unreadCount, onRemoveForum, activeKeywordFilter,
+    unreadCount, activeKeywordFilter,
     onSelectTopic, onTagClick, selectedTopicRefId, isDark = true, totalForumCount,
     onSearchInputChange, onAddAlert, onRemoveAlert, onToggleAlert, onKeywordFilterChange,
     feedFilters, freshlyReadRefId = null, onVisibleTopicsChange, onSeeAllBriefs,

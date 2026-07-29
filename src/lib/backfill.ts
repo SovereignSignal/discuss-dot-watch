@@ -10,7 +10,6 @@ import { safeFetch } from './safeFetch';
 
 const DELAY_BETWEEN_PAGES_MS = 5000; // 5 seconds between requests
 const PAGES_PER_CYCLE = 3; // Process 3 pages per worker cycle
-const TOPICS_PER_PAGE = 30; // Discourse default
 
 interface BackfillJob {
   id: number;
@@ -79,7 +78,7 @@ function sleep(ms: number): Promise<void> {
  */
 export async function createBackfillJob(forumId: number): Promise<number> {
   const db = getDb();
-  
+
   const result = await db`
     INSERT INTO backfill_jobs (forum_id, status)
     VALUES (${forumId}, 'pending')
@@ -213,7 +212,6 @@ export async function processJob(job: BackfillJob): Promise<{
     return { pagesProcessed: 0, topicsFetched: 0, complete: false, error: 'No forum URL' };
   }
   
-  const db = getDb();
   let currentPage = job.current_page;
   let totalTopicsFetched = job.topics_fetched;
   let pagesProcessed = 0;

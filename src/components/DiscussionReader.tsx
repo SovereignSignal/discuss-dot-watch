@@ -50,7 +50,7 @@ function PostAvatar({ avatarUrl, username }: { avatarUrl: string; username: stri
   );
 }
 
-function PostSkeleton({ isDark }: { isDark: boolean }) {
+function PostSkeleton() {
   return (
     <div className="px-5 py-4 border-b animate-pulse" style={{ borderColor: 'var(--ds-border)' }}>
       <div className="flex items-center gap-3 mb-3">
@@ -208,9 +208,9 @@ export function DiscussionReader({ topic, onClose, isDark = true, isMobile = fal
       <div className="flex-1 overflow-y-auto min-w-0">
         {isLoading ? (
           <>
-            <PostSkeleton isDark={isDark} />
-            <PostSkeleton isDark={isDark} />
-            <PostSkeleton isDark={isDark} />
+            <PostSkeleton />
+            <PostSkeleton />
+            <PostSkeleton />
           </>
         ) : error ? (
           <div className="p-6 text-center">

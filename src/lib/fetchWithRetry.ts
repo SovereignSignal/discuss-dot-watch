@@ -1,15 +1,12 @@
 /**
- * Fetch with exponential backoff retry and rate limiting
+ * Fetch with exponential backoff retry.
  */
-
-import { apiRateLimiter } from './rateLimiter';
 
 interface FetchWithRetryOptions {
   maxRetries?: number;
   baseDelay?: number;
   maxDelay?: number;
   signal?: AbortSignal;
-  useRateLimiter?: boolean;
 }
 
 interface RetryResult<T> {
@@ -21,7 +18,7 @@ export async function fetchWithRetry<T>(
   url: string,
   options: FetchWithRetryOptions = {}
 ): Promise<RetryResult<T>> {
-  const { maxRetries = 3, baseDelay = 1000, maxDelay = 10000, signal, useRateLimiter = true } = options;
+  const { maxRetries = 3, baseDelay = 1000, maxDelay = 10000, signal } = options;
 
   let lastError: Error | null = null;
   let retryCount = 0;
@@ -29,16 +26,6 @@ export async function fetchWithRetry<T>(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       // Check if aborted before attempting
-      if (signal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError');
-      }
-
-      // Wait for rate limiter if enabled
-      if (useRateLimiter) {
-        await apiRateLimiter.waitForToken();
-      }
-
-      // Check again after waiting
       if (signal?.aborted) {
         throw new DOMException('Aborted', 'AbortError');
       }

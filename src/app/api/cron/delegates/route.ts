@@ -15,6 +15,10 @@ import { ensureSchema, getAllTenants } from '@/lib/delegates/db';
 import { refreshTenant } from '@/lib/delegates/refreshEngine';
 import type { RefreshResult, DelegateTenant } from '@/types/delegates';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
+
 function isRefreshDue(tenant: DelegateTenant): boolean {
   if (!tenant.lastRefreshAt) return true;
 

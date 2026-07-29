@@ -259,7 +259,7 @@ export function ForumManager({
   const toggleForumSelection = (id: string) => {
     setSelectedForumIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -267,7 +267,7 @@ export function ForumManager({
   const toggleBrowseSelection = (url: string) => {
     setSelectedBrowseUrls(prev => {
       const next = new Set(prev);
-      next.has(url) ? next.delete(url) : next.add(url);
+      if (next.has(url)) next.delete(url); else next.add(url);
       return next;
     });
   };
@@ -308,7 +308,7 @@ export function ForumManager({
   const toggleCategory = (categoryId: string) => {
     setExpandedCategories((prev) => {
       const next = new Set(prev);
-      next.has(categoryId) ? next.delete(categoryId) : next.add(categoryId);
+      if (next.has(categoryId)) next.delete(categoryId); else next.add(categoryId);
       return next;
     });
   };
@@ -455,7 +455,7 @@ export function ForumManager({
                 <div className="flex items-center gap-3">
                   <button onClick={() => {
                     const allSelected = filteredEnabledForums.every(f => selectedForumIds.has(f.id));
-                    allSelected ? deselectAllForums() : selectAllForums();
+                    if (allSelected) deselectAllForums(); else selectAllForums();
                   }} className="flex items-center gap-2 text-sm" style={{ color: t.fgDim }}>
                     {filteredEnabledForums.length > 0 && filteredEnabledForums.every(f => selectedForumIds.has(f.id)) ? (
                       <CheckSquare className="w-5 h-5" />

@@ -60,7 +60,7 @@ function useDebouncedSync() {
 }
 
 export function DataSyncProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, isLoading, getAccessToken } = useAuth();
+  const { user, isAuthenticated, getAccessToken } = useAuth();
   const [serverData, setServerData] = useState<ServerData | null>(null);
   const [isLoadingServerData, setIsLoadingServerData] = useState(false);
   const initializedRef = useRef(false);
@@ -74,17 +74,6 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
     if (!token) return {};
     return { 'Authorization': `Bearer ${token}` };
   }, [getAccessToken]);
-
-  // Load user data from server when authenticated
-  useEffect(() => {
-    if (isAuthenticated && userId && !initializedRef.current) {
-      initializedRef.current = true;
-      loadUserData();
-    } else if (!isAuthenticated) {
-      initializedRef.current = false;
-      setServerData(null);
-    }
-  }, [isAuthenticated, userId]);
 
   const loadUserData = useCallback(async () => {
     if (!userId) return;
@@ -124,6 +113,17 @@ export function DataSyncProvider({ children }: { children: ReactNode }) {
       setIsLoadingServerData(false);
     }
   }, [userId, user?.email, user?.walletAddress, getAuthHeaders]);
+
+  // Load user data from server when authenticated.
+  useEffect(() => {
+    if (isAuthenticated && userId && !initializedRef.current) {
+      initializedRef.current = true;
+      void loadUserData();
+    } else if (!isAuthenticated) {
+      initializedRef.current = false;
+      setServerData(null);
+    }
+  }, [isAuthenticated, userId, loadUserData]);
 
   // Sync functions
   const syncForums = useCallback((forums: Forum[]) => {

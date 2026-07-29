@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { KeywordAlert } from '@/types';
-import { getAlerts, saveAlerts, addAlert as addAlertToStorage, removeAlert as removeAlertFromStorage, toggleAlert as toggleAlertInStorage } from '@/lib/storage';
+import { getAlerts, saveAlerts } from '@/lib/storage';
 import { useDataSync } from '@/components/DataSyncProvider';
 
 export function useAlerts() {
@@ -44,59 +44,54 @@ export function useAlerts() {
     }
   }, [serverData, alerts, syncAlerts]);
 
-  const persistAndSync = useCallback((updated: KeywordAlert[]) => {
-    saveAlerts(updated);
+  const persistAndSync = useCallback((updated: KeywordAlert[]): boolean => {
+    if (!saveAlerts(updated)) return false;
     if (hydratedRef.current) {
       syncAlerts(updated);
     }
+    return true;
   }, [syncAlerts]);
 
   const addAlert = useCallback((keyword: string) => {
-    const newAlert = addAlertToStorage(keyword);
-    setAlerts(prev => {
-      const updated = [...prev, newAlert];
-      if (hydratedRef.current) syncAlerts(updated);
-      return updated;
-    });
+    const newAlert: KeywordAlert = {
+      id: crypto.randomUUID(),
+      keyword: keyword.trim().slice(0, 100),
+      createdAt: new Date().toISOString(),
+      isEnabled: true,
+    };
+    const updated = [...alerts, newAlert];
+    if (!persistAndSync(updated)) return null;
+    setAlerts(updated);
     return newAlert;
-  }, [syncAlerts]);
+  }, [alerts, persistAndSync]);
 
   const removeAlert = useCallback((id: string) => {
-    const success = removeAlertFromStorage(id);
-    if (success) {
-      setAlerts(prev => {
-        const updated = prev.filter(a => a.id !== id);
-        if (hydratedRef.current) syncAlerts(updated);
-        return updated;
-      });
-    }
-    return success;
-  }, [syncAlerts]);
+    const updated = alerts.filter(a => a.id !== id);
+    if (updated.length === alerts.length || !persistAndSync(updated)) return false;
+    setAlerts(updated);
+    return true;
+  }, [alerts, persistAndSync]);
 
   const toggleAlert = useCallback((id: string) => {
-    const updated = toggleAlertInStorage(id);
-    if (updated) {
-      setAlerts(prev => {
-        const next = prev.map(a => a.id === id ? updated : a);
-        if (hydratedRef.current) syncAlerts(next);
-        return next;
-      });
-    }
-    return updated;
-  }, [syncAlerts]);
+    const current = alerts.find(a => a.id === id);
+    if (!current) return null;
+    const toggled = { ...current, isEnabled: !current.isEnabled };
+    const updated = alerts.map(a => a.id === id ? toggled : a);
+    if (!persistAndSync(updated)) return null;
+    setAlerts(updated);
+    return toggled;
+  }, [alerts, persistAndSync]);
 
   const importAlerts = useCallback((newAlerts: KeywordAlert[], replace = false) => {
     if (replace) {
-      setAlerts(newAlerts);
-      persistAndSync(newAlerts);
+      if (persistAndSync(newAlerts)) setAlerts(newAlerts);
     } else {
       // Merge: add alerts that don't already exist (by keyword)
       setAlerts(prev => {
         const existingKeywords = new Set(prev.map(a => a.keyword.toLowerCase()));
         const toAdd = newAlerts.filter(a => !existingKeywords.has(a.keyword.toLowerCase()));
         const merged = [...prev, ...toAdd];
-        persistAndSync(merged);
-        return merged;
+        return persistAndSync(merged) ? merged : prev;
       });
     }
   }, [persistAndSync]);

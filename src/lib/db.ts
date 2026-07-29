@@ -292,6 +292,12 @@ export async function initializeSchema() {
   await db`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`;
   await db`CREATE INDEX IF NOT EXISTS idx_keyword_alerts_user ON keyword_alerts(user_id)`;
   await db`CREATE INDEX IF NOT EXISTS idx_read_state_user ON read_state(user_id)`;
+  try {
+    await db`CREATE EXTENSION IF NOT EXISTS pg_trgm`;
+    await db`CREATE INDEX IF NOT EXISTS idx_topics_title_trgm ON topics USING GIN (title gin_trgm_ops)`;
+  } catch (error) {
+    console.warn('[DB] pg_trgm unavailable; title search will use the safe sequential fallback:', error);
+  }
   
   console.log('[DB] Schema initialized');
 }
@@ -642,4 +648,3 @@ export async function getDbStats() {
     newTopicsLast24h: parseInt(String(recentTopics?.count || '0')),
   };
 }
-

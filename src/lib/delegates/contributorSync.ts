@@ -102,7 +102,7 @@ export async function syncContributorsFromDirectory(
   }
 
   // Compute percentiles for all-time data
-  const percentiles = computePercentiles(contributors, totalForum);
+  const percentiles = computePercentiles(contributors);
 
   // Bulk upsert all contributors in a single Postgres round-trip
   const rows = contributors.map((item) => {
@@ -160,7 +160,6 @@ export async function syncContributorsFromDirectory(
  */
 function computePercentiles(
   items: DirectoryItem[],
-  _totalForumUsers: number
 ): Map<string, { postCount: number; likesReceived: number; daysVisited: number; topicsEntered: number }> {
   const result = new Map<string, { postCount: number; likesReceived: number; daysVisited: number; topicsEntered: number }>();
   const cohortSize = items.length;

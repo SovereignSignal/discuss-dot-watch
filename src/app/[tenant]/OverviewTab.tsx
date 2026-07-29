@@ -2,14 +2,12 @@
 
 import { useMemo } from 'react';
 import {
-  ChevronRight,
   Users,
   Activity,
   MessageSquare,
   ThumbsUp,
   Sparkles,
   TrendingUp,
-  CheckCircle2,
   Target,
   Pin,
   ExternalLink,
@@ -18,7 +16,7 @@ import {
 import type { DelegateDashboard, DelegateRow, DashboardSummary, TenantSnapshotData, GovernanceScore, DashboardPeriod, FeaturedThread, DelegateActivityThread } from '@/types/delegates';
 import type { c } from '@/lib/theme';
 import type { BrandedColorsResult } from './dashboardUtils';
-import { getPostCountForPeriod, getGcrTier } from './dashboardUtils';
+import { getPostCountForPeriod } from './dashboardUtils';
 import { formatDistanceToNow } from 'date-fns';
 import { GovScorePill } from './GovScorePill';
 import { VerifiedDelegatesProgramCard } from './VerifiedDelegatesProgramCard';
@@ -559,7 +557,7 @@ function FeaturedThreadsCard({
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
             {thread.authorAvatarUrl && (
-              /* eslint-disable-next-line @next/next/no-img-element */
+
               <img
                 src={thread.authorAvatarUrl}
                 alt=""
@@ -677,7 +675,7 @@ function DelegateActivityThreadsCard({
             <div style={{ display: 'flex', flexShrink: 0 }}>
               {thread.participatingDelegates.slice(0, 5).map((d, i) => (
                 d.avatarUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
+
                   <img
                     key={d.username}
                     src={d.avatarUrl}

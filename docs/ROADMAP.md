@@ -6,10 +6,12 @@
 
 ---
 
-## Current State (June 2026)
+## Current State (July 17, 2026)
+
+The unchecked platform integrations below are future product roadmap, not open closeout debt in the current site.
 
 ### Core platform
-- ✅ **330+ forums + 150+ external sources** monitored across crypto, AI, OSS (live count in `src/lib/forumPresets.ts` + `src/lib/externalSources.ts`)
+- ✅ **337 forums + 162 external sources** monitored across crypto, AI, OSS (derived from `src/lib/forumPresets.ts` + `src/lib/externalSources.ts`)
 - ✅ **Hacker News + Lobsters** as per-vertical topic feeds (Algolia Search / tag JSON; HN links to comment threads)
 - ✅ Keyword alerts with body-match-style filtering, surfaced as clickable chips above the feed (Sprint 16)
 - ✅ Email digests with AI summaries (Claude Sonnet)
@@ -31,6 +33,7 @@
 - ✅ Public API v1 + MCP endpoint + RSS/Atom feeds by vertical
 - ✅ Server-side "All Forums" mode with paginated API
 - ✅ Mobile-responsive: stacked BriefsStrip, flexible header search, hamburger nav (Sprint 18)
+- ✅ **July closeout:** cold-start cache hydration, bounded all-forums rendering, cross-instance Discourse throttling, Redis-backed governance snapshots, batched admin writes, proxy migration, and zero-warning CI with regression tests
 
 ### Multi-tenant analytics
 - ✅ Forum-wide contributor analytics (directory sync, percentile rankings, two-phase refresh)
@@ -325,4 +328,4 @@
 
 ---
 
-*Last updated: 2026-05-21*
+*Last updated: 2026-07-17*
