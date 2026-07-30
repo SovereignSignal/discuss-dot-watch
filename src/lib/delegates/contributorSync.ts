@@ -24,6 +24,8 @@ async function fetchPages(
 ): Promise<{ items: DirectoryItem[]; totalCount: number }> {
   const allItems: DirectoryItem[] = [];
   let totalCount = 0;
+  let hasReliableTotal = false;
+  let firstPageSize: number | null = null;
   let page = 0;
 
   while (allItems.length < maxContributors) {
@@ -35,6 +37,8 @@ async function fetchPages(
 
     if (page === 0) {
       totalCount = result.totalCount;
+      hasReliableTotal = result.hasReliableTotal;
+      firstPageSize = result.items.length;
     }
 
     if (result.items.length === 0) break;
@@ -42,7 +46,16 @@ async function fetchPages(
     allItems.push(...result.items);
     page++;
 
-    if (allItems.length >= result.totalCount) break;
+    if (hasReliableTotal) {
+      // meta.total_rows_directory_items is authoritative — stop once reached.
+      if (allItems.length >= result.totalCount) break;
+    } else {
+      // No meta: the only reliable "last page" signal is a short page.
+      // Trusting result.totalCount here (== page 0's item count, per
+      // fetchDirectoryItems' fallback) would stop after a single page.
+      totalCount = allItems.length;
+      if (firstPageSize !== null && result.items.length < firstPageSize) break;
+    }
   }
 
   return { items: allItems.slice(0, maxContributors), totalCount };

@@ -310,14 +310,14 @@ _A handful of genuine, user-reproducible defects: bookmark folders silently drop
   - Files: `src/lib/delegates/encryption.ts`
   - Problem: getEncryptionKey only checks length===64; Buffer.from(key,'hex') silently drops non-hex chars yielding a <32-byte key (opaque throw at encrypt time), and a 64-char base64/passphrase passes with far less than 256 bits of entropy. isEncryptionConfigured has the same gap, so admin reports 'configured' for an invalid key.
   - Fix: Validate /^[0-9a-fA-F]{64}$/ in both functions and assert the decoded Buffer is 32 bytes; fail loudly at config time.
-- [ ] **[low/M/medium] Config import has no per-item schema validation — a malformed forum entry crashes the importer into an error boundary**
-  - Files: `src/components/ConfigExportImport.tsx`, `src/hooks/useForums.ts`, `src/hooks/useAlerts.ts`
-  - Problem: handleFileSelect checks only version/exportedAt/array-ness, never item shape. importForums always runs with merge semantics and accesses f.discourseForum.url, so forums:[{}] throws TypeError inside a React state updater, dropping the user into the app's ErrorBoundary (recoverable, but a self-inflicted crash).
-  - Fix: Validate the parsed file with a Zod ExportData schema (Forum/KeywordAlert/Bookmark item schemas) before onImport, and use optional chaining in the dedup filters as defense in depth.
-- [ ] **[low/M/medium] Snapshot scores/choices assumed index-aligned and complete (feed + delegates clients)**
+- [x] **[low/M/medium] Config import has no per-item schema validation — a malformed forum entry crashes the importer into an error boundary**
+  - Files: `src/components/ConfigExportImport.tsx`, `src/lib/configImportSchema.ts` (new)
+  - Problem: handleFileSelect checked only version/exportedAt/array-ness, never item shape. importForums always ran with merge semantics and accessed f.discourseForum.url, so forums:[{}] threw a TypeError inside a React state updater, dropping the user into the app's ErrorBoundary (recoverable, but a self-inflicted crash).
+  - Fix: Added `parseExportData()` (Zod schemas for Forum/KeywordAlert/Bookmark, typed against the app's actual interfaces) that validates each item and drops malformed ones individually rather than failing the whole import; the preview modal now shows a dropped-item count and the merge dedup filters use optional chaining as defense in depth.
+- [x] **[low/M/medium] Snapshot scores/choices assumed index-aligned and complete (feed + delegates clients)**
   - Files: `src/lib/snapshotClient.ts`, `src/lib/delegates/snapshotClient.ts`
-  - Problem: formatVoteResults/detail and SnapshotSummaryCard zip choices[i] with scores[i] from the untrusted Snapshot API with no length/numeric guard; weighted/quadratic/ranked proposals yield silent 0%/'Multiple choices'/NaN, and fetchVoterParticipation caps at first:1000 with no pagination (undercounting votingScore for spaces >1000 votes) while fetchProposalVoters paginates to 5000.
-  - Fix: Coerce numbers, default arrays to [], guard scores.length===choices.length, handle array/record choice shapes, and either paginate fetchVoterParticipation or document the 1000-vote ceiling.
+  - Problem: formatVoteResults/detail zipped choices[i] with scores[i] from the untrusted Snapshot API with no length/numeric guard; weighted/quadratic/ranked proposals yielded silent 0%/'Multiple choices'/NaN, and fetchVoterParticipation capped at first:1000 with no pagination (undercounting votingScore for spaces >1000 votes) while fetchProposalVoters already paginated to 5000. (The `ProposalsView.tsx` `VoteBreakdownBar` component already guarded `choices.length !== scores.length` — no change needed there.)
+  - Fix: Added `safeNumber`/`scorePct` guards (coerce to Number, reject NaN/negative, require `scores.length === choices.length`) used by both `formatVoteResults` and the proposal-detail HTML; added `formatVoteChoice` to render array (approval/ranked) and record (weighted/quadratic) vote shapes with real choice labels instead of a generic 'Multiple choices'; paginated `fetchVoterParticipation` the same way as `fetchProposalVoters` to remove the 1000-vote ceiling.
 - [x] **[low/S/low] /api/discourse rewrites cached topics' protocol from query params without recomputing refId**
   - Files: `src/app/api/discourse/route.ts`
   - Problem: On the cache path the route overwrites each topic's protocol with the caller's param but doesn't recompute refId (built as protocol-id at cache time), so two callers requesting the same forum with different protocol get protocol/refId that disagree — and refId is the identity key for read-state, bookmarks, and the briefs hotIds Set.
@@ -331,10 +331,10 @@ _A handful of genuine, user-reproducible defects: bookmark folders silently drop
   - Files: `src/app/feed/[vertical]/route.ts`
   - Problem: `if (forums.length===0) return 404` conflates 'unknown feed' with 'known feed, no matching presets', surfacing a 404 to feed readers (which then deindex). The 'all' feed also only includes 15 tier-1 forums, far narrower than its name.
   - Fix: Return an empty-but-valid 200 Atom document for known verticals; reserve 404 for genuinely unknown names. Consider broadening or renaming 'all'.
-- [ ] **[low/S/medium] fetchPages can truncate the percentile cohort to one page when Discourse omits meta**
-  - Files: `src/lib/delegates/contributorSync.ts`
-  - Problem: fetchPages trusts meta.total_rows_directory_items; when meta is absent the client falls back to rawItems.length, so totalCount equals one page and the loop breaks after ~50 items. computePercentiles then ranks within that truncated cohort, skewing every percentile shown.
-  - Fix: When meta is absent, keep paginating until a page returns fewer than the page size; surface the real cohort size used for percentiles.
+- [x] **[low/S/medium] fetchPages can truncate the percentile cohort to one page when Discourse omits meta**
+  - Files: `src/lib/delegates/contributorSync.ts`, `src/lib/delegates/discourseClient.ts`
+  - Problem: fetchPages trusted meta.total_rows_directory_items; when meta was absent the client fell back to rawItems.length, so totalCount equalled one page and the loop broke after ~50 items. computePercentiles then ranked within that truncated cohort, skewing every percentile shown.
+  - Fix: `fetchDirectoryItems` now reports `hasReliableTotal` (whether `meta.total_rows_directory_items` was actually present). `fetchPages` uses that to paginate until a short page is returned when meta is absent, instead of trusting a fallback total that equals page 0's own item count; it also now surfaces the real cohort size synced (not the stale page-0 estimate) for percentile computation.
 
 ### Architecture & maintainability
 

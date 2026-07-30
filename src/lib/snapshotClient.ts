@@ -184,19 +184,33 @@ function getStateTag(proposal: SnapshotProposal): string {
   return 'closed';
 }
 
+/** Coerce an untrusted numeric field from the Snapshot API: reject NaN/negative. */
+function safeNumber(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * Percentage for one choice's score, guarding against choices/scores arrays
+ * of mismatched length (weighted/quadratic/ranked proposals can return
+ * scores that don't line up 1:1 with choices) and non-numeric API output.
+ */
+function scorePct(scores: number[] | undefined, choices: string[] | undefined, i: number, scoresTotal: unknown): number {
+  if (!scores || !choices || scores.length !== choices.length) return 0;
+  const total = safeNumber(scoresTotal);
+  if (total <= 0) return 0;
+  return Math.round((safeNumber(scores[i]) / total) * 100);
+}
+
 /**
  * Format vote results as a short summary
  */
 function formatVoteResults(proposal: SnapshotProposal): string {
-  if (!proposal.scores || proposal.scores.length === 0) return '';
-  const results = proposal.choices
-    .map((choice, i) => {
-      const score = proposal.scores[i] || 0;
-      const pct = proposal.scores_total > 0
-        ? Math.round((score / proposal.scores_total) * 100)
-        : 0;
-      return `${choice}: ${pct}%`;
-    })
+  const choices = proposal.choices || [];
+  const scores = proposal.scores;
+  if (!scores || scores.length === 0 || scores.length !== choices.length) return '';
+  const results = choices
+    .map((choice, i) => `${choice}: ${scorePct(scores, choices, i, proposal.scores_total)}%`)
     .slice(0, 3); // Show top 3 choices
   return results.join(' · ');
 }
@@ -326,14 +340,14 @@ export async function fetchSnapshotProposalDetail(
   html += `</div>`;
   html += `<div class="proposal-body">${markdownToBasicHtml(proposal.body)}</div>`;
 
-  // Add vote choices summary
-  if (proposal.choices.length > 0 && proposal.scores.length > 0) {
+  // Add vote choices summary — only when scores line up 1:1 with choices
+  // (weighted/quadratic/ranked proposals can return arrays of different
+  // shapes/lengths that would otherwise silently mismatch here).
+  if (proposal.choices.length > 0 && proposal.scores.length === proposal.choices.length) {
     html += `<div class="vote-results"><h3>Results</h3><ul>`;
     proposal.choices.forEach((choice, i) => {
-      const score = proposal.scores[i] || 0;
-      const pct = proposal.scores_total > 0
-        ? Math.round((score / proposal.scores_total) * 100)
-        : 0;
+      const score = safeNumber(proposal.scores[i]);
+      const pct = scorePct(proposal.scores, proposal.choices, i, proposal.scores_total);
       html += `<li><strong>${choice}</strong>: ${pct}% (${Math.round(score).toLocaleString()})</li>`;
     });
     html += `</ul></div>`;
@@ -342,23 +356,49 @@ export async function fetchSnapshotProposalDetail(
   html += `</div>`;
 
   // Format votes
-  const votes = (votesResult.data?.votes || []).map((v) => {
-    let choiceLabel: string;
-    if (typeof v.choice === 'number') {
-      choiceLabel = proposal.choices[v.choice - 1] || `Choice ${v.choice}`;
-    } else {
-      choiceLabel = 'Multiple choices';
-    }
-    return {
-      voter: shortenAddress(v.voter),
-      choice: choiceLabel,
-      vp: v.vp,
-      reason: v.reason || '',
-      created: new Date(v.created * 1000).toISOString(),
-    };
-  });
+  const votes = (votesResult.data?.votes || []).map((v) => ({
+    voter: shortenAddress(v.voter),
+    choice: formatVoteChoice(v.choice, proposal.choices),
+    vp: v.vp,
+    reason: v.reason || '',
+    created: new Date(v.created * 1000).toISOString(),
+  }));
 
   return { content: html, votes };
+}
+
+/**
+ * Label a vote's `choice` for display. Snapshot's choice shape varies by
+ * voting system: a 1-indexed number for single-choice, an array of
+ * 1-indexed numbers for approval/ranked-choice, or a record of
+ * choiceIndex -> weight for weighted/quadratic voting.
+ */
+function formatVoteChoice(choice: number | number[] | Record<string, number>, choices: string[]): string {
+  const label = (idx: number): string => choices[idx - 1] || `Choice ${idx}`;
+
+  if (typeof choice === 'number') {
+    return label(choice);
+  }
+
+  if (Array.isArray(choice)) {
+    if (choice.length === 0) return 'No selection';
+    const labels = choice.slice(0, 3).map(label);
+    const more = choice.length > 3 ? ` +${choice.length - 3} more` : '';
+    return labels.join(', ') + more;
+  }
+
+  const entries = Object.entries(choice)
+    .map(([idx, weight]) => ({ label: label(Number(idx)), weight: safeNumber(weight) }))
+    .filter((e) => e.weight > 0)
+    .sort((a, b) => b.weight - a.weight);
+  if (entries.length === 0) return 'No selection';
+  const totalWeight = entries.reduce((sum, e) => sum + e.weight, 0);
+  const top = entries.slice(0, 3).map((e) => {
+    const pct = totalWeight > 0 ? Math.round((e.weight / totalWeight) * 100) : 0;
+    return `${e.label} (${pct}%)`;
+  });
+  const more = entries.length > 3 ? ` +${entries.length - 3} more` : '';
+  return top.join(', ') + more;
 }
 
 /**

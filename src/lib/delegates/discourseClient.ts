@@ -77,7 +77,7 @@ export async function searchUsers(
 export async function fetchDirectoryItems(
   config: DiscourseClientConfig,
   options: { period?: string; order?: string; page?: number } = {}
-): Promise<{ items: DirectoryItem[]; totalCount: number }> {
+): Promise<{ items: DirectoryItem[]; totalCount: number; hasReliableTotal: boolean }> {
   const period = options.period || 'all';
   const order = options.order || 'post_count';
   const page = options.page ?? 0;
@@ -89,12 +89,13 @@ export async function fetchDirectoryItems(
 
   if (!res.ok) {
     console.error(`[Discourse] Directory fetch failed: ${res.status}`);
-    return { items: [], totalCount: 0 };
+    return { items: [], totalCount: 0, hasReliableTotal: false };
   }
 
   const data = await res.json();
   const rawItems = data.directory_items || [];
-  const totalCount = data.meta?.total_rows_directory_items ?? rawItems.length;
+  const hasReliableTotal = typeof data.meta?.total_rows_directory_items === 'number';
+  const totalCount = hasReliableTotal ? data.meta.total_rows_directory_items : rawItems.length;
 
   const items: DirectoryItem[] = rawItems.map((item: Record<string, unknown>) => {
     const user = item.user as Record<string, unknown> | undefined;
@@ -112,7 +113,7 @@ export async function fetchDirectoryItems(
     };
   });
 
-  return { items, totalCount };
+  return { items, totalCount, hasReliableTotal };
 }
 
 // --- Capability detection ---

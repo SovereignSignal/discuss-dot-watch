@@ -4,14 +4,9 @@ import { useState, useRef, useCallback } from 'react';
 import { Download, Upload, Check, AlertTriangle, X } from 'lucide-react';
 import { Forum, KeywordAlert, Bookmark } from '@/types';
 import { c } from '@/lib/theme';
+import { parseExportData, type ValidatedExportData } from '@/lib/configImportSchema';
 
-interface ExportData {
-  version: 1;
-  exportedAt: string;
-  forums: Forum[];
-  alerts: KeywordAlert[];
-  bookmarks: Bookmark[];
-}
+type ExportData = ValidatedExportData;
 
 interface ConfigExportImportProps {
   forums: Forum[];
@@ -35,6 +30,7 @@ export function ConfigExportImport({
   const [importMessage, setImportMessage] = useState<string>('');
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [pendingImport, setPendingImport] = useState<ExportData | null>(null);
+  const [droppedCount, setDroppedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = useCallback(() => {
@@ -67,19 +63,20 @@ export function ConfigExportImport({
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
-        const data = JSON.parse(content) as ExportData;
+        const parsed = JSON.parse(content);
+        const { data, droppedCount: dropped } = parseExportData(parsed);
 
-        // Validate structure
-        if (!data.version || !data.exportedAt) {
-          throw new Error('Invalid configuration file format');
-        }
-
-        // Validate arrays exist
-        if (!Array.isArray(data.forums) && !Array.isArray(data.alerts) && !Array.isArray(data.bookmarks)) {
-          throw new Error('No valid data found in configuration file');
+        // Validate at least one item was found and survived validation
+        if (!data.forums?.length && !data.alerts?.length && !data.bookmarks?.length) {
+          throw new Error(
+            dropped > 0
+              ? 'No valid items found — every entry in this file failed validation'
+              : 'No valid data found in configuration file'
+          );
         }
 
         setPendingImport(data);
+        setDroppedCount(dropped);
         setShowImportPreview(true);
         setImportStatus('idle');
         setImportMessage('');
@@ -111,10 +108,10 @@ export function ConfigExportImport({
         const existingBookmarkRefs = new Set(bookmarks.map((b) => b.topicRefId));
 
         const newForums = pendingImport.forums?.filter(
-          (f) => !existingForumUrls.has(f.discourseForum.url)
+          (f) => !existingForumUrls.has(f.discourseForum?.url)
         );
         const newAlerts = pendingImport.alerts?.filter(
-          (a) => !existingAlertKeywords.has(a.keyword.toLowerCase())
+          (a) => !existingAlertKeywords.has(a.keyword?.toLowerCase())
         );
         const newBookmarks = pendingImport.bookmarks?.filter(
           (b) => !existingBookmarkRefs.has(b.topicRefId)
@@ -127,7 +124,7 @@ export function ConfigExportImport({
         });
 
         const added = (newForums?.length || 0) + (newAlerts?.length || 0) + (newBookmarks?.length || 0);
-        setImportMessage(`Merged ${added} new item${added !== 1 ? 's' : ''}`);
+        setImportMessage(`Merged ${added} new item${added !== 1 ? 's' : ''}${droppedCount > 0 ? ` (${droppedCount} invalid item${droppedCount !== 1 ? 's' : ''} skipped)` : ''}`);
       } else {
         // Replace: use imported data
         onImport({
@@ -139,7 +136,7 @@ export function ConfigExportImport({
           (pendingImport.forums?.length || 0) +
           (pendingImport.alerts?.length || 0) +
           (pendingImport.bookmarks?.length || 0);
-        setImportMessage(`Imported ${total} item${total !== 1 ? 's' : ''}`);
+        setImportMessage(`Imported ${total} item${total !== 1 ? 's' : ''}${droppedCount > 0 ? ` (${droppedCount} invalid item${droppedCount !== 1 ? 's' : ''} skipped)` : ''}`);
       }
 
       setImportStatus('success');
@@ -149,11 +146,12 @@ export function ConfigExportImport({
       setImportStatus('error');
       setImportMessage(err instanceof Error ? err.message : 'Failed to import configuration');
     }
-  }, [pendingImport, forums, alerts, bookmarks, onImport]);
+  }, [pendingImport, forums, alerts, bookmarks, onImport, droppedCount]);
 
   const handleCancelImport = useCallback(() => {
     setShowImportPreview(false);
     setPendingImport(null);
+    setDroppedCount(0);
     setImportStatus('idle');
     setImportMessage('');
   }, []);
@@ -250,6 +248,12 @@ export function ConfigExportImport({
               <p className="text-xs" style={{ color: t.fgDim }}>
                 Exported on {new Date(pendingImport.exportedAt).toLocaleDateString()}
               </p>
+              {droppedCount > 0 && (
+                <p className="text-xs flex items-center gap-1" style={{ color: isDark ? '#f87171' : '#dc2626' }}>
+                  <AlertTriangle className="w-3 h-3" />
+                  {droppedCount} invalid item{droppedCount !== 1 ? 's' : ''} will be skipped
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -168,29 +168,36 @@ export async function fetchTenantSnapshotData(
 
 /**
  * Fetch voter participation map: address -> number of proposals voted on
- * Used to cross-reference with delegate wallet addresses
+ * Used to cross-reference with delegate wallet addresses. Paginates past
+ * Snapshot's 1000-row-per-request cap (see fetchProposalVoters) so spaces
+ * with more than 1000 total votes aren't silently undercounted.
  */
 export async function fetchVoterParticipation(
   space: string,
-  limit: number = 1000,
+  maxVotes: number = 5000,
 ): Promise<Map<string, number>> {
   const voterCounts = new Map<string, number>();
+  const pageSize = 1000;
+  let skip = 0;
 
-  const result = await snapshotGraphQL<{
-    votes: Array<{
-      voter: string;
-      proposal: { id: string };
-      created: number;
-    }>;
-  }>(VOTES_FOR_VOTERS_QUERY, { space, first: Math.min(limit, 1000), skip: 0 });
+  while (skip < maxVotes) {
+    const result = await snapshotGraphQL<{
+      votes: Array<{
+        voter: string;
+        proposal: { id: string };
+        created: number;
+      }>;
+    }>(VOTES_FOR_VOTERS_QUERY, { space, first: pageSize, skip });
 
-  if (result.error || !result.data?.votes) {
-    return voterCounts;
-  }
+    if (result.error || !result.data?.votes) break;
 
-  for (const vote of result.data.votes) {
-    const addr = vote.voter.toLowerCase();
-    voterCounts.set(addr, (voterCounts.get(addr) || 0) + 1);
+    const page = result.data.votes;
+    for (const vote of page) {
+      const addr = vote.voter.toLowerCase();
+      voterCounts.set(addr, (voterCounts.get(addr) || 0) + 1);
+    }
+    if (page.length < pageSize) break;
+    skip += pageSize;
   }
 
   return voterCounts;
