@@ -13,7 +13,19 @@ test('applies security headers to normal requests', () => {
   const response = proxy(new NextRequest('https://www.discuss.watch/app'));
   assert.equal(response.headers.get('x-frame-options'), 'DENY');
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal(response.headers.get('content-security-policy'), "base-uri 'self'; object-src 'none'");
+  assert.equal(
+    response.headers.get('content-security-policy'),
+    "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+  );
+});
+
+test('allows framing on embed routes', () => {
+  const response = proxy(new NextRequest('https://www.discuss.watch/uniswap/embed'));
+  assert.equal(response.headers.get('x-frame-options'), null);
+  assert.equal(
+    response.headers.get('content-security-policy'),
+    "base-uri 'self'; object-src 'none'; frame-ancestors *",
+  );
 });
 
 test('rewrites invalid tenant slugs to the not-found route', () => {

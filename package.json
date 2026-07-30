@@ -12,7 +12,10 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "smoke:prod": "node scripts/smoke-check.mjs"
+    "smoke:prod": "node scripts/smoke-check.mjs",
+    "smoke:anticapture": "node --import tsx scripts/smoke-anticapture.ts",
+    "smoke:hn": "node --import tsx scripts/smoke-hn.ts",
+    "smoke:lobsters": "node --import tsx scripts/smoke-lobsters.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
