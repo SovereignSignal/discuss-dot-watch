@@ -128,11 +128,11 @@ _isAllowedUrl is the only SSRF gate on public, unauthenticated URL-fetch routes,
   - Problem: fetchForumTopics() and backfill fetchPage build ${forumUrl}/...json and fetch with default redirect:follow and no isAllowedUrl()/timeout. Only preset (trusted) URLs flow here today, but the asymmetry means a hijacked preset domain could redirect the background refresh internally, and a future admin 'add forum' feature would make backfill an SSRF vector.
   - Fix: Route both through the shared safeFetch() (redirect:'manual' + isAllowedRedirectUrl + AbortController timeout) so all fetch paths share one security posture.
   - Resolved (2026-07-07 hardening batch): safeFetch applies a 15s per-hop AbortSignal.timeout whenever the caller passes no signal, bounding background refresh/backfill.
-- [ ] **[low/M/medium] No Content-Security-Policy header set in middleware**
-  - Files: `src/middleware.ts`
-  - Problem: Header set is otherwise solid (X-Frame-Options DENY, HSTS, nosniff, Permissions-Policy) but there is no CSP. The app renders sanitized-but-attacker-originated Discourse HTML via dangerouslySetInnerHTML and a tenant-controlled <style> in the embed page; CSP is the meaningful second layer that turns a sanitizer bypass or accentColor injection into a non-event.
-  - Fix: Add a CSP (start report-only) restricting script-src to self + Privy origins and disallowing inline script; scope frame-ancestors so the intentional /[tenant]/embed page stays frameable while the app remains DENY. Verify embeds aren't broken by the blanket X-Frame-Options:DENY.
-  - Remaining (2026-07-07 verify pass): The CSP is deliberately minimal: it does not constrain script-src/style-src at all (the comment at middleware.ts:10-13 marks the full nonce+Privy-allowlist CSP as TODO), so the described second layer against a sanitizer bypass or inline-script injection is not in place. The frame-ancestors sub-item is also unaddressed: X-Frame-Options: DENY (middleware.ts:4) still applies blanket to all routes including /[tenant]/embed — grep finds no X-Frame-Options or frame-ancestors override anywhere else in src/, so the intentionally iframe-embeddable embed page is still served DENY.
+- [x] **[low/M/medium] Content-Security-Policy header added with scoped frame-ancestors**
+  - Files: `src/proxy.ts`, `tests/proxy.test.ts`
+  - Problem: Header set was otherwise solid (X-Frame-Options DENY, HSTS, nosniff, Permissions-Policy) but there was no CSP, and `X-Frame-Options: DENY` applied blanket to all routes including `/[tenant]/embed`, blocking the intentionally iframe-embeddable widget.
+  - Fix: Added a minimal CSP (`base-uri 'self'; object-src 'none'`) and scoped `frame-ancestors`: `'none'` for app routes, `*` for `/[tenant]/embed`. Removed `X-Frame-Options` on embed paths. Added regression tests verifying both behaviors.
+  - Remaining: A full nonce-based `script-src`/`style-src` CSP with Privy/WalletConnect allowlisting is still TODO; the minimal CSP does not yet mitigate a sanitizer bypass or inline-script injection.
 - [x] **[low/S/low] testEmail reflected unescaped into HTML email body and not validated as an email**
   - Files: `src/app/api/digest/route.ts`
   - Problem: The admin test-email path interpolates testEmail into the HTML body (`Recipient: ${testEmail}`) with no escapeHtml and no format validation, and passes it straight to Resend as the `to` address. Admin-gated, but an admin typo or compromised token can inject HTML or send to a malformed recipient. escapeHtml() exists and is unused here.
@@ -179,11 +179,10 @@ _The deploy path is healthy (clean tsc, fast build, locked installs, good secret
   - Files: `next.config.ts`, `nixpacks.toml`
   - Problem: experimental.turbopackUseSystemTlsCerts and the matching nixpacks env claim to fix Google Fonts fetch failures, but the app self-hosts geist fonts and references no next/font/google. The flag and its duplicated env are dead weight on an experimental flag with a misleading comment.
   - Fix: Remove both, verify the Railway build still succeeds; reintroduce with an accurate comment only if a Google-font dep is added.
-- [ ] **[low/S/low] Orphaned .ts smoke scripts require an unpinned `npx tsx` not in dependencies**
-  - Files: `scripts/smoke-anticapture.ts`, `scripts/smoke-hn.ts`, `scripts/smoke-lobsters.ts`
-  - Problem: Three smoke scripts run only via npx tsx (tsx is not a dependency or in the lockfile, so each run downloads an unpinned version — non-reproducible, unrunnable in locked CI) and none are wired to an npm script.
-  - Fix: Either add tsx as a pinned devDependency and wire smoke:anticapture/hn/lobsters scripts, convert to .mjs like smoke-check.mjs, or delete if superseded.
-  - Remaining (2026-07-07 verify pass): The 'none are wired to an npm script' sub-problem remains: package.json:8-15 defines only dev/build/start/lint/typecheck/smoke:prod (smoke-check.mjs). No smoke:anticapture, smoke:hn, or smoke:lobsters npm scripts exist for scripts/smoke-anticapture.ts, scripts/smoke-hn.ts, scripts/smoke-lobsters.ts — they are still invoked only via ad-hoc `npx tsx scripts/<name>.ts` per their header comments.
+- [x] **[low/S/low] Orphaned .ts smoke scripts wired to npm scripts and verified**
+  - Files: `package.json`, `scripts/smoke-anticapture.ts`, `scripts/smoke-hn.ts`, `scripts/smoke-lobsters.ts`
+  - Problem: Three smoke scripts ran only via `npx tsx` and none were wired to an npm script, making them non-reproducible in CI.
+  - Fix: Added `smoke:anticapture`, `smoke:hn`, and `smoke:lobsters` scripts to `package.json` using the project's pinned `tsx` (`node --import tsx`). Verified all three pass against live upstreams (`smoke:anticapture` via Railway-injected env vars).
 
 ### Performance & caching
 
