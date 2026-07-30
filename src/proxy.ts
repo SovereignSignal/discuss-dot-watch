@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isValidTenantSlug, RESERVED_SLUGS } from '@/lib/tenantSlug';
 
 const baseSecurityHeaders: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
@@ -25,14 +26,8 @@ const embedSecurityHeaders: Record<string, string> = {
   'Content-Security-Policy': "base-uri 'self'; object-src 'none'; frame-ancestors *",
 };
 
-// Slug format for [tenant] dynamic route
-const VALID_SLUG = /^[a-z0-9][a-z0-9-]*$/;
-
-// Routes that have their own static pages (not caught by [tenant])
-const STATIC_ROUTES = new Set([
-  'admin', 'api', 'app', 'feed', 'governance', 'privacy', 'terms',
-  'sitemap.xml', 'robots.txt', 'icon.svg',
-]);
+// Reserved routes that have their own static pages and should never be treated as a tenant slug.
+const STATIC_ROUTES = RESERVED_SLUGS;
 
 function isEmbedPath(pathname: string): boolean {
   const segments = pathname.split('/').filter(Boolean);
@@ -65,7 +60,7 @@ export function proxy(request: NextRequest) {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length >= 1 && !STATIC_ROUTES.has(segments[0])) {
     const slug = segments[0];
-    if (!VALID_SLUG.test(slug) || slug.length > 64) {
+    if (!isValidTenantSlug(slug)) {
       const url = request.nextUrl.clone();
       url.pathname = '/_not-found';
       return addSecurityHeaders(NextResponse.rewrite(url), false);

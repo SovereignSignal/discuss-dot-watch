@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyTenantAdmin, isAuthError } from '@/lib/auth';
+import { isValidTenantSlug } from '@/lib/tenantSlug';
 import { refreshTenant } from '@/lib/delegates';
 
 export async function POST(
@@ -14,13 +15,13 @@ export async function POST(
   try {
     const { tenant: slug } = await params;
 
+    if (!isValidTenantSlug(slug)) {
+      return NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 });
+    }
+
     const auth = await verifyTenantAdmin(request, slug);
     if (isAuthError(auth)) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
-
-    if (!slug || typeof slug !== 'string') {
-      return NextResponse.json({ error: 'Invalid tenant slug' }, { status: 400 });
     }
 
     const result = await refreshTenant(slug);

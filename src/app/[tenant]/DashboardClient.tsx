@@ -21,11 +21,7 @@ import { brandedColors } from './dashboardUtils';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from '@/hooks/useTheme';
-
-const RESERVED_SLUGS = new Set([
-  'terms', 'about', 'privacy', 'contact', 'pricing',
-  'help', 'docs', 'blog', 'login', 'signup', 'settings',
-]);
+import { RESERVED_SLUGS } from '@/lib/tenantSlug';
 
 export default function TenantDashboardPage() {
   const params = useParams();

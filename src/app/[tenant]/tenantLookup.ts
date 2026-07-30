@@ -1,9 +1,8 @@
 import { cache } from 'react';
-
-export const VALID_SLUG = /^[a-z0-9][a-z0-9-]*$/;
+import { isValidTenantSlug } from '@/lib/tenantSlug';
 
 export const lookupTenant = cache(async (slug: string) => {
-  if (!VALID_SLUG.test(slug) || slug.length > 64) return { valid: false as const };
+  if (!isValidTenantSlug(slug)) return { valid: false as const };
   try {
     const { getTenantBySlug } = await import('@/lib/delegates/db');
     const tenant = await getTenantBySlug(slug);

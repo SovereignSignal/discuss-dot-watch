@@ -13,6 +13,7 @@
  */
 
 import { DiscourseLatestResponse, DiscussionTopic } from '@/types';
+import { mapDiscourseTopic } from './discourseTopicMapper';
 import { FORUM_CATEGORIES, ForumPreset } from './forumPresets';
 import { getEnabledExternalSources } from './externalSources';
 import { fetchEAForumPosts } from './eaForumClient';
@@ -490,38 +491,15 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
     
     const data: DiscourseLatestResponse = await response.json();
     
-    const topics: DiscussionTopic[] = (data.topic_list?.topics || []).map((topic) => ({
-      id: topic.id,
-      refId: `${forum.name.toLowerCase().replace(/\s+/g, '-')}-${topic.id}`,
-      protocol: forum.name,
-      title: topic.title,
-      slug: topic.slug,
-      tags: (topic.tags || []).map((tag) =>
-        typeof tag === 'string' ? tag : tag.name
-      ),
-      postsCount: topic.posts_count,
-      views: topic.views,
-      replyCount: topic.reply_count,
-      likeCount: topic.like_count,
-      categoryId: topic.category_id,
-      pinned: topic.pinned,
-      visible: topic.visible,
-      closed: topic.closed,
-      archived: topic.archived,
-      createdAt: topic.created_at,
-      bumpedAt: topic.bumped_at,
-      imageUrl: forum.logoUrl || topic.image_url,
-      forumUrl: baseUrl,
-      excerpt: topic.excerpt
-        ? (() => {
-            const text = topic.excerpt.replace(/<[^>]*>/g, '');
-            if (text.length <= 200) return text;
-            const truncated = text.slice(0, 200);
-            const lastSpace = truncated.lastIndexOf(' ');
-            return (lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated) + '\u2026';
-          })()
-        : undefined,
-    }));
+    const refIdPrefix = forum.name.toLowerCase().replace(/\s+/g, '-');
+    const topics: DiscussionTopic[] = (data.topic_list?.topics || []).map((topic) =>
+      mapDiscourseTopic(topic, {
+        protocol: forum.name,
+        refIdPrefix,
+        logoUrl: forum.logoUrl,
+        forumUrl: baseUrl,
+      }),
+    );
     
     return { topics };
   } catch (error) {

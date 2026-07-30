@@ -4,6 +4,7 @@ import { isAllowedUrl } from '@/lib/url';
 import { safeFetch } from '@/lib/safeFetch';
 import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
 import { getCachedForum, startBackgroundRefresh } from '@/lib/forumCache';
+import { mapDiscourseTopic } from '@/lib/discourseTopicMapper';
 import { startDelegateRefreshLoop } from '@/lib/delegates/refreshEngine';
 import { startDailyBriefLoop } from '@/lib/dailyBriefLoop';
 import { initializeSchema, isDatabaseConfigured } from '@/lib/db';
@@ -95,12 +96,18 @@ export async function GET(request: NextRequest) {
   if (!bypassCache && !validatedCategoryId) {
     const cached = await getCachedForum(forumUrl);
     if (cached && cached.topics && cached.topics.length > 0) {
-      // Update protocol and logoUrl for cached topics if provided
-      const topics = cached.topics.map(topic => ({
-        ...topic,
-        protocol: protocol !== 'unknown' ? protocol : topic.protocol,
-        imageUrl: logoUrl || topic.imageUrl,
-      }));
+      // Update protocol and logoUrl for cached topics if provided.
+      // When protocol changes, recompute refId so identity keys stay consistent
+      // with bookmarks, read-state, and brief hot-ids.
+      const topics = cached.topics.map(topic => {
+        const effectiveProtocol = protocol !== 'unknown' ? protocol : topic.protocol;
+        return {
+          ...topic,
+          protocol: effectiveProtocol,
+          refId: `${effectiveProtocol}-${topic.id}`,
+          imageUrl: logoUrl || topic.imageUrl,
+        };
+      });
       
       return NextResponse.json({ 
         topics,
@@ -204,38 +211,14 @@ export async function GET(request: NextRequest) {
 
     const data: DiscourseLatestResponse = await response.json();
     
-    const topics: DiscussionTopic[] = data.topic_list.topics.map((topic: DiscourseTopicResponse) => ({
-      id: topic.id,
-      refId: `${protocol}-${topic.id}`,
-      protocol,
-      title: topic.title,
-      slug: topic.slug,
-      tags: (topic.tags || []).map((tag: string | { id: number; name: string; slug: string }) =>
-        typeof tag === 'string' ? tag : tag.name
-      ),
-      postsCount: topic.posts_count,
-      views: topic.views,
-      replyCount: topic.reply_count,
-      likeCount: topic.like_count,
-      categoryId: topic.category_id,
-      pinned: topic.pinned,
-      visible: topic.visible,
-      closed: topic.closed,
-      archived: topic.archived,
-      createdAt: topic.created_at,
-      bumpedAt: topic.bumped_at,
-      imageUrl: logoUrl || topic.image_url,
-      forumUrl: baseUrl,
-      excerpt: topic.excerpt
-        ? (() => {
-            const text = topic.excerpt.replace(/<[^>]*>/g, '');
-            if (text.length <= 200) return text;
-            const truncated = text.slice(0, 200);
-            const lastSpace = truncated.lastIndexOf(' ');
-            return (lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated) + '\u2026';
-          })()
-        : undefined,
-    }));
+    const topics: DiscussionTopic[] = data.topic_list.topics.map((topic: DiscourseTopicResponse) =>
+      mapDiscourseTopic(topic, {
+        protocol,
+        refIdPrefix: protocol,
+        logoUrl,
+        forumUrl: baseUrl,
+      }),
+    );
 
     return NextResponse.json({ topics, cached: false });
   } catch (error) {

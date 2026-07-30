@@ -532,64 +532,19 @@ export async function getRecentTopics(options: {
 } = {}) {
   const db = getDb();
   const { limit = 50, offset = 0, forumId, category, since } = options;
-  
-  if (forumId) {
-    if (since) {
-      return db`
-        SELECT t.*, f.name as forum_name, f.url as forum_url, f.logo_url as forum_logo
-        FROM topics t
-        JOIN forums f ON t.forum_id = f.id
-        WHERE t.forum_id = ${forumId} AND t.bumped_at >= ${since}
-        ORDER BY t.bumped_at DESC NULLS LAST
-        LIMIT ${limit} OFFSET ${offset}
-      `;
-    }
-    return db`
-      SELECT t.*, f.name as forum_name, f.url as forum_url, f.logo_url as forum_logo
-      FROM topics t
-      JOIN forums f ON t.forum_id = f.id
-      WHERE t.forum_id = ${forumId}
-      ORDER BY t.bumped_at DESC NULLS LAST
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-  }
-  
-  if (category) {
-    if (since) {
-      return db`
-        SELECT t.*, f.name as forum_name, f.url as forum_url, f.logo_url as forum_logo
-        FROM topics t
-        JOIN forums f ON t.forum_id = f.id
-        WHERE f.category = ${category} AND t.bumped_at >= ${since}
-        ORDER BY t.bumped_at DESC NULLS LAST
-        LIMIT ${limit} OFFSET ${offset}
-      `;
-    }
-    return db`
-      SELECT t.*, f.name as forum_name, f.url as forum_url, f.logo_url as forum_logo
-      FROM topics t
-      JOIN forums f ON t.forum_id = f.id
-      WHERE f.category = ${category}
-      ORDER BY t.bumped_at DESC NULLS LAST
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-  }
-  
-  if (since) {
-    return db`
-      SELECT t.*, f.name as forum_name, f.url as forum_url, f.logo_url as forum_logo
-      FROM topics t
-      JOIN forums f ON t.forum_id = f.id
-      WHERE t.bumped_at >= ${since}
-      ORDER BY t.bumped_at DESC NULLS LAST
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-  }
-  
+
+  // Build WHERE fragments once; the four previously-duplicated SELECT bodies
+  // differed only by these predicates.
+  const conditions = [];
+  if (forumId) conditions.push(db`t.forum_id = ${forumId}`);
+  if (category && !forumId) conditions.push(db`f.category = ${category}`);
+  if (since) conditions.push(db`t.bumped_at >= ${since}`);
+
   return db`
     SELECT t.*, f.name as forum_name, f.url as forum_url, f.logo_url as forum_logo
     FROM topics t
     JOIN forums f ON t.forum_id = f.id
+    ${conditions.length ? db`WHERE ${conditions}` : db``}
     ORDER BY t.bumped_at DESC NULLS LAST
     LIMIT ${limit} OFFSET ${offset}
   `;

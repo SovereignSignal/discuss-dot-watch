@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { TenantBranding } from '@/types/delegates';
-import { lookupTenant, VALID_SLUG } from './tenantLookup';
+import { isValidTenantSlug } from '@/lib/tenantSlug';
+import { lookupTenant } from './tenantLookup';
 
 export async function generateMetadata({
   params,
@@ -19,7 +20,7 @@ export async function generateMetadata({
   }
 
   const displayName = tenantName
-    || (VALID_SLUG.test(slug) ? slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'discuss.watch');
+    || (isValidTenantSlug(slug) ? slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'discuss.watch');
 
   const title = branding?.heroTitle
     ? `${displayName} — Community Dashboard`

@@ -318,10 +318,11 @@ _A handful of genuine, user-reproducible defects: bookmark folders silently drop
   - Files: `src/lib/snapshotClient.ts`, `src/lib/delegates/snapshotClient.ts`
   - Problem: formatVoteResults/detail and SnapshotSummaryCard zip choices[i] with scores[i] from the untrusted Snapshot API with no length/numeric guard; weighted/quadratic/ranked proposals yield silent 0%/'Multiple choices'/NaN, and fetchVoterParticipation caps at first:1000 with no pagination (undercounting votingScore for spaces >1000 votes) while fetchProposalVoters paginates to 5000.
   - Fix: Coerce numbers, default arrays to [], guard scores.length===choices.length, handle array/record choice shapes, and either paginate fetchVoterParticipation or document the 1000-vote ceiling.
-- [ ] **[low/S/low] /api/discourse rewrites cached topics' protocol from query params without recomputing refId**
+- [x] **[low/S/low] /api/discourse rewrites cached topics' protocol from query params without recomputing refId**
   - Files: `src/app/api/discourse/route.ts`
   - Problem: On the cache path the route overwrites each topic's protocol with the caller's param but doesn't recompute refId (built as protocol-id at cache time), so two callers requesting the same forum with different protocol get protocol/refId that disagree — and refId is the identity key for read-state, bookmarks, and the briefs hotIds Set.
   - Fix: Recompute refId to `${effectiveProtocol}-${topic.id}` when overriding protocol, or always serve the cache-time protocol.
+  - Resolved: Cache path now recomputes refId from the effective protocol; fresh-fetch path shares the same mapper.
 - [x] **[low/S/low] searchTopics injects user query into ILIKE without escaping % and _ wildcards**
   - Files: `src/lib/db.ts`
   - Problem: searchPattern=`%${query}%` is parameterized (no SQLi) but %, _, \ are LIKE metacharacters, so 'a_b' matches 'axb' and a query of '%' matches everything.
@@ -368,11 +369,10 @@ _The app works but carries a heavy maintenance tax: the legacy c(isDark) theme h
   - Files: `src/lib/delegates/discourseClient.ts`, `src/lib/delegates/proposalTracker.ts`, `src/lib/delegates/featuredThreads.ts`
   - Problem: proposalTracker/featuredThreads/discourseClient each reimplement rateLimitWait, discourseGet (decrypt→baseUrl→headers→fetch), and tag normalization, and proposalTracker/featuredThreads each re-fetch the tenant + re-decrypt the API key independently (3+ fetches/decrypts per dashboard render).
   - Fix: Promote one authenticated Discourse client factory (owns the shared limiter) and a normalizeTags helper into discourseClient.ts; pass the already-loaded tenant/config in rather than re-fetching by slug.
-- [ ] **[low/S/medium] Consolidate duplicated tenant slug guards (middleware vs server vs client) into one validator**
-  - Files: `src/middleware.ts`, `src/app/[tenant]/DashboardClient.tsx`, `src/app/api/delegates/[tenant]/route.ts`, `src/app/api/delegates/[tenant]/refresh/route.ts`
-  - Problem: Three slug-guarding mechanisms exist (middleware STATIC_ROUTES, server VALID_SLUG, client RESERVED_SLUGS) that overlap only partially: marketing slugs blocked client-side still hit the DB server-side, the refresh route has a divergent weaker check, and the same /^[a-zA-Z0-9_-]{1,100}$/ regex is copy-pasted across 6+ routes. Policy lives in many places and can drift.
-  - Fix: Extract isValidTenantSlug/isValidUsername helpers used everywhere (including refresh route), and move genuinely-reserved marketing slugs into middleware STATIC_ROUTES so they 404 before any DB hit; delete the redundant client list.
-  - Remaining (2026-07-07 verify pass): (1) The refresh route still has the divergent weaker check — src/app/api/delegates/[tenant]/refresh/route.ts:22 only tests `typeof slug !== 'string'` and does not import isValidTenantSlug. (2) The redundant client RESERVED_SLUGS list survives at src/app/[tenant]/DashboardClient.tsx:26-29 and marketing slugs (about, pricing, blog, ...) were not added to middleware STATIC_ROUTES (src/middleware.ts:21-24), so they still hit the DB server-side. (3) middleware.ts:18 keeps its own separate VALID_SLUG regex (also re-declared in src/app/[tenant]/tenantLookup.ts:3).
+- [x] **[low/S/medium] Consolidate duplicated tenant slug guards (middleware vs server vs client) into one validator**
+  - Files: `src/lib/tenantSlug.ts`, `src/proxy.ts`, `src/app/[tenant]/tenantLookup.ts`, `src/app/[tenant]/layout.tsx`, `src/app/[tenant]/DashboardClient.tsx`, `src/app/api/delegates/[tenant]/refresh/route.ts`
+  - Problem: Three slug-guarding mechanisms existed (proxy/middleware STATIC_ROUTES, server VALID_SLUG, client RESERVED_SLUGS) that overlapped only partially: marketing slugs blocked client-side still hit the DB server-side, the refresh route had a divergent weaker check, and the same regex was copy-pasted across routes.
+  - Fix: Made `src/lib/tenantSlug.ts` the single source of truth for both `isValidTenantSlug` and `RESERVED_SLUGS`; replaced inline validators in proxy, tenantLookup, layout, DashboardClient, and the refresh route; added marketing slugs to `RESERVED_SLUGS` so they 404 before any tenant DB lookup.
 - [ ] **[low/M/medium] Extract shared email layout — digest and grants-brief chrome/topic-card are duplicated and drifting**
   - Files: `src/lib/grantsBrief.ts`, `src/lib/emailDigest.ts`
   - Problem: formatGrantsBriefEmail and formatDigestEmail independently re-implement the same HTML shell (body style, header, CTA button, footer, topic card) — ~150 duplicated lines, so the unsubscribe fix, locale fix, or brand change must be applied twice and already differs.
@@ -381,18 +381,18 @@ _The app works but carries a heavy maintenance tax: the legacy c(isDark) theme h
   - Files: `src/lib/snapshotClient.ts`, `src/lib/eaForumClient.ts`, `src/lib/githubDiscussionsClient.ts`, `src/lib/hackerNewsClient.ts`, `src/lib/lobstersClient.ts`
   - Problem: hashStringToNumber/truncateText are copy-pasted into all five source clients and stripHtml into two; they've already drifted from forumCache's word-boundary truncation.
   - Fix: Extract to src/lib/sourceUtils.ts (preserving the type-only-import constraint the smoke scripts rely on via a plain relative path).
-- [ ] **[low/M/low] Collapse getRecentTopics' duplicated SELECT across 7 nested branches**
+- [x] **[low/M/low] Collapse getRecentTopics' duplicated SELECT across 7 nested branches**
   - Files: `src/lib/db.ts`
-  - Problem: getRecentTopics hand-writes the same SELECT...JOIN...ORDER BY four times (plus since-variants), branching on forumId/category/since — ~70 lines where any column/order change must be made in 4-7 places.
-  - Fix: Build conditions as postgres.js fragments and compose one SELECT body with a conditional WHERE; cuts the function to ~15 lines.
+  - Problem: getRecentTopics hand-wrote the same SELECT...JOIN...ORDER BY four times (plus since-variants), branching on forumId/category/since — ~70 lines where any column/order change had to be made in 4-7 places.
+  - Fix: Built conditions as postgres.js fragments and composed one SELECT body with a conditional WHERE; reduced the function to ~15 lines.
 - [ ] **[low/S/medium] MCP tool definitions duplicated and drifting between /api/mcp and mcp-server.js (category enums disagree)**
   - Files: `src/app/api/mcp/route.ts`, `mcp-server.js`
   - Problem: /api/mcp describes category as 'crypto, ai, oss' while mcp-server.js says 'crypto-governance, ai-research, ...'; the v1 routes resolve via FORUM_CATEGORIES.find, so the wrong enum makes agents pass values that match zero forums (empty data, 200). Nothing ties the two together.
   - Fix: Derive the category enum from FORUM_CATEGORIES.map(c=>c.id) at runtime in /api/mcp and have mcp-server.js fetch /api/mcp (or import a shared constant); reconcile the strings today.
-- [ ] **[low/S/low] Extract topic-mapping + excerpt-truncation duplicated verbatim between route and forumCache**
-  - Files: `src/app/api/discourse/route.ts`, `src/lib/forumCache.ts`
-  - Problem: The DiscourseTopicResponse→DiscussionTopic mapping including the byte-identical excerpt strip+truncate IIFE is copied in both files; any field/length change must be made twice.
-  - Fix: Extract mapDiscourseTopic(raw, {protocol, refIdBase, logoUrl, forumUrl}) and call it from both (~30 fewer lines, no drift).
+- [x] **[low/S/low] Extract topic-mapping + excerpt-truncation duplicated verbatim between route and forumCache**
+  - Files: `src/app/api/discourse/route.ts`, `src/lib/forumCache.ts`, `src/lib/discourseTopicMapper.ts`
+  - Problem: The DiscourseTopicResponse→DiscussionTopic mapping including the byte-identical excerpt strip+truncate IIFE was copied in both files; any field/length change had to be made twice.
+  - Fix: Extracted `mapDiscourseTopic` and `truncateExcerpt` to `src/lib/discourseTopicMapper.ts` and called it from both the cache and the API route; also recomputes `refId` on the cache path when the protocol override changes.
 - [ ] **[low/M/low] Reduce forumPresets boilerplate and add a uniqueness guard**
   - Files: `src/lib/forumPresets.ts`
   - Problem: The 2,787-line literal hardcodes logoUrl=url+favicon.ico (62 entries) and templated descriptions (19), most of each entry mechanically derivable — it bloats the client bundle (imported by searchForums) and is hard to review (a wrong favicon among 337 is invisible). ALL_FORUM_PRESETS also has no uniqueness check (clean today, unenforced).
