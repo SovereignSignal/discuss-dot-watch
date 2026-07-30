@@ -28,7 +28,7 @@ export interface ForumCategory {
   forums: ForumPreset[];
 }
 
-export const FORUM_CATEGORIES: ForumCategory[] = [
+const RAW_FORUM_CATEGORIES: ForumCategory[] = [
   {
     id: 'crypto',
     name: 'Crypto',
@@ -37,136 +37,98 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Moonwell',
         url: 'https://forum.moonwell.fi/',
-        description: 'Moonwell governance & community forum',
-        logoUrl: 'https://forum.moonwell.fi/favicon.ico',
         tier: 2,
       },
       {
         name: 'Fluid Governance (Instadapp)',
         url: 'https://gov.fluid.io/',
-        description: 'Fluid Governance (Instadapp) governance & community forum',
-        logoUrl: 'https://gov.fluid.io/favicon.ico',
         tier: 2,
       },
       {
         name: 'Gearbox Protocol',
         url: 'https://gov.gearbox.fi/',
-        description: 'Gearbox Protocol governance & community forum',
-        logoUrl: 'https://gov.gearbox.fi/favicon.ico',
         tier: 2,
       },
       {
         name: 'Superfluid DAO',
         url: 'https://forum.superfluid.org/',
-        description: 'Superfluid DAO governance & community forum',
-        logoUrl: 'https://forum.superfluid.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Scroll',
         url: 'https://forum.scroll.io/',
         grantsCategories: [{ id: 16, slug: 'community-grants' }, { id: 10, slug: 'eco-growth' }],
-        description: 'Scroll governance & community forum',
-        logoUrl: 'https://forum.scroll.io/favicon.ico',
         tier: 2,
       },
       {
         name: 'Celo',
         url: 'https://forum.celo.org/',
         grantsCategories: [{ id: 27, slug: 'grants' }],
-        description: 'Celo governance & community forum',
-        logoUrl: 'https://forum.celo.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Gnosis',
         url: 'https://forum.gnosis.io/',
-        description: 'Gnosis governance & community forum',
-        logoUrl: 'https://forum.gnosis.io/favicon.ico',
         tier: 2,
       },
       {
         name: 'Fuel Network',
         url: 'https://forum.fuel.network/',
-        description: 'Fuel Network governance & community forum',
-        logoUrl: 'https://forum.fuel.network/favicon.ico',
         tier: 2,
       },
       {
         name: 'Babylon',
         url: 'https://forum.babylonlabs.io/',
-        description: 'Babylon governance & community forum',
-        logoUrl: 'https://forum.babylonlabs.io/favicon.ico',
         tier: 2,
       },
       {
         name: 'Avail',
         url: 'https://forum.availproject.org/',
-        description: 'Avail governance & community forum',
-        logoUrl: 'https://forum.availproject.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Rootstock Research & Innovation',
         url: 'https://research.rsk.dev/',
-        description: 'Rootstock Research & Innovation governance & community forum',
-        logoUrl: 'https://research.rsk.dev/favicon.ico',
         tier: 2,
       },
       {
         name: 'Moonbeam',
         url: 'https://forum.moonbeam.network/',
-        description: 'Moonbeam governance & community forum',
-        logoUrl: 'https://forum.moonbeam.network/favicon.ico',
         tier: 2,
       },
       {
         name: 'Regen Network',
         url: 'https://forum.regen.network/',
-        description: 'Regen Network governance & community forum',
-        logoUrl: 'https://forum.regen.network/favicon.ico',
         tier: 2,
       },
       {
         name: 'Neutron',
         url: 'https://forum.neutron.org/',
-        description: 'Neutron governance & community forum',
-        logoUrl: 'https://forum.neutron.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Axelar',
         url: 'https://community.axelar.network/',
-        description: 'Axelar governance & community forum',
-        logoUrl: 'https://community.axelar.network/favicon.ico',
         tier: 2,
       },
       {
         name: 'Archway',
         url: 'https://gov.archway.io/',
-        description: 'Archway governance & community forum',
-        logoUrl: 'https://gov.archway.io/favicon.ico',
         tier: 2,
       },
       {
         name: 'Agoric',
         url: 'https://community.agoric.com/',
-        description: 'Agoric governance & community forum',
-        logoUrl: 'https://community.agoric.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Nouns DAO',
         url: 'https://discourse.nouns.wtf/',
-        description: 'Nouns DAO governance & community forum',
-        logoUrl: 'https://discourse.nouns.wtf/favicon.ico',
         tier: 2,
       },
       {
         name: 'The Sandbox DAO',
         url: 'https://forum.sandboxdao.com/',
-        description: 'The Sandbox DAO governance & community forum',
-        logoUrl: 'https://forum.sandboxdao.com/favicon.ico',
         tier: 2,
       },
       // L2 Protocols
@@ -1038,28 +1000,24 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         name: 'vLLM',
         url: 'https://discuss.vllm.ai/',
         description: 'vLLM community forum',
-        logoUrl: 'https://discuss.vllm.ai/favicon.ico',
         tier: 2,
       },
       {
         name: 'DeepLearning.AI',
         url: 'https://community.deeplearning.ai/',
         description: 'DeepLearning.AI community forum',
-        logoUrl: 'https://community.deeplearning.ai/favicon.ico',
         tier: 2,
       },
       {
         name: 'AIcrowd',
         url: 'https://discourse.aicrowd.com/',
         description: 'AIcrowd community forum',
-        logoUrl: 'https://discourse.aicrowd.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Confluent',
         url: 'https://forum.confluent.io/',
         description: 'Confluent community forum',
-        logoUrl: 'https://forum.confluent.io/favicon.ico',
         tier: 2,
       },
       {
@@ -1523,14 +1481,12 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         name: 'fast.ai',
         url: 'https://forums.fast.ai/',
         description: 'fast.ai deep-learning course and library community',
-        logoUrl: 'https://forums.fast.ai/favicon.ico',
         tier: 2,
       },
       {
         name: 'n8n',
         url: 'https://community.n8n.io/',
         description: 'n8n workflow-automation and AI-agent community',
-        logoUrl: 'https://community.n8n.io/favicon.ico',
         tier: 2,
       },
 
@@ -1545,98 +1501,84 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         name: 'Erlang',
         url: 'https://erlangforums.com/',
         description: 'Erlang community forum',
-        logoUrl: 'https://erlangforums.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Elm Discourse',
         url: 'https://discourse.elm-lang.org/',
         description: 'Elm Discourse community forum',
-        logoUrl: 'https://discourse.elm-lang.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Scala Users',
         url: 'https://users.scala-lang.org/',
         description: 'Scala Users community forum',
-        logoUrl: 'https://users.scala-lang.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Scala Contributors',
         url: 'https://contributors.scala-lang.org/',
         description: 'Scala Contributors community forum',
-        logoUrl: 'https://contributors.scala-lang.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Go Forum (GoBridge)',
         url: 'https://forum.golangbridge.org/',
         description: 'Go Forum (GoBridge) community forum',
-        logoUrl: 'https://forum.golangbridge.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Haxe',
         url: 'https://community.haxe.org/',
         description: 'Haxe community forum',
-        logoUrl: 'https://community.haxe.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Rocq Prover',
         url: 'https://discourse.rocq-prover.org/',
         description: 'Rocq Prover community forum',
-        logoUrl: 'https://discourse.rocq-prover.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Netdata Community',
         url: 'https://community.netdata.cloud/',
         description: 'Netdata Community community forum',
-        logoUrl: 'https://community.netdata.cloud/favicon.ico',
         tier: 2,
       },
       {
         name: 'Temporal',
         url: 'https://community.temporal.io/',
         description: 'Temporal community forum',
-        logoUrl: 'https://community.temporal.io/favicon.ico',
         tier: 2,
       },
       {
         name: 'ScyllaDB Community NoSQL',
         url: 'https://forum.scylladb.com/',
         description: 'ScyllaDB Community NoSQL community forum',
-        logoUrl: 'https://forum.scylladb.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Percona',
         url: 'https://forums.percona.com/',
         description: 'Percona community forum',
-        logoUrl: 'https://forums.percona.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Keycloak',
         url: 'https://forum.keycloak.org/',
         description: 'Keycloak community forum',
-        logoUrl: 'https://forum.keycloak.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Camunda',
         url: 'https://forum.camunda.io/',
         description: 'Camunda community forum',
-        logoUrl: 'https://forum.camunda.io/favicon.ico',
         tier: 2,
       },
       {
         name: 'SUSE Rancher Community',
         url: 'https://forums.suse.com/',
         description: 'SUSE Rancher Community community forum',
-        logoUrl: 'https://forums.suse.com/favicon.ico',
         tier: 2,
       },
       {
@@ -1706,98 +1648,84 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         name: 'openSUSE',
         url: 'https://forums.opensuse.org/',
         description: 'openSUSE community forum',
-        logoUrl: 'https://forums.opensuse.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Manjaro Linux',
         url: 'https://forum.manjaro.org/',
         description: 'Manjaro Linux community forum',
-        logoUrl: 'https://forum.manjaro.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'EndeavourOS',
         url: 'https://forum.endeavouros.com/',
         description: 'EndeavourOS community forum',
-        logoUrl: 'https://forum.endeavouros.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Rocky Linux',
         url: 'https://forums.rockylinux.org/',
         description: 'Rocky Linux community forum',
-        logoUrl: 'https://forums.rockylinux.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Framework',
         url: 'https://community.frame.work/',
         description: 'Framework community forum',
-        logoUrl: 'https://community.frame.work/favicon.ico',
         tier: 2,
       },
       {
         name: 'TrueNAS Community',
         url: 'https://forums.truenas.com/',
         description: 'TrueNAS Community community forum',
-        logoUrl: 'https://forums.truenas.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Nextcloud',
         url: 'https://help.nextcloud.com/',
         description: 'Nextcloud community forum',
-        logoUrl: 'https://help.nextcloud.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Pi-hole Userspace',
         url: 'https://discourse.pi-hole.net/',
         description: 'Pi-hole Userspace community forum',
-        logoUrl: 'https://discourse.pi-hole.net/favicon.ico',
         tier: 2,
       },
       {
         name: 'OpenWrt',
         url: 'https://forum.openwrt.org/',
         description: 'OpenWrt community forum',
-        logoUrl: 'https://forum.openwrt.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Grafana Community',
         url: 'https://community.grafana.com/',
         description: 'Grafana Community community forum',
-        logoUrl: 'https://community.grafana.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Practical ZFS',
         url: 'https://discourse.practicalzfs.com/',
         description: 'Practical ZFS community forum',
-        logoUrl: 'https://discourse.practicalzfs.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Haiku',
         url: 'https://discuss.haiku-os.org/',
         description: 'Haiku community forum',
-        logoUrl: 'https://discuss.haiku-os.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Docker Community',
         url: 'https://forums.docker.com/',
         description: 'Docker Community community forum',
-        logoUrl: 'https://forums.docker.com/favicon.ico',
         tier: 2,
       },
       {
         name: 'Ionic Forum (Ionic / Capacitor / Stencil)',
         url: 'https://forum.ionicframework.com/',
         description: 'Ionic Forum (Ionic / Capacitor / Stencil) community forum',
-        logoUrl: 'https://forum.ionicframework.com/favicon.ico',
         tier: 2,
       },
       {
@@ -1966,21 +1894,18 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
         name: 'LLVM Discussion',
         url: 'https://discourse.llvm.org/',
         description: 'LLVM Discussion community forum',
-        logoUrl: 'https://discourse.llvm.org/favicon.ico',
         tier: 2,
       },
       {
         name: 'Posit Community (RStudio/tidyverse)',
         url: 'https://forum.posit.co/',
         description: 'Posit Community (RStudio/tidyverse) community forum',
-        logoUrl: 'https://forum.posit.co/favicon.ico',
         tier: 2,
       },
       {
         name: 'three.js',
         url: 'https://discourse.threejs.org/',
         description: 'three.js community forum',
-        logoUrl: 'https://discourse.threejs.org/favicon.ico',
         tier: 2,
       },
       {
@@ -2751,11 +2676,64 @@ export const FORUM_CATEGORIES: ForumCategory[] = [
 ];
 
 /**
+ * Fill in the mechanically-derivable fields (logoUrl, description) that most
+ * presets would otherwise have to repeat verbatim: the favicon path and a
+ * generic "{name} governance & community forum" blurb. Presets with a
+ * non-standard logo (e.g. GitHub org avatars) or a custom description simply
+ * set the field explicitly and this is a no-op for them.
+ */
+function normalizeForumPreset(preset: ForumPreset): ForumPreset {
+  return {
+    ...preset,
+    logoUrl: preset.logoUrl ?? `${preset.url}favicon.ico`,
+    description: preset.description ?? `${preset.name} governance & community forum`,
+  };
+}
+
+/**
+ * Forum directory, normalized: every preset is guaranteed to have a
+ * logoUrl and description even if the source literal omitted them.
+ */
+export const FORUM_CATEGORIES: ForumCategory[] = RAW_FORUM_CATEGORIES.map((category) => ({
+  ...category,
+  forums: category.forums.map(normalizeForumPreset),
+}));
+
+/**
  * Flat list of all forum presets
  */
 export const ALL_FORUM_PRESETS: ForumPreset[] = FORUM_CATEGORIES.flatMap(
   (category) => category.forums
 );
+
+/**
+ * Dev-time guard against silent duplicate forums: a URL or sourceId present
+ * twice would make one entry unreachable via lookup maps (last write wins)
+ * without any visible error. Cheap at 337 entries; skipped in production to
+ * avoid paying the cost on every cold start.
+ */
+if (process.env.NODE_ENV !== 'production') {
+  const seenUrls = new Map<string, string>();
+  const seenSourceIds = new Map<string, string>();
+  for (const forum of ALL_FORUM_PRESETS) {
+    const normalizedUrl = forum.url.replace(/\/$/, '').toLowerCase();
+    const dupUrl = seenUrls.get(normalizedUrl);
+    if (dupUrl) {
+      console.warn(`[forumPresets] Duplicate URL between "${dupUrl}" and "${forum.name}": ${forum.url}`);
+    } else {
+      seenUrls.set(normalizedUrl, forum.name);
+    }
+
+    if (forum.sourceId) {
+      const dupSourceId = seenSourceIds.get(forum.sourceId);
+      if (dupSourceId) {
+        console.warn(`[forumPresets] Duplicate sourceId "${forum.sourceId}" between "${dupSourceId}" and "${forum.name}"`);
+      } else {
+        seenSourceIds.set(forum.sourceId, forum.name);
+      }
+    }
+  }
+}
 
 /**
  * Get forums by tier
