@@ -379,6 +379,7 @@ Environment: Node 22 (`.nvmrc`), npm. Dependencies are refreshed automatically b
 - **Zero external services needed for dev**: the app degrades gracefully. With no `DATABASE_URL`/`REDIS_URL`/API keys, `/api/health` reports `database`/`redis` as `not_configured` and still returns `status: ok`. Postgres/Redis/API keys only enable persistence, user sync, analytics, LLM classification, and the daily email — not the core feed.
 - **Feed data is empty on cold boot.** The forum cache is populated by an in-process background refresh that only starts after the **first** `/api/discourse` request (see `src/app/api/discourse/route.ts`). To warm it quickly, hit e.g. `curl "http://localhost:3000/api/discourse?forumUrl=https://gov.uniswap.org&protocol=uniswap"`, then use the feed. Live data requires outbound HTTPS to the forums; upstream Discourse rate-limits (429) are expected and self-throttled.
 - **UI note**: In `/app`, the default "Your Forums" tab is empty until you add forums; switch to the **"All Forums"** tab to browse the full server-side-cached feed. (`npm ci` was not used because the committed lockfile can be out of sync; the update script uses `npm install`.)
+- **Governance / Anticapture**: Production Railway has Blockful's `ANTICAPTURE_API_KEY`. Locally, put it in `.env.local` (gitignored) so `/governance` and `/api/anticapture/*` work under `npm run dev`. Standalone `npm run smoke:anticapture` does **not** auto-load `.env.local` — export the var (or `set -a; source .env.local; set +a`) before running it.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

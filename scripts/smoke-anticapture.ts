@@ -1,5 +1,5 @@
 /* Runnable smoke check for the Anticapture client (POC).
- * Requires ANTICAPTURE_API_KEY in env (the dev token). Hits the live MCP gateway.
+ * Requires ANTICAPTURE_API_KEY in env (Blockful key). Hits the live MCP gateway.
  *   ANTICAPTURE_API_KEY=<token> npx tsx scripts/smoke-anticapture.ts
  */
 import assert from 'node:assert/strict';
