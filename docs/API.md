@@ -7,7 +7,7 @@
 - **Base URL (production):** `https://www.discuss.watch`
 - **Base URL (local dev):** `http://localhost:3000`
 - All routes return JSON unless noted (RSS/Atom returns XML).
-- Auth is one of: **Public** (no header), **Bearer Privy token** (user routes), **Bearer `CRON_SECRET`** (cron), or **admin allow-list** (`verifyAdminAuth` / `verifyTenantAdmin`).
+- Auth is one of: **Public** (no header), **Bearer `CRON_SECRET` or `ADMIN_SECRET`** (admin and cron). The reader app has no user accounts.
 - Standard cache headers `s-maxage=300, stale-while-revalidate=600` apply to public read endpoints.
 
 ---
@@ -93,45 +93,9 @@ Model Context Protocol tool definitions for AI agent consumption.
 
 ---
 
-## User Data API (Bearer Privy token required)
-
-All require `Authorization: Bearer <privy-token>`. Token obtained client-side via `useAuth().getAccessToken()`.
-
-### `/api/user`
-- `GET` — Return the full user payload: profile, forums, customForums, alerts, bookmarks, readState, preferences. Used by `DataSyncProvider` on initial auth.
-- `POST` — Ensure the user exists in the DB. Body: `{ email?, walletAddress? }`.
-
-### `/api/user/forums`
-- `GET` — Return user's followed forum configurations
-- `POST` — Bulk-replace forum list. Body: `{ forums: { cname, isEnabled }[] }`
-
-### `/api/user/alerts`
-- `POST` — Add a keyword alert. Body: `{ keyword, isEnabled? }`
-- `PATCH` — Toggle. Body: `{ alertId, isEnabled }`
-- `DELETE` — Remove. Body: `{ alertId }`
-- `PUT` — Bulk-replace. Body: `{ alerts: { keyword, isEnabled }[] }`
-
-### `/api/user/bookmarks`
-- `POST` — Add or update folder. Body: `{ topicRefId, topicTitle, topicUrl, protocol, folder? }`. ON CONFLICT updates folder.
-- `DELETE` — Remove. Body: `{ topicRefId }`
-- `PUT` — Bulk-replace. Body: `{ bookmarks: Bookmark[] }` (preserves folder field per item)
-
-### `/api/user/read-state`
-- `POST` — Mark one read. Body: `{ topicRefId }`
-- `PUT` — Mark batch read. Body: `{ topicRefIds: string[] }`
-- `DELETE` — Clear one or all. Body: `{ topicRefId? }` (omit to clear all)
-
-### `/api/user/preferences`
-- `PATCH` — Update preferences. Body: any subset of `{ theme: 'dark'|'light', onboardingCompleted: boolean, density: 'compact'|'standard'|'cozy' }`
-
-### `/api/user/tenant-roles`
-- `GET` — Returns `{ isSuperAdmin, tenantSlugs }`. Used by the `useTenantRoles` hook to gate admin UI.
-
----
-
 ## Admin API (`verifyAdminAuth`)
 
-Accepts either a `Bearer CRON_SECRET` or a Privy token from the platform admin allow-list (`lib/admin.ts`).
+Accepts a Bearer token matching `CRON_SECRET` or `ADMIN_SECRET`.
 
 ### `/api/admin`
 - `GET` — Admin dashboard data (`?action=users|forum-health|forums`)
@@ -174,7 +138,7 @@ Multi-tenant forum analytics. Tenants identified by `[tenant]` slug.
 | `/api/delegates/[tenant]/refresh` | POST | `verifyTenantAdmin` — triggers data refresh |
 | `/api/delegates/admin/search` | GET | `verifyTenantAdmin` — search forum users for a tenant |
 | `/api/delegates/invite/[token]` | GET | Public — preview an invite link |
-| `/api/delegates/invite/[token]` | POST | `verifyAuth` — claim invite (auto-adds as tenant admin) |
+| `/api/delegates/invite/[token]` | POST | Returns 410 — claiming disabled (no user accounts) |
 
 ### `/api/delegates/admin` POST actions
 
@@ -263,10 +227,4 @@ curl -s 'https://www.discuss.watch/api/delegates/scroll/snapshot' \
 # Per-forum activity stats
 curl -s https://www.discuss.watch/api/forum-stats \
   | jq '.data[] | select(.lastActivityAt > 1700000000000) | .name'
-
-# Subscribe a user (authenticated)
-curl -X POST https://www.discuss.watch/api/user/bookmarks \
-  -H "Authorization: Bearer $PRIVY_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"topicRefId":"uniswap-12345","topicTitle":"Treasury Diversification","topicUrl":"https://gov.uniswap.org/t/...","protocol":"Uniswap","folder":"governance"}'
 ```

@@ -1,127 +1,24 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Forum } from '@/types';
 import { getForums, saveForums } from '@/lib/storage';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useForums() {
-  const { authenticated, ready, getAccessToken } = usePrivy();
   const [forums, setForums] = useState<Forum[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const initialLoadDone = useRef(false);
 
-  // Helper to get auth headers
-  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    try {
-      const token = await getAccessToken();
-      if (!token) return {};
-      return { 'Authorization': `Bearer ${token}` };
-    } catch {
-      return {};
-    }
-  }, [getAccessToken]);
-
-  // Load forums on mount or auth change
   useEffect(() => {
-    if (!ready) return;
-
-    async function loadForums() {
-      setIsLoading(true);
-
-      if (authenticated) {
-        // Try to load from database
-        try {
-          const authHeaders = await getAuthHeaders();
-          const res = await fetch('/api/user/forums', {
-            headers: authHeaders,
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.forums) && data.forums.length > 0) {
-              setForums(data.forums);
-              // Also save to localStorage as backup
-              saveForums(data.forums);
-              setIsLoading(false);
-              initialLoadDone.current = true;
-              return;
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load forums from database:', error);
-        }
-
-        // If database is empty or failed, check localStorage and migrate
-        const localForums = getForums();
-        if (localForums.length > 0) {
-          setForums(localForums);
-          // Migrate localStorage forums to database
-          try {
-            const authHeaders = await getAuthHeaders();
-            await fetch('/api/user/forums', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...authHeaders,
-              },
-              body: JSON.stringify({ forums: localForums }),
-            });
-          } catch (error) {
-            console.error('Failed to migrate forums to database:', error);
-          }
-        }
-      } else {
-        // Not authenticated, use localStorage
-        setForums(getForums());
-      }
-
-      setIsLoading(false);
-      initialLoadDone.current = true;
-    }
-
-    loadForums();
-  }, [ready, authenticated, getAuthHeaders]);
-
-  // Debounced sync to database
-  const syncToDatabase = useCallback((newForums: Forum[]) => {
-    if (!authenticated) return;
-
-    // Clear existing timeout
-    if (syncTimeoutRef.current) {
-      clearTimeout(syncTimeoutRef.current);
-    }
-
-    // Debounce sync by 1 second
-    syncTimeoutRef.current = setTimeout(async () => {
-      setIsSyncing(true);
-      try {
-        const authHeaders = await getAuthHeaders();
-        await fetch('/api/user/forums', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeaders,
-          },
-          body: JSON.stringify({ forums: newForums }),
-        });
-      } catch (error) {
-        console.error('Failed to sync forums to database:', error);
-      } finally {
-        setIsSyncing(false);
-      }
-    }, 1000);
-  }, [authenticated, getAuthHeaders]);
+    setForums(getForums());
+    setIsLoading(false);
+  }, []);
 
   const commitForums = useCallback((updated: Forum[]): boolean => {
     if (!saveForums(updated)) return false;
     setForums(updated);
-    syncToDatabase(updated);
     return true;
-  }, [syncToDatabase]);
+  }, []);
 
   const addForum = useCallback((forum: Omit<Forum, 'id' | 'createdAt'>) => {
     const newForum: Forum = {
@@ -158,16 +55,6 @@ export function useForums() {
     return commitForums([...forums, ...toAdd]);
   }, [commitForums, forums]);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Memoize derived state
   const enabledForums = useMemo(() => (Array.isArray(forums) ? forums : []).filter(f => f.isEnabled), [forums]);
 
   return {
@@ -179,6 +66,6 @@ export function useForums() {
     updateForum,
     importForums,
     isLoading,
-    isSyncing,
+    isSyncing: false,
   };
 }

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper, Landmark } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { MouseEvent } from 'react';
-import { UserButton } from './UserButton';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
 
 type Density = 'compact' | 'standard' | 'cozy';
@@ -179,10 +178,6 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
           </div>
         )}
 
-        {/* User */}
-        <div className="px-3 py-3" style={{ borderTop: `1px solid var(--ds-border)` }}>
-          <UserButton />
-        </div>
       </aside>
     </>
   );

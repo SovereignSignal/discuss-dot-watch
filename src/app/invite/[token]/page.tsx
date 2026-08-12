@@ -1,22 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/components/AuthProvider';
-import { Loader2, CheckCircle, XCircle, LogIn } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 export default function InvitePage() {
   const { token } = useParams();
-  const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading, login, getAccessToken } = useAuth();
 
   const [invite, setInvite] = useState<{ tenantName: string; tenantSlug: string; isExpired: boolean; isClaimed: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
-  // Fetch invite info
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -36,40 +31,6 @@ export default function InvitePage() {
     })();
   }, [token]);
 
-  // Auto-claim when user is authenticated
-  useEffect(() => {
-    if (!isAuthenticated || !invite || invite.isExpired || invite.isClaimed || claiming || success) return;
-
-    (async () => {
-      setClaiming(true);
-      try {
-        const accessToken = await getAccessToken();
-        if (!accessToken) {
-          setError('Failed to get authentication token');
-          return;
-        }
-
-        const res = await fetch(`/api/delegates/invite/${token}`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || 'Failed to claim invite');
-          return;
-        }
-
-        setSuccess(true);
-        setTimeout(() => router.push(data.redirectUrl || `/${invite.tenantSlug}`), 1500);
-      } catch {
-        setError('Failed to claim invite');
-      } finally {
-        setClaiming(false);
-      }
-    })();
-  }, [isAuthenticated, invite, token, getAccessToken, router, claiming, success]);
-
   const bg = 'var(--ds-bg-base)';
   const cardBg = 'var(--ds-bg-card)';
   const cardBorder = 'var(--ds-border)';
@@ -77,7 +38,7 @@ export default function InvitePage() {
   const textSecondary = 'var(--ds-fg-muted)';
   const textMuted = 'var(--ds-fg-dim)';
 
-  if (loading || authLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: bg }}>
         <Loader2 className="w-8 h-8 animate-spin" style={{ color: textMuted }} />
@@ -103,7 +64,7 @@ export default function InvitePage() {
         <div className="rounded-xl p-8 max-w-md text-center" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
           <XCircle className="w-10 h-10 mx-auto mb-4" style={{ color: '#f59e0b' }} />
           <h1 className="text-lg font-semibold mb-2" style={{ color: textPrimary }}>Invite Expired</h1>
-          <p className="text-sm" style={{ color: textSecondary }}>This invite link for <strong>{invite.tenantName}</strong> has expired. Please request a new one.</p>
+          <p className="text-sm" style={{ color: textSecondary }}>This invite link for <strong>{invite.tenantName}</strong> has expired.</p>
         </div>
       </div>
     );
@@ -121,43 +82,31 @@ export default function InvitePage() {
     );
   }
 
-  if (success) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: bg }}>
-        <div className="rounded-xl p-8 max-w-md text-center" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
-          <CheckCircle className="w-10 h-10 mx-auto mb-4" style={{ color: '#22c55e' }} />
-          <h1 className="text-lg font-semibold mb-2" style={{ color: textPrimary }}>Welcome!</h1>
-          <p className="text-sm" style={{ color: textSecondary }}>You&apos;re now an admin for <strong>{invite.tenantName}</strong>. Redirecting...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (claiming) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: bg }}>
-        <div className="rounded-xl p-8 max-w-md text-center" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: textMuted }} />
-          <h1 className="text-lg font-semibold mb-2" style={{ color: textPrimary }}>Claiming invite...</h1>
-        </div>
-      </div>
-    );
-  }
-
-  // Not authenticated — show login prompt
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: bg }}>
       <div className="rounded-xl p-8 max-w-md text-center" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
         <h1 className="text-lg font-semibold mb-2" style={{ color: textPrimary }}>Admin Invite</h1>
         <p className="text-sm mb-6" style={{ color: textSecondary }}>
-          You&apos;ve been invited to manage <strong>{invite.tenantName}</strong> on discuss.watch. Log in to accept.
+          Tenant admin invites required user accounts, which discuss.watch no longer uses.
+          Open the <strong>{invite.tenantName}</strong> dashboard directly, or sign in to the
+          admin panel with the platform admin secret.
         </p>
-        <button onClick={login}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg"
-          style={{ backgroundColor: 'var(--ds-fg)', color: 'var(--ds-bg-base)' }}>
-          <LogIn className="w-4 h-4" />
-          Log in to accept
-        </button>
+        <div className="flex flex-col gap-2">
+          <Link
+            href={`/${invite.tenantSlug}`}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg"
+            style={{ backgroundColor: 'var(--ds-fg)', color: 'var(--ds-bg-base)' }}
+          >
+            Open {invite.tenantName}
+          </Link>
+          <Link
+            href="/admin"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg"
+            style={{ backgroundColor: 'var(--ds-bg-elev)', color: 'var(--ds-fg)' }}
+          >
+            Admin panel
+          </Link>
+        </div>
       </div>
     </div>
   );

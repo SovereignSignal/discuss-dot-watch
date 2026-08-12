@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
 import { RefreshCw, Database, Server, Users, Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from '@/hooks/useTheme';
+import { useAdminToken } from '@/hooks/useAdminToken';
 import { ForumAnalyticsSection } from '@/components/admin/ForumOperations';
 import { ForumHealthSection } from '@/components/admin/ForumHealthSection';
 
@@ -60,7 +60,8 @@ function StatusBadge({ connected }: { connected: boolean }) {
 }
 
 export default function AdminPage() {
-  const { authenticated, ready } = usePrivy();
+  const { hasToken, setToken, clearToken, getAuthHeaders: readAuthHeaders } = useAdminToken();
+  const [secretInput, setSecretInput] = useState('');
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,20 +70,12 @@ export default function AdminPage() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const { isDark } = useTheme();
 
-  const { getAccessToken } = usePrivy();
-
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    try {
-      const token = await getAccessToken();
-      if (!token) return {};
-      return { 'Authorization': `Bearer ${token}` };
-    } catch {
-      return {};
-    }
-  }, [getAccessToken]);
+    return readAuthHeaders();
+  }, [readAuthHeaders]);
 
   const fetchData = useCallback(async () => {
-    if (!authenticated) return;
+    if (!hasToken) return;
 
     try {
       const authHeaders = await getAuthHeaders();
@@ -111,18 +104,18 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [authenticated, getAuthHeaders]);
+  }, [hasToken, getAuthHeaders]);
 
   useEffect(() => {
-    if (ready && authenticated) {
+    if (hasToken) {
       fetchData();
       const interval = setInterval(fetchData, 30000);
       return () => clearInterval(interval);
-    } else if (ready && !authenticated) {
+    } else {
       setLoading(false);
-      setError('Please log in to access admin panel');
+      setError(null);
     }
-  }, [ready, authenticated, fetchData]);
+  }, [hasToken, fetchData]);
 
   const handleAction = async (action: string) => {
     setActionLoading(action);
@@ -161,7 +154,56 @@ export default function AdminPage() {
   const btnBg = 'var(--ds-bg-elev)';
   const btnBorder = 'var(--ds-border)';
 
-  if (!ready || loading) {
+  if (!hasToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: bg }}>
+        <div className="rounded-xl p-8 max-w-md w-full" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
+          <h1 className="text-xl font-semibold mb-2" style={{ color: textPrimary }}>Admin</h1>
+          <p className="text-sm mb-6" style={{ color: textSecondary }}>
+            Enter the platform admin secret (<code>ADMIN_SECRET</code> or <code>CRON_SECRET</code>).
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (secretInput.trim()) {
+                setLoading(true);
+                setToken(secretInput);
+                setSecretInput('');
+              }
+            }}
+            className="space-y-3"
+          >
+            <input
+              type="password"
+              value={secretInput}
+              onChange={(e) => setSecretInput(e.target.value)}
+              placeholder="Admin secret"
+              autoComplete="current-password"
+              className="w-full px-3 py-2 rounded-lg text-sm"
+              style={{
+                backgroundColor: 'var(--ds-bg-elev)',
+                border: `1px solid ${cardBorder}`,
+                color: textPrimary,
+              }}
+            />
+            <button
+              type="submit"
+              className="w-full px-4 py-2 rounded-lg text-sm font-medium"
+              style={{ backgroundColor: 'var(--ds-fg)', color: 'var(--ds-bg-base)' }}
+            >
+              Continue
+            </button>
+          </form>
+          <Link href="/app" className="inline-flex items-center gap-2 mt-6 text-sm transition-colors" style={{ color: textMuted }}>
+            <ArrowLeft className="w-4 h-4" />
+            Back to app
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: bg }}>
         <Loader2 className="w-8 h-8 animate-spin" style={{ color: textMuted }} />
@@ -169,16 +211,19 @@ export default function AdminPage() {
     );
   }
 
-  if (error === 'Unauthorized - not an admin' || error === 'Please log in to access admin panel') {
+  if (error === 'Unauthorized - not an admin') {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: bg }}>
         <div className="rounded-xl p-8 max-w-md text-center" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
           <h1 className="text-xl font-semibold mb-4" style={{ color: textPrimary }}>Access Denied</h1>
           <p style={{ color: textSecondary }}>{error}</p>
-          <Link href="/" className="inline-flex items-center gap-2 mt-6 transition-colors" style={{ color: textMuted }}>
-            <ArrowLeft className="w-4 h-4" />
-            Back to home
-          </Link>
+          <button
+            onClick={clearToken}
+            className="inline-flex items-center gap-2 mt-6 transition-colors"
+            style={{ color: textMuted }}
+          >
+            Try a different secret
+          </button>
         </div>
       </div>
     );
@@ -202,9 +247,12 @@ export default function AdminPage() {
               </p>
             </div>
           </div>
-          <Btn onClick={fetchData} disabled={false}>
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh
-          </Btn>
+          <div className="flex items-center gap-2">
+            <Btn onClick={fetchData} disabled={false}>
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh
+            </Btn>
+            <Btn onClick={clearToken}>Sign out</Btn>
+          </div>
         </div>
 
         {error && error !== 'Unauthorized - not an admin' && (
@@ -283,10 +331,6 @@ export default function AdminPage() {
               <span className="text-sm font-medium" style={{ color: textPrimary }}>Users</span>
               <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: btnBg, color: textMuted }}>{users.length}</span>
             </div>
-            <Btn onClick={() => handleAction('sync-privy-users')} disabled={actionLoading !== null}>
-              {actionLoading === 'sync-privy-users' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              Sync from Privy
-            </Btn>
           </div>
 
           {users.length > 0 ? (
@@ -317,7 +361,7 @@ export default function AdminPage() {
               </table>
             </div>
           ) : (
-            <p className="text-sm" style={{ color: textMuted }}>No users yet — click &quot;Sync from Privy&quot; to import users.</p>
+            <p className="text-sm" style={{ color: textMuted }}>No stored user rows. The reader app is public and does not create accounts.</p>
           )}
         </Card>
       </div>

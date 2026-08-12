@@ -12,10 +12,10 @@ const baseSecurityHeaders: Record<string, string> = {
 const appSecurityHeaders: Record<string, string> = {
   ...baseSecurityHeaders,
   'X-Frame-Options': 'DENY',
-  // Conservative CSP: these directives can't break scripts, styles, fonts, Privy or
-  // wallet connectors (they don't constrain script-src/connect-src/frame-src), but do
+  // Conservative CSP: these directives can't break scripts, styles, or fonts
+  // (they don't constrain script-src/connect-src/frame-src), but do
   // block <base> hijacking and plugin objects.
-  // A full script/style CSP needs a nonce setup + Privy/WalletConnect allowlist — TODO.
+  // A full script/style CSP needs a nonce setup — TODO.
   'Content-Security-Policy': "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
 };
 

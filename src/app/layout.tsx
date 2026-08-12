@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { AuthProvider } from "@/components/AuthProvider";
 import { DataSyncProvider } from "@/components/DataSyncProvider";
 import "./globals.css";
 
@@ -49,11 +48,9 @@ export default function RootLayout({
             __html: `(function(){try{var e=document.documentElement;var t=localStorage.getItem('discuss-watch-theme');e.classList.add(t==='light'?'light':'dark');}catch(_){document.documentElement.classList.add('dark');}})();`,
           }}
         />
-        <AuthProvider>
-          <DataSyncProvider>
-            {children}
-          </DataSyncProvider>
-        </AuthProvider>
+        <DataSyncProvider>
+          {children}
+        </DataSyncProvider>
       </body>
     </html>
   );

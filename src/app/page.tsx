@@ -314,7 +314,7 @@ export default function LandingPage() {
             Ready to simplify your reading?
           </h2>
           <p className="mb-8" style={{ color: 'var(--ds-fg-dim)' }}>
-            Free — sign in with email or wallet.
+            Free — no account required.
           </p>
           <Link
             href="/app"

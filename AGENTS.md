@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN, Lobsters, Realms), **337 Discourse forums + 162 external sources**, AI email briefs (shared LLM provider + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy) with cross-device sync, per-vertical color coding, command menu (Cmd+K), mobile responsive, Privy auth, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, governance terminals, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, HN, Lobsters, Realms), **337 Discourse forums + 162 external sources**, AI email briefs (shared LLM provider + Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy), per-vertical color coding, command menu (Cmd+K), mobile responsive, no login required, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, governance terminals, MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -18,7 +18,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 | Language | TypeScript 5 |
 | UI | React 19 + Tailwind CSS 4 |
 | Icons | Lucide React |
-| Auth | Privy (`@privy-io/react-auth` client, `@privy-io/node` server) |
+| Admin | Bearer `ADMIN_SECRET` or `CRON_SECRET` |
 | Email | Resend |
 | AI | Anthropic Claude via @anthropic-ai/sdk (Haiku 4.5 + Sonnet 4.5) |
 | Validation | Zod 4 |
@@ -41,12 +41,12 @@ src/
 │   └── feed/               # RSS/Atom feed generator
 ├── components/             # React components
 │   └── ui/                 # Design system primitives (TickerBadge, DiscussionListItem, ScorePill, MetricBox, Button, SectionHeader, EmptyState, Chip)
-├── hooks/                  # Custom React hooks (useTheme, useDensity, useBookmarks, useAlerts, useReadState, useForums, useUserSync, useTopicDetail, useTenantRoles, etc.)
+├── hooks/                  # Custom React hooks (useTheme, useDensity, useBookmarks, useAlerts, useReadState, useForums, useTopicDetail, useTenantRoles, etc.)
 ├── lib/                    # Utility libraries
 │   ├── delegates/          # Forum analytics subsystem (index, brief, contributorSync, db, discourseClient, encryption, proposalTracker, refreshEngine, snapshotClient, featuredThreads, activityThreads)
 │   ├── db.ts               # PostgreSQL client, queries, and core schema (initializeSchema())
-│   ├── auth.ts             # Server-side auth (verifyAuth, verifyAdminAuth, verifyTenantAdmin, checkIsSuperAdmin)
-│   ├── admin.ts            # Admin email/DID allowlist (isAdminEmail, isAdminDid)
+│   ├── auth.ts             # Server-side auth (verifyAdminAuth, verifyTenantAdmin, validateCronSecret)
+│   ├── adminToken.ts       # Browser sessionStorage helper for the admin Bearer token
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres) + getForumHealthFromCache
 │   ├── forumPresets.ts     # 337 pre-configured Discourse forum presets by category
 │   ├── externalSources.ts  # External source registry — 162 entries
@@ -88,13 +88,11 @@ npm run lint     # Run ESLint
 1. **Forum Cache** (`lib/forumCache.ts`) — Background refresh fetches all preset forums every 15 min, stores in Redis + memory + Postgres
 2. **External Sources** (`lib/externalSources.ts`) — Fetches from EA Forum, GitHub Discussions, Snapshot, HN via dedicated clients
 3. **API Routes** — Serve cached data, proxy individual topic requests
-4. **Auth Layer** (`lib/auth.ts`) — Three levels of auth:
-   - `verifyAuth()` — Privy token verification for user routes
-   - `verifyAdminAuth()` — CRON_SECRET or Privy + admin allowlist for platform-wide admin routes
-   - `verifyTenantAdmin()` — CRON_SECRET or super admin or tenant-scoped admin (via `tenant_admins` table) for per-tenant operations
+4. **Auth Layer** (`lib/auth.ts`) — Privileged routes only:
+   - `verifyAdminAuth()` — `CRON_SECRET` or `ADMIN_SECRET` Bearer token for platform-wide admin routes
+   - `verifyTenantAdmin()` — same privileged token (no user accounts; grants access to every tenant)
 5. **Custom Hooks** — Client-side state management, data fetching, localStorage persistence
-6. **Server Sync** (`/api/user/*`) — Optional authenticated sync of user data to Postgres via Privy
-7. **Proxy** (`proxy.ts`) — Security headers, bare domain redirect (`discuss.watch` -> `www.discuss.watch`), [tenant] slug validation with `/_not-found` rewrite for invalid slugs
+6. **Proxy** (`proxy.ts`) — Security headers, bare domain redirect (`discuss.watch` -> `www.discuss.watch`), [tenant] slug validation with `/_not-found` rewrite for invalid slugs
 
 ### State Management
 - No external state library — custom hooks with `useState` + `useEffect`
@@ -114,17 +112,6 @@ npm run lint     # Run ESLint
 | `/api/forum-stats` | GET | Public per-forum activity (topic count + last activity timestamp) for ForumManager cards |
 | `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
 | `/api/anticapture/[dao]` | GET | Cached DAO governance snapshot |
-
-### User Data (requires Privy auth via `verifyAuth`)
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/user` | GET | User profile |
-| `/api/user/forums` | GET/POST | Sync forum configurations |
-| `/api/user/alerts` | GET/POST | Sync keyword alerts |
-| `/api/user/bookmarks` | GET/POST | Sync bookmarks |
-| `/api/user/read-state` | GET/POST | Sync read/unread state |
-| `/api/user/preferences` | GET/POST | Sync user preferences |
-| `/api/user/tenant-roles` | GET | Current user's tenant admin roles (`isSuperAdmin`, `tenantSlugs`) |
 
 ### Admin (requires `verifyAdminAuth`)
 | Route | Method | Purpose |
@@ -148,8 +135,8 @@ npm run lint     # Run ESLint
 | `/api/delegates/admin` | GET | `verifyAdminAuth` or `verifyTenantAdmin` | List all tenants (super) or tenant delegates (scoped) |
 | `/api/delegates/admin` | POST | `verifyAdminAuth` or `verifyTenantAdmin` | Tenant/delegate management (see actions below) |
 | `/api/delegates/admin/search` | GET | `verifyTenantAdmin` | Search forum users for a tenant |
-| `/api/delegates/invite/[token]` | GET | Public | Preview invite link |
-| `/api/delegates/invite/[token]` | POST | `verifyAuth` | Claim invite (auto-adds as tenant admin) |
+| `/api/delegates/invite/[token]` | GET | Public | Preview invite link (claiming disabled) |
+| `/api/delegates/invite/[token]` | POST | — | Returns 410; user accounts were removed |
 
 **Delegates admin POST actions:**
 - Super admin only: `init-schema`, `create-tenant`, `update-tenant`, `delete-tenant`, `detect-capabilities`, `add-tenant-admin`, `remove-tenant-admin`, `list-tenant-admins`, `create-tenant-invite`, `list-tenant-invites`, `revoke-tenant-invite`
@@ -231,9 +218,9 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 
 **Architecture:** Tenants (`delegate_tenants`) -> Delegates (`delegates`, `is_tracked` flag) -> Snapshots (`delegate_snapshots`). API keys encrypted with AES-256-GCM. Two-phase refresh: (1) directory sync for all contributors, (2) per-user detailed stats for tracked members only.
 
-**Tenant admin roles:** `tenant_admins` table maps Privy DIDs to specific tenants. Super admins (platform-level via `lib/admin.ts` allowlist) can manage all tenants. Tenant admins can manage delegates, trigger refresh, and search users for their own tenant only. Auth is enforced by `verifyTenantAdmin()` in `lib/auth.ts`.
+**Tenant admin roles:** Platform admin uses a Bearer `ADMIN_SECRET` or `CRON_SECRET` (entered on `/admin`, stored in sessionStorage). There are no user accounts. `verifyTenantAdmin()` accepts the same privileged token for every tenant.
 
-**Invite system:** `tenant_invites` table stores one-time invite tokens. Flow: super admin calls `create-tenant-invite` action -> gets invite URL (`/invite/[token]`) -> recipient opens link -> logs in via Privy -> auto-added as tenant admin via `claimTenantInvite()`. Page: `src/app/invite/[token]/page.tsx`, API: `/api/delegates/invite/[token]`.
+**Invite system:** Historical `tenant_invites` rows still preview at `/invite/[token]`. Claiming is disabled (410) because there are no user identities to attach.
 
 **Governance proposals:** `proposalTracker.ts` parses Discourse forum categories for governance proposals. Supports three modes: (1) explicit category IDs via `TenantConfig.proposalCategoryIds`, (2) tag-based via `proposalTags`, (3) fallback keyword search. Infers proposal status (`open`, `voting`, `closed`, `implemented`) from topic tags, titles, and Discourse open/closed state. Dashboard tab: `ProposalsView.tsx`.
 
@@ -243,7 +230,7 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 
 **Key files:** `src/lib/delegates/` (index, brief, contributorSync, db, discourseClient, encryption, proposalTracker, refreshEngine, snapshotClient), `src/types/delegates.ts`, `src/app/[tenant]/` (DashboardClient, ProposalsView, embed/), `src/app/invite/[token]/`, `src/app/api/delegates/`.
 
-**Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — fetches current user's admin roles from `/api/user/tenant-roles`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
+**Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — checks a sessionStorage admin token against `/api/admin`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
 
 Tenant slugs are guarded against the platform's own routes via `STATIC_ROUTES` in `proxy.ts`: `admin, api, app, feed, governance, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
 
@@ -342,9 +329,8 @@ Tags in raw API response can be strings OR objects — handle both.
 | `ANTHROPIC_API_KEY` | Claude API for AI digests |
 | `RESEND_API_KEY` | Email service |
 | `RESEND_FROM_EMAIL` | Sender address |
-| `CRON_SECRET` | Bearer token for cron endpoints |
-| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy auth app ID |
-| `PRIVY_APP_SECRET` | Privy server-side secret |
+| `CRON_SECRET` | Bearer token for cron and admin endpoints |
+| `ADMIN_SECRET` | Optional admin Bearer token (same privileges as `CRON_SECRET`) |
 | `GITHUB_TOKEN` | GitHub Discussions (optional) |
 | `SNAPSHOT_API_KEY` | Snapshot governance (optional) |
 | `ENCRYPTION_KEY` | AES-256-GCM for delegate API keys |

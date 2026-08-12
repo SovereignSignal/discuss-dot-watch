@@ -57,7 +57,6 @@ export function useTheme() {
     setThemeState(newTheme);
     if (typeof window !== 'undefined') {
       try { localStorage.setItem(THEME_KEY, newTheme); } catch { /* storage monitor reports writes */ }
-      // Dispatch custom event so AuthProvider can update Privy theme
       window.dispatchEvent(new Event('themechange'));
     }
     if (hydratedRef.current) syncTheme(newTheme);

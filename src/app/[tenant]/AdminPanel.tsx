@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { DelegateDashboard, FeaturedThread } from '@/types/delegates';
 import type { c } from '@/lib/theme';
-import { useAuth } from '@/components/AuthProvider';
+import { getAdminToken } from '@/lib/adminToken';
 
 type Tab = 'verified' | 'featured';
 
@@ -42,7 +42,7 @@ export default function AdminPanel({
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const { getAccessToken } = useAuth();
+  const accessToken = getAdminToken();
 
   const [activeTab, setActiveTab] = useState<Tab>('verified');
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,9 +136,9 @@ export default function AdminPanel({
     setError(null);
 
     try {
-      const token = await getAccessToken();
+      const token = accessToken;
       if (!token) {
-        setError('Not authenticated. Please log in.');
+        setError('Admin secret required. Open /admin and enter it first.');
         return;
       }
 
@@ -212,9 +212,9 @@ export default function AdminPanel({
     setError(null);
 
     try {
-      const token = await getAccessToken();
+      const token = accessToken;
       if (!token) {
-        setError('Not authenticated. Please log in.');
+        setError('Admin secret required. Open /admin and enter it first.');
         return;
       }
 
