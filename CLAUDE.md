@@ -281,7 +281,7 @@ Per-DAO on-chain governance dashboards at `discuss.watch/governance/<dao>`, powe
 - `src/lib/delegates/daoForums.ts` — DAO→Discourse map + proposal→forum-thread linking: a Snapshot `discussion` fallback first (free, canonical), then a self-throttled, 429-aware Discourse `/search.json` with a title-overlap guard.
 - `src/app/governance/_lib.ts` — shared brand map (11 DAOs + accents) + formatters reused by both pages.
 
-**Notes:** MCP tool outputs are untrusted data. The gateway uses a **temporary dev key**; swap `ANTICAPTURE_API_KEY` for Blockful's production key (and the REST base) when delivered. `getAddresses` (batch) currently 400s on the dev gateway, so labels fan out via single `getAddress` calls.
+**Notes:** MCP tool outputs are untrusted data. Production uses Blockful's Anticapture API key (`ANTICAPTURE_API_KEY` on Railway). Transport remains the MCP gateway until Blockful's production REST base lands — only the private `callTool`/`openSession` internals should need to change. `getAddresses` (batch) currently 400s on the gateway, so labels fan out via single `getAddress` calls.
 
 ## Code Conventions
 
@@ -389,7 +389,7 @@ Tags in raw API response can be strings OR objects — handle both.
 | `SNAPSHOT_API_KEY` | Snapshot governance (optional) |
 | `SOLANA_RPC_URL` | Solana RPC for the Realms client (optional; defaults to the free public RPC — set a free-tier Helius URL to lift getProgramAccounts limits) |
 | `REALMS_DISABLED` | `true` disables all Realms fetching (kill switch) |
-| `ANTICAPTURE_API_KEY` | Anticapture governance terminal (`/governance`); optional — dashboards degrade gracefully when unset. Currently a temporary dev key. |
+| `ANTICAPTURE_API_KEY` | Anticapture governance terminal (`/governance`); optional — dashboards degrade gracefully when unset. Production uses Blockful's key (Railway). |
 | `ENCRYPTION_KEY` | AES-256-GCM for delegate API keys |
 | `NEXT_PUBLIC_APP_URL` | Public app URL (brief email links) |
 

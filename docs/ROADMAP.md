@@ -58,7 +58,8 @@ The unchecked platform integrations below are future product roadmap, not open c
 - ✅ **Snapshot (off-chain) proposals** + **recent governance-forum discussions** panels
 - ✅ **Discourse ↔ vote linking** — proposals linked to their forum threads via a Snapshot-`discussion` fallback + title-overlap Discourse search (self-throttled, 429-aware)
 - ✅ "Governance" entry point in the app left nav; gated on `ANTICAPTURE_API_KEY` (graceful unconfigured state)
-- ⏳ Transport is the Anticapture MCP gateway with a temporary dev key; swap to the production REST base + key when Blockful delivers
+- ✅ Blockful Anticapture production API key wired (`ANTICAPTURE_API_KEY` on Railway)
+- ⏳ Transport is still the Anticapture MCP gateway; swap to the production REST base when Blockful delivers
 
 ### Design system (Sprints 12–18)
 - ✅ Token-based design system in `globals.css` — `--ds-*` CSS variables for colors, spacing, type, radii
