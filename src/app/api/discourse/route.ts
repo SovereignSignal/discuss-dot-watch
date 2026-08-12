@@ -9,8 +9,17 @@ import { startDelegateRefreshLoop } from '@/lib/delegates/refreshEngine';
 import { startDailyBriefLoop } from '@/lib/dailyBriefLoop';
 import { initializeSchema, isDatabaseConfigured } from '@/lib/db';
 
+function shouldStartBackgroundLoops(): boolean {
+  if (typeof window !== 'undefined') return false;
+  const phase = process.env.NEXT_PHASE;
+  // next build imports API routes; do not kick a full cache refresh + grants
+  // scan (and Ollama classify burst) during image build.
+  if (phase === 'phase-production-build' || phase === 'phase-development-build') return false;
+  return true;
+}
+
 // Start background refresh on first import (server startup)
-if (typeof window === 'undefined') {
+if (shouldStartBackgroundLoops()) {
   startBackgroundRefresh();
   startDelegateRefreshLoop();
   startDailyBriefLoop();
