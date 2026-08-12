@@ -2,10 +2,15 @@
  * LLM provider layer — every model call in the app routes through here.
  *
  * Provider is env-selected:
- *   LLM_PROVIDER=ollama  → Ollama Cloud (subscription inference; any hosted
- *                          OSS model via LLM_MODEL, e.g. "glm-5.2") when
+ *   LLM_PROVIDER=ollama  → Ollama Cloud (subscription inference) when
  *                          OLLAMA_API_KEY + LLM_MODEL are set
- *   anything else        → Anthropic (per-task model chosen by the caller)
+ *     LLM_MODEL            → generateText (daily brief, tenant briefs). e.g. glm-5.2
+ *     LLM_MODEL_CLASSIFY   → generateStructured (grants scan). Falls back to
+ *                            LLM_MODEL. Prefer a Low-usage Cloud SKU such as
+ *                            gpt-oss:20b-cloud — do not run glm-5.2 on the
+ *                            120-item grants scan.
+ *   anything else        → Anthropic (per-task model chosen by the caller;
+ *                          Haiku for classify, Sonnet for summary)
  *
  * An EXPLICIT LLM_PROVIDER=ollama with missing key/model fails closed
  * (provider = null; callers degrade to their non-AI fallbacks) rather than
@@ -27,8 +32,9 @@ import Anthropic from '@anthropic-ai/sdk';
 export interface TextRequest {
   prompt: string;
   maxTokens: number;
-  /** Model for the Anthropic path (per-task Haiku/Sonnet). Ollama always
-   *  uses LLM_MODEL — one env-swappable model for every task. */
+  /** Model for the Anthropic path (per-task Haiku/Sonnet). Ollama uses
+   *  LLM_MODEL for generateText and LLM_MODEL_CLASSIFY (fallback: LLM_MODEL)
+   *  for generateStructured. */
   anthropicModel?: string;
   /** Caller identity for error logs, e.g. 'GrantsClassifier', 'Brief:ens'. */
   context?: string;
@@ -97,22 +103,45 @@ interface OllamaChatBody {
   stream: false;
   options: { num_predict: number };
   format?: Record<string, unknown>;
+  /** Disable chain-of-thought on thinking models (classify wants JSON, not reasoning). */
+  think?: boolean;
+}
+
+function ollamaTextModel(): string {
+  const model = process.env.LLM_MODEL;
+  if (!model) throw new Error('LLM_MODEL is required when LLM_PROVIDER=ollama');
+  return model;
+}
+
+/** High-volume classify SKU. Falls back to LLM_MODEL if unset. */
+export function ollamaClassifyModel(): string {
+  return process.env.LLM_MODEL_CLASSIFY || ollamaTextModel();
 }
 
 type OllamaOutcome =
   | { ok: true; content: string }
   | { ok: false; fatal: boolean };
 
-async function ollamaChat(prompt: string, maxTokens: number, format?: Record<string, unknown>): Promise<OllamaOutcome> {
-  // Reasoning models spend generation budget on thinking before the answer —
-  // give headroom (cost is subscription-flat on Ollama Cloud).
+async function ollamaChat(
+  model: string,
+  prompt: string,
+  maxTokens: number,
+  opts?: { format?: Record<string, unknown>; think?: boolean },
+): Promise<OllamaOutcome> {
+  // Thinking models spend generation budget on chain-of-thought before the
+  // answer — give headroom. Classify turns thinking off, so a tighter cap
+  // is enough for the JSON object.
+  const numPredict = opts?.think === false
+    ? Math.max(maxTokens, 600)
+    : Math.max(maxTokens * 3, 1500);
   const body: OllamaChatBody = {
-    model: process.env.LLM_MODEL!,
+    model,
     messages: [{ role: 'user', content: prompt }],
     stream: false,
-    options: { num_predict: Math.max(maxTokens * 3, 1500) },
+    options: { num_predict: numPredict },
   };
-  if (format) body.format = format;
+  if (opts?.format) body.format = opts.format;
+  if (opts?.think === false) body.think = false;
 
   let res: Response;
   try {
@@ -160,7 +189,7 @@ export async function generateText(req: TextRequest): Promise<string | null> {
 
   try {
     if (provider === 'ollama') {
-      const outcome = await ollamaChat(req.prompt, req.maxTokens);
+      const outcome = await ollamaChat(ollamaTextModel(), req.prompt, req.maxTokens);
       return outcome.ok ? outcome.content : null;
     }
     const response = await getAnthropic().messages.create({
@@ -236,14 +265,14 @@ export async function generateStructured(req: StructuredRequest): Promise<Struct
 
   try {
     if (provider === 'ollama') {
-      const model = process.env.LLM_MODEL!;
+      const model = ollamaClassifyModel();
       // The schema-adherence nudge lives HERE, not in caller prompts, so the
       // Anthropic path's prompts stay byte-identical to the pre-layer code.
       // The full schema is inlined because Ollama Cloud applies the \`format\`
       // grammar only intermittently — the prompt must carry the contract.
       const prompt = `${req.prompt}\n\nRespond with ONLY a single JSON object (no prose, no markdown fences) matching this JSON schema (${req.toolName}):\n${JSON.stringify(req.schema)}`;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const outcome = await ollamaChat(prompt, req.maxTokens, req.schema);
+        const outcome = await ollamaChat(model, prompt, req.maxTokens, { format: req.schema, think: false });
         if (!outcome.ok) {
           if (outcome.fatal) return null;
           continue;

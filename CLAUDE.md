@@ -20,7 +20,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 | Icons | Lucide React |
 | Admin | Bearer `ADMIN_SECRET` or `CRON_SECRET` |
 | Email | Resend |
-| AI | Provider layer `lib/llm.ts`: Anthropic Claude (Haiku 4.5 classify + Sonnet 4.5 summary, default) or Ollama Cloud (`LLM_PROVIDER=ollama`, any hosted OSS model via `LLM_MODEL`) |
+| AI | Provider layer `lib/llm.ts`: Anthropic Claude (Haiku 4.5 classify + Sonnet 4.5 summary, default) or Ollama Cloud (`LLM_PROVIDER=ollama`; `LLM_MODEL` for summaries, `LLM_MODEL_CLASSIFY` for the grants scan) |
 | Validation | Zod 4 |
 | Sanitization | sanitize-html |
 | Cache | Redis (ioredis) |
@@ -56,7 +56,7 @@ src/
 │   ├── url.ts              # URL validation, normalization, and SSRF protection
 │   ├── grantsDetect.ts     # Shared grants + roles keyword prefilters (brief uses grants only; scan uses both)
 │   ├── grantsScan.ts       # Grants classification pipeline (runs after each cache refresh; Discourse RSS bodies, grants categories, EA funding tag)
-│   ├── llm.ts              # LLM provider layer — ALL model calls route here (Anthropic default; Ollama Cloud via LLM_PROVIDER=ollama)
+│   ├── llm.ts              # LLM provider layer — ALL model calls route here (Anthropic default; Ollama Cloud via LLM_PROVIDER=ollama, with LLM_MODEL vs LLM_MODEL_CLASSIFY)
 │   ├── grantsClassifier.ts # classify+extract via lib/llm.ts (GRANT/ROLE/NEWS/NOISE + program/amounts/deadline; model stamped on grants_items)
 │   ├── grantsStore.ts      # grants_items persistence + /api/v1/grants queries + daily-brief watermark
 │   ├── dailyBrief.ts       # THE outbound email: Daily Brief (new GRANT+ROLE items, one Sonnet summary)
@@ -366,7 +366,8 @@ Tags in raw API response can be strings OR objects — handle both.
 | `LLM_PROVIDER` | `ollama` routes all model calls to Ollama Cloud; unset/anything else = Anthropic (instant rollback) |
 | `OLLAMA_API_KEY` | Ollama Cloud API key (required when `LLM_PROVIDER=ollama`) |
 | `OLLAMA_BASE_URL` | Ollama endpoint (default `https://ollama.com`) |
-| `LLM_MODEL` | Ollama model for all tasks, e.g. `glm-5.2` (required when `LLM_PROVIDER=ollama`) |
+| `LLM_MODEL` | Ollama model for generateText (daily brief, tenant briefs), e.g. `glm-5.2` (required when `LLM_PROVIDER=ollama`) |
+| `LLM_MODEL_CLASSIFY` | Ollama model for generateStructured (grants scan). Falls back to `LLM_MODEL`. Prefer a Low-usage SKU such as `gpt-oss:20b-cloud`. |
 | `RESEND_API_KEY` | Email service |
 | `RESEND_FROM_EMAIL` | Sender address |
 | `CRON_SECRET` | Bearer token for cron and admin endpoints |

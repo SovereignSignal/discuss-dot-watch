@@ -15,8 +15,8 @@
  *   4. The EA Forum "Funding opportunities" tag (the AI vertical's main
  *      funding firehose).
  *
- * Every candidate is classified once by Haiku (GRANT/ROLE/NEWS/NOISE +
- * field extraction — GRANT/NEWS/NOISE mirror the Grant Wire Refinery's
+ * Every candidate is classified once (GRANT/ROLE/NEWS/NOISE + field
+ * extraction — GRANT/NEWS/NOISE mirror the Grant Wire Refinery's
  * vocabulary; ROLE covers paid governance positions) and upserted on
  * topic_ref_id, so items never re-classify and never duplicate across days.
  * Role-keyword candidates (matchRolesKeywords) enter through the same
@@ -27,6 +27,7 @@ import { DiscussionTopic } from '@/types';
 import type { CachedForum } from './forumCache';
 import { matchGrantsKeywords, matchRolesKeywords } from './grantsDetect';
 import { classifyGrantsCandidate, isClassifierConfigured } from './grantsClassifier';
+import { ollamaClassifyModel } from './llm';
 import { getClassifiedRefIds, upsertGrantsItem, updateGrantsEngagement } from './grantsStore';
 import { isDatabaseConfigured } from './db';
 import { acquireGrantsScanLock, releaseGrantsScanLock } from './redis';
@@ -35,7 +36,7 @@ import { fetchEAForumTaggedPosts } from './eaForumClient';
 import { safeFetch } from './safeFetch';
 
 // ── Tuning ──────────────────────────────────────────────────────────
-const MAX_CLASSIFY_PER_RUN = 120;      // Haiku calls per scan (backlog drains over cycles)
+const MAX_CLASSIFY_PER_RUN = 120;      // classify calls per scan (backlog drains over cycles)
 const CLASSIFY_CONCURRENCY = 4;
 const MAX_RSS_FETCHES_PER_RUN = 30;    // /latest.rss body fetches
 const MAX_CATEGORY_FETCHES_PER_RUN = 25; // grants-category feeds get their own budget
@@ -426,6 +427,12 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
       console.log(`[GrantsScan] Capping classification at ${MAX_CLASSIFY_PER_RUN} (${fresh.length - toClassify.length} deferred to next cycle)`);
     }
 
+    const classifyModel =
+      process.env.LLM_PROVIDER === 'ollama' ? ollamaClassifyModel() : 'claude-haiku-4-5';
+    if (toClassify.length > 0) {
+      console.log(`[GrantsScan] Classifying ${toClassify.length} with ${classifyModel}`);
+    }
+
     let stored = 0;
     let grants = 0;
     let roles = 0;
@@ -473,7 +480,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
 
     console.log(
       `[GrantsScan] Done in ${Date.now() - started}ms: ${candidates.length} candidates, ` +
-      `${known.length} known, ${toClassify.length} classified, ${stored} stored (${grants} GRANT, ${roles} ROLE)` +
+      `${known.length} known, ${toClassify.length} classified via ${classifyModel}, ${stored} stored (${grants} GRANT, ${roles} ROLE)` +
       (failed ? `, ${failed} failed` : ''),
     );
   } catch (error) {

@@ -327,6 +327,11 @@ Tags in raw API response can be strings OR objects — handle both.
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
 | `ANTHROPIC_API_KEY` | Claude API for AI digests |
+| `LLM_PROVIDER` | `ollama` routes all model calls to Ollama Cloud; unset/anything else = Anthropic (instant rollback) |
+| `OLLAMA_API_KEY` | Ollama Cloud API key (required when `LLM_PROVIDER=ollama`) |
+| `OLLAMA_BASE_URL` | Ollama endpoint (default `https://ollama.com`) |
+| `LLM_MODEL` | Ollama model for generateText (daily brief, tenant briefs), e.g. `glm-5.2` |
+| `LLM_MODEL_CLASSIFY` | Ollama model for generateStructured (grants scan). Falls back to `LLM_MODEL`. Prefer `gpt-oss:20b-cloud`. |
 | `RESEND_API_KEY` | Email service |
 | `RESEND_FROM_EMAIL` | Sender address |
 | `CRON_SECRET` | Bearer token for cron and admin endpoints |
