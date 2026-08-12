@@ -24,7 +24,7 @@ export function useAdminToken() {
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     return getAdminAuthHeaders();
-  }, [token]);
+  }, []);
 
   return {
     token,

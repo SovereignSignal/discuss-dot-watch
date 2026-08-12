@@ -78,8 +78,9 @@ export async function verifyAdminAuth(
  */
 export async function verifyTenantAdmin(
   request: NextRequest,
-  _tenantSlug: string,
+  tenantSlug: string,
 ): Promise<AuthResult | AuthError> {
+  void tenantSlug;
   return verifyAdminAuth(request);
 }
 

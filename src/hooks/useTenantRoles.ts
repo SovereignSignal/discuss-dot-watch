@@ -41,7 +41,10 @@ export function useTenantRoles(): TenantRoles {
   }, []);
 
   const canAdminTenant = useCallback(
-    (_slug: string) => isSuperAdmin,
+    (slug: string) => {
+      void slug;
+      return isSuperAdmin;
+    },
     [isSuperAdmin],
   );
 
