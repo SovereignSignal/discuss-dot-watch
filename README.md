@@ -27,13 +27,12 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 - **Inline Discussion Reader** — Read posts without leaving the app
 - **Keyword Alerts** — Track terms with highlighting; alerts surface as clickable chips above the feed
 - **Per-Vertical Color Coding** — Crypto (amber), AI (violet), OSS (cyan) tickers for at-a-glance category recognition across the full feed
-- **Density Modes** — Compact / Standard / Cozy toggle that re-flows the feed and syncs across devices
+- **Density Modes** — Compact / Standard / Cozy toggle that re-flows the feed
 - **Bookmark Folders** — Organize saved discussions into named folders
 - **Read-State Collapse** — Already-read items fold under a single toggle so the feed stays clean
 - **Activity Badges** — Hot, Active, NEW indicators
 - **Search & Filter** — By date, forum, category, tag, or keyword
-- **Privy Authentication** — Email, Google, or wallet login
-- **Cross-Device Sync** — Bookmarks, alerts, read state, theme, density preferences sync via Postgres
+- **No login** — Open the app and start reading; preferences stay in the browser
 - **Dark/Light Theme** — Token-driven theme system (`--ds-*` CSS variables)
 - **Command Menu** — Quick navigation with Cmd+K
 - **Mobile Responsive** — Stacked layout, tappable density toggle, header-search shrinks gracefully
@@ -82,12 +81,9 @@ ANTHROPIC_API_KEY=sk-ant-...  # Claude API for digests
 RESEND_API_KEY=re_...         # Email delivery
 RESEND_FROM_EMAIL=...         # Sender address
 
-# Authentication
-NEXT_PUBLIC_PRIVY_APP_ID=...  # Privy app ID
-PRIVY_APP_SECRET=...          # Privy server-side secret
-
 # Security
-CRON_SECRET=...               # Bearer token for cron endpoints
+CRON_SECRET=...               # Bearer token for cron and admin endpoints
+ADMIN_SECRET=...              # Optional admin Bearer token (same privileges as CRON_SECRET)
 ENCRYPTION_KEY=...            # AES-256-GCM for delegate API keys
 
 # Optional
@@ -108,7 +104,7 @@ The app functions without these in development (gracefully degrades).
 | Language | TypeScript 5 |
 | UI | React 19 + Tailwind CSS 4 |
 | Icons | Lucide React |
-| Auth | Privy |
+| Admin | Bearer `ADMIN_SECRET` or `CRON_SECRET` |
 | AI | Shared LLM provider layer (Anthropic default, Ollama Cloud optional) |
 | Email | Resend |
 | Validation | Zod 4 |
@@ -130,7 +126,6 @@ src/
 │   │   ├── anticapture/    # DAO governance analytics
 │   │   ├── delegates/      # Forum analytics / delegate monitoring
 │   │   ├── external-sources/ # EA Forum, GitHub, Snapshot, HN
-│   │   ├── user/           # User data sync (forums, alerts, bookmarks, read state)
 │   │   ├── admin/          # Admin dashboard
 │   │   ├── cron/           # Scheduled jobs (delegates, grants-brief)
 │   │   ├── v1/             # Public API v1
@@ -139,7 +134,7 @@ src/
 │   │   └── ...             # validate-discourse, cache, db, backfill
 │   ├── [tenant]/           # Multi-tenant forum analytics dashboards
 │   ├── admin/              # Admin dashboard UI
-│   ├── app/                # Main application (client-side, authenticated)
+│   ├── app/                # Main application (client-side, public)
 │   ├── invite/[token]/     # Tenant admin invite claim page
 │   ├── governance/         # DAO terminal and delegate profiles
 │   ├── feed/               # RSS/Atom feed generator
@@ -183,17 +178,6 @@ docs/
 | `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
 | `/api/anticapture/[dao]` | GET | Cached DAO governance snapshot |
 
-### User Data (requires Privy auth)
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/user` | GET | User profile |
-| `/api/user/forums` | GET/POST | Sync forum configurations |
-| `/api/user/alerts` | GET/POST | Sync keyword alerts |
-| `/api/user/bookmarks` | GET/POST | Sync bookmarks |
-| `/api/user/read-state` | GET/POST | Sync read/unread state |
-| `/api/user/preferences` | GET/POST | Sync user preferences |
-| `/api/user/tenant-roles` | GET | Current user's tenant admin roles |
-
 ### Forum Analytics / Delegates
 | Route | Method | Purpose |
 |-------|--------|---------|
@@ -205,7 +189,7 @@ docs/
 | `/api/delegates/[tenant]/refresh` | POST | Trigger data refresh (tenant admin) |
 | `/api/delegates/admin` | GET/POST | Tenant and delegate management (admin) |
 | `/api/delegates/admin/search` | GET | Search forum users for a tenant |
-| `/api/delegates/invite/[token]` | GET/POST | Preview and claim invite links |
+| `/api/delegates/invite/[token]` | GET | Preview invite links (claiming is disabled) |
 
 ### Infrastructure
 | Route | Method | Purpose |

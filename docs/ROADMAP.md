@@ -20,9 +20,9 @@ The unchecked platform integrations below are future product roadmap, not open c
 - ✅ **Realms / SPL Governance (July 2026)** — on-chain Solana DAO proposals (Pyth, Jito, Marinade, Bonk, Orca, Drift, Parcl, Metaplex) as feed topics with state + vote percentages
 - ✅ **LLM provider layer (July 2026)** — every model call routes through `lib/llm.ts`; Anthropic default, Ollama Cloud (any hosted OSS model) via `LLM_PROVIDER=ollama`; per-classification model attribution
 - ✅ Activity badges (Hot, Active, NEW)
-- ✅ Privy authentication (email, wallet)
+- ✅ No-login reader (localStorage preferences)
 - ✅ Light/dark theme support — token-driven via `--ds-*` CSS variables (Sprint 12)
-- ✅ Density modes (Compact / Standard / Cozy) with cross-device sync (Sprint 12, 14)
+- ✅ Density modes (Compact / Standard / Cozy)
 - ✅ Inline discussion reader (480px right pane, mobile full-screen)
 - ✅ On-site AI Briefs view + top-3 trending strip directly on Feed (Sprint 15)
 - ✅ Server-side forum cache (Redis + Postgres + memory)

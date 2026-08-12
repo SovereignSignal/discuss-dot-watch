@@ -5,8 +5,7 @@
 ## Prerequisites
 
 1. **Railway Account** - https://railway.app
-2. **Privy Account** - https://dashboard.privy.io (for authentication)
-3. **GitHub Repository** - Connected to Railway for auto-deploy
+2. **GitHub Repository** - Connected to Railway for auto-deploy
 
 ---
 
@@ -16,14 +15,13 @@
 
 | Variable | Description | Where to Get |
 |----------|-------------|--------------|
-| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app identifier (client) | Privy Dashboard → Settings |
-| `PRIVY_APP_SECRET` | Privy server-side secret | Privy Dashboard → Settings |
 | `DATABASE_URL` | Postgres connection string | Railway → Add Postgres → Variables |
 | `REDIS_URL` | Redis connection string for forum cache | Railway → Add Redis → Variables |
 | `ANTHROPIC_API_KEY` | Claude API key for AI digests | console.anthropic.com |
 | `RESEND_API_KEY` | Email delivery API key | resend.com |
 | `RESEND_FROM_EMAIL` | Sender address for digests | Resend verified domain |
-| `CRON_SECRET` | Bearer token for cron endpoints | Generate with `openssl rand -hex 32` |
+| `CRON_SECRET` | Bearer token for cron and admin endpoints | Generate with `openssl rand -hex 32` |
+| `ADMIN_SECRET` | Optional admin Bearer token (same privileges as CRON_SECRET) | Generate with `openssl rand -hex 32` |
 | `ENCRYPTION_KEY` | AES-256-GCM key for delegate API keys | Generate with `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | Public app URL (digest email links) | `https://discuss.watch` |
 
@@ -35,8 +33,7 @@
 ### Without optional infra
 
 - Without `REDIS_URL`: in-memory cache only (works for single-instance local dev; production prefers Redis)
-- Without `NEXT_PUBLIC_PRIVY_APP_ID`: No login button shown, anonymous mode only
-- Without `DATABASE_URL`: API user routes return 503, localStorage-only mode
+- Without `DATABASE_URL`: persistence and analytics degrade; the public feed still works from cache
 
 ---
 
@@ -77,30 +74,7 @@ railway link
 railway run psql -f src/lib/schema.sql
 ```
 
-### 4. Set Up Privy
-
-1. Go to https://dashboard.privy.io
-2. Create new app (or use existing)
-3. **Settings** → Copy **App ID**
-4. **Allowed Origins** → Add:
-   - `https://discuss.watch`
-   - `http://localhost:3000` (for local dev)
-5. In Railway, add variable:
-   - `NEXT_PUBLIC_PRIVY_APP_ID` = your app ID
-
-#### Enabling Google Login
-
-Google OAuth requires additional configuration in Privy:
-
-1. In Privy Dashboard, go to **Login Methods**
-2. Enable **Google** toggle
-3. Privy uses their own Google OAuth credentials by default
-4. If you see issues:
-   - Verify your domain is in **Allowed Origins**
-   - Check that the Railway URL exactly matches (including https://)
-   - Note: Google OAuth may not work in localhost without custom setup
-
-### 5. Trigger Redeploy
+### 4. Trigger Redeploy
 
 Railway auto-deploys on push, but to pick up new env vars:
 
@@ -129,17 +103,14 @@ git commit --allow-empty -m "Trigger redeploy" && git push
 1. Visit https://discuss.watch/
 2. Verify:
    - [ ] Landing page loads
-   - [ ] "Launch App" button works
-   - [ ] Discussions load from forums
-   - [ ] Login button appears (if Privy configured)
+   - [ ] "Open App" goes to `/app` with no login wall
+   - [ ] Discussions load from forums (All Forums tab)
 
 ### Check Database Connection
 
-1. Click "Sign In" in app
-2. Create account
-3. Add a forum
-4. Check Railway Postgres → Data → Tables
-5. Verify `users` and `user_forums` have entries
+1. Confirm `DATABASE_URL` is set
+2. Hit `/api/health` and confirm `database` is `ok` when Postgres is configured
+3. Check Railway Postgres → Data → Tables for `forums` / `topics` after a cache refresh
 
 ---
 
@@ -172,10 +143,10 @@ cmds = ["npm i -g npm@11", "npm ci"]
 2. Check Postgres service is running
 3. Verify schema was run (tables exist)
 
-### Privy Login Not Working
+### Admin Panel Unauthorized
 
-1. Verify `NEXT_PUBLIC_PRIVY_APP_ID` is set
-2. Check Privy dashboard → Allowed Origins includes your Railway URL
+1. Confirm `ADMIN_SECRET` or `CRON_SECRET` is set
+2. Enter that value on `/admin`
 3. Check browser console for errors
 
 ---

@@ -11,7 +11,6 @@ import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { CommandMenu } from '@/components/CommandMenu';
 import { SkipLinks } from '@/components/SkipLinks';
-import { AuthGate } from '@/components/AuthGate';
 import { useForums } from '@/hooks/useForums';
 import { useDiscussions } from '@/hooks/useDiscussions';
 import { useAlerts } from '@/hooks/useAlerts';
@@ -53,7 +52,7 @@ const SERVER_FORUM_URLS = new Set(ALL_FORUMS_LIST.map(f => f.value));
 export default function AppPage() {
   const [activeView, setActiveView] = useState<'feed' | 'briefs' | 'projects' | 'saved' | 'settings'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'your'>('your');
+  const [filterMode, setFilterMode] = useState<'all' | 'your'>('all');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeKeywordFilter, setActiveKeywordFilter] = useState<string | null>(null);
   // '/' may be pressed from any view; the search input only exists once the
@@ -342,8 +341,7 @@ export default function AppPage() {
   }, [pendingSearchFocus, activeView]);
 
   return (
-    <AuthGate>
-      <ErrorBoundary>
+    <ErrorBoundary>
         <SkipLinks />
         <OfflineBanner />
         <CommandMenu
@@ -621,6 +619,5 @@ export default function AppPage() {
           <ToastContainer toasts={toasts} onDismiss={dismissToast} />
         </div>
       </ErrorBoundary>
-    </AuthGate>
   );
 }

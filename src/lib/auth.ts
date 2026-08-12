@@ -1,16 +1,12 @@
 /**
- * Server-side authentication middleware.
+ * Server-side authentication for privileged routes.
  *
- * verifyAuth    — verifies Privy access token, returns user DID. Used by /api/user/* routes.
- * verifyAdminAuth — checks CRON_SECRET first (machine-to-machine), then Privy + admin allowlist.
+ * The reader app is public — no user accounts. Admin and cron routes accept a
+ * Bearer token matching CRON_SECRET or ADMIN_SECRET.
  */
 
 import { timingSafeEqual, createHash } from 'crypto';
 import { NextRequest } from 'next/server';
-import { PrivyClient } from '@privy-io/node';
-import { isAdminEmail, isAdminDid } from './admin';
-import { isDatabaseConfigured } from './db';
-import { getVerifiedEmailForDid } from './privy';
 
 /** Constant-time string comparison to prevent timing attacks.
  *  Hashing both inputs to fixed-length SHA-256 digests equalizes length, so the
@@ -21,23 +17,8 @@ function safeCompare(a: string, b: string): boolean {
   return timingSafeEqual(hashA, hashB);
 }
 
-// Lazy singleton — avoids constructing when env vars are missing (dev mode)
-let _privy: PrivyClient | null = null;
-
-function getPrivyClient(): PrivyClient | null {
-  if (_privy) return _privy;
-
-  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const appSecret = process.env.PRIVY_APP_SECRET;
-
-  if (!appId || !appSecret) return null;
-
-  _privy = new PrivyClient({ appId, appSecret });
-  return _privy;
-}
-
 export interface AuthResult {
-  userId: string; // Privy DID (e.g. "did:privy:xxx")
+  userId: string;
   isSuperAdmin?: boolean;
 }
 
@@ -52,82 +33,17 @@ function extractBearerToken(request: NextRequest): string | null {
   return header.slice(7);
 }
 
-/**
- * Verify a Privy access token from the Authorization header.
- * Returns the authenticated user's DID or an error.
- */
-export async function verifyAuth(
-  request: NextRequest,
-): Promise<AuthResult | AuthError> {
-  const token = extractBearerToken(request);
-  if (!token) {
-    return { error: 'Missing Authorization header', status: 401 };
-  }
-
-  const privy = getPrivyClient();
-  if (!privy) {
-    return { error: 'Auth not configured', status: 503 };
-  }
-
-  try {
-    const claims = await privy.utils().auth().verifyAccessToken(token);
-    return { userId: claims.user_id };
-  } catch {
-    return { error: 'Invalid or expired token', status: 401 };
-  }
+function matchesSecret(token: string, secret: string | undefined): boolean {
+  return !!secret && safeCompare(token, secret);
 }
 
-/**
- * Verify admin access. Checks in order:
- * 1. CRON_SECRET Bearer token (machine-to-machine)
- * 2. Privy access token + admin allowlist (email or DID)
- */
-export async function verifyAdminAuth(
-  request: NextRequest,
-): Promise<AuthResult | AuthError> {
-  const token = extractBearerToken(request);
-
-  // 1. CRON_SECRET check (machine-to-machine)
-  const cronSecret = process.env.CRON_SECRET;
-  if (token && cronSecret && safeCompare(token, cronSecret)) {
-    return { userId: 'cron' };
-  }
-
-  // 2. Privy token verification + admin check
-  if (!token) {
-    return { error: 'Missing Authorization header', status: 401 };
-  }
-
-  const privy = getPrivyClient();
-  if (!privy) {
-    return { error: 'Auth not configured', status: 503 };
-  }
-
-  let userId: string;
-  try {
-    const claims = await privy.utils().auth().verifyAccessToken(token);
-    userId = claims.user_id;
-  } catch {
-    return { error: 'Invalid or expired token', status: 401 };
-  }
-
-  // 1. DID allowlist — cryptographically bound to the verified token, no lookup needed.
-  if (isAdminDid(userId)) {
-    return { userId };
-  }
-
-  // 2. Verified email from Privy (the authoritative source — NEVER the user-writable
-  //    users.email column, which a client can set to any address).
-  try {
-    const email = await getVerifiedEmailForDid(userId);
-    if (isAdminEmail(email)) {
-      return { userId };
-    }
-  } catch (err) {
-    console.error('[auth] admin email resolution failed:', err);
-  }
-
-  return { error: 'Unauthorized', status: 403 };
+/** True when the bearer token matches CRON_SECRET or ADMIN_SECRET. */
+function isPrivilegedToken(token: string | null): boolean {
+  if (!token) return false;
+  return (
+    matchesSecret(token, process.env.CRON_SECRET) ||
+    matchesSecret(token, process.env.ADMIN_SECRET)
+  );
 }
 
 /** Type guard to check if result is an error */
@@ -138,80 +54,34 @@ export function isAuthError(
 }
 
 /**
- * Check if a Privy DID belongs to a super admin.
- * Looks up email from DB, then checks email + DID allowlists.
+ * Verify admin access via CRON_SECRET or ADMIN_SECRET Bearer token.
  */
-export async function checkIsSuperAdmin(privyDid: string): Promise<boolean> {
-  if (isAdminDid(privyDid)) return true;
+export async function verifyAdminAuth(
+  request: NextRequest,
+): Promise<AuthResult | AuthError> {
+  const token = extractBearerToken(request);
 
-  // Resolve the verified email from Privy, not from the user-writable users.email column.
-  try {
-    const email = await getVerifiedEmailForDid(privyDid);
-    if (isAdminEmail(email)) {
-      return true;
-    }
-  } catch (err) {
-    console.error('[auth] super-admin email resolution failed:', err);
+  if (isPrivilegedToken(token)) {
+    return { userId: 'admin', isSuperAdmin: true };
   }
 
-  return false;
+  if (!token) {
+    return { error: 'Missing Authorization header', status: 401 };
+  }
+
+  return { error: 'Unauthorized', status: 403 };
 }
 
 /**
- * Verify tenant-scoped admin access. Checks in order:
- * 1. CRON_SECRET → super admin
- * 2. Privy token → super admin (email/DID allowlist)
- * 3. Privy token → tenant_admins table for the given slug
- * 4. Otherwise → 403
+ * Verify tenant-scoped admin access. With no user accounts, a valid
+ * CRON_SECRET / ADMIN_SECRET grants super-admin access to every tenant.
  */
 export async function verifyTenantAdmin(
   request: NextRequest,
   tenantSlug: string,
 ): Promise<AuthResult | AuthError> {
-  const token = extractBearerToken(request);
-
-  // 1. CRON_SECRET check
-  const cronSecret = process.env.CRON_SECRET;
-  if (token && cronSecret && safeCompare(token, cronSecret)) {
-    return { userId: 'cron', isSuperAdmin: true };
-  }
-
-  // 2 & 3. Privy token verification
-  if (!token) {
-    return { error: 'Missing Authorization header', status: 401 };
-  }
-
-  const privy = getPrivyClient();
-  if (!privy) {
-    return { error: 'Auth not configured', status: 503 };
-  }
-
-  let userId: string;
-  try {
-    const claims = await privy.utils().auth().verifyAccessToken(token);
-    userId = claims.user_id;
-  } catch {
-    return { error: 'Invalid or expired token', status: 401 };
-  }
-
-  // Check super admin first
-  if (await checkIsSuperAdmin(userId)) {
-    return { userId, isSuperAdmin: true };
-  }
-
-  // Check tenant-scoped admin
-  if (isDatabaseConfigured()) {
-    try {
-      const { isTenantAdmin } = await import('./delegates/db');
-      if (await isTenantAdmin(userId, tenantSlug)) {
-        return { userId, isSuperAdmin: false };
-      }
-    } catch {
-      // DB lookup failed
-    }
-  }
-
-  return { error: 'Unauthorized', status: 403 };
+  void tenantSlug;
+  return verifyAdminAuth(request);
 }
 
 /**

@@ -10,7 +10,7 @@ export default function TermsPage() {
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px', color: '#e4e4e7' }}>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Terms of Service</h1>
-      <p style={{ color: '#a1a1aa', marginBottom: 32 }}>Last updated: February 27, 2026</p>
+      <p style={{ color: '#a1a1aa', marginBottom: 32 }}>Last updated: August 12, 2026</p>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12 }}>1. Acceptance of Terms</h2>
@@ -31,20 +31,18 @@ export default function TermsPage() {
       </section>
 
       <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12 }}>3. Accounts & Authentication</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12 }}>3. No Accounts</h2>
         <p style={{ lineHeight: 1.7, color: '#a1a1aa' }}>
-          Authentication is handled by Privy. By signing in, you consent to Privy processing your authentication
-          credentials (email or wallet address) subject to their privacy policy. We store your Privy DID, email
-          address (if provided), and wallet address to maintain your account.
+          The Service does not require an account. Preferences such as forums, bookmarks, alerts, and
+          read state are stored in your browser. Clearing site data removes them.
         </p>
       </section>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12 }}>4. Data Collection</h2>
         <p style={{ lineHeight: 1.7, color: '#a1a1aa' }}>
-          We collect: email addresses (for digests), Privy DIDs (for account identity), reading behavior
-          (bookmarks, read/unread state, keyword alerts), and forum preferences. This data is used solely to
-          provide the Service. We do not sell personal data. See our{' '}
+          We cache publicly available forum discussions to provide the Service. We do not sell personal data.
+          See our{' '}
           <Link href="/privacy" style={{ color: '#e4e4e7', textDecoration: 'underline' }}>Privacy Policy</Link> for details.
         </p>
       </section>
@@ -52,9 +50,9 @@ export default function TermsPage() {
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12 }}>5. Third-Party Services</h2>
         <p style={{ lineHeight: 1.7, color: '#a1a1aa' }}>
-          The Service relies on third-party providers: Privy (authentication), Anthropic Claude (AI-generated
-          digest summaries), and Resend (email delivery). Your use of these services is subject to their
-          respective terms and privacy policies.
+          The Service relies on third-party providers: Anthropic Claude (AI-generated digest summaries)
+          and Resend (email delivery for operator-configured briefs). Your use of these services is subject
+          to their respective terms and privacy policies.
         </p>
       </section>
 
