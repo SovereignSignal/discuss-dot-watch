@@ -19,13 +19,13 @@ const VERTICALS: Array<{
   {
     id: 'crypto',
     title: 'Crypto',
-    blurb: 'DAO governance, Snapshot votes, Realms proposals, grants.',
+    blurb: 'DAO governance, Snapshot votes, and on-chain proposals.',
     examples: ['Uniswap', 'Arbitrum', 'Aave', 'ENS', 'Optimism', 'Lido'],
   },
   {
     id: 'ai',
     title: 'AI',
-    blurb: 'Safety funding, research, evals, and tooling forums.',
+    blurb: 'Safety research, evals, and tooling forums.',
     examples: ['EA Forum', 'LessWrong', 'PyTorch', 'Hugging Face', 'LangChain'],
   },
   {
@@ -39,7 +39,7 @@ const VERTICALS: Array<{
 const FEATURES = [
   { icon: Search, title: 'Unified search', body: 'Query every cached forum from one input.' },
   { icon: Bell, title: 'Keyword alerts', body: 'Filter the feed to the words you actually care about.' },
-  { icon: Newspaper, title: 'Daily brief', body: 'New grants and paid roles, summarized once a day.' },
+  { icon: Newspaper, title: 'Daily brief', body: 'Trending and new threads, summarized once a day.' },
   { icon: Eye, title: 'Read tracking', body: 'Already-seen threads collapse so the inbox stays short.' },
   { icon: Bookmark, title: 'Saved folders', body: 'Bookmark a thread and file it without making an account.' },
   { icon: Landmark, title: 'Governance', body: 'Per-DAO terminals: turnout, idle VP, and forum-linked votes.' },
@@ -70,14 +70,6 @@ export default function LandingPage() {
               <br />
               <span style={{ color: 'var(--ds-fg-dim)' }}>One feed.</span>
             </h1>
-
-            <p
-              className="mt-5 max-w-md leading-relaxed"
-              style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-base)' }}
-            >
-              A reader for crypto, AI, and open-source communities — grants, roles,
-              and governance in the same stream. No account.
-            </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-2.5">
               <MarketingLink href="/app" size="lg">
@@ -111,7 +103,7 @@ export default function LandingPage() {
             className="mb-8 font-semibold tracking-tight"
             style={{ fontSize: 'var(--ds-text-xl)' }}
           >
-            The communities that move money, research, and code.
+            Crypto, research, and open source in one inbox.
           </h2>
           <div className="grid gap-3 md:grid-cols-3">
             {VERTICALS.map((v) => (
@@ -164,7 +156,7 @@ export default function LandingPage() {
               <span style={{ color: 'var(--ds-fg-dim)' }}>Machine-readable.</span>
             </h2>
             <p className="mb-6 leading-relaxed" style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-sm)' }}>
-              Search, subscribe, and pull classified grants without scraping each forum.
+              Search, subscribe, and pull discussions without scraping each forum.
               Public API, per-vertical feeds, MCP tools.
             </p>
             <MarketingLink href="/api/v1" variant="secondary">
@@ -184,10 +176,10 @@ export default function LandingPage() {
             }}
           >
             <span style={{ color: 'var(--ds-fg-dim)' }}># Search discussions</span>
-            {'\n'}curl discuss.watch/api/v1/search?q=grants
+            {'\n'}curl discuss.watch/api/v1/search?q=rfc
             {'\n\n'}
-            <span style={{ color: 'var(--ds-fg-dim)' }}># Classified grants</span>
-            {'\n'}curl discuss.watch/api/v1/grants
+            <span style={{ color: 'var(--ds-fg-dim)' }}># Hot topics</span>
+            {'\n'}curl discuss.watch/api/v1/discussions?hot=true
             {'\n\n'}
             <span style={{ color: 'var(--ds-fg-dim)' }}># Subscribe</span>
             {'\n'}discuss.watch/feed/crypto.xml
