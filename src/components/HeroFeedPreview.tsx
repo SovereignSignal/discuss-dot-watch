@@ -1,4 +1,4 @@
-import { Coins, MessageSquare, Eye, Clock, LayoutGrid, Newspaper, FolderOpen, Landmark, Bookmark, Briefcase, Sparkles } from 'lucide-react';
+import { MessageSquare, Eye, Clock, LayoutGrid, Newspaper, FolderOpen, Landmark, Bookmark, Sparkles } from 'lucide-react';
 import { TickerBadge } from '@/components/ui/TickerBadge';
 import type { Vertical } from '@/components/ui/TickerBadge';
 
@@ -18,20 +18,13 @@ function FilterChip({ label, active }: { label: string; active?: boolean }) {
   );
 }
 
-function ReasonChip({ kind, label }: { kind: 'grant' | 'role' | 'new'; label: string }) {
-  const accent = kind === 'grant' ? 'var(--ds-success)' : kind === 'role' ? 'var(--ds-role)' : 'var(--ds-fg-dim)';
-  const Icon = kind === 'grant' ? Coins : kind === 'role' ? Briefcase : Sparkles;
+function ReasonChip({ label }: { label: string }) {
   return (
     <span
-      className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-medium"
-      style={{
-        fontSize: 'var(--ds-text-xs)',
-        color: accent,
-        backgroundColor: kind === 'new' ? 'transparent' : `color-mix(in srgb, ${accent} 12%, transparent)`,
-        border: kind === 'new' ? 'none' : `1px solid color-mix(in srgb, ${accent} 35%, transparent)`,
-      }}
+      className="inline-flex items-center gap-0.5 font-medium"
+      style={{ fontSize: 'var(--ds-text-xs)', color: 'var(--ds-fg-dim)' }}
     >
-      <Icon className="h-3 w-3" />
+      <Sparkles className="h-3 w-3" />
       {label}
     </span>
   );
@@ -54,7 +47,7 @@ function PreviewRow({
   replies: number;
   views: string;
   time: string;
-  chip?: { kind: 'grant' | 'role' | 'new'; label: string };
+  chip?: string;
 }) {
   return (
     <article
@@ -69,7 +62,7 @@ function PreviewRow({
       <div className="absolute left-0 top-0 h-full w-0.5" style={{ backgroundColor: 'var(--ds-fg)' }} />
       <div className="flex items-center gap-2 flex-wrap">
         <TickerBadge vertical={vertical}>{ticker}</TickerBadge>
-        {chip && <ReasonChip kind={chip.kind} label={chip.label} />}
+        {chip && <ReasonChip label={chip} />}
       </div>
       <h3
         className="mt-1 font-medium leading-snug"
@@ -107,22 +100,20 @@ const ROWS = [
   {
     ticker: 'Uniswap',
     vertical: 'crypto' as const,
-    title: 'Temperature check: treasury diversification framework',
-    excerpt: 'Proposal to split idle ETH into stables and a grants runway over two quarters.',
+    title: 'Temperature check: fee switch activation',
+    excerpt: 'Should the protocol turn on the fee switch for v3 and v4 pools?',
     replies: 24,
     views: '1,847',
     time: '2h',
-    chip: { kind: 'grant' as const, label: 'grant' },
   },
   {
     ticker: 'EA Forum',
     vertical: 'ai' as const,
-    title: 'Open researcher seat — AI safety field-building',
-    excerpt: 'Six-month paid role supporting independent evals and grantmaking capacity.',
+    title: 'Notes from the evals workshop last week',
+    excerpt: 'Write-up of the open problems people actually argued about.',
     replies: 11,
     views: '640',
     time: '4h',
-    chip: { kind: 'role' as const, label: 'role' },
   },
   {
     ticker: 'PyTorch',
@@ -132,7 +123,7 @@ const ROWS = [
     replies: 18,
     views: '2,420',
     time: 'Yesterday',
-    chip: { kind: 'new' as const, label: 'new' },
+    chip: 'new',
   },
   {
     ticker: 'NixOS',
