@@ -3,8 +3,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { X, ChevronRight, ChevronLeft, Check, Bell, Bookmark, Search, Plus } from 'lucide-react';
 import { FORUM_CATEGORIES, ForumPreset, getTotalForumCount } from '@/lib/forumPresets';
-import { useTheme } from '@/hooks/useTheme';
-import { c } from '@/lib/theme';
+import { Button } from '@/components/ui/Button';
+import { TickerBadge } from '@/components/ui/TickerBadge';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import type { Vertical } from '@/components/ui/TickerBadge';
 
 interface OnboardingWizardProps {
   onComplete: (selectedForums: ForumPreset[]) => void;
@@ -17,13 +19,15 @@ const STEPS = [
   { title: 'Quick Tips', description: "Here's how to get the most out of your feed:" },
 ];
 
+function categoryVertical(id: string): Vertical {
+  if (id === 'crypto' || id === 'ai' || id === 'oss') return id;
+  return 'neutral';
+}
+
 export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedForums, setSelectedForums] = useState<Set<string>>(new Set());
   const [expandedCategory, setExpandedCategory] = useState<string | null>('crypto');
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
-  const t = c(isDark);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<Element | null>(null);
@@ -80,26 +84,51 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}>
-      <div ref={dialogRef} className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden"
-        style={{ backgroundColor: t.bgCard, border: `1px solid ${t.borderSubtle}` }} role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
-
-        {/* Close */}
-        <button ref={firstFocusableRef} onClick={handleSkip}
-          className="absolute top-4 right-4 p-2 rounded-lg transition-opacity z-10" style={{ color: t.fgMuted }} aria-label="Skip onboarding">
+      <div
+        ref={dialogRef}
+        className="relative w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+        style={{
+          backgroundColor: 'var(--ds-bg-card)',
+          border: '1px solid var(--ds-border)',
+          borderRadius: 'var(--ds-radius-xl)',
+          fontFamily: 'var(--ds-font-sans)',
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboarding-title"
+      >
+        <button
+          ref={firstFocusableRef}
+          onClick={handleSkip}
+          className="absolute top-4 right-4 p-2 rounded-md z-10"
+          style={{ color: 'var(--ds-fg-muted)' }}
+          aria-label="Skip onboarding"
+        >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Progress */}
         <div className="flex justify-center gap-2 pt-6 pb-4">
           {STEPS.map((_, i) => (
-            <div key={i} className="h-1.5 w-12 rounded-full transition-colors" style={{ backgroundColor: i <= currentStep ? t.fgSecondary : t.borderSubtle }} />
+            <div
+              key={i}
+              className="h-1.5 w-12 rounded-full"
+              style={{ backgroundColor: i <= currentStep ? 'var(--ds-fg)' : 'var(--ds-border-subtle)' }}
+            />
           ))}
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto px-8 pb-4">
-          <h2 id="onboarding-title" className="text-2xl font-bold text-center mb-2" style={{ color: t.fg }}>{STEPS[currentStep].title}</h2>
-          <p className="text-center mb-6 text-sm" style={{ color: t.fgSecondary }}>{STEPS[currentStep].description}</p>
+          <SectionHeader meta={`${currentStep + 1} / ${STEPS.length}`}>Setup</SectionHeader>
+          <h2
+            id="onboarding-title"
+            className="font-semibold tracking-tight mb-2"
+            style={{ color: 'var(--ds-fg)', fontSize: 'var(--ds-text-xl)' }}
+          >
+            {STEPS[currentStep].title}
+          </h2>
+          <p className="mb-6" style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-sm)' }}>
+            {STEPS[currentStep].description}
+          </p>
 
           {currentStep === 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -109,12 +138,23 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                 { icon: <Search className="w-5 h-5" />, title: 'Search & Filter', desc: 'Find discussions by keyword, date, or forum' },
                 { icon: <Plus className="w-5 h-5" />, title: 'Add Any Forum', desc: 'Add any Discourse-based governance forum' },
               ].map((item) => (
-                <div key={item.title} className="p-4 rounded-xl" style={{ backgroundColor: t.bgSubtle, border: `1px solid ${t.border}` }}>
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: t.bgActive, color: t.fgSecondary }}>
+                <div
+                  key={item.title}
+                  className="p-4"
+                  style={{
+                    backgroundColor: 'var(--ds-bg-subtle)',
+                    border: '1px solid var(--ds-border)',
+                    borderRadius: 'var(--ds-radius-xl)',
+                  }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-md flex items-center justify-center mb-3"
+                    style={{ backgroundColor: 'var(--ds-bg-elev)', color: 'var(--ds-fg-muted)' }}
+                  >
                     {item.icon}
                   </div>
-                  <h3 className="font-medium mb-1 text-sm" style={{ color: t.fg }}>{item.title}</h3>
-                  <p className="text-sm" style={{ color: t.fgMuted }}>{item.desc}</p>
+                  <h3 className="font-medium mb-1" style={{ color: 'var(--ds-fg)', fontSize: 'var(--ds-text-sm)' }}>{item.title}</h3>
+                  <p style={{ color: 'var(--ds-fg-dim)', fontSize: 'var(--ds-text-sm)' }}>{item.desc}</p>
                 </div>
               ))}
             </div>
@@ -123,8 +163,12 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
           {currentStep === 1 && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: t.fgMuted }}>{selectedForums.size} forum{selectedForums.size !== 1 ? 's' : ''} selected</span>
-                <button onClick={handleSelectPopular} className="text-sm font-medium transition-opacity" style={{ color: t.fgSecondary }}>Select popular</button>
+                <span style={{ color: 'var(--ds-fg-dim)', fontSize: 'var(--ds-text-sm)' }}>
+                  {selectedForums.size} forum{selectedForums.size !== 1 ? 's' : ''} selected
+                </span>
+                <Button variant="ghost" size="sm" onClick={handleSelectPopular}>
+                  Select popular
+                </Button>
               </div>
               <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
                 {FORUM_CATEGORIES.map((category) => {
@@ -133,13 +177,20 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                   const isExpanded = expandedCategory === category.id;
                   const selectedInCategory = categoryForums.filter((f) => selectedForums.has(f.url)).length;
                   return (
-                    <div key={category.id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${t.border}` }}>
-                      <button onClick={() => setExpandedCategory(isExpanded ? null : category.id)}
-                        className="w-full flex items-center justify-between p-3 transition-colors text-left"
-                        style={{ backgroundColor: t.bgSubtle }} aria-expanded={isExpanded}>
-                        <span className="font-medium text-sm" style={{ color: t.fg }}>{category.name}</span>
-                        <span className="flex items-center gap-2 text-xs" style={{ color: t.fgMuted }}>
-                          {selectedInCategory > 0 && <span style={{ color: t.fgSecondary }}>{selectedInCategory} selected</span>}
+                    <div
+                      key={category.id}
+                      className="overflow-hidden"
+                      style={{ border: '1px solid var(--ds-border)', borderRadius: 'var(--ds-radius-lg)' }}
+                    >
+                      <button
+                        onClick={() => setExpandedCategory(isExpanded ? null : category.id)}
+                        className="w-full flex items-center justify-between p-3 text-left"
+                        style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
+                        aria-expanded={isExpanded}
+                      >
+                        <TickerBadge vertical={categoryVertical(category.id)}>{category.name}</TickerBadge>
+                        <span className="flex items-center gap-2" style={{ color: 'var(--ds-fg-dim)', fontSize: 'var(--ds-text-xs)' }}>
+                          {selectedInCategory > 0 && <span style={{ color: 'var(--ds-fg-muted)' }}>{selectedInCategory} selected</span>}
                           <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         </span>
                       </button>
@@ -148,19 +199,33 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                           {categoryForums.map((forum) => {
                             const isSelected = selectedForums.has(forum.url);
                             return (
-                              <button key={forum.url} onClick={() => handleToggleForum(forum.url)}
-                                className="w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left"
-                                style={{ backgroundColor: isSelected ? t.bgActive : 'transparent',
-                                  border: `1px solid ${isSelected ? t.borderActive : 'transparent'}` }}
-                                aria-pressed={isSelected}>
-                                <div className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center"
-                                  style={{ backgroundColor: isSelected ? t.fg : 'transparent',
-                                    border: `1px solid ${isSelected ? t.fg : t.borderActive}` }}>
-                                  {isSelected && <Check className="w-3 h-3" style={{ color: isDark ? '#000' : '#fff' }} />}
+                              <button
+                                key={forum.url}
+                                onClick={() => handleToggleForum(forum.url)}
+                                className="w-full flex items-center gap-3 p-2 text-left"
+                                style={{
+                                  backgroundColor: isSelected ? 'var(--ds-bg-elev)' : 'transparent',
+                                  border: `1px solid ${isSelected ? 'var(--ds-border-strong)' : 'transparent'}`,
+                                  borderRadius: 'var(--ds-radius-md)',
+                                }}
+                                aria-pressed={isSelected}
+                              >
+                                <div
+                                  className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center"
+                                  style={{
+                                    backgroundColor: isSelected ? 'var(--ds-fg)' : 'transparent',
+                                    border: `1px solid ${isSelected ? 'var(--ds-fg)' : 'var(--ds-border-strong)'}`,
+                                  }}
+                                >
+                                  {isSelected && <Check className="w-3 h-3" style={{ color: 'var(--ds-bg-base)' }} />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <span className="text-sm" style={{ color: t.fg }}>{forum.name}</span>
-                                  {forum.token && <span className="ml-2 text-xs" style={{ color: t.fgMuted }}>${forum.token}</span>}
+                                  <span style={{ color: 'var(--ds-fg)', fontSize: 'var(--ds-text-sm)' }}>{forum.name}</span>
+                                  {forum.token && (
+                                    <span className="ml-2" style={{ color: 'var(--ds-fg-dim)', fontSize: 'var(--ds-text-xs)', fontFamily: 'var(--ds-font-mono)' }}>
+                                      ${forum.token}
+                                    </span>
+                                  )}
                                 </div>
                               </button>
                             );
@@ -181,19 +246,38 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
                 { n: '2', title: 'Bookmark Important Discussions', desc: 'Click the bookmark icon on any discussion to save it. Access saved discussions from the "Saved" view.' },
                 { n: '3', title: 'Add More Forums Anytime', desc: `Go to "Communities" in the sidebar to browse ${getTotalForumCount()} forums or add your own custom Discourse forum URL.` },
               ].map((tip) => (
-                <div key={tip.n} className="p-4 rounded-xl flex gap-4" style={{ backgroundColor: t.bgSubtle, border: `1px solid ${t.border}` }}>
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                    style={{ backgroundColor: t.fg, color: isDark ? '#000' : '#fff' }}>{tip.n}</div>
+                <div
+                  key={tip.n}
+                  className="p-4 flex gap-4"
+                  style={{
+                    backgroundColor: 'var(--ds-bg-subtle)',
+                    border: '1px solid var(--ds-border)',
+                    borderRadius: 'var(--ds-radius-xl)',
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                    style={{ backgroundColor: 'var(--ds-fg)', color: 'var(--ds-bg-base)' }}
+                  >
+                    {tip.n}
+                  </div>
                   <div>
-                    <h3 className="font-medium mb-1 text-sm" style={{ color: t.fg }}>{tip.title}</h3>
-                    <p className="text-sm" style={{ color: t.fgMuted }}>{tip.desc}</p>
+                    <h3 className="font-medium mb-1" style={{ color: 'var(--ds-fg)', fontSize: 'var(--ds-text-sm)' }}>{tip.title}</h3>
+                    <p style={{ color: 'var(--ds-fg-dim)', fontSize: 'var(--ds-text-sm)' }}>{tip.desc}</p>
                   </div>
                 </div>
               ))}
-              <div className="p-4 rounded-xl" style={{ backgroundColor: t.bgSubtle, border: `1px solid ${t.border}` }}>
-                <p className="text-sm" style={{ color: t.fgSecondary }}>
+              <div
+                className="p-4"
+                style={{
+                  backgroundColor: 'var(--ds-bg-subtle)',
+                  border: '1px solid var(--ds-border)',
+                  borderRadius: 'var(--ds-radius-xl)',
+                }}
+              >
+                <p style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-sm)' }}>
                   {selectedForums.size > 0
-                    ? <>You&apos;ve selected <strong>{selectedForums.size}</strong> forum{selectedForums.size !== 1 ? 's' : ''}. Click &quot;Get Started&quot; to load your feed!</>
+                    ? <>You&apos;ve selected <strong style={{ color: 'var(--ds-fg)' }}>{selectedForums.size}</strong> forum{selectedForums.size !== 1 ? 's' : ''}. Click &quot;Get Started&quot; to load your feed!</>
                     : <>You haven&apos;t selected any forums yet. You can always add forums later from &quot;Communities&quot;.</>}
                 </p>
               </div>
@@ -201,19 +285,14 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
           )}
         </div>
 
-        {/* Navigation */}
-        <div className="flex justify-between items-center px-8 py-4" style={{ borderTop: `1px solid ${t.border}` }}>
-          <button onClick={handleBack} disabled={currentStep === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-opacity disabled:opacity-30"
-            style={{ color: t.fgMuted }}>
+        <div className="flex justify-between items-center px-8 py-4" style={{ borderTop: '1px solid var(--ds-border)' }}>
+          <Button variant="ghost" onClick={handleBack} disabled={currentStep === 0}>
             <ChevronLeft className="w-4 h-4" /> Back
-          </button>
-          <button onClick={handleNext}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-lg transition-opacity"
-            style={{ backgroundColor: t.fg, color: isDark ? '#000' : '#fff' }}>
+          </Button>
+          <Button variant="primary" onClick={handleNext}>
             {currentStep === STEPS.length - 1 ? 'Get Started' : 'Next'}
             {currentStep < STEPS.length - 1 && <ChevronRight className="w-4 h-4" />}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
