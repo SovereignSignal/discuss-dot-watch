@@ -1,490 +1,304 @@
 'use client';
 
-import Link from 'next/link';
-import {
-  ArrowRight,
-  Moon,
-  Sun,
-  Search,
-  Bell,
-  Bookmark,
-  Eye,
-  Keyboard,
-  TrendingUp,
-  Bot,
-  Code2,
-  Coins,
-  MessageSquare,
-  Flame,
-} from 'lucide-react';
+import { ArrowRight, Search, Bell, Bookmark, Eye, Newspaper, Landmark, Keyboard } from 'lucide-react';
 import { getTotalForumCount, getForumsByCategory } from '@/lib/forumPresets';
-import { useTheme } from '@/hooks/useTheme';
+import { getEnabledExternalSources } from '@/lib/externalSources';
+import { MarketingChrome, MarketingLink } from '@/components/MarketingChrome';
+import { HeroFeedPreview } from '@/components/HeroFeedPreview';
+import { TickerBadge } from '@/components/ui/TickerBadge';
+import { MetricBox } from '@/components/ui/MetricBox';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import type { Vertical } from '@/components/ui/TickerBadge';
+
+const VERTICALS: Array<{
+  id: Vertical;
+  title: string;
+  blurb: string;
+  examples: string[];
+}> = [
+  {
+    id: 'crypto',
+    title: 'Crypto',
+    blurb: 'DAO governance, Snapshot votes, Realms proposals, grants.',
+    examples: ['Uniswap', 'Arbitrum', 'Aave', 'ENS', 'Optimism', 'Lido'],
+  },
+  {
+    id: 'ai',
+    title: 'AI',
+    blurb: 'Safety funding, research, evals, and tooling forums.',
+    examples: ['EA Forum', 'LessWrong', 'PyTorch', 'Hugging Face', 'LangChain'],
+  },
+  {
+    id: 'oss',
+    title: 'Open Source',
+    blurb: 'Foundation governance, maintainer threads, release RFCs.',
+    examples: ['Rust', 'Swift', 'NixOS', 'Godot', 'Next.js', 'Node.js'],
+  },
+];
+
+const FEATURES = [
+  { icon: Search, title: 'Unified search', body: 'Query every cached forum from one input.' },
+  { icon: Bell, title: 'Keyword alerts', body: 'Filter the feed to the words you actually care about.' },
+  { icon: Newspaper, title: 'Daily brief', body: 'New grants and paid roles, summarized once a day.' },
+  { icon: Eye, title: 'Read tracking', body: 'Already-seen threads collapse so the inbox stays short.' },
+  { icon: Bookmark, title: 'Saved folders', body: 'Bookmark a thread and file it without making an account.' },
+  { icon: Landmark, title: 'Governance', body: 'Per-DAO terminals: turnout, idle VP, and forum-linked votes.' },
+  { icon: Keyboard, title: 'Command menu', body: 'Cmd+K to jump views, forums, and density without the mouse.' },
+];
 
 export default function LandingPage() {
-  const { isDark, toggleTheme } = useTheme();
+  const forumCount = getTotalForumCount();
+  const sourceCount = getEnabledExternalSources().length;
 
   return (
-    <div 
-      className="min-h-screen transition-colors duration-200"
-      style={{ 
-        backgroundColor: 'var(--ds-bg-base)',
-        color: 'var(--ds-fg)'
-      }}
-    >
-      {/* Nav */}
-      <nav 
-        className="sticky top-0 z-50 border-b backdrop-blur-sm"
-        style={{ 
-          backgroundColor: 'color-mix(in srgb, var(--ds-bg-base) 82%, transparent)',
-          borderColor: 'var(--ds-border)'
-        }}
-      >
-        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">👁️‍🗨️</span>
-            <span className="font-semibold tracking-tight">discuss.watch</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg transition-colors"
-              style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
-              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-            <Link
-              href="/app"
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={{
-                backgroundColor: 'var(--ds-fg)',
-                color: 'var(--ds-bg-base)',
-              }}
-            >
-              Open App
-            </Link>
-          </div>
-        </div>
-      </nav>
+    <MarketingChrome>
+      <section className="px-5 pt-14 pb-16 md:pt-20 md:pb-24">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-14">
+          <div>
+            <SectionHeader meta={`${forumCount + sourceCount} sources`}>Coverage</SectionHeader>
+            <div className="mb-5 flex flex-wrap gap-1.5">
+              <TickerBadge vertical="crypto">CRYPTO</TickerBadge>
+              <TickerBadge vertical="ai">AI</TickerBadge>
+              <TickerBadge vertical="oss">OSS</TickerBadge>
+            </div>
 
-      {/* Hero */}
-      <section className="py-20 md:py-28">
-        <div className="max-w-5xl mx-auto px-6 text-center">
-          <div 
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-8"
-            style={{
-              backgroundColor: 'var(--ds-bg-subtle)',
-              color: 'var(--ds-fg-muted)'
-            }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Tracking {getTotalForumCount()} forums across 3 verticals
-          </div>
-          
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-[1.1] tracking-tight">
-            All your forums.
-            <br />
-            <span style={{ color: 'var(--ds-fg-dim)' }}>One feed.</span>
-          </h1>
-          
-          <p 
-            className="text-lg mb-10 max-w-xl mx-auto leading-relaxed"
-            style={{ color: 'var(--ds-fg-muted)' }}
-          >
-            Stop tab-hopping. Aggregate discussions from crypto, AI, and open source 
-            communities into a single stream.
-          </p>
+            <h1
+              className="font-semibold tracking-tight leading-[1.08]"
+              style={{ fontSize: 'clamp(2rem, 5vw, 3.25rem)' }}
+            >
+              All your forums.
+              <br />
+              <span style={{ color: 'var(--ds-fg-dim)' }}>One feed.</span>
+            </h1>
 
-          <div className="flex flex-wrap justify-center gap-3 mb-10">
-            <Link
-              href="/app"
-              className="inline-flex items-center gap-2 px-6 py-3 font-medium rounded-lg transition-colors"
-              style={{
-                backgroundColor: 'var(--ds-fg)',
-                color: 'var(--ds-bg-base)',
-              }}
+            <p
+              className="mt-5 max-w-md leading-relaxed"
+              style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-base)' }}
             >
-              Start Reading
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <a
-              href="#coverage"
-              className="inline-flex items-center gap-2 px-6 py-3 font-medium rounded-lg transition-colors"
-              style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
-            >
-              See Coverage
-            </a>
+              A reader for crypto, AI, and open-source communities — grants, roles,
+              and governance in the same stream. No account.
+            </p>
+
+            <div className="mt-7 flex flex-wrap items-center gap-2.5">
+              <MarketingLink href="/app" size="lg">
+                Open the feed
+                <ArrowRight className="h-4 w-4" />
+              </MarketingLink>
+              <MarketingLink href="#coverage" variant="secondary" size="lg">
+                See coverage
+              </MarketingLink>
+            </div>
+
+            <div className="mt-8 grid grid-cols-3 gap-2">
+              <MetricBox label="Forums" value={forumCount} />
+              <MetricBox label="External" value={sourceCount} sub="HN, Snapshot, Realms" />
+              <MetricBox label="Verticals" value={3} sub="Crypto · AI · OSS" />
+            </div>
           </div>
 
+          <HeroFeedPreview />
         </div>
       </section>
 
-      {/* Coverage */}
-      <section 
-        id="coverage" 
-        className="py-20 border-t"
-        style={{ 
+      <section
+        id="coverage"
+        className="px-5 py-16 md:py-20"
+        style={{ borderTop: '1px solid var(--ds-border)' }}
+      >
+        <div className="mx-auto max-w-6xl">
+          <SectionHeader meta="three inboxes, one reader">Verticals</SectionHeader>
+          <h2
+            className="mb-8 font-semibold tracking-tight"
+            style={{ fontSize: 'var(--ds-text-xl)' }}
+          >
+            The communities that move money, research, and code.
+          </h2>
+          <div className="grid gap-3 md:grid-cols-3">
+            {VERTICALS.map((v) => (
+              <VerticalCard
+                key={v.id}
+                vertical={v.id}
+                title={v.title}
+                count={getForumsByCategory(v.id).length}
+                blurb={v.blurb}
+                examples={v.examples}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
+        className="px-5 py-16 md:py-20"
+        style={{
+          borderTop: '1px solid var(--ds-border)',
           backgroundColor: 'var(--ds-bg-card)',
-          borderColor: 'var(--ds-border)'
         }}
       >
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold mb-3">Three verticals. One inbox.</h2>
-            <p style={{ color: 'var(--ds-fg-dim)' }}>
-              The communities shaping technology.
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-4">
-            <VerticalCard
-              icon={<Coins className="w-5 h-5" />}
-              title="Crypto"
-              count={getForumsByCategory('crypto').length}
-              examples={['Arbitrum', 'Uniswap', 'Aave', 'ENS', 'Optimism', 'Lido']}
-            />
-            <VerticalCard
-              icon={<Bot className="w-5 h-5" />}
-              title="AI"
-              count={getForumsByCategory('ai').length}
-              examples={['OpenAI', 'EA Forum', 'PyTorch', 'HuggingFace', 'LangChain']}
-            />
-            <VerticalCard
-              icon={<Code2 className="w-5 h-5" />}
-              title="Open Source"
-              count={getForumsByCategory('oss').length}
-              examples={['Rust', 'Swift', 'NixOS', 'Godot', 'Next.js', 'Node.js']}
-            />
+        <div className="mx-auto max-w-6xl">
+          <SectionHeader>Reader</SectionHeader>
+          <h2
+            className="mb-8 font-semibold tracking-tight"
+            style={{ fontSize: 'var(--ds-text-xl)' }}
+          >
+            Built like the feed you already use.
+          </h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((f) => (
+              <FeatureRow key={f.title} icon={f.icon} title={f.title} body={f.body} />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Preview */}
-      <section className="py-20 border-t" style={{ borderColor: 'var(--ds-border)' }}>
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold mb-3">A feed that works</h2>
-            <p style={{ color: 'var(--ds-fg-dim)' }}>
-              Filter by community, search across everything, track what you&apos;ve read.
+      <section className="px-5 py-16 md:py-20" style={{ borderTop: '1px solid var(--ds-border)' }}>
+        <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
+          <div>
+            <SectionHeader meta="REST · RSS · MCP">Agents</SectionHeader>
+            <h2
+              className="mb-4 font-semibold tracking-tight"
+              style={{ fontSize: 'var(--ds-text-xl)' }}
+            >
+              Same corpus.
+              <br />
+              <span style={{ color: 'var(--ds-fg-dim)' }}>Machine-readable.</span>
+            </h2>
+            <p className="mb-6 leading-relaxed" style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-sm)' }}>
+              Search, subscribe, and pull classified grants without scraping each forum.
+              Public API, per-vertical feeds, MCP tools.
             </p>
+            <MarketingLink href="/api/v1" variant="secondary">
+              API docs
+              <ArrowRight className="h-3.5 w-3.5" />
+            </MarketingLink>
           </div>
-
-          <div 
-            className="max-w-3xl mx-auto rounded-xl overflow-hidden shadow-2xl"
+          <pre
+            className="overflow-x-auto p-5 leading-relaxed"
             style={{
               backgroundColor: 'var(--ds-bg-card)',
-              border: '1px solid var(--ds-border)'
+              border: '1px solid var(--ds-border)',
+              borderRadius: 'var(--ds-radius-xl)',
+              fontFamily: 'var(--ds-font-mono)',
+              fontSize: 'var(--ds-text-xs)',
+              color: 'var(--ds-fg-muted)',
             }}
           >
-            <div 
-              className="flex items-center gap-2 px-4 py-3 border-b"
-              style={{ borderColor: 'var(--ds-border)' }}
-            >
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--ds-border-strong)' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--ds-border-strong)' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--ds-border-strong)' }} />
-              </div>
-              <span className="text-xs ml-2" style={{ color: 'var(--ds-fg-dim)' }}>discuss.watch</span>
-            </div>
-            <div className="p-4 space-y-3">
-              <MockFeedItem 
-                protocol="Arbitrum" 
-                title="[AIP-X] Treasury Management Framework"
-                category="Crypto"
-                replies={24}
-                views={1847}
-                isHot
-              />
-              <MockFeedItem 
-                protocol="PyTorch" 
-                title="RFC: Native support for structured sparsity"
-                category="AI"
-                replies={18}
-                views={2420}
-                isNew
-              />
-              <MockFeedItem 
-                protocol="NixOS" 
-                title="RFC 0182: Simplified package versioning"
-                category="OSS"
-                replies={42}
-                views={1203}
-              />
-            </div>
-          </div>
+            <span style={{ color: 'var(--ds-fg-dim)' }}># Search discussions</span>
+            {'\n'}curl discuss.watch/api/v1/search?q=grants
+            {'\n\n'}
+            <span style={{ color: 'var(--ds-fg-dim)' }}># Classified grants</span>
+            {'\n'}curl discuss.watch/api/v1/grants
+            {'\n\n'}
+            <span style={{ color: 'var(--ds-fg-dim)' }}># Subscribe</span>
+            {'\n'}discuss.watch/feed/crypto.xml
+          </pre>
         </div>
       </section>
 
-      {/* Features */}
-      <section 
-        className="py-20 border-t"
-        style={{ 
+      <section
+        className="px-5 py-16 md:py-20"
+        style={{
+          borderTop: '1px solid var(--ds-border)',
           backgroundColor: 'var(--ds-bg-card)',
-          borderColor: 'var(--ds-border)'
         }}
       >
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold mb-3">Built for power readers</h2>
-            <p style={{ color: 'var(--ds-fg-dim)' }}>
-              Stay on top of fast-moving communities.
-            </p>
-          </div>
-          
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <FeatureCard icon={<Search />} title="Unified Search" description="Search all forums at once" />
-            <FeatureCard icon={<Bell />} title="Keyword Alerts" description="Filter the feed to topics you care about" />
-            <FeatureCard icon={<Bookmark />} title="Bookmarks" description="Save discussions to read later" />
-            <FeatureCard icon={<Eye />} title="Read Tracking" description="Know what you've already seen" />
-            <FeatureCard icon={<TrendingUp />} title="Hot & Active" description="Spot trending discussions" />
-            <FeatureCard icon={<Keyboard />} title="Keyboard Nav" description="Navigate without the mouse" />
-          </div>
-        </div>
-      </section>
-
-      {/* For Agents */}
-      <section className="py-20 border-t" style={{ borderColor: 'var(--ds-border)' }}>
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <div 
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
-                style={{
-                  backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                  color: '#22c55e'
-                }}
-              >
-                <Bot className="w-3 h-3" />
-                Agent Friendly
-              </div>
-              <h2 className="text-2xl md:text-3xl font-bold mb-4">
-                Built for humans.
-                <br />
-                <span style={{ color: 'var(--ds-fg-dim)' }}>Ready for agents.</span>
-              </h2>
-              <p className="mb-6" style={{ color: 'var(--ds-fg-muted)' }}>
-                AI agents can search, monitor, and subscribe to forum discussions. 
-                REST API and RSS feeds available.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/api/v1"
-                  className="inline-flex items-center gap-2 px-4 py-2 font-medium rounded-lg text-sm"
-                  style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
-                >
-                  API Docs
-                </Link>
-              </div>
-            </div>
-            <div 
-              className="rounded-xl p-6 font-mono text-sm"
-              style={{ 
-                backgroundColor: 'var(--ds-bg-card)',
-                border: '1px solid var(--ds-border)'
-              }}
-            >
-              <div className="mb-2" style={{ color: 'var(--ds-fg-dim)' }}># Search discussions</div>
-              <div className="mb-4" style={{ color: 'var(--ds-fg-muted)' }}>
-                curl discuss.watch/api/v1/search?q=grants
-              </div>
-              <div className="mb-2" style={{ color: 'var(--ds-fg-dim)' }}># Get hot topics</div>
-              <div className="mb-4" style={{ color: 'var(--ds-fg-muted)' }}>
-                curl discuss.watch/api/v1/discussions?hot=true
-              </div>
-              <div className="mb-2" style={{ color: 'var(--ds-fg-dim)' }}># Subscribe to feed</div>
-              <div style={{ color: 'var(--ds-fg-muted)' }}>
-                discuss.watch/feed/crypto.xml
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section 
-        className="py-20 border-t"
-        style={{ 
-          backgroundColor: 'var(--ds-bg-card)',
-          borderColor: 'var(--ds-border)'
-        }}
-      >
-        <div className="max-w-xl mx-auto px-6 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold mb-4">
-            Ready to simplify your reading?
+        <div className="mx-auto max-w-xl text-center">
+          <SectionHeader>Start</SectionHeader>
+          <h2
+            className="mb-3 font-semibold tracking-tight"
+            style={{ fontSize: 'var(--ds-text-xl)' }}
+          >
+            Open the feed. Preferences stay in the browser.
           </h2>
-          <p className="mb-8" style={{ color: 'var(--ds-fg-dim)' }}>
-            Free — no account required.
+          <p className="mb-7" style={{ color: 'var(--ds-fg-dim)', fontSize: 'var(--ds-text-sm)' }}>
+            Free. No account. Dark or light, compact through cozy.
           </p>
-          <Link
-            href="/app"
-            className="inline-flex items-center gap-2 px-8 py-4 font-medium rounded-lg transition-colors"
-            style={{
-              backgroundColor: 'var(--ds-fg)',
-              color: 'var(--ds-bg-base)',
-            }}
-          >
+          <MarketingLink href="/app" size="lg">
             Open App
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+            <ArrowRight className="h-4 w-4" />
+          </MarketingLink>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer 
-        className="py-8 border-t"
-        style={{ borderColor: 'var(--ds-border)' }}
-      >
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">👁️‍🗨️</span>
-              <span className="text-sm font-medium">discuss.watch</span>
-            </div>
-            <p className="text-sm" style={{ color: 'var(--ds-fg-dim)' }}>
-              Part of the{' '}
-              <a
-                href="https://sovereignsignal.substack.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:opacity-80"
-              >
-                Sovereign Signal
-              </a>
-              {' '}ecosystem
-            </p>
-          </div>
-          <div className="flex items-center justify-center gap-4 mt-4 text-xs" style={{ color: 'var(--ds-fg-dim)' }}>
-            <Link href="/terms" className="hover:underline underline-offset-2">Terms</Link>
-            <span>·</span>
-            <Link href="/privacy" className="hover:underline underline-offset-2">Privacy</Link>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </MarketingChrome>
   );
 }
 
-function VerticalCard({ icon, title, count, examples }: {
-  icon: React.ReactNode;
+function VerticalCard({
+  vertical,
+  title,
+  count,
+  blurb,
+  examples,
+}: {
+  vertical: Vertical;
   title: string;
   count: number;
+  blurb: string;
   examples: string[];
 }) {
   return (
-    <div 
-      className="p-6 rounded-xl"
-      style={{ 
+    <div
+      className="p-5"
+      style={{
         backgroundColor: 'var(--ds-bg-card)',
-        border: '1px solid var(--ds-border)'
+        border: '1px solid var(--ds-border)',
+        borderRadius: 'var(--ds-radius-xl)',
       }}
     >
-      <div 
-        className="inline-flex items-center justify-center w-10 h-10 rounded-lg mb-4"
-        style={{ 
-          backgroundColor: 'var(--ds-bg-subtle)',
-          color: 'var(--ds-fg)'
-        }}
-      >
-        {icon}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <TickerBadge vertical={vertical} size="md">{title}</TickerBadge>
+        <span
+          style={{
+            color: 'var(--ds-fg-dim)',
+            fontFamily: 'var(--ds-font-mono)',
+            fontSize: 'var(--ds-text-xs)',
+          }}
+        >
+          {count}
+        </span>
       </div>
-      <div className="flex items-baseline gap-2 mb-3">
-        <h3 className="font-semibold text-lg">{title}</h3>
-        <span className="text-sm" style={{ color: 'var(--ds-fg-dim)' }}>{count} forums</span>
-      </div>
+      <p className="mb-4 leading-relaxed" style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-sm)' }}>
+        {blurb}
+      </p>
       <div className="flex flex-wrap gap-1.5">
         {examples.map((name) => (
-          <span 
-            key={name} 
-            className="px-2 py-1 text-xs rounded-md"
-            style={{ 
-              backgroundColor: 'var(--ds-bg-subtle)',
-              color: 'var(--ds-fg-muted)'
-            }}
-          >
-            {name}
-          </span>
+          <TickerBadge key={name} vertical={vertical}>{name}</TickerBadge>
         ))}
       </div>
     </div>
   );
 }
 
-function MockFeedItem({ protocol, title, category, replies, views, isHot, isNew }: {
-  protocol: string;
+function FeatureRow({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: typeof Search;
   title: string;
-  category: string;
-  replies: number;
-  views: number;
-  isHot?: boolean;
-  isNew?: boolean;
+  body: string;
 }) {
   return (
-    <div 
-      className="p-3 rounded-lg flex items-start gap-3"
-      style={{ backgroundColor: 'var(--ds-bg-subtle)' }}
-    >
-      <div 
-        className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold"
-        style={{ 
-          backgroundColor: 'var(--ds-bg-elev)',
-          color: 'var(--ds-fg-muted)'
-        }}
-      >
-        {protocol.slice(0, 2).toUpperCase()}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium mb-1 leading-snug">{title}</p>
-        <div className="flex items-center flex-wrap gap-2 text-xs" style={{ color: 'var(--ds-fg-dim)' }}>
-          <span style={{ color: 'var(--ds-fg-muted)' }}>{protocol}</span>
-          <span>·</span>
-          <span>{category}</span>
-          {isNew && (
-            <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 text-[10px] font-medium">NEW</span>
-          )}
-          {isHot && (
-            <span className="flex items-center gap-1 text-orange-500">
-              <Flame className="w-3 h-3" />
-            </span>
-          )}
-          <span className="flex items-center gap-1 ml-auto">
-            <MessageSquare className="w-3 h-3" />
-            {replies}
-          </span>
-          <span className="flex items-center gap-1">
-            <Eye className="w-3 h-3" />
-            {views.toLocaleString()}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FeatureCard({ icon, title, description }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div 
-      className="p-5 rounded-xl"
+    <div
+      className="flex gap-3 p-4"
       style={{
-        backgroundColor: 'var(--ds-bg-card)',
-        border: '1px solid var(--ds-border)'
+        backgroundColor: 'var(--ds-bg-base)',
+        border: '1px solid var(--ds-border)',
+        borderRadius: 'var(--ds-radius-lg)',
       }}
     >
-      <div 
-        className="inline-flex items-center justify-center w-9 h-9 rounded-lg mb-3"
-        style={{ 
-          backgroundColor: 'var(--ds-bg-subtle)',
-          color: 'var(--ds-fg-muted)'
-        }}
+      <div
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+        style={{ backgroundColor: 'var(--ds-bg-elev)', color: 'var(--ds-fg-muted)' }}
       >
-        {icon}
+        <Icon className="h-4 w-4" />
       </div>
-      <h3 className="font-medium mb-1">{title}</h3>
-      <p className="text-sm" style={{ color: 'var(--ds-fg-dim)' }}>{description}</p>
+      <div className="min-w-0">
+        <h3 className="font-medium" style={{ fontSize: 'var(--ds-text-sm)' }}>{title}</h3>
+        <p className="mt-0.5 leading-relaxed" style={{ color: 'var(--ds-fg-dim)', fontSize: 'var(--ds-text-xs)' }}>
+          {body}
+        </p>
+      </div>
     </div>
   );
 }
