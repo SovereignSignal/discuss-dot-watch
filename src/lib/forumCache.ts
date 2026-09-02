@@ -54,12 +54,6 @@ export interface CachedForum {
   error?: string;
 }
 
-// In-memory fallback cache (used when Redis unavailable)
-const memoryCache = new Map<string, CachedForum>();
-const forumIdCache = new Map<string, number>();
-let cacheVersion = 0;
-let hydrationPromise: Promise<void> | null = null;
-
 // Persistent health tracking across refresh cycles
 interface ForumHealthState {
   consecutiveFailures: number;
@@ -67,7 +61,41 @@ interface ForumHealthState {
   lastError: string | null;
   lastAttempt: number;         // timestamp
 }
-const forumHealthState = new Map<string, ForumHealthState>();
+
+// ── Process-wide state ───────────────────────────────────────────────
+// Next.js bundles this module into the instrumentation entry (which runs
+// the refresh loop) AND into the API-route chunk group as two separate
+// module copies. The served cache, refresh flags, version and health
+// tracking must be ONE object per process, or route handlers would freeze
+// at their first Redis hydration after every deploy while the loop copy
+// refreshed a cache nobody reads. Same pattern as `globalThis.prisma`.
+interface ForumCacheState {
+  memoryCache: Map<string, CachedForum>;
+  forumIdCache: Map<string, number>;
+  forumHealthState: Map<string, ForumHealthState>;
+  cacheVersion: number;
+  hydrationPromise: Promise<void> | null;
+  isRefreshing: boolean;
+  lastRefreshStart: number;
+  refreshInterval: NodeJS.Timeout | null;
+}
+const globalWithCache = globalThis as typeof globalThis & { __discussWatchForumCache?: ForumCacheState };
+const state: ForumCacheState = (globalWithCache.__discussWatchForumCache ??= {
+  memoryCache: new Map(),
+  forumIdCache: new Map(),
+  forumHealthState: new Map(),
+  cacheVersion: 0,
+  hydrationPromise: null,
+  isRefreshing: false,
+  lastRefreshStart: 0,
+  refreshInterval: null,
+});
+
+// In-memory fallback cache (used when Redis unavailable). Map references
+// are shared, so the aliases below read/write the process-wide state.
+const memoryCache = state.memoryCache;
+const forumIdCache = state.forumIdCache;
+const forumHealthState = state.forumHealthState;
 
 const DEFUNCT_THRESHOLD = 10; // ~2.5 hours of consecutive failures
 
@@ -77,8 +105,6 @@ const FETCH_DELAY_MS = 2000; // 2 second delay between forum fetches
 const MAX_CONCURRENT = 3; // Max concurrent fetches
 const MAX_RETRIES = 1; // Retry failed fetches (429s) once — Redis/stale cache fallback handles persistent failures
 
-let isRefreshing = false;
-let lastRefreshStart = 0;
 
 /**
  * Map a Postgres topic row (from getRecentTopics) to a DiscussionTopic.
@@ -197,16 +223,16 @@ export function getAllCachedForums(): CachedForum[] {
 /** Hydrate a cold process from shared Redis before serving all-forum routes. */
 export async function getAllCachedForumsReady(): Promise<CachedForum[]> {
   if (memoryCache.size === 0) {
-    hydrationPromise ??= hydrateMemoryFromRedis().finally(() => {
-      hydrationPromise = null;
+    state.hydrationPromise ??= hydrateMemoryFromRedis().finally(() => {
+      state.hydrationPromise = null;
     });
-    await hydrationPromise;
+    await state.hydrationPromise;
   }
   return getAllCachedForums();
 }
 
 export function getForumCacheVersion(): number {
-  return cacheVersion;
+  return state.cacheVersion;
 }
 
 /**
@@ -274,10 +300,10 @@ export function getCacheStats() {
   const totalTopics = forums.reduce((sum, f) => sum + (f.topics?.length || 0), 0);
   
   // Check if refresh is stale (stuck flag from crashed refresh)
-  const isStale = isRefreshing && lastRefreshStart > 0 && (Date.now() - lastRefreshStart > REFRESH_STALE_MS);
+  const isStale = state.isRefreshing && state.lastRefreshStart > 0 && (Date.now() - state.lastRefreshStart > REFRESH_STALE_MS);
   if (isStale) {
     console.log('[ForumCache] Detected stale refresh flag, resetting');
-    isRefreshing = false;
+    state.isRefreshing = false;
   }
   
   return {
@@ -285,8 +311,8 @@ export function getCacheStats() {
     successful,
     failed,
     totalTopics,
-    lastRefresh: lastRefreshStart,
-    isRefreshing,
+    lastRefresh: state.lastRefreshStart,
+    isRefreshing: state.isRefreshing,
     redisConfigured: isRedisConfigured(),
     dbConfigured: isDatabaseConfigured(),
   };
@@ -721,7 +747,7 @@ async function refreshExternalSources(): Promise<void> {
  */
 export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void> {
   // Fast local check (avoids async Redis call when same process is already refreshing)
-  if (isRefreshing) {
+  if (state.isRefreshing) {
     console.log('[ForumCache] Refresh already in progress (local), skipping');
     return;
   }
@@ -742,13 +768,13 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   }
 
   // Re-check local flag after acquiring lock to handle TOCTOU race
-  if (isRefreshing) {
+  if (state.isRefreshing) {
     console.log('[ForumCache] Refresh started by another call while acquiring lock, skipping');
     return;
   }
 
-  isRefreshing = true;
-  lastRefreshStart = Date.now();
+  state.isRefreshing = true;
+  state.lastRefreshStart = Date.now();
   
   console.log('[ForumCache] Starting cache refresh...');
   
@@ -897,7 +923,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
     // Refresh external sources (EA Forum, LessWrong, etc.)
     await refreshExternalSources();
 
-    cacheVersion++;
+    state.cacheVersion++;
 
     console.log(`[ForumCache] Refresh complete`);
 
@@ -908,7 +934,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
     });
   } finally {
     // Always reset the flag, even on error
-    isRefreshing = false;
+    state.isRefreshing = false;
     await releaseRefreshLock();
   }
 }
@@ -933,7 +959,7 @@ async function hydrateMemoryFromRedis(): Promise<void> {
       memoryCache.set(normalizeUrl(url), { url, topics, fetchedAt: Date.now() });
       hydrated++;
     }
-    if (hydrated > 0) cacheVersion++;
+    if (hydrated > 0) state.cacheVersion++;
     console.log(`[ForumCache] Hydrated ${hydrated}/${keys.length} sources from Redis`);
   } catch (err) {
     console.error('[ForumCache] Redis hydration failed:', err);
@@ -943,13 +969,12 @@ async function hydrateMemoryFromRedis(): Promise<void> {
 /**
  * Start the background refresh loop
  */
-let refreshInterval: NodeJS.Timeout | null = null;
 
 const INITIAL_REFRESH_RETRY_MS = 60 * 1000;
 const INITIAL_REFRESH_MAX_ATTEMPTS = 5;
 
 export function startBackgroundRefresh(): void {
-  if (refreshInterval) {
+  if (state.refreshInterval) {
     console.log('[ForumCache] Background refresh already running');
     return;
   }
@@ -974,7 +999,7 @@ export function startBackgroundRefresh(): void {
   initialRefresh(1);
 
   // Schedule periodic refresh
-  refreshInterval = setInterval(() => {
+  state.refreshInterval = setInterval(() => {
     refreshCache([1, 2]).catch(err => {
       console.error('[ForumCache] Periodic refresh failed:', err);
     });
@@ -982,9 +1007,9 @@ export function startBackgroundRefresh(): void {
 }
 
 export function stopBackgroundRefresh(): void {
-  if (refreshInterval) {
-    clearInterval(refreshInterval);
-    refreshInterval = null;
+  if (state.refreshInterval) {
+    clearInterval(state.refreshInterval);
+    state.refreshInterval = null;
     console.log('[ForumCache] Background refresh stopped');
   }
 }
