@@ -32,6 +32,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 ```text
 src/
 ├── middleware.ts            # Security headers, bare domain redirect, [tenant] slug validation
+├── instrumentation.ts       # Next.js boot hook: starts the background loops once per server start (nodejs runtime only)
 ├── app/                    # Next.js App Router
 │   ├── api/                # API routes (discourse, briefs, delegates, anticapture, user, admin, v1, mcp, cron, health, discussions)
 │   ├── [tenant]/           # Multi-tenant forum analytics dashboards
@@ -61,6 +62,7 @@ src/
 │   ├── grantsStore.ts      # grants_items persistence + /api/v1/grants queries + daily-brief watermark
 │   ├── dailyBrief.ts       # THE outbound email: Daily Brief (new GRANT+ROLE items, one Sonnet summary)
 │   ├── dailyBriefLoop.ts   # In-process daily scheduler (hourly ticks, 14:00 UTC window, claimOncePerDay)
+│   ├── backgroundLoops.ts  # Idempotent starter for cache refresh + delegate refresh + daily brief loops (called from instrumentation.ts; skipped during `next build`)
 │   ├── emailService.ts     # Resend email delivery
 │   ├── eaForumClient.ts    # EA Forum / LessWrong GraphQL client
 │   ├── githubDiscussionsClient.ts  # GitHub Discussions GraphQL client
@@ -399,3 +401,5 @@ All protected by `CRON_SECRET` (constant-time comparison via `validateCronSecret
 | `/api/cron/grants-brief` | Daily | Daily Brief email — unnotified GRANT+ROLE items (primary trigger: in-process scheduler at 14:00 UTC) |
 
 Note: the Daily Brief's primary trigger is the in-process scheduler (`lib/dailyBriefLoop.ts`); the cron endpoint is a compatible secondary trigger (both race-safe via `claimOncePerDay`).
+
+**Boot:** all in-process loops (forum cache refresh → grants scan, delegate refresh, daily brief) start from `src/instrumentation.ts` at server boot via `lib/backgroundLoops.ts`. They used to start on the first `/api/discourse` request, which left the pipeline idle after every deploy until someone opened the app (no scans, no briefs — Aug 13-17, Aug 23-30, Sep 1 2026). After any deploy, confirm `[Boot] Background loops started` appears in Railway logs within seconds of `Ready`.

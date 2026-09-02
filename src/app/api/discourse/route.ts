@@ -3,34 +3,17 @@ import { DiscourseLatestResponse, DiscourseTopicResponse, DiscussionTopic } from
 import { isAllowedUrl } from '@/lib/url';
 import { safeFetch } from '@/lib/safeFetch';
 import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
-import { getCachedForum, startBackgroundRefresh } from '@/lib/forumCache';
+import { getCachedForum } from '@/lib/forumCache';
 import { mapDiscourseTopic } from '@/lib/discourseTopicMapper';
-import { startDelegateRefreshLoop } from '@/lib/delegates/refreshEngine';
-import { startDailyBriefLoop } from '@/lib/dailyBriefLoop';
-import { initializeSchema, isDatabaseConfigured } from '@/lib/db';
+import { startBackgroundLoops } from '@/lib/backgroundLoops';
 
-function shouldStartBackgroundLoops(): boolean {
-  if (typeof window !== 'undefined') return false;
-  const phase = process.env.NEXT_PHASE;
-  // next build imports API routes; do not kick a full cache refresh + grants
-  // scan (and Ollama classify burst) during image build.
-  if (phase === 'phase-production-build' || phase === 'phase-development-build') return false;
-  return true;
-}
-
-// Start background refresh on first import (server startup)
-if (shouldStartBackgroundLoops()) {
-  startBackgroundRefresh();
-  startDelegateRefreshLoop();
-  startDailyBriefLoop();
-  // Run forward-compatible schema migrations at boot. Previously these only
-  // ran via admin endpoints, so ALTER TABLE migrations (e.g. the density
-  // column) never reached production and the queries using them 500'd.
-  if (isDatabaseConfigured()) {
-    initializeSchema().catch(err => {
-      console.error('[Schema] Boot-time schema init failed:', err);
-    });
-  }
+// TEMPORARY fallback (remove once a prod deploy shows "[Boot] Background
+// loops started" within seconds of "Ready" with no traffic): the loops now
+// start at boot from src/instrumentation.ts. This first-import trigger stays
+// for one deploy so a silent instrumentation failure can't leave the pipeline
+// with NO starter at all. Idempotent, so double-starting is impossible.
+if (typeof window === 'undefined') {
+  void startBackgroundLoops();
 }
 
 /**
