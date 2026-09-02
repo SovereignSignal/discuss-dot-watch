@@ -103,9 +103,18 @@ interface OllamaChatBody {
   stream: false;
   options: { num_predict: number };
   format?: Record<string, unknown>;
-  /** Disable chain-of-thought on thinking models (classify wants JSON, not reasoning). */
-  think?: boolean;
+  /** Reasoning control. Boolean on/off for models that honor it; gpt-oss
+   *  only understands an effort level and IGNORES `false` (probed
+   *  2026-09-02: `think:false` still produced ~2000 chars of reasoning). */
+  think?: OllamaThink;
 }
+
+export type OllamaThink = boolean | 'low' | 'medium' | 'high';
+
+/** Classify runs on gpt-oss:20b-cloud in prod, which can't switch reasoning
+ *  off — `low` keeps it to ~130 tokens and ~2s per call. glm-5.2 accepts
+ *  `low` too, so the setting is safe whichever model LLM_MODEL_CLASSIFY names. */
+export const CLASSIFY_THINK: OllamaThink = 'low';
 
 function ollamaTextModel(): string {
   const model = process.env.LLM_MODEL;
@@ -126,14 +135,13 @@ async function ollamaChat(
   model: string,
   prompt: string,
   maxTokens: number,
-  opts?: { format?: Record<string, unknown>; think?: boolean },
+  opts?: { format?: Record<string, unknown>; think?: OllamaThink },
 ): Promise<OllamaOutcome> {
-  // Thinking models spend generation budget on chain-of-thought before the
-  // answer — give headroom. Classify turns thinking off, so a tighter cap
-  // is enough for the JSON object.
-  const numPredict = opts?.think === false
-    ? Math.max(maxTokens, 600)
-    : Math.max(maxTokens * 3, 1500);
+  // Thinking models spend generation budget on chain-of-thought BEFORE the
+  // answer, and the cap covers both. A 600 cap on gpt-oss left 10-60 tokens
+  // for the JSON and failed validation on 60-80% of classify calls
+  // (2026-09-02 Railway logs) — always leave headroom.
+  const numPredict = Math.max(maxTokens * 3, 1500);
   const body: OllamaChatBody = {
     model,
     messages: [{ role: 'user', content: prompt }],
@@ -141,7 +149,7 @@ async function ollamaChat(
     options: { num_predict: numPredict },
   };
   if (opts?.format) body.format = opts.format;
-  if (opts?.think === false) body.think = false;
+  if (opts?.think !== undefined) body.think = opts.think;
 
   let res: Response;
   try {
@@ -272,7 +280,7 @@ export async function generateStructured(req: StructuredRequest): Promise<Struct
       // grammar only intermittently — the prompt must carry the contract.
       const prompt = `${req.prompt}\n\nRespond with ONLY a single JSON object (no prose, no markdown fences) matching this JSON schema (${req.toolName}):\n${JSON.stringify(req.schema)}`;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const outcome = await ollamaChat(model, prompt, req.maxTokens, { format: req.schema, think: false });
+        const outcome = await ollamaChat(model, prompt, req.maxTokens, { format: req.schema, think: CLASSIFY_THINK });
         if (!outcome.ok) {
           if (outcome.fatal) return null;
           continue;
