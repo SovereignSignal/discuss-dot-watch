@@ -5,17 +5,6 @@ import { safeFetch } from '@/lib/safeFetch';
 import { checkRateLimit, getRateLimitKey, checkOutgoingRateLimit } from '@/lib/rateLimit';
 import { getCachedForum } from '@/lib/forumCache';
 import { mapDiscourseTopic } from '@/lib/discourseTopicMapper';
-import { startBackgroundLoops } from '@/lib/backgroundLoops';
-
-// TEMPORARY fallback (remove once a prod deploy shows "[Boot] Background
-// loops started" within seconds of "Ready" with no traffic): the loops now
-// start at boot from src/instrumentation.ts. This first-import trigger stays
-// for one deploy so a silent instrumentation failure can't leave the pipeline
-// with NO starter at all. Idempotent, so double-starting is impossible.
-if (typeof window === 'undefined') {
-  void startBackgroundLoops();
-}
-
 /**
  * Safely parse a URL, returning null if invalid
  */
