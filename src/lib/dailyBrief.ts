@@ -65,10 +65,23 @@ export interface DailyBriefContent {
  * applications), RFPs, retro rounds, big tickets, and imminent deadlines.
  * Everything else lands in the compact "Also new" list.
  */
-function isHighlightGrant(g: BriefItemRow): boolean {
-  if (['program_launch', 'rfp', 'retro_round'].includes(g.kind || '')) return true;
-  const maxN = g.amount_max != null ? Number(g.amount_max) : null;
-  if (maxN != null && Number.isFinite(maxN) && maxN >= 100_000) return true;
+/** A budget debate is money the DAO is spending on itself, so the ordinary
+ *  six-figure bar promotes routine renewals — Compound's $100k ScopeLift
+ *  renewal led the highlights on 2026-09-03. Treasury-scale allocations are
+ *  still worth leading with, so they get their own, much higher bar. */
+const BUDGET_DEBATE_HIGHLIGHT_MIN = 1_000_000;
+
+export function isHighlightGrant(g: BriefItemRow): boolean {
+  const kind = g.kind || '';
+  const maxAmount = g.amount_max != null ? Number(g.amount_max) : null;
+  const amount = maxAmount != null && Number.isFinite(maxAmount) ? maxAmount : null;
+
+  // A report on finished work is never an opportunity, at any amount.
+  if (kind === 'milestone_report') return false;
+  if (kind === 'budget_debate') return amount != null && amount >= BUDGET_DEBATE_HIGHLIGHT_MIN;
+
+  if (['program_launch', 'rfp', 'retro_round'].includes(kind)) return true;
+  if (amount != null && amount >= 100_000) return true;
   if (g.deadline) {
     const days = (g.deadline.getTime() - Date.now()) / 86_400_000;
     if (days >= 0 && days <= 14) return true;

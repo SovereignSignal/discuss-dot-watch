@@ -44,9 +44,38 @@ export interface GrantsCandidateInput {
 
 /** Individual delegate accountability/reporting threads ("<name> Delegate
  *  Thread") pattern-match delegate-incentive ROLEs but are people reporting
- *  their own work under an existing program — never an open seat. Enforced
- *  deterministically so it survives model swaps. */
+ *  their own work under an existing program — never an open seat. */
 const DELEGATE_REPORT_RE = /delegate\s+(thread|communication|report|update)s?\b/i;
+
+/** Records of something that already happened. Committee minutes are full
+ *  of grant vocabulary and amounts, so the model reads them as opportunities
+ *  ("Zcash Community Grants Meeting Minutes 8/31/2026" classified GRANT with
+ *  $50k attached, 2026-09-02).
+ *
+ *  Deliberately narrow, from a sweep of 667 real classified titles:
+ *  - "recap" was dropped. Its only match was a Cardano digest that bundled a
+ *    conference recap with urgent governance business.
+ *  - "retrospective" needs the lookahead: "Retrospective Funding" is retroactive
+ *    public-goods funding, a real grant category (CoW Protocol, 2026-08).
+ *  - "feedback on" is anchored to the title start, so "call for feedback on the
+ *    new round" is not caught. */
+const RECORD_RE = /\b(meeting minutes|minutes of the|post[- ]?mortem)\b|\bretrospective\b(?!\s+(funding|round|grant))|^\s*feedback on\b/i;
+
+/** An organization announcing money it raised FOR ITSELF. Nothing to apply
+ *  to, and the headline figure promotes it into the brief's highlights
+ *  ("Kairos has raised $50M ...", 2026-09-02). A currency or digit must
+ *  follow the verb so "has raised its cap" is not caught. */
+const FUNDRAISE_RE = /\b(?:has|have|had)\s+raised\s+[$€£\d]|\braises\s+[$€£\d]|\bseries\s+[a-e]\s+(?:round|funding|financing)\b/i;
+
+/** Deterministic demotions applied to the model's answer, so the rule
+ *  survives a model swap. Each entry names a shape of post that pattern-
+ *  matches an opportunity but never is one. Title-only by design: a body
+ *  may legitimately mention minutes or a raise in passing. */
+const OPPORTUNITY_GUARDS: ReadonlyArray<{ re: RegExp; from: readonly GrantsClassification[] }> = [
+  { re: DELEGATE_REPORT_RE, from: ['ROLE'] },
+  { re: RECORD_RE, from: ['GRANT', 'ROLE'] },
+  { re: FUNDRAISE_RE, from: ['GRANT', 'ROLE'] },
+];
 
 const MAX_BODY_CHARS = 6000;
 
@@ -102,7 +131,7 @@ export async function classifyGrantsCandidate(
       schema: CLASSIFY_SCHEMA,
       toolName: CLASSIFY_TOOL_NAME,
       toolDescription: CLASSIFY_TOOL_DESCRIPTION,
-      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = a paid position or seat with a currently open (or announced) application/nomination/election window someone could act on now (elections, council seats, steward nominations, delegate incentive enrollment, service-provider mandates). A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. An individual's own accountability/reporting thread under a program (e.g. "<name> Delegate Thread", voting-rationale threads) is that person reporting their work — NEWS or NOISE, never ROLE. If the posting is months old, its application/nomination window has almost certainly passed: classify NEWS with status "closed" unless the text states a still-future deadline. Today is ${today}.
+      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = a paid position or seat with a currently open (or announced) application/nomination/election window someone could act on now (elections, council seats, steward nominations, delegate incentive enrollment, service-provider mandates). A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. An individual's own accountability/reporting thread under a program (e.g. "<name> Delegate Thread", voting-rationale threads) is that person reporting their work — NEWS or NOISE, never ROLE. A record of what already happened (meeting minutes, recaps, retrospectives, feedback threads about a finished process) is NEWS, however much grant vocabulary it contains. An organization announcing money it has raised for itself (a VC round, a treasury top-up) is NEWS — a grant is money someone else can apply for. If the posting is months old, its application/nomination window has almost certainly passed: classify NEWS with status "closed" unless the text states a still-future deadline. Today is ${today}.
 
 Forum: ${input.protocol} (${input.vertical})
 Selected because: ${input.signal}
@@ -141,10 +170,13 @@ Extract only what the text states — never invent amounts or deadlines. Amounts
     const rawClassification = out.classification;
     if (rawClassification !== 'GRANT' && rawClassification !== 'ROLE' && rawClassification !== 'NEWS' && rawClassification !== 'NOISE') return null;
     let classification: GrantsClassification = rawClassification;
-    // Deterministic guard: personal delegate reporting threads are never
-    // open positions, whatever the model says.
-    if (classification === 'ROLE' && DELEGATE_REPORT_RE.test(input.title)) {
-      classification = 'NEWS';
+    // Deterministic guards: records, reporting threads and third-party
+    // fundraises are never opportunities, whatever the model says.
+    for (const guard of OPPORTUNITY_GUARDS) {
+      if (guard.from.includes(classification) && guard.re.test(input.title)) {
+        classification = 'NEWS';
+        break;
+      }
     }
 
     // Deadline plausibility: models infer missing years, so an old post

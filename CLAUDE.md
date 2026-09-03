@@ -343,6 +343,16 @@ The density toggle (Compact / Standard / Cozy) sits in the left sidebar and re-f
 ### Middleware 404 Handling for [tenant]
 `notFound()` in async server components returns HTTP 200 (not 404) because Next.js RSC streaming commits the status before async code resolves. Fix: `middleware.ts` validates the slug format and rewrites to `/_not-found` for invalid slugs, ensuring a proper 404 status code.
 
+### Grants Classifier Guards
+The model's answer is post-processed by deterministic title guards in `grantsClassifier.ts`
+(`OPPORTUNITY_GUARDS`), so the rules survive a model swap: delegate reporting threads,
+records (meeting minutes, post-mortems, "Feedback on ..."), and third-party fundraise
+announcements ("X has raised $50M") are demoted to NEWS. Guards read the TITLE only and are
+deliberately narrow — validate any new pattern against the live corpus
+(`/api/v1/grants?since=...`) before shipping it. Two rejected patterns and why: "recap" only
+ever matched a Cardano digest that also carried urgent governance business, and a bare
+"retrospective" matched "Retrospective Funding", which is a real grant category.
+
 ### Discourse Tags
 Tags in raw API response can be strings OR objects — handle both.
 
