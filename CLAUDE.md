@@ -300,8 +300,20 @@ Per-DAO on-chain governance dashboards at `discuss.watch/governance/<dao>`, powe
 - Forget hydration handling when using localStorage/browser APIs
 - Re-introduce a right sidebar — Sprint 16 reclaimed it; alerts moved to AlertsStrip above the feed and search moved to the feed header.
 
-### Testing
-No testing framework configured. If adding: Jest + React Testing Library, `__tests__` dirs or `.test.ts` files.
+### Testing and CI
+`npm test` runs the repo's suite: `node --import tsx --test tests/*.test.ts` (node:test, no
+Jest). Tests live in `tests/*.test.ts` and import through the `@/*` alias.
+
+**CI (`.github/workflows/ci.yml`) runs five steps on every PR and push to main:**
+`typecheck · test · lint · build · audit`. Run all of them locally before pushing — in
+particular `npm run typecheck` (`tsc --noEmit`), which is a **separate gate from
+`npm run build`**: `next build` does not typecheck `tests/`, so type errors there pass the
+build and fail CI. Audit is `continue-on-error`; the rest block.
+
+After pushing, check `gh run list --branch <branch>` and wait for the conclusion before
+merging. **CI runs Node 22 while dev machines may run newer** — never build a test on
+version-specific module semantics (an `import('./x.ts?query')` yields a distinct ESM instance
+on Node 26 but not on 22).
 
 ## Known Patterns and Gotchas
 
