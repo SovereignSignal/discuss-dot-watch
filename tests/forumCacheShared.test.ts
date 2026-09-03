@@ -7,39 +7,81 @@ import type { CachedForum } from '@/lib/forumCache';
  * entry AND into the API-route chunk group as two separate module copies.
  * The refresh loop runs in the instrumentation copy; route handlers read
  * from theirs. If each copy owned its own Map, the feed would freeze at the
- * first Redis hydration after every deploy. The cache state must therefore
- * live at one process-wide key so every copy reads and writes the same data.
+ * first Redis hydration after every deploy.
+ *
+ * The contract that makes them agree: the mutable state lives at one
+ * process-wide key, and a copy that evaluates LATER adopts the state that is
+ * already there instead of replacing it (the `??=` in forumCache.ts).
+ *
+ * This file must not import forumCache statically — the first test seeds the
+ * global BEFORE the module's first evaluation to play the part of the
+ * earlier-loading copy. Node runs each test file in its own process, so the
+ * import order here is ours to control.
  */
 const SHARED_KEY = '__discussWatchForumCache';
 
 type ForumCacheModule = typeof import('@/lib/forumCache');
 
-/** Import via a runtime specifier: tsc rejects a '.ts' extension (TS5097) and
- *  cannot resolve the '?instance=' query that makes the second ESM instance. */
-function importInstance(specifier: string): Promise<ForumCacheModule> {
-  return import(specifier) as Promise<ForumCacheModule>;
+/** tsc rejects a '.ts' extension in a literal specifier (TS5097), so route
+ *  the import through a runtime string and type the result from the alias. */
+function importForumCache(): Promise<ForumCacheModule> {
+  return import('@/lib/forumCache' as string) as Promise<ForumCacheModule>;
 }
 
-test('every module copy of forumCache serves the same in-memory cache', async () => {
-  const a = await importInstance('../src/lib/forumCache.ts');
-  const b = await importInstance('../src/lib/forumCache.ts?instance=b'); // distinct ESM instance
-  assert.notEqual(a, b, 'test needs two module instances');
+interface SeededState {
+  memoryCache: Map<string, CachedForum>;
+  forumIdCache: Map<string, number>;
+  forumHealthState: Map<string, unknown>;
+  cacheVersion: number;
+  hydrationPromise: Promise<void> | null;
+  isRefreshing: boolean;
+  lastRefreshStart: number;
+  refreshInterval: NodeJS.Timeout | null;
+}
 
-  const shared = (globalThis as Record<string, unknown>)[SHARED_KEY] as
-    | { memoryCache: Map<string, CachedForum> }
-    | undefined;
-  assert.ok(shared, `forumCache state must be process-wide at globalThis.${SHARED_KEY}`);
+const globalWithCache = globalThis as typeof globalThis & { [SHARED_KEY]?: SeededState };
 
-  const forum: CachedForum = {
-    url: 'https://forum.example.org',
-    name: 'Example',
-    categoryId: 'crypto',
-    topics: [],
-    lastUpdated: Date.now(),
-  } as unknown as CachedForum;
-  shared.memoryCache.set(forum.url, forum);
+const seeded: SeededState = {
+  memoryCache: new Map(),
+  forumIdCache: new Map(),
+  forumHealthState: new Map(),
+  cacheVersion: 7,
+  hydrationPromise: null,
+  isRefreshing: false,
+  lastRefreshStart: 0,
+  refreshInterval: null,
+};
 
-  assert.ok(a.getAllCachedForums().some((f: CachedForum) => f.url === forum.url), 'copy A must see the entry');
-  assert.ok(b.getAllCachedForums().some((f: CachedForum) => f.url === forum.url), 'copy B must see the entry');
-  shared.memoryCache.delete(forum.url);
+const forum = {
+  url: 'https://forum.example.org',
+  topics: [],
+  fetchedAt: Date.now(),
+} as unknown as CachedForum;
+
+test('a later-loading copy adopts the cache the first copy already built', async () => {
+  // Stand in for the copy that loaded first and has been refreshing.
+  seeded.memoryCache.set(forum.url, forum);
+  globalWithCache[SHARED_KEY] = seeded;
+
+  const mod = await importForumCache(); // first evaluation in this process
+
+  assert.equal(globalWithCache[SHARED_KEY], seeded, 'module must adopt the existing state object, not replace it');
+  assert.ok(
+    mod.getAllCachedForums().some((f: CachedForum) => f.url === forum.url),
+    'the newly-loaded copy must serve the entry the first copy cached',
+  );
+  assert.equal(mod.getForumCacheVersion(), 7, 'version must come from the shared state');
+});
+
+test('a refresh written into the shared state is visible through the public reader', async () => {
+  const mod = await importForumCache();
+  const added = { ...forum, url: 'https://forum.two.example.org' } as CachedForum;
+
+  globalWithCache[SHARED_KEY]!.memoryCache.set(added.url, added);
+
+  assert.ok(
+    mod.getAllCachedForums().some((f: CachedForum) => f.url === added.url),
+    'the module reads the shared Map, not a private copy',
+  );
+  globalWithCache[SHARED_KEY]!.memoryCache.delete(added.url);
 });
