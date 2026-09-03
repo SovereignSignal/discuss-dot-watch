@@ -12,9 +12,17 @@ import type { CachedForum } from '@/lib/forumCache';
  */
 const SHARED_KEY = '__discussWatchForumCache';
 
+type ForumCacheModule = typeof import('@/lib/forumCache');
+
+/** Import via a runtime specifier: tsc rejects a '.ts' extension (TS5097) and
+ *  cannot resolve the '?instance=' query that makes the second ESM instance. */
+function importInstance(specifier: string): Promise<ForumCacheModule> {
+  return import(specifier) as Promise<ForumCacheModule>;
+}
+
 test('every module copy of forumCache serves the same in-memory cache', async () => {
-  const a = await import('../src/lib/forumCache.ts');
-  const b = await import('../src/lib/forumCache.ts?instance=b'); // distinct ESM instance
+  const a = await importInstance('../src/lib/forumCache.ts');
+  const b = await importInstance('../src/lib/forumCache.ts?instance=b'); // distinct ESM instance
   assert.notEqual(a, b, 'test needs two module instances');
 
   const shared = (globalThis as Record<string, unknown>)[SHARED_KEY] as
@@ -31,7 +39,7 @@ test('every module copy of forumCache serves the same in-memory cache', async ()
   } as unknown as CachedForum;
   shared.memoryCache.set(forum.url, forum);
 
-  assert.ok(a.getAllCachedForums().some(f => f.url === forum.url), 'copy A must see the entry');
-  assert.ok(b.getAllCachedForums().some(f => f.url === forum.url), 'copy B must see the entry');
+  assert.ok(a.getAllCachedForums().some((f: CachedForum) => f.url === forum.url), 'copy A must see the entry');
+  assert.ok(b.getAllCachedForums().some((f: CachedForum) => f.url === forum.url), 'copy B must see the entry');
   shared.memoryCache.delete(forum.url);
 });

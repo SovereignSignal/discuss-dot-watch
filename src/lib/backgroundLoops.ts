@@ -55,7 +55,7 @@ let inflight: Promise<BackgroundLoopsState> | null = null;
  * `next build` imports route modules; a full cache refresh + grants scan
  * (and an Ollama classify burst) must never run inside an image build.
  */
-export function shouldStartBackgroundLoops(env: NodeJS.ProcessEnv = process.env): boolean {
+export function shouldStartBackgroundLoops(env: Partial<NodeJS.ProcessEnv> = process.env): boolean {
   const phase = env.NEXT_PHASE;
   if (phase === 'phase-production-build' || phase === 'phase-development-build') return false;
   return true;
