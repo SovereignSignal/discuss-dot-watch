@@ -111,7 +111,13 @@ function resolveVertical(categoryId: string): Vertical | null {
 }
 
 const presetByUrl = new Map<string, { preset: ForumPreset; vertical: Vertical }>();
-const grantsCategoryPresets: Array<{ preset: ForumPreset; vertical: Vertical }> = [];
+/** One entry per configured category feed, flattened so the rotating
+ *  budget is spent per FEED rather than per forum. */
+const grantsCategoryFeeds: Array<{
+  preset: ForumPreset;
+  vertical: Vertical;
+  cat: { id: number; slug: string; parentSlug?: string };
+}> = [];
 for (const cat of FORUM_CATEGORIES) {
   const vertical = resolveVertical(cat.id);
   if (!vertical) continue;
@@ -119,7 +125,7 @@ for (const cat of FORUM_CATEGORIES) {
     if (preset.sourceType && preset.sourceType !== 'discourse') continue;
     const entry = { preset, vertical };
     presetByUrl.set(preset.url.replace(/\/$/, '').toLowerCase(), entry);
-    if (preset.grantsCategories?.length) grantsCategoryPresets.push(entry);
+    for (const cat of preset.grantsCategories ?? []) grantsCategoryFeeds.push({ ...entry, cat });
   }
 }
 
@@ -197,7 +203,48 @@ function discourseRefId(forumName: string, topicId: number): string {
   return `${forumName.toLowerCase().replace(/\s+/g, '-')}-${topicId}`;
 }
 
+/**
+ * RSS URL for one grants category.
+ *
+ * Discourse resolves a SUBcategory feed only at the full parent/child path.
+ * Verified live on discuss.ens.domains (2026-09-04):
+ *   /c/public-goods/37.rss                     -> 25 items (top level)
+ *   /c/resource-requests/55.rss                ->  0 items (55 is a subcategory)
+ *   /c/ens-ecosystem/resource-requests/55.rss  ->  9 items
+ *   /c/55.rss                                  ->  0 items
+ * Three of ENS's four configured feeds returned nothing for this reason.
+ */
+export function categoryFeedUrl(
+  forumUrl: string,
+  cat: { id: number; slug: string; parentSlug?: string },
+): string {
+  const base = forumUrl.replace(/\/$/, '');
+  const path = cat.parentSlug ? `${cat.parentSlug}/${cat.slug}` : cat.slug;
+  return `${base}/c/${path}/${cat.id}.rss`;
+}
+
+/**
+ * One pass's worth of category feeds, resuming where the previous pass
+ * stopped. The old loop always started at index 0 and broke at the budget,
+ * so a category past the cap was never fetched — the "deferred to next
+ * hourly pass" log was false, because every pass starved the same tail.
+ */
+export function selectCategoryBatch<T>(
+  all: T[],
+  cursor: number,
+  budget: number,
+): { batch: T[]; nextCursor: number } {
+  const n = all.length;
+  if (n === 0 || budget <= 0) return { batch: [], nextCursor: 0 };
+  const take = Math.min(budget, n);
+  const start = ((cursor % n) + n) % n;
+  const batch: T[] = [];
+  for (let i = 0; i < take; i++) batch.push(all[(start + i) % n]);
+  return { batch, nextCursor: (start + take) % n };
+}
+
 let lastCategoryFetch = 0;
+let categoryCursor = 0;
 
 async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate[]> {
   const candidates = new Map<string, Candidate>();
@@ -302,45 +349,44 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
 
   // 3. Dedicated grants categories (hourly — they move slowly).
   // Own budget so /latest.rss volume can never starve them.
-  let categoryFetches = 0;
   if (Date.now() - lastCategoryFetch > CATEGORY_FETCH_INTERVAL_MS) {
     lastCategoryFetch = Date.now();
-    for (const { preset, vertical } of grantsCategoryPresets) {
-      for (const cat of preset.grantsCategories!) {
-        if (categoryFetches >= MAX_CATEGORY_FETCHES_PER_RUN) {
-          console.log('[GrantsScan] Category budget reached — remaining grants categories deferred to next hourly pass');
-          break;
+    const { batch, nextCursor } = selectCategoryBatch(
+      grantsCategoryFeeds, categoryCursor, MAX_CATEGORY_FETCHES_PER_RUN,
+    );
+    categoryCursor = nextCursor;
+    if (batch.length < grantsCategoryFeeds.length) {
+      console.log(`[GrantsScan] Category pass: ${batch.length} of ${grantsCategoryFeeds.length} feeds this hour (rotating; resumes at index ${nextCursor})`);
+    }
+    for (const { preset, vertical, cat } of batch) {
+      const base = preset.url.replace(/\/$/, '');
+      const items = await fetchDiscourseRss(categoryFeedUrl(preset.url, cat));
+      for (const item of items) {
+        const refId = discourseRefId(preset.name, item.topicId);
+        if (candidates.has(refId)) {
+          const existing = candidates.get(refId)!;
+          if (!existing.body) existing.body = item.body;
+          continue;
         }
-        categoryFetches++;
-        const base = preset.url.replace(/\/$/, '');
-        const items = await fetchDiscourseRss(`${base}/c/${cat.slug}/${cat.id}.rss`);
-        for (const item of items) {
-          const refId = discourseRefId(preset.name, item.topicId);
-          if (candidates.has(refId)) {
-            const existing = candidates.get(refId)!;
-            if (!existing.body) existing.body = item.body;
-            continue;
-          }
-          candidates.set(refId, {
-            refId,
-            forumUrl: preset.url,
-            protocol: preset.name,
-            vertical,
-            title: item.title,
-            url: `${base}/t/${item.slug}/${item.topicId}`,
-            tags: [],
-            body: item.body,
-            signal: `grants category: ${cat.slug}`,
-            replies: 0,
-            views: 0,
-            likes: 0,
-            createdAt: item.pubDate,
-            bumpedAt: item.pubDate,
-            topicId: item.topicId,
-          });
-        }
-        await new Promise(r => setTimeout(r, RSS_FETCH_DELAY_MS));
+        candidates.set(refId, {
+          refId,
+          forumUrl: preset.url,
+          protocol: preset.name,
+          vertical,
+          title: item.title,
+          url: `${base}/t/${item.slug}/${item.topicId}`,
+          tags: [],
+          body: item.body,
+          signal: `grants category: ${cat.slug}`,
+          replies: 0,
+          views: 0,
+          likes: 0,
+          createdAt: item.pubDate,
+          bumpedAt: item.pubDate,
+          topicId: item.topicId,
+        });
       }
+      await new Promise(r => setTimeout(r, RSS_FETCH_DELAY_MS));
     }
 
     // 4. EA Forum "Funding opportunities" tag (AI vertical)
