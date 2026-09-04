@@ -14,11 +14,15 @@ export interface ForumPreset {
   sourceId?: string;  // Maps to EXTERNAL_SOURCES[].id for non-Discourse sources
   /**
    * Dedicated grants/funding Discourse categories watched by the grants
-   * scan (lib/grantsScan.ts) via /c/{slug}/{id}.rss — these threads rarely
-   * surface on /latest, so the main cache never sees them. Category IDs
-   * verified against each forum's /categories.json on 2026-07-06.
+   * scan (lib/grantsScan.ts) — these threads rarely surface on /latest, so
+   * the main cache never sees them. Category IDs verified against each
+   * forum's /categories.json.
+   *
+   * `parentSlug` is REQUIRED for a subcategory: Discourse serves a
+   * subcategory feed only at /c/{parentSlug}/{slug}/{id}.rss and returns an
+   * empty feed at /c/{slug}/{id}.rss. See categoryFeedUrl in grantsScan.ts.
    */
-  grantsCategories?: Array<{ id: number; slug: string }>;
+  grantsCategories?: Array<{ id: number; slug: string; parentSlug?: string }>;
 }
 
 export interface ForumCategory {
@@ -69,6 +73,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Gnosis',
         url: 'https://forum.gnosis.io/',
+        grantsCategories: [{ id: 29, slug: 'treasury' }],
         tier: 2,
       },
       {
@@ -94,6 +99,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Moonbeam',
         url: 'https://forum.moonbeam.network/',
+        grantsCategories: [{ id: 7, slug: 'grant-proposals', parentSlug: 'governance' }, { id: 8, slug: 'treasury-proposals', parentSlug: 'governance' }],
         tier: 2,
       },
       {
@@ -161,6 +167,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Polygon',
         url: 'https://forum.polygon.technology/',
+        grantsCategories: [{ id: 94, slug: 'community-treasury' }, { id: 89, slug: 'pfp', parentSlug: 'community-treasury' }],
         description: 'PIPs governance with Protocol Council',
         token: 'POL',
         logoUrl: 'https://cryptologos.cc/logos/polygon-matic-logo.png',
@@ -282,6 +289,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Cardano',
         url: 'https://forum.cardano.org/',
+        grantsCategories: [{ id: 267, slug: 'budgets-2025', parentSlug: 'governance' }],
         description: 'CIPs and Catalyst project governance',
         token: 'ADA',
         logoUrl: 'https://assets.coingecko.com/coins/images/975/small/cardano.png',
@@ -371,6 +379,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Internet Computer',
         url: 'https://forum.dfinity.org/',
+        grantsCategories: [{ id: 37, slug: 'bounties-rfps', parentSlug: 'developers' }],
         description: 'NNS governance and canister smart contracts',
         token: 'ICP',
         tier: 2,
@@ -393,7 +402,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'ENS',
         url: 'https://discuss.ens.domains/',
-        grantsCategories: [{ id: 37, slug: 'public-goods' }, { id: 54, slug: 'resource-requests' }, { id: 55, slug: 'resource-requests' }, { id: 57, slug: 'resource-requests' }],
+        grantsCategories: [{ id: 37, slug: 'public-goods' }, { id: 64, slug: 'treasury-management', parentSlug: 'meta-governance' }, { id: 75, slug: 'service-provider-program' }, { id: 57, slug: 'resource-requests', parentSlug: 'public-goods' }],
         description: 'Ethereum Name Service governance',
         token: 'ENS',
         logoUrl: 'https://assets.coingecko.com/coins/images/19785/small/acatxTm8_400x400.jpg',
@@ -419,6 +428,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Decentraland',
         url: 'https://forum.decentraland.org/',
+        grantsCategories: [{ id: 19, slug: 'test-grants', parentSlug: 'regenesis-labs' }],
         description: 'Virtual world governance',
         token: 'MANA',
         logoUrl: 'https://assets.coingecko.com/coins/images/878/small/decentraland-mana.png',
@@ -442,6 +452,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'The Graph',
         url: 'https://forum.thegraph.com/',
+        grantsCategories: [{ id: 34, slug: 'community-grants' }],
         description: 'Indexing protocol with GIP governance',
         token: 'GRT',
         logoUrl: 'https://assets.coingecko.com/coins/images/13397/small/Graph_Token.png',
@@ -450,6 +461,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'SafeDAO',
         url: 'https://forum.safe.global/',
+        grantsCategories: [{ id: 43, slug: 'grants' }],
         description: 'Multisig infrastructure governance',
         token: 'SAFE',
         logoUrl: 'https://assets.coingecko.com/coins/images/28032/small/safe.png',
@@ -458,6 +470,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Pocket Network',
         url: 'https://forum.pokt.network/',
+        grantsCategories: [{ id: 109, slug: 'quick-grants-fka-sockets', parentSlug: 'build' }],
         description: 'Decentralized RPC with PoP governance',
         token: 'POKT',
         logoUrl: 'https://assets.coingecko.com/coins/images/22506/small/pokt.png',
@@ -482,6 +495,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Livepeer',
         url: 'https://forum.livepeer.org/',
+        grantsCategories: [{ id: 18, slug: 'treasury' }, { id: 22, slug: 'retroactive-grant-applications' }, { id: 21, slug: 'rfp' }, { id: 23, slug: 'direct-grants' }],
         description: 'Decentralized video transcoding',
         token: 'LPT',
         logoUrl: 'https://assets.coingecko.com/coins/images/7137/small/logo-circle-green.png',
@@ -498,6 +512,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'UMA Protocol',
         url: 'https://discourse.uma.xyz/',
+        grantsCategories: [{ id: 41, slug: 'funding-proposals', parentSlug: 'uma-protocol' }],
         description: 'Optimistic oracle with UMIP governance',
         token: 'UMA',
         logoUrl: 'https://assets.coingecko.com/coins/images/10951/small/UMA.png',
@@ -582,6 +597,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Euler Finance',
         url: 'https://forum.euler.finance/',
+        grantsCategories: [{ id: 54, slug: 'grants', parentSlug: 'euler-dao' }],
         description: 'Modular lending protocol',
         token: 'EUL',
         logoUrl: 'https://assets.coingecko.com/coins/images/26149/small/euler.png',
@@ -639,6 +655,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Balancer',
         url: 'https://forum.balancer.fi/',
+        grantsCategories: [{ id: 17, slug: 'funding-proposals', parentSlug: 'service-provider' }, { id: 20, slug: 'grants', parentSlug: 'service-provider' }],
         description: 'Programmable liquidity protocol',
         token: 'BAL',
         logoUrl: 'https://assets.coingecko.com/coins/images/11683/small/Balancer.png',
@@ -655,6 +672,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'dYdX',
         url: 'https://dydx.forum/',
+        grantsCategories: [{ id: 14, slug: 'grants' }],
         description: 'Decentralized perpetuals exchange',
         token: 'DYDX',
         logoUrl: 'https://assets.coingecko.com/coins/images/17500/small/dydx.jpg',
@@ -671,6 +689,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: '1inch',
         url: 'https://gov.1inch.io/',
+        grantsCategories: [{ id: 12, slug: '2-3-dao-treasury' }],
         description: 'DEX aggregator governance',
         token: '1INCH',
         logoUrl: 'https://assets.coingecko.com/coins/images/13469/small/1inch.png',
@@ -679,6 +698,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Osmosis',
         url: 'https://forum.osmosis.zone/',
+        grantsCategories: [{ id: 9, slug: 'ogp-submissions-discussion', parentSlug: 'subdaos' }],
         description: 'Cosmos ecosystem DEX with superfluid staking',
         token: 'OSMO',
         tier: 2,
@@ -687,6 +707,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Lido Finance',
         url: 'https://research.lido.fi/',
+        grantsCategories: [{ id: 13, slug: 'community-grants' }],
         description: 'Liquid staking governance',
         token: 'LDO',
         logoUrl: 'https://assets.coingecko.com/coins/images/13573/small/lido.png',
@@ -703,6 +724,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Rocket Pool',
         url: 'https://dao.rocketpool.net/',
+        grantsCategories: [{ id: 13, slug: 'grant-bounties' }],
         description: 'Decentralized ETH staking',
         token: 'RPL',
         logoUrl: 'https://assets.coingecko.com/coins/images/2090/small/rocket_pool.png',
@@ -768,6 +790,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Zcash',
         url: 'https://forum.zcashcommunity.com/',
+        grantsCategories: [{ id: 33, slug: 'grants' }, { id: 54, slug: 'retroactive-grants', parentSlug: 'grants' }, { id: 42, slug: 'rfi-rfp-grants', parentSlug: 'grants' }, { id: 47, slug: 'minor-grants', parentSlug: 'grants' }],
         description: 'Privacy coin governance; ZIP 1014 dev fund',
         token: 'ZEC',
         logoUrl: 'https://assets.coingecko.com/coins/images/486/small/zcash.png',
@@ -854,6 +877,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'GMX',
         url: 'https://gov.gmx.io/',
+        grantsCategories: [{ id: 6, slug: 'grants' }],
         description: 'GMX perpetuals DEX governance',
         token: 'GMX',
         logoUrl: 'https://icons.llama.fi/gmx.jpg',
@@ -886,6 +910,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Marinade Finance',
         url: 'https://forum.marinade.finance/',
+        grantsCategories: [{ id: 9, slug: 'grants' }],
         description: 'Solana liquid staking governance',
         token: 'MNDE',
         logoUrl: 'https://icons.llama.fi/marinade-finance.jpg',

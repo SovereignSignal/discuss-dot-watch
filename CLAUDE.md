@@ -355,6 +355,25 @@ The density toggle (Compact / Standard / Cozy) sits in the left sidebar and re-f
 ### Middleware 404 Handling for [tenant]
 `notFound()` in async server components returns HTTP 200 (not 404) because Next.js RSC streaming commits the status before async code resolves. Fix: `middleware.ts` validates the slug format and rewrites to `/_not-found` for invalid slugs, ensuring a proper 404 status code.
 
+### Grants Category Feeds
+`grantsCategories` on a `ForumPreset` points the scan at a forum's dedicated funding
+category, which is higher-signal than the keyword prefilter because membership IS the signal.
+Two rules learned the hard way (2026-09-04):
+
+1. **A subcategory needs `parentSlug`.** Discourse serves a subcategory feed only at
+   `/c/{parentSlug}/{slug}/{id}.rss`; the flat `/c/{slug}/{id}.rss` returns an empty feed and
+   the bare `/c/{id}.rss` never works. Three of ENS's four configured feeds had been silently
+   returning nothing for this reason. `categoryFeedUrl()` in `grantsScan.ts` builds the path.
+2. **The per-pass budget rotates.** `MAX_CATEGORY_FETCHES_PER_RUN` used to be a hard ceiling
+   applied from index 0 every pass, so any feed past the 25th was never fetched even though
+   the log claimed it was "deferred". `selectCategoryBatch()` now resumes where the previous
+   pass stopped, making the cap a rate limit rather than a cliff.
+
+Verify a new entry against the live forum before shipping it: `/categories.json?include_subcategories=true`
+for the id, slug and parent, then fetch the built RSS URL and confirm it returns `<item>`
+elements with a recent `pubDate`. Categories whose newest post is over a year old are dead
+programs; they only burn classify calls.
+
 ### Grants Classifier Guards
 The model's answer is post-processed by deterministic title guards in `grantsClassifier.ts`
 (`OPPORTUNITY_GUARDS`), so the rules survive a model swap: delegate reporting threads,
