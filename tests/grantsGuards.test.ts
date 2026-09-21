@@ -78,6 +78,16 @@ test('a digest that announces open board elections is still a ROLE', async () =>
   );
 });
 
+test('a call for RETROSPECTIVE APPLICATIONS is an open round, not a record', async () => {
+  // Real item, found by the 2026-09-17 classifier replay: the record guard
+  // demoted Rocket Pool's "Round 41 - GMC Call for Retrospective Applications"
+  // to NEWS, so a live call with an October 7 deadline never reached the brief.
+  assert.equal(
+    await classifyWith('GRANT', 'retro_round', { title: 'Round 41 - GMC Call for Retrospective Applications - Deadline is October 7' }),
+    'GRANT',
+  );
+});
+
 test('retroactive/retrospective FUNDING is a real grant category, not a record', async () => {
   // Real item: CoW Protocol "Grant Application - Retrospective Funding for 15
   // Merged Cow Protocol PRs" is an application, not a retrospective write-up.

@@ -57,9 +57,13 @@ const DELEGATE_REPORT_RE = /delegate\s+(thread|communication|report|update)s?\b/
  *    conference recap with urgent governance business.
  *  - "retrospective" needs the lookahead: "Retrospective Funding" is retroactive
  *    public-goods funding, a real grant category (CoW Protocol, 2026-08).
+ *    "application" joined the lookahead after the 2026-09-17 classifier replay
+ *    caught this guard demoting "Round 41 - GMC Call for Retrospective
+ *    Applications - Deadline is October 7" (Rocket Pool) to NEWS, dropping a
+ *    live call with a future deadline out of the brief.
  *  - "feedback on" is anchored to the title start, so "call for feedback on the
  *    new round" is not caught. */
-const RECORD_RE = /\b(meeting minutes|minutes of the|post[- ]?mortem)\b|\bretrospective\b(?!\s+(funding|round|grant))|^\s*feedback on\b/i;
+const RECORD_RE = /\b(meeting minutes|minutes of the|post[- ]?mortem)\b|\bretrospective\b(?!\s+(funding|round|grant|application))|^\s*feedback on\b/i;
 
 /** An organization announcing money it raised FOR ITSELF. Nothing to apply
  *  to, and the headline figure promotes it into the brief's highlights
