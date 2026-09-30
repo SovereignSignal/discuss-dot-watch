@@ -256,16 +256,9 @@ export async function initializeSchema() {
   `;
   // Which model classified the row (frozen at classification; bake-off attribution).
   await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS model TEXT`;
-  // TypeSafe (Jev) shadow lane: a second opinion stored beside Haiku's, read
-  // by nobody downstream. Null on every row until TYPESAFE_API_KEY is set.
-  // Confidence is 0..1 here, unlike the integer `confidence` Haiku reports.
-  await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS shadow_classification TEXT`;
-  await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS shadow_confidence DOUBLE PRECISION`;
-  await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS shadow_open_window DOUBLE PRECISION`;
-  await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS shadow_is_record DOUBLE PRECISION`;
-  await db`ALTER TABLE grants_items ADD COLUMN IF NOT EXISTS shadow_model TEXT`;
-  // The disagreement set is the whole point of the lane; make it cheap to pull.
-  await db`CREATE INDEX IF NOT EXISTS idx_grants_items_shadow_disagree ON grants_items(shadow_classification) WHERE shadow_classification IS NOT NULL`;
+  // The shadow_* columns from the retired TypeSafe lane (#60, removed
+  // 2026-09-30) stay on existing databases with their data; nothing reads or
+  // writes them and fresh databases no longer create them.
   // Data hygiene (idempotent): personal delegate reporting threads are never
   // open positions (owner feedback 2026-07-09), and ROLE items on old topics
   // with no live deadline are windows that have long closed.
