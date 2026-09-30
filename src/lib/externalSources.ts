@@ -41,10 +41,10 @@ export const EXTERNAL_SOURCES: ExternalSource[] = [
     name: 'LessWrong',
     sourceType: 'lesswrong',
     category: 'ai',
-    description: 'AI alignment research, MATS, SERI, rationality',
+    description: 'AI alignment research, MATS, SERI, rationality; includes every Alignment Forum post (AF posts are LessWrong posts flagged af)',
     logoUrl: 'https://www.lesswrong.com/favicon.ico',
     tier: 1,
-    enabled: false, // Blocked by Vercel bot protection on LessWrong's GraphQL endpoint
+    enabled: true, // Re-enabled 2026-09-30: the GraphQL endpoint answers 200 to this client's headers again (it was blocked by Vercel bot protection)
   },
   // GitHub Discussions — Crypto
   {
