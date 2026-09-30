@@ -436,6 +436,13 @@ Tags in raw API response can be strings OR objects — handle both.
 
 The app functions without these in development (gracefully degrades).
 
+**Railway service config lives in `.railway/railway.ts`** (Infrastructure as Code; `railway.json`
+was retired 2026-09-30 before Railway's 2026-12-01 cutoff). That file is the service's COMPLETE
+desired state: `railway config apply` deletes any variable not listed in its `env`. To add a
+variable, add `NAME: preserve()` to `env` first, then set the value in Railway. Always run
+`railway config plan` before `apply` and expect only intended changes. Plan permanently shows a
+harmless `restartPolicy null → set` line (a CLI read-back gap; the live service has `ON_FAILURE` ×10).
+
 ## Database Schema
 
 - **Core**: `src/lib/db.ts` (in `initializeSchema()`) — forums, topics, topic_snapshots, backfill_jobs, users, user_preferences, keyword_alerts, bookmarks, user_forums, user_forums_data, custom_forums, read_state, grants_items, daily_sends
