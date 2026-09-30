@@ -31,7 +31,7 @@ import { judgeGrantsCandidateShadow, isShadowJudgeConfigured } from './typesafeS
 import { ollamaClassifyModel } from './llm';
 import { getClassifiedRefIds, upsertGrantsItem, updateGrantsEngagement } from './grantsStore';
 import { isDatabaseConfigured } from './db';
-import { acquireGrantsScanLock, releaseGrantsScanLock } from './redis';
+import { acquireGrantsScanLock, holdGrantsScanLock, releaseGrantsScanLock } from './redis';
 import { FORUM_CATEGORIES, ForumPreset } from './forumPresets';
 import { fetchEAForumTaggedPosts } from './eaForumClient';
 import { safeFetch } from './safeFetch';
@@ -437,6 +437,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
   }
 
   isScanning = true;
+  const stopLockHeartbeat = holdGrantsScanLock(lockToken);
   const started = Date.now();
   try {
     const candidates = await collectCandidates(cachedForums);
@@ -570,6 +571,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
     console.error('[GrantsScan] Scan failed:', error);
   } finally {
     isScanning = false;
+    stopLockHeartbeat();
     await releaseGrantsScanLock(lockToken);
   }
 }

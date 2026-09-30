@@ -32,6 +32,7 @@ import {
   setCachedForumUrls,
   setLastRefresh,
   acquireRefreshLock,
+  holdRefreshLock,
   releaseRefreshLock,
   isRedisConfigured,
 } from './redis';
@@ -292,7 +293,8 @@ export async function getCachedDiscussions(forumUrls: string[]): Promise<Array<{
 
 // Consider refresh stale after 20 minutes (stuck flag). A healthy refresh
 // takes 10-12 min, so the old 10-minute bar cleared the flag mid-run whenever
-// the admin stats endpoint was hit. Matches the distributed lock's TTL.
+// the admin stats endpoint was hit. Local flag only; the distributed lock
+// is a short TTL kept alive by a heartbeat (redis.ts).
 const REFRESH_STALE_MS = 20 * 60 * 1000;
 
 export function getCacheStats() {
@@ -778,6 +780,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
 
   state.isRefreshing = true;
   state.lastRefreshStart = Date.now();
+  const stopLockHeartbeat = holdRefreshLock(lockToken);
   
   console.log('[ForumCache] Starting cache refresh...');
   
@@ -938,6 +941,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   } finally {
     // Always reset the flag, even on error
     state.isRefreshing = false;
+    stopLockHeartbeat();
     await releaseRefreshLock(lockToken);
   }
 }

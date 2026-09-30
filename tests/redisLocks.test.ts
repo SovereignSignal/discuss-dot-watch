@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import Redis from 'ioredis';
 
@@ -14,8 +14,13 @@ proto.set = async (key: string, value: string) => {
   store.set(key, value);
   return 'OK';
 };
-proto.eval = async (_script: string, _n: number, key: string, token: string) => {
+const extends_: Array<{ key: string; token: string; ttl: string }> = [];
+proto.eval = async (script: string, _n: number, key: string, token: string, ttl?: string) => {
   if (store.get(key) !== token) return 0;
+  if (script.includes("'expire'")) {
+    extends_.push({ key, token, ttl: ttl! });
+    return 1;
+  }
   store.delete(key);
   return 1;
 };
@@ -46,4 +51,28 @@ test('an expired holder cannot release the lock a newer holder took', async () =
   assert.ok(stale && fresh && stale !== fresh);
   await releaseRefreshLock(stale!);
   assert.equal(await acquireRefreshLock(), null, 'the newer holder still owns the lock');
+});
+
+test('the holder renews its lock every third of the TTL until stopped', async () => {
+  // A killed instance stops renewing, so its lock lapses within one TTL
+  // instead of blocking the next instance for a whole refresh.
+  const { acquireRefreshLock, holdRefreshLock } = await redis();
+  store.clear();
+  extends_.length = 0;
+  mock.timers.enable({ apis: ['setInterval'] });
+  try {
+    const token = (await acquireRefreshLock(300))!;
+    const stop = holdRefreshLock(token, 300);
+    mock.timers.tick(100_000);
+    mock.timers.tick(100_000);
+    await new Promise(setImmediate);
+    assert.equal(extends_.length, 2);
+    assert.deepEqual(extends_[0], { key: extends_[0].key, token, ttl: '300' });
+    stop();
+    mock.timers.tick(300_000);
+    await new Promise(setImmediate);
+    assert.equal(extends_.length, 2, 'no renewals after stop');
+  } finally {
+    mock.timers.reset();
+  }
 });
