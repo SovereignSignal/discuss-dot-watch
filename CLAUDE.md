@@ -384,6 +384,17 @@ deliberately narrow — validate any new pattern against the live corpus
 ever matched a Cardano digest that also carried urgent governance business, and a bare
 "retrospective" matched "Retrospective Funding", which is a real grant category.
 
+`correctGrantKind()` fixes the KIND the same way: "grant/progress/monthly update" titles
+become `milestone_report`, and a "renewal" title becomes `budget_debate` unless it names a
+grant or program ("Hop Grants Program Renewal" is a real program).
+
+### Daily Brief Layout
+`planBrief()` in `dailyBrief.ts` is the one place the email's shape is decided; the subject,
+HTML, text and summary all read it. It drops repeated titles (the query also skips titles
+mailed in the last 30 days), folds a community's non-highlight grant applications into one
+entry with the total ask, and merges a community's election/council-seat threads into one
+role entry. Highlights never fold.
+
 ### Discourse Tags
 Tags in raw API response can be strings OR objects — handle both.
 
