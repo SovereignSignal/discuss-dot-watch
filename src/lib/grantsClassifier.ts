@@ -81,6 +81,27 @@ const OPPORTUNITY_GUARDS: ReadonlyArray<{ re: RegExp; from: readonly GrantsClass
   { re: FUNDRAISE_RE, from: ['GRANT', 'ROLE'] },
 ];
 
+/** A progress report on funded work. Validated 2026-09-30 against 2,451
+ *  classified rows: every match was a grant/monthly update or progress
+ *  report, including "ZecLedger grant update" mislabelled `application`. */
+const UPDATE_RE = /\b(?:grant|progress|milestone|monthly|quarterly|project)\s+update\b|\bprogress report\b|\bupdate\s*#\s*\d/i;
+
+/** A DAO renewing an existing workstream or provider is a budget debate,
+ *  which the brief holds to the treasury-scale bar. Titles naming a grant or
+ *  program are exempt: "Hop Grants Program Renewal and Redesign" is a real
+ *  program. ShapeShift's $374k engineering renewal led the 2026-09-25
+ *  highlights as an `application`. */
+const RENEWAL_RE = /\brenewal\b/i;
+const PROGRAM_RE = /\b(?:grants?|program(?:me)?s?)\b/i;
+
+/** Deterministic kind corrections for GRANT items, title-only like the
+ *  classification guards so they survive a model swap. */
+export function correctGrantKind(title: string, kind: string | null): string | null {
+  if (UPDATE_RE.test(title)) return 'milestone_report';
+  if (RENEWAL_RE.test(title) && !PROGRAM_RE.test(title)) return 'budget_debate';
+  return kind;
+}
+
 const MAX_BODY_CHARS = 6000;
 
 const CLASSIFY_TOOL_NAME = 'record_grants_classification';
@@ -199,7 +220,7 @@ Extract only what the text states — never invent amounts or deadlines. Amounts
 
     return {
       classification,
-      kind: str(out.kind),
+      kind: classification === 'GRANT' ? correctGrantKind(input.title, str(out.kind)) : str(out.kind),
       confidence: Math.round(Math.max(0, Math.min(100, num(out.confidence) ?? 0))),
       program: str(out.program),
       amountMin: num(out.amount_min),

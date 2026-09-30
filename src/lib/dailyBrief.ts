@@ -89,21 +89,114 @@ export function isHighlightGrant(g: BriefItemRow): boolean {
   return false;
 }
 
-function splitHighlights(grants: BriefItemRow[]): { highlights: BriefItemRow[]; rest: BriefItemRow[] } {
-  const highlights: BriefItemRow[] = [];
-  const rest: BriefItemRow[] = [];
-  for (const g of grants) (isHighlightGrant(g) ? highlights : rest).push(g);
-  return { highlights, rest };
+/** Source ids that reach the brief as protocol names. GitHub repo names are
+ *  also lowercase but read fine as-is. */
+const PROTOCOL_NAMES: Record<string, string> = { 'ea-forum': 'EA Forum', lesswrong: 'LessWrong' };
+
+export function displayProtocol(p: string | null): string {
+  return safeTitle((p && Object.hasOwn(PROTOCOL_NAMES, p) ? PROTOCOL_NAMES[p] : p) || 'Unknown');
+}
+
+/**
+ * One line in the brief: a single item, or several from one community that
+ * read as one story. Zcash posts a dozen grant applications a week, and one
+ * council election produces a thread per candidate (Ubuntu, 2026-09-26: four).
+ */
+export interface BriefEntry {
+  protocol: string;
+  items: BriefItemRow[];
+}
+
+const ELECTION_KINDS = new Set(['council_seat', 'election']);
+
+/** Group `items` by protocol where `groupable` holds, keeping first-seen
+ *  order; everything else stays a single entry. */
+function groupEntries(items: BriefItemRow[], groupable: (i: BriefItemRow) => boolean): BriefEntry[] {
+  const entries: BriefEntry[] = [];
+  const groups = new Map<string, BriefEntry>();
+  for (const item of items) {
+    const protocol = displayProtocol(item.protocol);
+    if (!groupable(item)) { entries.push({ protocol, items: [item] }); continue; }
+    const existing = groups.get(protocol);
+    if (existing) { existing.items.push(item); continue; }
+    const entry = { protocol, items: [item] };
+    groups.set(protocol, entry);
+    entries.push(entry);
+  }
+  return entries;
+}
+
+/** The same proposal reaches the scan twice when a DAO re-posts it (Balancer
+ *  BIP-929 was two Snapshot ids, 2026-09-25/26). The query drops titles
+ *  mailed on earlier days; this drops repeats within one batch. */
+function dedupeByTitle(items: BriefItemRow[]): BriefItemRow[] {
+  const seen = new Set<string>();
+  return items.filter(i => {
+    const key = i.title.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export interface BriefPlan {
+  roles: BriefEntry[];
+  highlights: BriefEntry[];
+  rest: BriefEntry[];
+}
+
+export function planBrief(roles: BriefItemRow[], grants: BriefItemRow[]): BriefPlan {
+  const uniqueGrants = dedupeByTitle(grants);
+  return {
+    roles: groupEntries(dedupeByTitle(roles), r => ELECTION_KINDS.has(r.kind || '')),
+    highlights: uniqueGrants.filter(isHighlightGrant).map(g => ({ protocol: displayProtocol(g.protocol), items: [g] })),
+    rest: groupEntries(uniqueGrants.filter(g => !isHighlightGrant(g)), g => g.kind === 'application'),
+  };
+}
+
+function briefCounts(plan: BriefPlan): string {
+  const hl = plan.roles.length + plan.highlights.length;
+  return [
+    hl ? `${hl} highlight${hl === 1 ? '' : 's'}` : null,
+    plan.rest.length ? `${plan.rest.length} more` : null,
+  ].filter(Boolean).join(' · ');
+}
+
+/** Sum of stated maximums across a group; null when none states one. */
+function groupTotal(items: BriefItemRow[]): string | null {
+  const amounts = items.map(i => Number(i.amount_max)).filter(n => Number.isFinite(n) && n > 0 && n <= 1e15);
+  if (amounts.length === 0) return null;
+  const currencies = new Set(items.filter(i => i.amount_max != null).map(i => i.currency || ''));
+  const unit = currencies.size === 1 ? safeTitle([...currencies][0]) : 'mixed';
+  return `${amounts.reduce((a, b) => a + b, 0).toLocaleString('en-US')} ${unit} requested`.trim();
+}
+
+function earliestDeadline(items: BriefItemRow[]): string | null {
+  const times = items.map(i => i.deadline?.getTime()).filter((t): t is number => t != null);
+  return times.length ? `Next deadline: ${new Date(Math.min(...times)).toISOString().slice(0, 10)}` : null;
+}
+
+function groupHeadline(entry: BriefEntry, kind: 'role' | 'grant'): string {
+  const n = entry.items.length;
+  if (kind === 'role') return `${n} election and council threads`;
+  return `${n} new grant applications`;
 }
 
 // ── Content assembly ─────────────────────────────────────────────────
 
-async function generateSummary(roles: BriefItemRow[], grants: BriefItemRow[]): Promise<string | null> {
-  const { highlights, rest } = splitHighlights(grants);
+async function generateSummary(plan: BriefPlan): Promise<string | null> {
+  const line = (tag: string, e: BriefEntry, kind: 'role' | 'grant') => {
+    const i = e.items[0];
+    if (e.items.length > 1) return `[${tag}] [${e.protocol}] ${groupHeadline(e, kind)}`;
+    const extra = kind === 'role'
+      ? (i.deadline ? ` (deadline ${i.deadline.toISOString().slice(0, 10)})` : '')
+      : (i.amount_max ? ` (~${i.amount_max} ${i.currency || ''})` : '');
+    return `[${tag}] [${e.protocol}] ${safeTitle(i.title)}${extra}`;
+  };
   const lines = [
-    ...roles.map(r => `[ROLE] [${safeTitle(r.protocol || '?')}] ${safeTitle(r.title)}${r.deadline ? ` (deadline ${r.deadline.toISOString().slice(0, 10)})` : ''}`),
-    ...highlights.map(g => `[GRANT] [${safeTitle(g.protocol || '?')}] ${safeTitle(g.title)}${g.amount_max ? ` (~${g.amount_max} ${g.currency || ''})` : ''}`),
-    ...rest.map(g => `[GRANT] [${safeTitle(g.protocol || '?')}] ${safeTitle(g.title)}`),
+    ...plan.roles.map(e => line('ROLE', e, 'role')),
+    ...plan.highlights.map(e => line('GRANT', e, 'grant')),
+    ...plan.rest.map(e => line('GRANT', e, 'grant')),
   ].slice(0, 20);
   if (lines.length < 3) return null; // too little signal to be worth a summary
 
@@ -165,23 +258,38 @@ const SECTION_STYLE = {
   grant: { badgeBg: '#d1fae5', factsFg: '#065f46', factsBg: '#ecfdf5' },
 } as const;
 
-function itemCardHtml(item: BriefItemRow, kind: 'role' | 'grant'): string {
-  const s = SECTION_STYLE[kind];
-  const facts = itemFacts(item, kind).map(f => escapeHtml(f));
-  // item.url is model output over attacker-controlled forum text —
-  // escapeHtml alone can't block javascript:/data: schemes in an href,
-  // so only URLs passing the app's allowlist become links.
+/** A linked title. item.url is model output over attacker-controlled forum
+ *  text — escapeHtml alone can't block javascript:/data: schemes in an
+ *  href, so only URLs passing the app's allowlist become links. */
+function titleLinkHtml(item: BriefItemRow): string {
   const safeHref = item.url && isAllowedUrl(item.url) ? escapeHtml(item.url) : null;
   const title = escapeHtml(safeTitle(item.title));
-  const titleHtml = safeHref
+  return safeHref
     ? `<a href="${safeHref}" style="color: #18181b; text-decoration: none;" target="_blank">${title}</a>`
     : title;
+}
+
+/** The linked threads under a grouped entry, one per line. */
+function groupListHtml(items: BriefItemRow[]): string {
+  return items.map(i => `<div style="font-size: 13px; font-weight: 400; margin-top: 2px;">${titleLinkHtml(i)}</div>`).join('');
+}
+
+function itemCardHtml(entry: BriefEntry, kind: 'role' | 'grant'): string {
+  const s = SECTION_STYLE[kind];
+  const grouped = entry.items.length > 1;
+  const item = entry.items[0];
+  const facts = grouped
+    ? [groupTotal(entry.items), earliestDeadline(entry.items)].filter((f): f is string => Boolean(f)).map(f => escapeHtml(f))
+    : itemFacts(item, kind).map(f => escapeHtml(f));
+  const titleHtml = grouped
+    ? `${escapeHtml(groupHeadline(entry, kind))}${groupListHtml(entry.items)}`
+    : titleLinkHtml(item);
 
   return `
     <tr>
       <td class="card" style="padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
         <div style="margin-bottom: 6px;">
-          <span style="color: #18181b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: ${s.badgeBg}; padding: 2px 8px; border-radius: 4px;">${escapeHtml(safeTitle(item.protocol || 'Unknown'))}</span>
+          <span style="color: #18181b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: ${s.badgeBg}; padding: 2px 8px; border-radius: 4px;">${escapeHtml(entry.protocol)}</span>
         </div>
         <div style="font-weight: 600; font-size: 15px; margin-bottom: 8px;">
           ${titleHtml}
@@ -194,29 +302,31 @@ function itemCardHtml(item: BriefItemRow, kind: 'role' | 'grant'): string {
     <tr><td style="height: 8px;"></td></tr>`;
 }
 
-/** One-line row for the "Also new" list — protocol, title, inline facts. */
-function compactRowHtml(item: BriefItemRow): string {
-  const bits = [
-    formatAmount(item),
-    formatDeadline(item.deadline) ? `due ${formatDeadline(item.deadline)}` : null,
-    item.topic_created_at ? `posted ${item.topic_created_at.toISOString().slice(0, 10)}` : null,
-  ].filter(Boolean).map(f => escapeHtml(String(f))).join(' &middot; ');
-  const safeHref = item.url && isAllowedUrl(item.url) ? escapeHtml(item.url) : null;
-  const title = escapeHtml(safeTitle(item.title));
-  const titleHtml = safeHref
-    ? `<a href="${safeHref}" style="color: #18181b; text-decoration: none;" target="_blank">${title}</a>`
-    : title;
+/** One-line row for the "Also new" list — protocol, title, inline facts.
+ *  A grouped entry shows its headline and total, then each linked title. */
+function compactRowHtml(entry: BriefEntry): string {
+  const item = entry.items[0];
+  const grouped = entry.items.length > 1;
+  const bits = (grouped
+    ? [groupTotal(entry.items)]
+    : [
+        formatAmount(item),
+        formatDeadline(item.deadline) ? `due ${formatDeadline(item.deadline)}` : null,
+        item.topic_created_at ? `posted ${item.topic_created_at.toISOString().slice(0, 10)}` : null,
+      ]).filter(Boolean).map(f => escapeHtml(String(f))).join(' &middot; ');
+  const titleHtml = grouped ? escapeHtml(groupHeadline(entry, 'grant')) : titleLinkHtml(item);
   return `
     <tr>
       <td class="card" style="padding: 10px 4px; border-bottom: 1px solid #f3f4f6; font-size: 13px; line-height: 1.5;">
-        <span style="color: #71717a; font-size: 11px; font-weight: 600; text-transform: uppercase;">${escapeHtml(safeTitle(item.protocol || '?'))}</span>
+        <span style="color: #71717a; font-size: 11px; font-weight: 600; text-transform: uppercase;">${escapeHtml(entry.protocol)}</span>
         &nbsp;<span style="font-weight: 600;">${titleHtml}</span>
         ${bits ? `<br><span style="color: #71717a; font-size: 12px;">${bits}</span>` : ''}
+        ${grouped ? groupListHtml(entry.items) : ''}
       </td>
     </tr>`;
 }
 
-function sectionHtml(title: string, emoji: string, items: BriefItemRow[], kind: 'role' | 'grant'): string {
+function sectionHtml(title: string, emoji: string, items: BriefEntry[], kind: 'role' | 'grant'): string {
   if (items.length === 0) return '';
   return `
   <div style="margin-bottom: 32px;">
@@ -233,12 +343,8 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
   const dateStr = brief.date.toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
-  const { highlights, rest } = splitHighlights(brief.grants);
-  const highlightCount = brief.roles.length + highlights.length;
-  const counts = [
-    highlightCount ? `${highlightCount} highlight${highlightCount === 1 ? '' : 's'}` : null,
-    rest.length ? `${rest.length} more` : null,
-  ].filter(Boolean).join(' · ');
+  const plan = planBrief(brief.roles, brief.grants);
+  const counts = briefCounts(plan);
 
   return `<!DOCTYPE html>
 <html>
@@ -274,10 +380,10 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
     </p>
   </div>` : ''}
 
-  ${sectionHtml('Highlights — Roles & Positions', '&#x1F4BC;', brief.roles, 'role')}
-  ${sectionHtml('Highlights — Grants & Programs', '&#x1F4B0;', splitHighlights(brief.grants).highlights, 'grant')}
+  ${sectionHtml('Highlights — Roles & Positions', '&#x1F4BC;', plan.roles, 'role')}
+  ${sectionHtml('Highlights — Grants & Programs', '&#x1F4B0;', plan.highlights, 'grant')}
   ${(() => {
-    const rest = splitHighlights(brief.grants).rest;
+    const rest = plan.rest;
     if (rest.length === 0) return '';
     return `
   <div style="margin-bottom: 32px;">
@@ -315,27 +421,40 @@ export function formatDailyBriefText(brief: DailyBriefContent): string {
   let text = `DAILY BRIEF — ${dateStr}\n${'─'.repeat(40)}\n`;
   if (brief.summary) text += `${brief.summary}\n\n`;
 
-  const section = (title: string, items: BriefItemRow[], kind: 'role' | 'grant') => {
-    if (items.length === 0) return '';
+  const urlLine = (item: BriefItemRow) => (item.url && isAllowedUrl(item.url) ? `  ${item.url}\n` : '');
+  const groupLines = (entry: BriefEntry, kind: 'role' | 'grant') =>
+    entry.items.map(i => `  - ${safeTitle(i.title)}\n${urlLine(i) ? `  ${urlLine(i)}` : ''}`).join('')
+    + (kind === 'grant' && groupTotal(entry.items) ? `  ${groupTotal(entry.items)}\n` : '');
+
+  const section = (title: string, entries: BriefEntry[], kind: 'role' | 'grant') => {
+    if (entries.length === 0) return '';
     let s = `${title}\n${'─'.repeat(30)}\n`;
-    for (const item of items) {
-      s += `[${safeTitle(item.protocol || 'Unknown')}] ${safeTitle(item.title)}\n`;
+    for (const entry of entries) {
+      const item = entry.items[0];
+      if (entry.items.length > 1) {
+        s += `[${entry.protocol}] ${groupHeadline(entry, kind)}\n${groupLines(entry, kind)}\n`;
+        continue;
+      }
+      s += `[${entry.protocol}] ${safeTitle(item.title)}\n`;
       s += `  ${itemFacts(item, kind).join(' · ')}\n`;
-      if (item.url && isAllowedUrl(item.url)) s += `  ${item.url}\n`;
-      s += '\n';
+      s += `${urlLine(item)}\n`;
     }
     return s;
   };
 
-  const { highlights, rest } = splitHighlights(brief.grants);
-  text += section('HIGHLIGHTS — ROLES & POSITIONS', brief.roles, 'role');
-  text += section('HIGHLIGHTS — GRANTS & PROGRAMS', highlights, 'grant');
-  if (rest.length > 0) {
+  const plan = planBrief(brief.roles, brief.grants);
+  text += section('HIGHLIGHTS — ROLES & POSITIONS', plan.roles, 'role');
+  text += section('HIGHLIGHTS — GRANTS & PROGRAMS', plan.highlights, 'grant');
+  if (plan.rest.length > 0) {
     text += `ALSO NEW\n${'─'.repeat(30)}\n`;
-    for (const item of rest) {
+    for (const entry of plan.rest) {
+      const item = entry.items[0];
+      if (entry.items.length > 1) {
+        text += `[${entry.protocol}] ${groupHeadline(entry, 'grant')}\n${groupLines(entry, 'grant')}`;
+        continue;
+      }
       const bits = [formatAmount(item), formatDeadline(item.deadline) ? `due ${formatDeadline(item.deadline)}` : null].filter(Boolean).join(' · ');
-      text += `[${safeTitle(item.protocol || '?')}] ${safeTitle(item.title)}${bits ? ` — ${bits}` : ''}\n`;
-      if (item.url && isAllowedUrl(item.url)) text += `  ${item.url}\n`;
+      text += `[${entry.protocol}] ${safeTitle(item.title)}${bits ? ` — ${bits}` : ''}\n${urlLine(item)}`;
     }
     text += '\n';
   }
@@ -379,19 +498,14 @@ export async function runDailyBrief(): Promise<DailyBriefResult> {
     return { sent: false, roles: roles.length, grants: grants.length, reason: 'Already sent today' };
   }
 
+  const plan = planBrief(roles, grants);
   const brief: DailyBriefContent = {
     date: new Date(),
     roles,
     grants,
-    summary: await generateSummary(roles, grants).catch(() => null),
+    summary: await generateSummary(plan).catch(() => null),
   };
-
-  const hl = brief.roles.length + splitHighlights(brief.grants).highlights.length;
-  const more = splitHighlights(brief.grants).rest.length;
-  const counts = [
-    hl ? `${hl} highlight${hl === 1 ? '' : 's'}` : null,
-    more ? `${more} more` : null,
-  ].filter(Boolean).join(' · ');
+  const counts = briefCounts(plan);
   const dateStr = brief.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   const result = await sendEmail({

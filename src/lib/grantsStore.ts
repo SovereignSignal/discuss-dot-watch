@@ -255,6 +255,11 @@ export async function getUnnotifiedItems(
       AND (status IS DISTINCT FROM 'closed')
       AND (deadline IS NULL OR deadline >= date_trunc('day', NOW()))
       AND topic_created_at > NOW() - INTERVAL '30 days'
+      AND NOT EXISTS (
+        SELECT 1 FROM grants_items mailed
+        WHERE mailed.notified_at > NOW() - INTERVAL '30 days'
+          AND lower(btrim(mailed.title)) = lower(btrim(grants_items.title))
+      )
     ORDER BY deadline ASC NULLS LAST, id ASC
     LIMIT ${limit}
   `;
