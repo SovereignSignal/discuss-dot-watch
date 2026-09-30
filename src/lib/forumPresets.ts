@@ -49,11 +49,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
       },
       {
-        name: 'Gearbox Protocol',
-        url: 'https://gov.gearbox.fi/',
-        tier: 2,
-      },
-      {
         name: 'Superfluid DAO',
         url: 'https://forum.superfluid.org/',
         tier: 2,
@@ -61,13 +56,13 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Scroll',
         url: 'https://forum.scroll.io/',
-        grantsCategories: [{ id: 16, slug: 'community-grants' }, { id: 10, slug: 'eco-growth' }],
+        grantsCategories: [{ id: 16, slug: 'community-grants', parentSlug: 'global-community' }, { id: 10, slug: 'eco-growth' }],
         tier: 2,
       },
       {
         name: 'Celo',
         url: 'https://forum.celo.org/',
-        grantsCategories: [{ id: 27, slug: 'grants' }],
+        grantsCategories: [{ id: 27, slug: 'grants', parentSlug: 'ecosystem' }],
         tier: 2,
       },
       {
@@ -79,11 +74,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Fuel Network',
         url: 'https://forum.fuel.network/',
-        tier: 2,
-      },
-      {
-        name: 'Babylon',
-        url: 'https://forum.babylonlabs.io/',
         tier: 2,
       },
       {
@@ -108,16 +98,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
       },
       {
-        name: 'Neutron',
-        url: 'https://forum.neutron.org/',
-        tier: 2,
-      },
-      {
-        name: 'Axelar',
-        url: 'https://community.axelar.network/',
-        tier: 2,
-      },
-      {
         name: 'Archway',
         url: 'https://gov.archway.io/',
         tier: 2,
@@ -125,11 +105,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Agoric',
         url: 'https://community.agoric.com/',
-        tier: 2,
-      },
-      {
-        name: 'Nouns DAO',
-        url: 'https://discourse.nouns.wtf/',
         tier: 2,
       },
       {
@@ -150,7 +125,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Optimism',
         url: 'https://gov.optimism.io/',
-        grantsCategories: [{ id: 87, slug: 'grants' }, { id: 69, slug: 'gov-fund-missions' }, { id: 46, slug: 'retrofunding' }],
+        grantsCategories: [{ id: 87, slug: 'grants' }, { id: 69, slug: 'gov-fund-missions', parentSlug: 'grants' }, { id: 46, slug: 'retrofunding', parentSlug: 'grants' }],
         description: 'Bicameral governance with Token House + Citizens House',
         token: 'OP',
         logoUrl: 'https://cryptologos.cc/logos/optimism-ethereum-op-logo.png',
@@ -240,7 +215,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Near Protocol',
         url: 'https://gov.near.org/',
-        grantsCategories: [{ id: 13, slug: 'community-fund' }],
         description: 'NEAR Digital Collective governance; House of Stake',
         token: 'NEAR',
         logoUrl: 'https://assets.coingecko.com/coins/images/10365/small/near.jpg',
@@ -255,27 +229,11 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
       },
       {
-        name: 'Aptos',
-        url: 'https://forum.aptosfoundation.org/',
-        description: 'AIPs governance with active voting participation',
-        token: 'APT',
-        logoUrl: 'https://assets.coingecko.com/coins/images/26455/small/aptos_round.png',
-        tier: 2,
-      },
-      {
         name: 'BNB Chain',
         url: 'https://forum.bnbchain.org/',
         description: 'Build N Build forum with Tally on-chain votes',
         token: 'BNB',
         logoUrl: 'https://assets.coingecko.com/coins/images/825/small/bnb-icon2_2x.png',
-        tier: 2,
-      },
-      {
-        name: 'Fantom/Sonic',
-        url: 'https://forum.fantom.network/',
-        description: 'Migrating to Sonic network',
-        token: 'FTM',
-        logoUrl: 'https://assets.coingecko.com/coins/images/4001/small/Fantom_round.png',
         tier: 2,
       },
       {
@@ -349,13 +307,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 3,
       },
       {
-        name: 'Avalanche',
-        url: 'https://forum.avax.network/',
-        description: 'Subnet architecture with active validator governance',
-        token: 'AVAX',
-        tier: 1,
-      },
-      {
         name: 'Berachain',
         url: 'https://forum.berachain.com/',
         description: 'EVM L1 with Proof of Liquidity consensus',
@@ -402,7 +353,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'ENS',
         url: 'https://discuss.ens.domains/',
-        grantsCategories: [{ id: 37, slug: 'public-goods' }, { id: 64, slug: 'treasury-management', parentSlug: 'meta-governance' }, { id: 75, slug: 'service-provider-program' }, { id: 57, slug: 'resource-requests', parentSlug: 'public-goods' }],
+        grantsCategories: [{ id: 37, slug: 'public-goods' }, { id: 64, slug: 'treasury-management', parentSlug: 'meta-governance' }, { id: 75, slug: 'service-provider-program' }],
         description: 'Ethereum Name Service governance',
         token: 'ENS',
         logoUrl: 'https://assets.coingecko.com/coins/images/19785/small/acatxTm8_400x400.jpg',
@@ -418,14 +369,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 1,
       },
       {
-        name: 'ApeCoin DAO',
-        url: 'https://forum.apecoin.com/',
-        description: 'BAYC ecosystem governance',
-        token: 'APE',
-        logoUrl: 'https://assets.coingecko.com/coins/images/24383/small/apecoin.jpg',
-        tier: 2,
-      },
-      {
         name: 'Decentraland',
         url: 'https://forum.decentraland.org/',
         grantsCategories: [{ id: 19, slug: 'test-grants', parentSlug: 'regenesis-labs' }],
@@ -433,14 +376,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         token: 'MANA',
         logoUrl: 'https://assets.coingecko.com/coins/images/878/small/decentraland-mana.png',
         tier: 2,
-      },
-      {
-        name: 'Treasure DAO',
-        url: 'https://forum.treasure.lol/',
-        description: 'Gaming ecosystem on Arbitrum',
-        token: 'MAGIC',
-        logoUrl: 'https://assets.coingecko.com/coins/images/18623/small/magic.png',
-        tier: 3,
       },
       {
         name: 'Octant',
@@ -460,7 +395,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       },
       {
         name: 'SafeDAO',
-        url: 'https://forum.safe.global/',
+        url: 'https://forum.safefoundation.org/',
         grantsCategories: [{ id: 43, slug: 'grants' }],
         description: 'Multisig infrastructure governance',
         token: 'SAFE',
@@ -470,18 +405,9 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Pocket Network',
         url: 'https://forum.pokt.network/',
-        grantsCategories: [{ id: 109, slug: 'quick-grants-fka-sockets', parentSlug: 'build' }],
         description: 'Decentralized RPC with PoP governance',
         token: 'POKT',
         logoUrl: 'https://assets.coingecko.com/coins/images/22506/small/pokt.png',
-        tier: 2,
-      },
-      {
-        name: 'Wormhole',
-        url: 'https://forum.wormhole.com/',
-        description: 'Cross-chain messaging with MultiGov',
-        token: 'W',
-        logoUrl: 'https://assets.coingecko.com/coins/images/35087/small/wormhole.jpg',
         tier: 2,
       },
       {
@@ -499,14 +425,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         description: 'Decentralized video transcoding',
         token: 'LPT',
         logoUrl: 'https://assets.coingecko.com/coins/images/7137/small/logo-circle-green.png',
-        tier: 2,
-      },
-      {
-        name: 'Hop Protocol',
-        url: 'https://forum.hop.exchange/',
-        description: 'Bridge protocol with HIP proposals',
-        token: 'HOP',
-        logoUrl: 'https://assets.coingecko.com/coins/images/25445/small/hop.png',
         tier: 2,
       },
       {
@@ -550,13 +468,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         token: 'PYTH',
         tier: 2,
       },
-      {
-        name: 'Everclear',
-        url: 'https://forum.connext.network/',
-        description: 'Cross-chain clearing layer (formerly Connext)',
-        token: 'NEXT',
-        tier: 3,
-      },
 
       // Lending
       {
@@ -579,7 +490,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       },
       {
         name: 'Sky (MakerDAO)',
-        url: 'https://forum.sky.money/',
+        url: 'https://forum.skyeco.com/',
         description: 'Rebranded from Maker; Endgame transition',
         token: 'MKR',
         logoUrl: 'https://assets.coingecko.com/coins/images/1364/small/Mark_Maker.png',
@@ -597,7 +508,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Euler Finance',
         url: 'https://forum.euler.finance/',
-        grantsCategories: [{ id: 54, slug: 'grants', parentSlug: 'euler-dao' }],
         description: 'Modular lending protocol',
         token: 'EUL',
         logoUrl: 'https://assets.coingecko.com/coins/images/26149/small/euler.png',
@@ -628,14 +538,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
       },
       {
-        name: 'Maple Finance',
-        url: 'https://community.maple.finance/',
-        description: 'Institutional lending',
-        token: 'MPL',
-        logoUrl: 'https://assets.coingecko.com/coins/images/14097/small/maple.png',
-        tier: 3,
-      },
-      {
         name: 'Radiant Capital',
         url: 'https://community.radiant.capital/',
         description: 'Omnichain lending',
@@ -644,14 +546,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 3,
       },
       // DEX (Uniswap governance covered by Snapshot source in externalSources.ts)
-      {
-        name: 'Curve Finance',
-        url: 'https://gov.curve.finance/',
-        description: 'Stablecoin DEX with veCRV gauge',
-        token: 'CRV',
-        logoUrl: 'https://assets.coingecko.com/coins/images/12124/small/Curve.png',
-        tier: 1,
-      },
       {
         name: 'Balancer',
         url: 'https://forum.balancer.fi/',
@@ -688,7 +582,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       },
       {
         name: '1inch',
-        url: 'https://gov.1inch.io/',
+        url: 'https://gov.1inch.network/',
         grantsCategories: [{ id: 12, slug: '2-3-dao-treasury' }],
         description: 'DEX aggregator governance',
         token: '1INCH',
@@ -760,14 +654,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         description: 'Real-world asset financing',
         token: 'CFG',
         logoUrl: 'https://assets.coingecko.com/coins/images/16441/small/centrifuge.png',
-        tier: 2,
-      },
-      {
-        name: 'Angle Protocol',
-        url: 'https://gov.angle.money/',
-        description: 'Decentralized stablecoin',
-        token: 'ANGLE',
-        logoUrl: 'https://assets.coingecko.com/coins/images/19060/small/angle.png',
         tier: 2,
       },
       {
@@ -877,7 +763,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'GMX',
         url: 'https://gov.gmx.io/',
-        grantsCategories: [{ id: 6, slug: 'grants' }],
         description: 'GMX perpetuals DEX governance',
         token: 'GMX',
         logoUrl: 'https://icons.llama.fi/gmx.jpg',
@@ -910,7 +795,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Marinade Finance',
         url: 'https://forum.marinade.finance/',
-        grantsCategories: [{ id: 9, slug: 'grants' }],
         description: 'Solana liquid staking governance',
         token: 'MNDE',
         logoUrl: 'https://icons.llama.fi/marinade-finance.jpg',
@@ -926,7 +810,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       },
       {
         name: 'Flow',
-        url: 'https://forum.onflow.org/',
+        url: 'https://forum.flow.com/',
         description: 'Flow blockchain governance and ecosystem',
         token: 'FLOW',
         logoUrl: 'https://icons.llama.fi/flow.jpg',
@@ -939,14 +823,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         token: 'AURORA',
         logoUrl: 'https://icons.llama.fi/aurora.jpg',
         tier: 3,
-      },
-      {
-        name: 'Story Protocol',
-        url: 'https://forum.story.foundation/',
-        description: 'Story Protocol IP/governance (SIP proposals, treasury)',
-        token: 'IP',
-        logoUrl: 'https://avatars.githubusercontent.com/u/154944867',
-        tier: 1,
       },
       {
         name: 'Threshold Network',
@@ -1161,15 +1037,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
         sourceType: 'github',
         sourceId: 'github-flowise',
-      },
-      {
-        name: 'Continue.dev',
-        url: 'https://github.com/continuedev/continue/discussions',
-        description: 'Continue.dev GitHub Discussions',
-        logoUrl: 'https://github.com/continuedev.png',
-        tier: 2,
-        sourceType: 'github',
-        sourceId: 'github-continue',
       },
       {
         name: 'Anthropic anthropic-sdk-python',
@@ -1963,7 +1830,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       },
       {
         name: 'Elixir Forum',
-        url: 'https://elixirforum.com/',
+        url: 'https://forum.elixirforum.com/',
         description: 'Elixir language community',
         logoUrl: 'https://elixir-lang.org/images/logo/logo.png',
         tier: 2,

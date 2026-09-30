@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Realms/SPL Governance, Hacker News, Lobsters), **330+ forums + 150+ external sources**, one Daily Brief email (new grants + roles from classified data, Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy), per-vertical color coding, command menu (Cmd+K), mobile responsive, no login required, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, per-DAO governance terminals (Anticapture: delegate accountability, per-delegate voting records, forum-linked votes), MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Realms/SPL Governance, Hacker News, Lobsters), **310+ forums + 150+ external sources**, one Daily Brief email (new grants + roles from classified data, Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy), per-vertical color coding, command menu (Cmd+K), mobile responsive, no login required, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, per-DAO governance terminals (Anticapture: delegate accountability, per-delegate voting records, forum-linked votes), MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 
@@ -50,7 +50,7 @@ src/
 │   ├── auth.ts             # Server-side auth (verifyAdminAuth, verifyTenantAdmin, validateCronSecret)
 │   ├── adminToken.ts       # Browser sessionStorage helper for the admin Bearer token
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres) + getForumHealthFromCache
-│   ├── forumPresets.ts     # 330+ pre-configured forum & source presets by category (Discourse + dual-registered GitHub/HN/Lobsters)
+│   ├── forumPresets.ts     # 310+ pre-configured forum & source presets by category (Discourse + dual-registered GitHub/HN/Lobsters)
 │   ├── externalSources.ts  # External source registry (EA Forum, LessWrong, GitHub Discussions, Snapshot, Hacker News, Lobsters, Realms) — 150+ entries
 │   ├── theme.ts            # c() theme utility (legacy; new components prefer --ds-* CSS variables)
 │   ├── sanitize.ts         # Input sanitization (sanitize-html for HTML, escaping for text)
