@@ -290,8 +290,10 @@ export async function getCachedDiscussions(forumUrls: string[]): Promise<Array<{
   return results;
 }
 
-// Consider refresh stale after 10 minutes (stuck flag)
-const REFRESH_STALE_MS = 10 * 60 * 1000;
+// Consider refresh stale after 20 minutes (stuck flag). A healthy refresh
+// takes 10-12 min, so the old 10-minute bar cleared the flag mid-run whenever
+// the admin stats endpoint was hit. Matches the distributed lock's TTL.
+const REFRESH_STALE_MS = 20 * 60 * 1000;
 
 export function getCacheStats() {
   const forums = Array.from(memoryCache.values());
@@ -757,8 +759,8 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   if (memoryCache.size === 0) await getAllCachedForumsReady();
 
   // Distributed lock for multi-instance deployments (authoritative)
-  const hasLock = await acquireRefreshLock(300);
-  if (!hasLock) {
+  const lockToken = await acquireRefreshLock();
+  if (!lockToken) {
     console.log('[ForumCache] Another instance is refreshing (distributed lock), skipping');
     // Deploy handoff: the outgoing instance can hold the lock while this
     // fresh instance has an empty memory cache — without hydration the
@@ -770,6 +772,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   // Re-check local flag after acquiring lock to handle TOCTOU race
   if (state.isRefreshing) {
     console.log('[ForumCache] Refresh started by another call while acquiring lock, skipping');
+    await releaseRefreshLock(lockToken);
     return;
   }
 
@@ -935,7 +938,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   } finally {
     // Always reset the flag, even on error
     state.isRefreshing = false;
-    await releaseRefreshLock();
+    await releaseRefreshLock(lockToken);
   }
 }
 

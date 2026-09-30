@@ -232,34 +232,51 @@ export async function setLastRefresh(): Promise<void> {
   }
 }
 
-/**
- * Try to acquire refresh lock (prevents concurrent refreshes)
- */
-export async function acquireRefreshLock(ttlSeconds = 300): Promise<boolean> {
+/** Held-lock token when Redis is absent or erroring: locks fail OPEN (a
+ *  single instance must still refresh), and release is then a no-op. */
+const NO_REDIS_LOCK = 'no-redis';
+
+/** Delete the key only if it still holds our token. A plain DEL let an
+ *  instance whose lock had expired delete the lock a newer instance took
+ *  over (deploy overlap), letting a third run start alongside it. */
+const RELEASE_IF_OWNER = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+
+/** Returns an owner token when the lock is held, null when another holder has it. */
+async function acquireLock(key: string, ttlSeconds: number, label: string): Promise<string | null> {
   const client = getRedis();
-  if (!client) return true; // Allow if no Redis
-  
+  if (!client) return NO_REDIS_LOCK;
+  const token = crypto.randomUUID();
   try {
-    const result = await client.set(keys.refreshLock(), '1', 'EX', ttlSeconds, 'NX');
-    return result === 'OK';
+    const result = await client.set(key, token, 'EX', ttlSeconds, 'NX');
+    return result === 'OK' ? token : null;
   } catch (err) {
-    console.error('[Redis] Error acquiring lock:', err);
-    return true;
+    console.error(`[Redis] Error acquiring ${label} lock:`, err);
+    return NO_REDIS_LOCK;
+  }
+}
+
+async function releaseLock(key: string, token: string, label: string): Promise<void> {
+  const client = getRedis();
+  if (!client || token === NO_REDIS_LOCK) return;
+  try {
+    await client.eval(RELEASE_IF_OWNER, 1, key, token);
+  } catch (err) {
+    console.error(`[Redis] Error releasing ${label} lock:`, err);
   }
 }
 
 /**
- * Release refresh lock
+ * Refresh lock (prevents concurrent refreshes across instances). The TTL must
+ * outlast a full refresh: at 5 min it expired mid-run every cycle once a
+ * refresh grew to 10-12 min (2026-09-30), so an overlapping deploy started a
+ * second refresh against every upstream forum.
  */
-export async function releaseRefreshLock(): Promise<void> {
-  const client = getRedis();
-  if (!client) return;
+export async function acquireRefreshLock(ttlSeconds = 1200): Promise<string | null> {
+  return acquireLock(keys.refreshLock(), ttlSeconds, 'refresh');
+}
 
-  try {
-    await client.del(keys.refreshLock());
-  } catch (err) {
-    console.error('[Redis] Error releasing lock:', err);
-  }
+export async function releaseRefreshLock(token: string): Promise<void> {
+  return releaseLock(keys.refreshLock(), token, 'refresh');
 }
 
 /**
@@ -268,26 +285,12 @@ export async function releaseRefreshLock(): Promise<void> {
  */
 const GRANTS_SCAN_LOCK_KEY = 'grants:scan:lock';
 
-export async function acquireGrantsScanLock(ttlSeconds = 600): Promise<boolean> {
-  const client = getRedis();
-  if (!client) return true; // Allow if no Redis
-  try {
-    const result = await client.set(GRANTS_SCAN_LOCK_KEY, '1', 'EX', ttlSeconds, 'NX');
-    return result === 'OK';
-  } catch (err) {
-    console.error('[Redis] Error acquiring grants-scan lock:', err);
-    return true;
-  }
+export async function acquireGrantsScanLock(ttlSeconds = 1200): Promise<string | null> {
+  return acquireLock(GRANTS_SCAN_LOCK_KEY, ttlSeconds, 'grants-scan');
 }
 
-export async function releaseGrantsScanLock(): Promise<void> {
-  const client = getRedis();
-  if (!client) return;
-  try {
-    await client.del(GRANTS_SCAN_LOCK_KEY);
-  } catch (err) {
-    console.error('[Redis] Error releasing grants-scan lock:', err);
-  }
+export async function releaseGrantsScanLock(token: string): Promise<void> {
+  return releaseLock(GRANTS_SCAN_LOCK_KEY, token, 'grants-scan');
 }
 
 /**

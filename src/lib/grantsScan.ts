@@ -430,8 +430,8 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
     console.log('[GrantsScan] No LLM provider configured (ANTHROPIC_API_KEY or LLM_PROVIDER=ollama), skipping');
     return;
   }
-  const hasLock = await acquireGrantsScanLock(600);
-  if (!hasLock) {
+  const lockToken = await acquireGrantsScanLock();
+  if (!lockToken) {
     console.log('[GrantsScan] Another instance is scanning, skipping');
     return;
   }
@@ -570,6 +570,6 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
     console.error('[GrantsScan] Scan failed:', error);
   } finally {
     isScanning = false;
-    await releaseGrantsScanLock();
+    await releaseGrantsScanLock(lockToken);
   }
 }
