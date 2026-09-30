@@ -245,7 +245,7 @@ _The hot paths repeat expensive work that batching, memoization, and concurrency
   - Files: `src/app/api/external-sources/route.ts`, `src/app/api/discussions/route.ts`, `src/app/api/briefs/route.ts`, `src/app/api/v1/forums/route.ts`, `src/app/api/mcp/route.ts`
   - Problem: discussions/briefs/external-sources/v1/mcp serve cache- or preset-derived data that changes at most every 15 min but return no s-maxage/SWR header, while forum-stats and feed show the intended pattern. Every reader keystroke that hits these recomputes on the origin.
   - Fix: Add `Cache-Control: public, s-maxage=60, stale-while-revalidate=600` to the pure-cache GETs and a longer s-maxage to static-derived ones; keep auth'd user routes uncached.
-- [ ] **[low/S/medium] Background refresh + delegate loop started only as a side-effect of importing /api/discourse**
+- [x] **[low/S/medium] Background refresh + delegate loop started only as a side-effect of importing /api/discourse** (fixed #55: loops start from instrumentation.ts)
   - Files: `src/app/api/discourse/route.ts`
   - Problem: startBackgroundRefresh/startDelegateRefreshLoop run at module-eval of /api/discourse only. If a deploy serves /api/briefs or /api/discussions first (which don't import it), the cache is never warmed for that instance until something hits /api/discourse.
   - Fix: Move the warm-up trigger into instrumentation.ts register() so it runs once at server start regardless of which route is hit first (startBackgroundRefresh already guards double-start).

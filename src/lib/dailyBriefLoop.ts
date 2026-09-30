@@ -1,8 +1,8 @@
 /**
  * In-process daily scheduler for the Daily Brief — the system previously
  * had NO scheduler at all (the cron endpoint existed but nothing called
- * it). Same pattern as the delegate refresh loop: registered as a
- * side-effect of the first /api/discourse import, hourly ticks, and
+ * it). Same pattern as the delegate refresh loop: started at server boot
+ * by instrumentation.ts via backgroundLoops.ts, hourly ticks, and
  * the Postgres day-claim in dailyBrief.ts (atomic INSERT, fail-closed) makes
  * it exactly-once per day even across instance restarts or a racing
  * external pinger.

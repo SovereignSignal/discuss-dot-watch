@@ -1,18 +1,29 @@
 /**
  * TypeSafe (Jev) shadow judge.
  *
- * Runs beside the Haiku classifier in `grantsScan`, stores its answer next to
- * Haiku's, and changes nothing the reader sees. The point is to accumulate
- * live disagreements under a confidence gate we can trust before anything is
- * promoted.
+ * Runs beside the production classifier in `grantsScan`, stores its answer
+ * next to the incumbent's, and changes nothing the reader sees. The point is
+ * to accumulate live disagreements under a confidence gate we can trust
+ * before anything is promoted.
+ *
+ * The incumbent is whatever `grants_items.model` records, NOT Haiku: prod has
+ * classified with `gpt-oss:20b-cloud` (LLM_PROVIDER=ollama) since 2026-09-02,
+ * so every row in the replay below was a gpt-oss row. Any read-out must
+ * filter on `model`, or a provider switch mid-collection mixes two
+ * incumbents into one disagreement set.
  *
  * Why this is worth a second inference call per row: the 2026-09-17 replay of
- * 300 real rows, adjudicated on 2026-09-20, put Jev ahead of Haiku 48 to 16 on
- * the rows where they disagreed, and — the load-bearing part — every Jev error
- * in that set sat below 0.90 confidence while it was right on all 17 decidable
- * disagreements at or above it. Haiku's own stored confidence is 90 or 95 on
- * 268 of 300 rows and carries no such signal. See
+ * 300 real rows, adjudicated on 2026-09-20, put Jev ahead of the incumbent 48
+ * to 16 on the rows where they disagreed, and — the load-bearing part — every
+ * Jev error in that set sat below 0.90 confidence while it was right on all
+ * 17 decidable disagreements at or above it. The incumbent's stored
+ * confidence is 90 or 95 on 268 of 300 rows and carries no such signal. See
  * `workstreams/grant-wires/typesafe-adjudication-2026-09-20.md`.
+ *
+ * Removal condition: this is a bounded experiment. At ~20 classifications a
+ * day, 20 confident (>= 0.90) disagreements should exist around 2026-10-07.
+ * Adjudicate them then and either promote Jev behind the gate or delete this
+ * module, its call in grantsScan and the shadow_* columns.
  *
  * Ships dark. Absent `TYPESAFE_API_KEY` this module no-ops, so deploying it
  * changes nothing until the key is set. `TYPESAFE_SHADOW=0` force-disables it

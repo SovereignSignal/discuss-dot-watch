@@ -20,7 +20,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 | Icons | Lucide React |
 | Admin | Bearer `ADMIN_SECRET` or `CRON_SECRET` |
 | Email | Resend |
-| AI | Provider layer `lib/llm.ts`: Anthropic Claude (Haiku 4.5 classify + Sonnet 4.5 summary, default) or Ollama Cloud (`LLM_PROVIDER=ollama`; `LLM_MODEL` for summaries, `LLM_MODEL_CLASSIFY` for the grants scan) |
+| AI | Provider layer `lib/llm.ts`: Ollama Cloud in production since 2026-09-02 (`LLM_PROVIDER=ollama`; `LLM_MODEL_CLASSIFY` = `gpt-oss:20b-cloud` for the grants scan, `LLM_MODEL` for summaries). Anthropic (Haiku 4.5 classify + Sonnet 4.5 summary) is the code default and the rollback path when `LLM_PROVIDER` is unset. `grants_items.model` records which model classified each row. |
 | Validation | Zod 4 |
 | Sanitization | sanitize-html |
 | Cache | Redis (ioredis) |
@@ -31,7 +31,7 @@ See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./
 
 ```text
 src/
-├── middleware.ts            # Security headers, bare domain redirect, [tenant] slug validation
+├── proxy.ts                 # (Next 16 name for middleware) Security headers, bare domain redirect, [tenant] slug validation
 ├── instrumentation.ts       # Next.js boot hook: starts the background loops once per server start (nodejs runtime only)
 ├── app/                    # Next.js App Router
 │   ├── api/                # API routes (discourse, briefs, delegates, anticapture, user, admin, v1, mcp, cron, health, discussions)
@@ -103,7 +103,7 @@ npm run lint     # Run ESLint
    - `verifyAdminAuth()` — `CRON_SECRET` or `ADMIN_SECRET` Bearer token for platform-wide admin routes
    - `verifyTenantAdmin()` — same privileged token (no user accounts; grants access to every tenant)
 5. **Custom Hooks** — Client-side state management, data fetching, localStorage persistence
-6. **Middleware** (`middleware.ts`) — Security headers, bare domain redirect (`discuss.watch` -> `www.discuss.watch`), [tenant] slug validation with `/_not-found` rewrite for invalid slugs
+6. **Proxy** (`src/proxy.ts`, Next 16's name for middleware) — Security headers, bare domain redirect (`discuss.watch` -> `www.discuss.watch`), [tenant] slug validation with `/_not-found` rewrite for invalid slugs
 
 ### State Management
 - No external state library — custom hooks with `useState` + `useEffect`
@@ -254,7 +254,7 @@ Multi-tenant contributor analytics for Discourse forums. Dashboard at `discuss.w
 
 **Client hook:** `useTenantRoles()` in `src/hooks/useTenantRoles.ts` — checks a sessionStorage admin token against `/api/admin`. Returns `{ isSuperAdmin, tenantSlugs, isLoading, canAdminTenant(slug) }`.
 
-Tenant slugs are guarded against the platform's own routes via `STATIC_ROUTES` in `middleware.ts`: `admin, api, app, feed, governance, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
+Tenant slugs are guarded against the platform's own routes via `RESERVED_SLUGS` in `lib/tenantSlug.ts` (used by `proxy.ts`): `admin, api, app, feed, governance, privacy, terms` (plus static files `sitemap.xml, robots.txt, icon.svg`). Slugs matching these bypass the `[tenant]` dashboard.
 
 ## Governance Terminal (Anticapture)
 
@@ -353,7 +353,7 @@ The feed view is built from a stack of components in `src/components/DiscussionF
 The density toggle (Compact / Standard / Cozy) sits in the left sidebar and re-flows every `DiscussionItem` via CSS variables.
 
 ### Middleware 404 Handling for [tenant]
-`notFound()` in async server components returns HTTP 200 (not 404) because Next.js RSC streaming commits the status before async code resolves. Fix: `middleware.ts` validates the slug format and rewrites to `/_not-found` for invalid slugs, ensuring a proper 404 status code.
+`notFound()` in async server components returns HTTP 200 (not 404) because Next.js RSC streaming commits the status before async code resolves. Fix: `proxy.ts` validates the slug format and rewrites to `/_not-found` for invalid slugs, ensuring a proper 404 status code.
 
 ### Grants Category Feeds
 `grantsCategories` on a `ForumPreset` points the scan at a forum's dedicated funding
