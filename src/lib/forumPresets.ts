@@ -207,10 +207,19 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Cosmos Hub',
         url: 'https://forum.cosmos.network/',
+        grantsCategories: [{ id: 25, slug: 'hub-proposals' }],
         description: 'On-chain governance proposals and community pool',
         token: 'ATOM',
         logoUrl: 'https://assets.coingecko.com/coins/images/1481/small/cosmos_hub.png',
         tier: 1,
+      },
+      {
+        name: 'Nervos Talk',
+        url: 'https://talk.nervos.org/',
+        description: 'Nervos CKB community and the CKB Community Fund DAO',
+        token: 'CKB',
+        grantsCategories: [{ id: 65, slug: 'ckb-community-fund-dao', parentSlug: 'daos-funding' }],
+        tier: 2,
       },
       {
         name: 'Near Protocol',
@@ -1938,6 +1947,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'KDE Discuss',
         url: 'https://discuss.kde.org/',
+        grantsCategories: [{ id: 31, slug: 'sponsored-work', parentSlug: 'development' }],
         description: 'KDE governance',
         logoUrl: 'https://kde.org/stuff/clipart/logo/kde-logo-white-blue-rounded-source.svg',
         tier: 1,
