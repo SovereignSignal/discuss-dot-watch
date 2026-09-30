@@ -265,14 +265,42 @@ async function releaseLock(key: string, token: string, label: string): Promise<v
   }
 }
 
+const EXTEND_IF_OWNER = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('expire', KEYS[1], ARGV[2]) else return 0 end";
+
 /**
- * Refresh lock (prevents concurrent refreshes across instances). The TTL must
- * outlast a full refresh: at 5 min it expired mid-run every cycle once a
- * refresh grew to 10-12 min (2026-09-30), so an overlapping deploy started a
- * second refresh against every upstream forum.
+ * Keep a held lock alive while its work runs: re-arm the TTL every third of
+ * it. A short TTL plus a heartbeat is what lets the lock both outlast a long
+ * run AND lapse quickly when its holder dies. A flat 20-min TTL did the
+ * first but not the second: every deploy killed the old instance mid-refresh
+ * and left the new one skipping refreshes until the orphan expired
+ * (2026-09-30). Returns a stop function; call it before release.
  */
-export async function acquireRefreshLock(ttlSeconds = 1200): Promise<string | null> {
+function startLockHeartbeat(key: string, token: string, ttlSeconds: number, label: string): () => void {
+  const client = getRedis();
+  if (!client || token === NO_REDIS_LOCK) return () => {};
+  const timer = setInterval(() => {
+    client.eval(EXTEND_IF_OWNER, 1, key, token, String(ttlSeconds)).then(
+      (extended) => { if (extended !== 1) console.error(`[Redis] Lost ${label} lock before the run finished`); },
+      (err) => console.error(`[Redis] Error extending ${label} lock:`, err),
+    );
+  }, (ttlSeconds * 1000) / 3);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
+/** Lock TTL; a live holder renews it every LOCK_TTL_SECONDS / 3. */
+const LOCK_TTL_SECONDS = 300;
+
+/**
+ * Refresh lock (prevents concurrent refreshes across instances). A refresh
+ * takes 10-12 min, far past the TTL, so the holder must run the heartbeat.
+ */
+export async function acquireRefreshLock(ttlSeconds = LOCK_TTL_SECONDS): Promise<string | null> {
   return acquireLock(keys.refreshLock(), ttlSeconds, 'refresh');
+}
+
+export function holdRefreshLock(token: string, ttlSeconds = LOCK_TTL_SECONDS): () => void {
+  return startLockHeartbeat(keys.refreshLock(), token, ttlSeconds, 'refresh');
 }
 
 export async function releaseRefreshLock(token: string): Promise<void> {
@@ -285,8 +313,12 @@ export async function releaseRefreshLock(token: string): Promise<void> {
  */
 const GRANTS_SCAN_LOCK_KEY = 'grants:scan:lock';
 
-export async function acquireGrantsScanLock(ttlSeconds = 1200): Promise<string | null> {
+export async function acquireGrantsScanLock(ttlSeconds = LOCK_TTL_SECONDS): Promise<string | null> {
   return acquireLock(GRANTS_SCAN_LOCK_KEY, ttlSeconds, 'grants-scan');
+}
+
+export function holdGrantsScanLock(token: string, ttlSeconds = LOCK_TTL_SECONDS): () => void {
+  return startLockHeartbeat(GRANTS_SCAN_LOCK_KEY, token, ttlSeconds, 'grants-scan');
 }
 
 export async function releaseGrantsScanLock(token: string): Promise<void> {
