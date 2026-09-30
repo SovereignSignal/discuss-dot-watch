@@ -27,7 +27,6 @@ import { DiscussionTopic } from '@/types';
 import type { CachedForum } from './forumCache';
 import { matchGrantsKeywords, matchRolesKeywords } from './grantsDetect';
 import { classifyGrantsCandidate, isClassifierConfigured } from './grantsClassifier';
-import { judgeGrantsCandidateShadow, isShadowJudgeConfigured } from './typesafeShadow';
 import { ollamaClassifyModel } from './llm';
 import { getClassifiedRefIds, upsertGrantsItem, updateGrantsEngagement } from './grantsStore';
 import { isDatabaseConfigured } from './db';
@@ -478,57 +477,28 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
     const classifyModel =
       process.env.LLM_PROVIDER === 'ollama' ? ollamaClassifyModel() : 'claude-haiku-4-5';
     if (toClassify.length > 0) {
-      console.log(
-        `[GrantsScan] Classifying ${toClassify.length} with ${classifyModel}` +
-        (isShadowJudgeConfigured() ? ' (TypeSafe shadow lane on)' : ''),
-      );
+      console.log(`[GrantsScan] Classifying ${toClassify.length} with ${classifyModel}`);
     }
 
     let stored = 0;
     let grants = 0;
     let roles = 0;
     let failed = 0;
-    // Shadow lane counters. Judged is how many rows got a second opinion at
-    // all; disagreed is the set worth reading. Confident disagreement is the
-    // one that would have changed the brief had the lane been live.
-    let shadowJudged = 0;
-    let shadowDisagreed = 0;
-    let shadowConfidentDisagreed = 0;
     for (let i = 0; i < toClassify.length; i += CLASSIFY_CONCURRENCY) {
       const batch = toClassify.slice(i, i + CLASSIFY_CONCURRENCY);
       await Promise.all(batch.map(async (cand) => {
         // Per-candidate isolation: one bad row costs one row, never the run.
         try {
-          // Both judgements over the same candidate, concurrently. The shadow
-          // judge resolves to null rather than throwing, so it cannot fail the
-          // row, and it is a no-op until TYPESAFE_API_KEY is set.
-          const [extraction, shadow] = await Promise.all([
-            classifyGrantsCandidate({
-              title: cand.title,
-              protocol: cand.protocol,
-              vertical: cand.vertical,
-              tags: cand.tags,
-              body: cand.body,
-              signal: cand.signal,
-              createdAt: cand.createdAt,
-            }),
-            judgeGrantsCandidateShadow({
-              title: cand.title,
-              protocol: cand.protocol,
-              vertical: cand.vertical,
-              body: cand.body,
-              signal: cand.signal,
-              createdAt: cand.createdAt,
-            }),
-          ]);
+          const extraction = await classifyGrantsCandidate({
+            title: cand.title,
+            protocol: cand.protocol,
+            vertical: cand.vertical,
+            tags: cand.tags,
+            body: cand.body,
+            signal: cand.signal,
+            createdAt: cand.createdAt,
+          });
           if (!extraction) return;
-          if (shadow) {
-            shadowJudged++;
-            if (shadow.classification !== extraction.classification) {
-              shadowDisagreed++;
-              if (shadow.confidence >= 0.9) shadowConfidentDisagreed++;
-            }
-          }
           await upsertGrantsItem({
             topicRefId: cand.refId,
             forumUrl: cand.forumUrl,
@@ -544,7 +514,6 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
             topicCreatedAt: cand.createdAt,
             lastActivityAt: cand.bumpedAt,
             extraction,
-            shadow,
           });
           stored++;
           if (extraction.classification === 'GRANT') grants++;
@@ -561,12 +530,6 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
       `${known.length} known, ${toClassify.length} classified via ${classifyModel}, ${stored} stored (${grants} GRANT, ${roles} ROLE)` +
       (failed ? `, ${failed} failed` : ''),
     );
-    if (shadowJudged > 0) {
-      console.log(
-        `[GrantsScan] TypeSafe shadow: ${shadowJudged} judged, ${shadowDisagreed} disagreed ` +
-        `(${shadowConfidentDisagreed} at confidence >= 0.9)`,
-      );
-    }
   } catch (error) {
     console.error('[GrantsScan] Scan failed:', error);
   } finally {

@@ -5,7 +5,6 @@
 
 import { getDb, isDatabaseConfigured } from './db';
 import { GrantsExtraction } from './grantsClassifier';
-import type { ShadowJudgement } from './typesafeShadow';
 
 export interface GrantsItemInput {
   topicRefId: string;
@@ -22,8 +21,6 @@ export interface GrantsItemInput {
   topicCreatedAt: string | null;
   lastActivityAt: string | null;
   extraction: GrantsExtraction;
-  /** TypeSafe's second opinion. Stored, never read downstream. */
-  shadow?: ShadowJudgement | null;
 }
 
 export interface GrantsItemRow {
@@ -57,12 +54,6 @@ export interface GrantsItemRow {
   first_post_text?: string | null;
   /** Which model classified the row (frozen at classification). */
   model: string | null;
-  /** TypeSafe shadow lane. Null until the lane is switched on. */
-  shadow_classification?: string | null;
-  shadow_confidence?: number | null;
-  shadow_open_window?: number | null;
-  shadow_is_record?: number | null;
-  shadow_model?: string | null;
 }
 
 /** RefIds already classified — used to skip re-classification. */
@@ -79,7 +70,6 @@ export async function upsertGrantsItem(item: GrantsItemInput): Promise<void> {
   if (!isDatabaseConfigured()) return;
   const db = getDb();
   const e = item.extraction;
-  const sh = item.shadow ?? null;
   // Defense in depth for LLM output: bind a real Date (or null) so the
   // timestamptz serializer can never throw on a garbage string.
   const deadline = e.deadline && !Number.isNaN(Date.parse(e.deadline)) ? new Date(e.deadline) : null;
@@ -93,8 +83,7 @@ export async function upsertGrantsItem(item: GrantsItemInput): Promise<void> {
       topic_ref_id, forum_url, protocol, vertical, title, url,
       first_post_text, signal, classification, kind, confidence,
       program, amount_min, amount_max, currency, deadline, chain, status, apply_url,
-      model, replies, views, likes, topic_created_at, last_activity_at, updated_at,
-      shadow_classification, shadow_confidence, shadow_open_window, shadow_is_record, shadow_model
+      model, replies, views, likes, topic_created_at, last_activity_at, updated_at
     ) VALUES (
       ${item.topicRefId}, ${item.forumUrl}, ${item.protocol}, ${item.vertical},
       ${item.title}, ${item.url}, ${firstPostText}, ${item.signal},
@@ -102,9 +91,7 @@ export async function upsertGrantsItem(item: GrantsItemInput): Promise<void> {
       ${e.program}, ${e.amountMin}, ${e.amountMax}, ${e.currency},
       ${deadline}, ${e.chain}, ${e.status}, ${e.applyUrl},
       ${e.model}, ${item.replies}, ${item.views}, ${item.likes},
-      ${item.topicCreatedAt}, ${item.lastActivityAt}, NOW(),
-      ${sh?.classification ?? null}, ${sh?.confidence ?? null},
-      ${sh?.openWindow ?? null}, ${sh?.isRecord ?? null}, ${sh?.model ?? null}
+      ${item.topicCreatedAt}, ${item.lastActivityAt}, NOW()
     )
     ON CONFLICT (topic_ref_id) DO UPDATE SET
       title = EXCLUDED.title,
