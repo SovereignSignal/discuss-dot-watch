@@ -93,3 +93,27 @@ test('ordinary titles keep the model kind', () => {
   assert.equal(correctGrantKind('Fast grants for AI x animals', 'program_launch'), 'program_launch');
   assert.equal(correctGrantKind('Grant Application - 0xramp', null), null);
 });
+
+test('a token-denominated amount does not make a highlight; a dollar one does', () => {
+  // 2026-10-01: 8,263,000 CKB (worth a few tens of thousands) led the highlights.
+  const plan = planBrief([], [
+    row({ protocol: 'Nervos Talk', amount_max: '8263000', currency: 'CKB' }),
+    row({ protocol: 'Aave DAO', amount_max: '25000000', currency: 'GHO' }),
+  ]);
+  assert.deepEqual(plan.highlights.map(e => e.protocol), ['Aave DAO']);
+});
+
+test('a Nervos [DIS] proposal is an application, not an RFP', () => {
+  assert.equal(correctGrantKind('[DIS] Bitcoin Renegade Meet Up and Media Campaign', 'rfp'), 'application');
+});
+
+test('the brief link has no doubled slash when the app URL ends in one', () => {
+  const prev = process.env.NEXT_PUBLIC_APP_URL;
+  process.env.NEXT_PUBLIC_APP_URL = 'https://www.discuss.watch/';
+  try {
+    const text = formatDailyBriefText({ date: new Date(), roles: [], grants: [row({})], summary: null });
+    assert.match(text, /Open: https:\/\/www\.discuss\.watch\/app\n/);
+  } finally {
+    if (prev === undefined) delete process.env.NEXT_PUBLIC_APP_URL; else process.env.NEXT_PUBLIC_APP_URL = prev;
+  }
+});

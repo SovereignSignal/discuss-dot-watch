@@ -71,10 +71,17 @@ export interface DailyBriefContent {
  *  still worth leading with, so they get their own, much higher bar. */
 const BUDGET_DEBATE_HIGHLIGHT_MIN = 1_000_000;
 
+/** Currencies whose face value is roughly dollars. The amount bars only mean
+ *  something in these: a governance token's raw count is not a size (8.26M
+ *  CKB, worth a few tens of thousands, led the 2026-10-01 highlights). Token
+ *  programs still highlight through their kind. */
+const DOLLAR_LIKE = new Set(['USD', 'USDC', 'USDT', 'USDS', 'DAI', 'XDAI', 'CUSD', 'GHO', 'PYUSD', 'EUR', 'GBP']);
+
 export function isHighlightGrant(g: BriefItemRow): boolean {
   const kind = g.kind || '';
   const maxAmount = g.amount_max != null ? Number(g.amount_max) : null;
-  const amount = maxAmount != null && Number.isFinite(maxAmount) ? maxAmount : null;
+  const dollarLike = DOLLAR_LIKE.has((g.currency || '').trim().toUpperCase());
+  const amount = dollarLike && maxAmount != null && Number.isFinite(maxAmount) ? maxAmount : null;
 
   // A report on finished work is never an opportunity, at any amount.
   if (kind === 'milestone_report') return false;
@@ -215,6 +222,12 @@ ${lines.join('\n')}
 }
 
 // ── Formatting ───────────────────────────────────────────────────────
+
+/** Public app origin without a trailing slash ("…app//app" shipped in every
+ *  brief while the variable ended in "/"). */
+function appUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || 'https://www.discuss.watch').replace(/\/+$/, '');
+}
 
 /** Model-extracted NUMERIC → display: reject garbage/negatives, add
  *  thousands separators, drop absurd magnitudes rather than print 1e21. */
@@ -397,7 +410,7 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
   })()}
 
   <div style="text-align: center; margin: 32px 0;">
-    <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app"
+    <a href="${appUrl()}/app"
        style="display: inline-block; background: #18181b; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
       Open discuss.watch
     </a>
@@ -458,7 +471,7 @@ export function formatDailyBriefText(brief: DailyBriefContent): string {
     }
     text += '\n';
   }
-  text += `---\nOpen: ${process.env.NEXT_PUBLIC_APP_URL || 'https://discuss.watch'}/app\n\ndiscuss.watch — Daily Brief`;
+  text += `---\nOpen: ${appUrl()}/app\n\ndiscuss.watch — Daily Brief`;
   return text;
 }
 
