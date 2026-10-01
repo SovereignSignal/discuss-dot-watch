@@ -92,12 +92,18 @@ const UPDATE_RE = /\b(?:grant|progress|milestone|monthly|quarterly|project)\s+up
  *  program. ShapeShift's $374k engineering renewal led the 2026-09-25
  *  highlights as an `application`. */
 const RENEWAL_RE = /\brenewal\b/i;
+
+/** Nervos Talk's "[DIS]" prefix marks one team's funding proposal under
+ *  discussion. 15 of 18 such rows were already `application`; the model
+ *  called the rest `rfp`, which made a $2,000 meetup a highlight (2026-10-01). */
+const DISCUSSION_PREFIX_RE = /^\s*\[DIS\]/i;
 const PROGRAM_RE = /\b(?:grants?|program(?:me)?s?)\b/i;
 
 /** Deterministic kind corrections for GRANT items, title-only like the
  *  classification guards so they survive a model swap. */
 export function correctGrantKind(title: string, kind: string | null): string | null {
   if (UPDATE_RE.test(title)) return 'milestone_report';
+  if (DISCUSSION_PREFIX_RE.test(title)) return 'application';
   if (RENEWAL_RE.test(title) && !PROGRAM_RE.test(title)) return 'budget_debate';
   return kind;
 }
