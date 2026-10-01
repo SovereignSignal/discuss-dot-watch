@@ -10,5 +10,9 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
   const { startBackgroundLoops } = await import('@/lib/backgroundLoops');
-  startBackgroundLoops();
+  // Not awaited: boot must not wait on loop setup. But a rejection here was
+  // unhandled, so a failed start produced no `[Boot]` line and no error.
+  startBackgroundLoops().catch(err => {
+    console.error('[Boot] Background loops failed to start:', err);
+  });
 }

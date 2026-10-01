@@ -66,9 +66,31 @@ interface Candidate {
   topicId?: number;
 }
 
-// ── External-source candidate queue (filled during refresh) ────────
+// ── Process-wide scan state ─────────────────────────────────────────
 
-const pendingExternal = new Map<string, Candidate>();
+/**
+ * Turbopack bundles this module into the instrumentation entry (where the
+ * refresh loop runs scans) and into the API-route chunk group (where an
+ * admin-triggered refresh runs them) as two separate copies. Module-level
+ * `let`s gave each copy its own category cursor and its own isScanning flag,
+ * so the rotation restarted from 0 in the route copy. Same globalThis
+ * pattern as forumCache; a copy that evaluates later adopts existing state.
+ */
+interface GrantsScanState {
+  /** External-source candidates queued during refresh, drained by the next scan. */
+  pendingExternal: Map<string, Candidate>;
+  lastCategoryFetch: number;
+  categoryCursor: number;
+  isScanning: boolean;
+}
+const globalWithScan = globalThis as typeof globalThis & { __discussWatchGrantsScan?: GrantsScanState };
+const scan: GrantsScanState = (globalWithScan.__discussWatchGrantsScan ??= {
+  pendingExternal: new Map(),
+  lastCategoryFetch: 0,
+  categoryCursor: 0,
+  isScanning: false,
+});
+const pendingExternal = scan.pendingExternal;
 
 /**
  * Queue an external-source topic for classification. Called from the
@@ -243,8 +265,6 @@ export function selectCategoryBatch<T>(
   return { batch, nextCursor: (start + take) % n };
 }
 
-let lastCategoryFetch = 0;
-let categoryCursor = 0;
 
 async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate[]> {
   const candidates = new Map<string, Candidate>();
@@ -349,12 +369,12 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
 
   // 3. Dedicated grants categories (hourly — they move slowly).
   // Own budget so /latest.rss volume can never starve them.
-  if (Date.now() - lastCategoryFetch > CATEGORY_FETCH_INTERVAL_MS) {
-    lastCategoryFetch = Date.now();
+  if (Date.now() - scan.lastCategoryFetch > CATEGORY_FETCH_INTERVAL_MS) {
+    scan.lastCategoryFetch = Date.now();
     const { batch, nextCursor } = selectCategoryBatch(
-      grantsCategoryFeeds, categoryCursor, MAX_CATEGORY_FETCHES_PER_RUN,
+      grantsCategoryFeeds, scan.categoryCursor, MAX_CATEGORY_FETCHES_PER_RUN,
     );
-    categoryCursor = nextCursor;
+    scan.categoryCursor = nextCursor;
     if (batch.length < grantsCategoryFeeds.length) {
       console.log(`[GrantsScan] Category pass: ${batch.length} of ${grantsCategoryFeeds.length} feeds this hour (rotating; resumes at index ${nextCursor})`);
     }
@@ -417,10 +437,8 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
 
 // ── Main entry ───────────────────────────────────────────────────────
 
-let isScanning = false;
-
 export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> {
-  if (isScanning) return;
+  if (scan.isScanning) return;
   if (!isDatabaseConfigured()) {
     console.log('[GrantsScan] Database not configured, skipping');
     return;
@@ -435,7 +453,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
     return;
   }
 
-  isScanning = true;
+  scan.isScanning = true;
   const stopLockHeartbeat = holdGrantsScanLock(lockToken);
   const started = Date.now();
   try {
@@ -533,7 +551,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
   } catch (error) {
     console.error('[GrantsScan] Scan failed:', error);
   } finally {
-    isScanning = false;
+    scan.isScanning = false;
     stopLockHeartbeat();
     await releaseGrantsScanLock(lockToken);
   }
