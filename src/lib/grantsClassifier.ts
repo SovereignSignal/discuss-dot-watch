@@ -62,8 +62,11 @@ const DELEGATE_REPORT_RE = /delegate\s+(thread|communication|report|update)s?\b/
  *    Applications - Deadline is October 7" (Rocket Pool) to NEWS, dropping a
  *    live call with a future deadline out of the brief.
  *  - "feedback on" is anchored to the title start, so "call for feedback on the
- *    new round" is not caught. */
-const RECORD_RE = /\b(meeting minutes|minutes of the|post[- ]?mortem)\b|\bretrospective\b(?!\s+(funding|round|grant|application))|^\s*feedback on\b/i;
+ *    new round" is not caught.
+ *  - "final/completion/closing report" joined 2026-10-02: 47 such titles in
+ *    the corpus were NEWS and the 3 classified GRANT were all reports on
+ *    finished grants ("[Final Report] T3tris.finance", Arbitrum). */
+const RECORD_RE = /\b(meeting minutes|minutes of the|post[- ]?mortem|(?:final|completion|closing) report)\b|\bretrospective\b(?!\s+(funding|round|grant|application))|^\s*feedback on\b/i;
 
 /** An organization announcing money it raised FOR ITSELF. Nothing to apply
  *  to, and the headline figure promotes it into the brief's highlights

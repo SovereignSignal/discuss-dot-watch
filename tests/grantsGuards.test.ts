@@ -49,6 +49,14 @@ test('committee meeting minutes are a record, never a grant', async () => {
   );
 });
 
+test('a final report on a finished grant is a record, never a grant', async () => {
+  // 2026-10-02 brief preview: Arbitrum "[Final Report] T3tris.finance" was GRANT.
+  assert.equal(
+    await classifyWith('GRANT', 'application', { title: '[Final Report] T3tris.finance - Zero-fee, permissionless vault infrastructure' }),
+    'NEWS',
+  );
+});
+
 test('a third-party fundraise announcement is not an opportunity', async () => {
   assert.equal(
     await classifyWith('GRANT', 'application', { title: 'Kairos has raised $50M to build talent infrastructure for AI safety' }),
