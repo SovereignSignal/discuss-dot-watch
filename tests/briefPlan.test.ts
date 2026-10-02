@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planBrief, displayProtocol, formatDailyBriefText } from '@/lib/dailyBrief';
+import { planBrief, displayProtocol, formatDailyBriefText, summaryLines } from '@/lib/dailyBrief';
 import { correctGrantKind } from '@/lib/grantsClassifier';
 import type { BriefItemRow } from '@/lib/grantsStore';
 
@@ -116,4 +116,23 @@ test('the brief link has no doubled slash when the app URL ends in one', () => {
   } finally {
     if (prev === undefined) delete process.env.NEXT_PUBLIC_APP_URL; else process.env.NEXT_PUBLIC_APP_URL = prev;
   }
+});
+
+test('summary lines tag each item with its kind so a report never reads as an opportunity', () => {
+  // The 2026-10-02 items behind a summary that led with a results post.
+  const lines = summaryLines(planBrief(
+    [row({ protocol: 'ea-forum', title: 'Geefrevolutie is hiring!', kind: 'working_group' })],
+    [
+      row({ protocol: 'lesswrong', title: '2026 SFF grants', kind: 'program_launch', amount_max: '65000000' }),
+      row({ protocol: 'Arbitrum', title: '[Final Report] T3tris.finance', kind: 'milestone_report', amount_max: '25000' }),
+      row({ protocol: 'Zcash', title: 'Docs', kind: 'application', amount_max: '40904' }),
+      row({ protocol: 'Zcash', title: 'Wallet', kind: 'application', amount_max: '20000' }),
+    ],
+  ));
+  assert.deepEqual(lines, [
+    '[EA Forum] Geefrevolutie is hiring! (Role: Working group)',
+    '[LessWrong] 2026 SFF grants (Program launch; 65,000,000 USD)',
+    '[Arbitrum] [Final Report] T3tris.finance (Milestone report; 25,000 USD)',
+    '[Zcash] 2 new grant applications (Application)',
+  ]);
 });
