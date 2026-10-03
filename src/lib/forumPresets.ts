@@ -7,6 +7,11 @@ export type SignalSurface =
   | { lane: SignalLane; type: 'category'; id: number; slug: string; parentSlug?: string; priority?: 1 | 2 | 3 }
   | { lane: SignalLane; type: 'tag'; slug: string; tagId?: number; priority?: 1 | 2 | 3 };
 
+export type SignalLane = 'funding' | 'opportunities' | 'governance' | 'research';
+export type SignalSurface =
+  | { lane: SignalLane; type: 'category'; id: number; slug: string; parentSlug?: string; priority?: 1 | 2 | 3 }
+  | { lane: SignalLane; type: 'tag'; slug: string; tagId?: number; priority?: 1 | 2 | 3 };
+
 export interface ForumPreset {
   name: string;
   url: string;
@@ -2725,6 +2730,16 @@ export function getSignalSurfaces(preset: ForumPreset): SignalSurface[] {
   const key = (s: SignalSurface) => s.type === 'category'
     ? `${s.lane}:category:${s.id}`
     : `${s.lane}:tag:${s.tagId ?? s.slug}`;
+  const merged = new Map<string, SignalSurface>();
+  for (const surface of [...legacy, ...explicit]) merged.set(key(surface), surface);
+  return [...merged.values()];
+}
+
+
+export function getSignalSurfaces(preset: ForumPreset): SignalSurface[] {
+  const explicit = preset.signalSurfaces ?? [];
+  const legacy: SignalSurface[] = (preset.grantsCategories ?? []).map(cat => ({ lane: 'funding' as const, type: 'category' as const, ...cat, priority: 1 as const }));
+  const key = (s: SignalSurface) => s.type === 'category' ? `${s.lane}:category:${s.id}` : `${s.lane}:tag:${s.tagId ?? s.slug}`;
   const merged = new Map<string, SignalSurface>();
   for (const surface of [...legacy, ...explicit]) merged.set(key(surface), surface);
   return [...merged.values()];
