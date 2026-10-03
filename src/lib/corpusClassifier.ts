@@ -54,7 +54,7 @@ BEGIN SOURCE JSON\n${JSON.stringify(limitedInput)}\nEND SOURCE JSON`,
 /** Preview table only. This module never writes grants_items, notification markers or sends mail. */
 export async function classifyCorpusTopic(topicId: number, lane: CorpusLane, classify: CorpusClassify = classifyCorpusDocument) {
   const db = getDb();
-  const docs = await db`SELECT d.*, t.created_at, t.closed FROM topic_documents d JOIN topics t ON t.id = d.topic_id
+  const docs = await db`SELECT d.*, t.created_at FROM topic_documents d JOIN topics t ON t.id = d.topic_id
     WHERE d.topic_id = ${topicId} AND d.fetch_status = 'fetched' AND NOT d.search_hidden`;
   if (!docs[0]) throw new CorpusError('document_not_ready');
   const doc = docs[0];
@@ -68,7 +68,7 @@ export async function classifyCorpusTopic(topicId: number, lane: CorpusLane, cla
   if (!claimed.length) return { worked: false, reason: 'already_classified_or_leased' };
   try {
     const input: CorpusClassificationInput = { title: doc.title, body: doc.body_text, tags: doc.tags,
-      createdAt: new Date(doc.created_at).toISOString(), closed: doc.closed, lane };
+      createdAt: new Date(doc.created_at).toISOString(), closed: doc.source_closed || doc.source_archived, lane };
     const result = await classify(input);
     // Validate injected implementations too; all stored outputs obey the same evidence gate.
     const extraction = validateCorpusExtraction(result.extraction, input);
