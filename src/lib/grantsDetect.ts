@@ -39,12 +39,20 @@ export const ROLES_TITLE_PATTERNS = [
   'contributor program', 'ambassador program',
   'multisig signer', 'security council', 'service provider',
   'mandate', 'compensation',
+  // General employment / consulting language. Keep broad: this is a recall
+  // prefilter and the classifier decides whether the post is actionable.
+  'hiring', 'we are hiring', "we're hiring", 'join our team', 'career',
+  'job opening', 'open position', 'position available', 'vacancy',
+  'contractor', 'contract role', 'consultant', 'consulting opportunity',
+  'freelance', 'fractional', 'part-time', 'part time', 'full-time', 'full time',
+  'internship', 'fellowship', 'residency', 'paid contributor', 'help wanted',
 ];
 
 export const ROLES_TAG_PATTERNS = new Set([
   'election', 'elections', 'nominations', 'steward', 'stewards',
   'council', 'committee', 'working-group', 'delegates',
-  'delegate-incentives', 'compensation',
+  'delegate-incentives', 'compensation', 'jobs', 'job', 'hiring', 'careers',
+  'contract', 'contractor', 'consulting', 'internship', 'fellowship',
 ]);
 
 function matchPatterns(
