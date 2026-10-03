@@ -5,6 +5,15 @@
  */
 
 export const ROLE_KIND_LABELS: Record<string, string> = {
+  full_time: 'Full-time',
+  part_time: 'Part-time',
+  contract: 'Contract',
+  fractional: 'Fractional',
+  consulting: 'Consulting',
+  internship: 'Internship',
+  fellowship: 'Fellowship',
+  residency: 'Residency',
+  bounty: 'Bounty',
   council_seat: 'Council seat',
   steward: 'Steward',
   working_group: 'Working group',
