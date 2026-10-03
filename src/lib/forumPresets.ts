@@ -7,11 +7,6 @@ export type SignalSurface =
   | { lane: SignalLane; type: 'category'; id: number; slug: string; parentSlug?: string; priority?: 1 | 2 | 3 }
   | { lane: SignalLane; type: 'tag'; slug: string; tagId?: number; priority?: 1 | 2 | 3 };
 
-export type SignalLane = 'funding' | 'opportunities' | 'governance' | 'research';
-export type SignalSurface =
-  | { lane: SignalLane; type: 'category'; id: number; slug: string; parentSlug?: string; priority?: 1 | 2 | 3 }
-  | { lane: SignalLane; type: 'tag'; slug: string; tagId?: number; priority?: 1 | 2 | 3 };
-
 export interface ForumPreset {
   name: string;
   url: string;
@@ -240,7 +235,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         description: 'NEAR Digital Collective governance; House of Stake',
         token: 'NEAR',
         logoUrl: 'https://assets.coingecko.com/coins/images/10365/small/near.jpg',
-        signalSurfaces: [{ lane: 'funding', type: 'tag', slug: 'request-for-grant', priority: 1 }],
         signalSurfaces: [{ lane: 'funding', type: 'tag', slug: 'request-for-grant', priority: 1 }],
         tier: 1,
       },
@@ -475,7 +469,6 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         description: 'MEV protection and batch auctions; Grants Council',
         token: 'COW',
         logoUrl: 'https://assets.coingecko.com/coins/images/24384/small/cow.png',
-        signalSurfaces: [{ lane: 'opportunities', type: 'tag', slug: 'rfp', priority: 1 }],
         signalSurfaces: [{ lane: 'opportunities', type: 'tag', slug: 'rfp', priority: 1 }],
         tier: 1,
       },
