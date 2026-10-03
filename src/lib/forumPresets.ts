@@ -2731,11 +2731,4 @@ export function getSignalSurfaces(preset: ForumPreset): SignalSurface[] {
 }
 
 
-export function getSignalSurfaces(preset: ForumPreset): SignalSurface[] {
-  const explicit = preset.signalSurfaces ?? [];
-  const legacy: SignalSurface[] = (preset.grantsCategories ?? []).map(cat => ({ lane: 'funding' as const, type: 'category' as const, ...cat, priority: 1 as const }));
-  const key = (s: SignalSurface) => s.type === 'category' ? `${s.lane}:category:${s.id}` : `${s.lane}:tag:${s.tagId ?? s.slug}`;
-  const merged = new Map<string, SignalSurface>();
-  for (const surface of [...legacy, ...explicit]) merged.set(key(surface), surface);
-  return [...merged.values()];
-}
+
