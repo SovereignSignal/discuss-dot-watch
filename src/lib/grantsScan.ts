@@ -31,7 +31,7 @@ import { ollamaClassifyModel } from './llm';
 import { getClassifiedRefIds, upsertGrantsItem, updateGrantsEngagement } from './grantsStore';
 import { isDatabaseConfigured } from './db';
 import { acquireGrantsScanLock, holdGrantsScanLock, releaseGrantsScanLock } from './redis';
-import { FORUM_CATEGORIES, ForumPreset } from './forumPresets';
+import { FORUM_CATEGORIES, ForumPreset, SignalSurface, getSignalSurfaces } from './forumPresets';
 import { fetchEAForumTaggedPosts } from './eaForumClient';
 import { safeFetch } from './safeFetch';
 
@@ -135,10 +135,10 @@ function resolveVertical(categoryId: string): Vertical | null {
 const presetByUrl = new Map<string, { preset: ForumPreset; vertical: Vertical }>();
 /** One entry per configured category feed, flattened so the rotating
  *  budget is spent per FEED rather than per forum. */
-const grantsCategoryFeeds: Array<{
+const signalFeeds: Array<{
   preset: ForumPreset;
   vertical: Vertical;
-  cat: { id: number; slug: string; parentSlug?: string };
+  surface: SignalSurface;
 }> = [];
 for (const cat of FORUM_CATEGORIES) {
   const vertical = resolveVertical(cat.id);
@@ -147,7 +147,7 @@ for (const cat of FORUM_CATEGORIES) {
     if (preset.sourceType && preset.sourceType !== 'discourse') continue;
     const entry = { preset, vertical };
     presetByUrl.set(preset.url.replace(/\/$/, '').toLowerCase(), entry);
-    for (const cat of preset.grantsCategories ?? []) grantsCategoryFeeds.push({ ...entry, cat });
+    for (const surface of getSignalSurfaces(preset)) signalFeeds.push({ ...entry, surface });
   }
 }
 
@@ -243,6 +243,12 @@ export function categoryFeedUrl(
   const base = forumUrl.replace(/\/$/, '');
   const path = cat.parentSlug ? `${cat.parentSlug}/${cat.slug}` : cat.slug;
   return `${base}/c/${path}/${cat.id}.rss`;
+}
+
+export function signalSurfaceFeedUrl(forumUrl: string, surface: SignalSurface): string {
+  if (surface.type === 'category') return categoryFeedUrl(forumUrl, surface);
+  const base = forumUrl.replace(/\/$/, '');
+  return surface.tagId ? `${base}/tag/${surface.slug}/${surface.tagId}.rss` : `${base}/tag/${surface.slug}.rss`;
 }
 
 /**
@@ -372,15 +378,15 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
   if (Date.now() - scan.lastCategoryFetch > CATEGORY_FETCH_INTERVAL_MS) {
     scan.lastCategoryFetch = Date.now();
     const { batch, nextCursor } = selectCategoryBatch(
-      grantsCategoryFeeds, scan.categoryCursor, MAX_CATEGORY_FETCHES_PER_RUN,
+      signalFeeds, scan.categoryCursor, MAX_CATEGORY_FETCHES_PER_RUN,
     );
     scan.categoryCursor = nextCursor;
-    if (batch.length < grantsCategoryFeeds.length) {
-      console.log(`[GrantsScan] Category pass: ${batch.length} of ${grantsCategoryFeeds.length} feeds this hour (rotating; resumes at index ${nextCursor})`);
+    if (batch.length < signalFeeds.length) {
+      console.log(`[GrantsScan] Category pass: ${batch.length} of ${signalFeeds.length} feeds this hour (rotating; resumes at index ${nextCursor})`);
     }
-    for (const { preset, vertical, cat } of batch) {
+    for (const { preset, vertical, surface } of batch) {
       const base = preset.url.replace(/\/$/, '');
-      const items = await fetchDiscourseRss(categoryFeedUrl(preset.url, cat));
+      const items = await fetchDiscourseRss(signalSurfaceFeedUrl(preset.url, surface));
       for (const item of items) {
         const refId = discourseRefId(preset.name, item.topicId);
         if (candidates.has(refId)) {
@@ -397,7 +403,7 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
           url: `${base}/t/${item.slug}/${item.topicId}`,
           tags: [],
           body: item.body,
-          signal: `grants category: ${cat.slug}`,
+          signal: `${surface.lane} ${surface.type}: ${surface.slug}`,
           replies: 0,
           views: 0,
           likes: 0,
