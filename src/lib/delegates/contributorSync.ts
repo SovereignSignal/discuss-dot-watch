@@ -10,6 +10,7 @@
 import { fetchDirectoryItems } from './discourseClient';
 import { bulkUpsertDirectoryContributors } from './db';
 import type { DirectoryItem } from '@/types/delegates';
+import { dedupeDirectoryItems } from './contributorDedupe';
 
 interface ContributorSyncConfig {
   baseUrl: string;
@@ -70,7 +71,10 @@ export async function syncContributorsFromDirectory(
 
   // Fetch all-time directory data
   const allTimeResult = await fetchPages(config, 'all', maxContributors);
-  const contributors = allTimeResult.items;
+  // Discourse directory pagination can repeat boundary users while activity is
+  // changing. PostgreSQL rejects an INSERT ... ON CONFLICT batch when the same
+  // (tenant_id, username) appears twice, so collapse the batch before writing.
+  const contributors = dedupeDirectoryItems(allTimeResult.items);
   const totalForum = allTimeResult.totalCount;
 
   console.log(`[ContributorSync] Fetched ${contributors.length} all-time contributors (total forum: ${totalForum})`);
@@ -80,7 +84,7 @@ export async function syncContributorsFromDirectory(
   try {
     const monthlyResult = await fetchPages(config, 'monthly', maxContributors);
     monthlyMap = new Map<string, DirectoryItem>();
-    for (const item of monthlyResult.items) {
+    for (const item of dedupeDirectoryItems(monthlyResult.items)) {
       monthlyMap.set(item.username, item);
     }
     console.log(`[ContributorSync] Fetched ${monthlyResult.items.length} monthly contributors`);
@@ -93,7 +97,7 @@ export async function syncContributorsFromDirectory(
   try {
     const weeklyResult = await fetchPages(config, 'weekly', maxContributors);
     weeklyMap = new Map<string, DirectoryItem>();
-    for (const item of weeklyResult.items) {
+    for (const item of dedupeDirectoryItems(weeklyResult.items)) {
       weeklyMap.set(item.username, item);
     }
     console.log(`[ContributorSync] Fetched ${weeklyResult.items.length} weekly contributors`);
@@ -106,7 +110,7 @@ export async function syncContributorsFromDirectory(
   try {
     const yearlyResult = await fetchPages(config, 'yearly', maxContributors);
     yearlyMap = new Map<string, DirectoryItem>();
-    for (const item of yearlyResult.items) {
+    for (const item of dedupeDirectoryItems(yearlyResult.items)) {
       yearlyMap.set(item.username, item);
     }
     console.log(`[ContributorSync] Fetched ${yearlyResult.items.length} yearly contributors`);
