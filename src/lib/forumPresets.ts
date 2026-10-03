@@ -2,6 +2,11 @@
  * Forum directory organized by three verticals: Crypto, AI, Open Source
  */
 
+export type SignalLane = 'funding' | 'opportunities' | 'governance' | 'research';
+export type SignalSurface =
+  | { lane: SignalLane; type: 'category'; id: number; slug: string; parentSlug?: string; priority?: 1 | 2 | 3 }
+  | { lane: SignalLane; type: 'tag'; slug: string; tagId?: number; priority?: 1 | 2 | 3 };
+
 export interface ForumPreset {
   name: string;
   url: string;
@@ -23,6 +28,9 @@ export interface ForumPreset {
    * empty feed at /c/{slug}/{id}.rss. See categoryFeedUrl in grantsScan.ts.
    */
   grantsCategories?: Array<{ id: number; slug: string; parentSlug?: string }>;
+  /** High-signal source surfaces. grantsCategories remain supported and are
+   * migrated to funding/category surfaces by getSignalSurfaces(). */
+  signalSurfaces?: SignalSurface[];
 }
 
 export interface ForumCategory {
@@ -227,6 +235,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         description: 'NEAR Digital Collective governance; House of Stake',
         token: 'NEAR',
         logoUrl: 'https://assets.coingecko.com/coins/images/10365/small/near.jpg',
+        signalSurfaces: [{ lane: 'funding', type: 'tag', slug: 'request-for-grant', priority: 1 }],
         tier: 1,
       },
       {
@@ -460,6 +469,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         description: 'MEV protection and batch auctions; Grants Council',
         token: 'COW',
         logoUrl: 'https://assets.coingecko.com/coins/images/24384/small/cow.png',
+        signalSurfaces: [{ lane: 'opportunities', type: 'tag', slug: 'rfp', priority: 1 }],
         tier: 1,
       },
       {
@@ -2702,4 +2712,20 @@ export function searchForums(query: string): ForumPreset[] {
       forum.description?.toLowerCase().includes(lowerQuery) ||
       forum.token?.toLowerCase().includes(lowerQuery)
   );
+}
+
+
+/** Normalized intelligence surfaces for a forum. Legacy grantsCategories are
+ * automatically exposed as funding/category surfaces during migration. */
+export function getSignalSurfaces(preset: ForumPreset): SignalSurface[] {
+  const explicit = preset.signalSurfaces ?? [];
+  const legacy: SignalSurface[] = (preset.grantsCategories ?? []).map(cat => ({
+    lane: 'funding' as const, type: 'category' as const, ...cat, priority: 1 as const,
+  }));
+  const key = (s: SignalSurface) => s.type === 'category'
+    ? `${s.lane}:category:${s.id}`
+    : `${s.lane}:tag:${s.tagId ?? s.slug}`;
+  const merged = new Map<string, SignalSurface>();
+  for (const surface of [...legacy, ...explicit]) merged.set(key(surface), surface);
+  return [...merged.values()];
 }
