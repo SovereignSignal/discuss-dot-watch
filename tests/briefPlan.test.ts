@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planBrief, displayProtocol, formatDailyBriefText, summaryLines } from '@/lib/dailyBrief';
+import { planBrief, displayProtocol, formatDailyBriefText, summaryLines, shouldSummarize } from '@/lib/dailyBrief';
 import { correctGrantKind } from '@/lib/grantsClassifier';
 import type { BriefItemRow } from '@/lib/grantsStore';
 
@@ -135,4 +135,17 @@ test('summary lines tag each item with its kind so a report never reads as an op
     '[Arbitrum] [Final Report] T3tris.finance (Milestone report; 25,000 USD)',
     '[Zcash] 2 new grant applications (Application)',
   ]);
+});
+
+test('the summary threshold counts items, not folded lines', () => {
+  // 2026-10-03: one RFP + two Zcash applications folded to 2 lines, and the
+  // brief went out with no summary at all.
+  const plan = planBrief([], [
+    row({ protocol: 'EA Forum', kind: 'rfp' }),
+    row({ protocol: 'Zcash', kind: 'application', amount_max: '10000' }),
+    row({ protocol: 'Zcash', kind: 'application', amount_max: '24000' }),
+  ]);
+  assert.equal(summaryLines(plan).length, 2);
+  assert.equal(shouldSummarize(plan), true);
+  assert.equal(shouldSummarize(planBrief([], [row({ kind: 'rfp' }), row({ kind: 'rfp' })])), false);
 });
