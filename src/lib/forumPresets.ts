@@ -347,6 +347,7 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         name: 'Internet Computer',
         url: 'https://forum.dfinity.org/',
         grantsCategories: [{ id: 37, slug: 'bounties-rfps', parentSlug: 'developers' }],
+        signalSurfaces: [{ lane: 'opportunities', type: 'category', id: 28, slug: 'jobs', parentSlug: 'developers', priority: 1 }],
         description: 'NNS governance and canister smart contracts',
         token: 'ICP',
         tier: 2,
@@ -429,6 +430,10 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Radworks',
         url: 'https://community.radworks.org/',
+        grantsCategories: [
+          { id: 24, slug: 'grants' },
+          { id: 41, slug: 'new-grant-applications', parentSlug: 'grants' },
+        ],
         description: 'Decentralized code collaboration',
         token: 'RAD',
         logoUrl: 'https://assets.coingecko.com/coins/images/14013/small/radicle.png',
