@@ -37,6 +37,7 @@ export async function initializeCorpusSchema(): Promise<void> {
       last_attempt_at TIMESTAMPTZ, fetch_status TEXT NOT NULL DEFAULT 'pending',
       last_error TEXT, truncated BOOLEAN NOT NULL DEFAULT false,
       search_hidden BOOLEAN NOT NULL DEFAULT false,
+      source_closed BOOLEAN NOT NULL DEFAULT false, source_archived BOOLEAN NOT NULL DEFAULT false,
       origin TEXT NOT NULL DEFAULT 'backfill' CHECK (origin = 'backfill'),
       notify BOOLEAN NOT NULL DEFAULT false CHECK (notify = false),
       search_vector TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', title || ' ' || body_text)) STORED
@@ -82,8 +83,9 @@ export async function pauseCorpusJob(id: string): Promise<void> {
 export async function resumeCorpusJob(id: string): Promise<void> {
   const db = getDb();
   await db.begin(async tx => {
-    const rows = await tx`SELECT id FROM corpus_jobs WHERE id = ${id} AND status IN ('paused','failed','partial') FOR UPDATE`;
+    const rows = await tx`SELECT id, retry_at FROM corpus_jobs WHERE id = ${id} AND status IN ('paused','failed','partial') FOR UPDATE`;
     if (!rows.length) throw new CorpusError('job_not_resumable');
+    if (rows[0].retry_at && new Date(rows[0].retry_at).getTime() > Date.now()) throw new CorpusError('retry_not_due');
     await tx`UPDATE corpus_job_topics SET status = 'pending', error = NULL WHERE job_id = ${id} AND status = 'failed'`;
     await tx`UPDATE corpus_jobs SET status = 'pending', retry_at = NULL, lease_token = NULL, lease_until = NULL, updated_at = now() WHERE id = ${id}`;
   });
