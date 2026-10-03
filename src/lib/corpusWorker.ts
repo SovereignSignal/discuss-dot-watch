@@ -98,6 +98,7 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
             await tx`UPDATE topic_documents SET source_post_id = ${doc.sourcePostId}, title = ${doc.topic.title}, tags = ${doc.topic.tags},
               body_text = ${doc.bodyText}, content_hash = ${doc.contentHash}, source_updated_at = ${doc.sourceUpdatedAt},
               fetched_at = now(), last_attempt_at = now(), fetch_status = 'fetched', last_error = NULL,
+              source_closed = ${doc.topic.closed}, source_archived = ${doc.topic.archived},
               truncated = ${doc.truncated}, search_hidden = false WHERE topic_id = ${row.topic_id}`;
             await tx`UPDATE corpus_job_topics SET status = 'fetched', error = NULL WHERE job_id = ${id} AND topic_id = ${row.topic_id}`;
             await tx`UPDATE corpus_jobs SET lease_until = now() + interval '3 minutes', updated_at = now() WHERE id = ${id}`;
