@@ -76,3 +76,22 @@ test('historical classification stays review-only and does not assume availabili
   assert.equal(result.availability, 'unknown');
   assert.equal(result.actionable, false);
 });
+
+
+test('corpus opportunity fields stay grounded in the quoted evidence', () => {
+  const inferred = validateCorpusExtraction(
+    { ...output, engagement: 'full_time', evidence: 'We are hiring a dedicated security engineer.' },
+    { ...input, body: 'We are hiring a dedicated security engineer.' },
+    Date.parse(asOf),
+  );
+  assert.equal(inferred.paidEvidence, true);
+  assert.equal(inferred.engagement, null);
+
+  const vague = validateCorpusExtraction(
+    { ...output, paidEvidence: true, evidence: 'We are looking for contributors.' },
+    { ...input, body: 'We are looking for contributors.' },
+    Date.parse(asOf),
+  );
+  assert.equal(vague.paidEvidence, false);
+  assert.equal(vague.actionable, false);
+});
