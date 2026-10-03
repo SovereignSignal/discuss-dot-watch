@@ -216,9 +216,17 @@ export function summaryLines(plan: BriefPlan): string[] {
   ].slice(0, 20);
 }
 
+/** Summarize when the brief carries at least 3 ITEMS. Counting lines broke
+ *  when #61 folded applications: on 2026-10-03 an RFP plus two Zcash
+ *  applications became 2 lines and the email went out with no summary. */
+export function shouldSummarize(plan: BriefPlan): boolean {
+  const items = [...plan.roles, ...plan.highlights, ...plan.rest].reduce((n, e) => n + e.items.length, 0);
+  return items >= 3;
+}
+
 async function generateSummary(plan: BriefPlan): Promise<string | null> {
+  if (!shouldSummarize(plan)) return null;
   const lines = summaryLines(plan);
-  if (lines.length < 3) return null; // too little signal to be worth a summary
 
   return generateText({
     maxTokens: 250,
