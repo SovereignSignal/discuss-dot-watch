@@ -8,7 +8,7 @@ import type postgres from 'postgres';
  * Keep this compatibility augmentation until the pinned package includes it.
  */
 declare module 'postgres' {
-  interface TransactionSql<TTypes extends Record<string, unknown> = {}> {
+  interface TransactionSql<TTypes extends Record<string, unknown>> {
     <T extends readonly (object | undefined)[] = postgres.Row[]>(
       template: TemplateStringsArray,
       ...parameters: readonly postgres.ParameterOrFragment<TTypes[keyof TTypes]>[]
