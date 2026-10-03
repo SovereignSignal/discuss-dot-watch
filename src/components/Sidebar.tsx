@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper, Landmark } from 'lucide-react';
+import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper, Landmark, BriefcaseBusiness } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
@@ -9,8 +9,8 @@ import { useTenantRoles } from '@/hooks/useTenantRoles';
 type Density = 'compact' | 'standard' | 'cozy';
 
 interface SidebarProps {
-  activeView: 'feed' | 'briefs' | 'projects' | 'saved' | 'settings';
-  onViewChange: (view: 'feed' | 'briefs' | 'projects' | 'saved' | 'settings') => void;
+  activeView: 'feed' | 'briefs' | 'opportunities' | 'projects' | 'saved' | 'settings';
+  onViewChange: (view: 'feed' | 'briefs' | 'opportunities' | 'projects' | 'saved' | 'settings') => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   density?: Density;
@@ -29,6 +29,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
   const navItems: Array<{ id: typeof activeView | 'governance'; label: string; icon: LucideIcon; count?: number; href?: string }> = [
     { id: 'feed', label: 'Feed', icon: LayoutGrid },
     { id: 'briefs', label: 'Briefs', icon: Newspaper },
+    { id: 'opportunities', label: 'Opportunities', icon: BriefcaseBusiness },
     { id: 'projects', label: 'Communities', icon: FolderOpen },
     { id: 'governance', label: 'Governance', icon: Landmark, href: '/governance' },
     { id: 'saved', label: 'Saved', icon: Bookmark, count: savedCount },

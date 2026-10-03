@@ -1,7 +1,7 @@
 /**
  * Grants classifier — one model call per candidate topic that both
  * classifies (GRANT / ROLE / NEWS / NOISE — GRANT/NEWS/NOISE mirror the
- * Grant Wire Refinery's taxonomy; ROLE covers paid governance positions)
+ * Grant Wire Refinery's taxonomy; ROLE covers actionable paid work opportunities)
  * and extracts structured fields (program, amounts, deadline, status).
  * Schema-forced output via the LLM provider layer (lib/llm.ts): a forced
  * tool call on Anthropic, native JSON-schema format on Ollama Cloud.
@@ -125,8 +125,8 @@ const CLASSIFY_SCHEMA: Record<string, unknown> = {
       },
       kind: {
         type: 'string',
-        enum: ['program_launch', 'rfp', 'application', 'milestone_report', 'budget_debate', 'retro_round', 'council_seat', 'steward', 'working_group', 'election', 'delegate_incentive', 'service_provider', 'other'],
-        description: 'The kind of item. For GRANT items use the funding kinds ("application" = an individual grant application seeking funds). For ROLE items use the role kinds: council_seat, steward, working_group, election, delegate_incentive, service_provider.',
+        enum: ['program_launch', 'rfp', 'application', 'milestone_report', 'budget_debate', 'retro_round', 'full_time', 'part_time', 'contract', 'fractional', 'consulting', 'internship', 'fellowship', 'residency', 'bounty', 'council_seat', 'steward', 'working_group', 'election', 'delegate_incentive', 'service_provider', 'other'],
+        description: 'The kind of item. For GRANT items use funding kinds. For ROLE items classify the work arrangement when clear: full_time, part_time, contract, fractional, consulting, internship, fellowship, residency, bounty; otherwise governance-specific kinds such as council_seat, steward, working_group, election, delegate_incentive, service_provider.',
       },
       confidence: { type: 'integer', minimum: 0, maximum: 100, description: 'Confidence in the classification.' },
       program: { type: ['string', 'null'], description: 'Program or role name if identifiable, e.g. "Optimism Grants Council Season 8"; for ROLE items, the position + body, e.g. "ENS MetaGov Steward".' },
@@ -165,7 +165,7 @@ export async function classifyGrantsCandidate(
       schema: CLASSIFY_SCHEMA,
       toolName: CLASSIFY_TOOL_NAME,
       toolDescription: CLASSIFY_TOOL_DESCRIPTION,
-      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = a paid position or seat with a currently open (or announced) application/nomination/election window someone could act on now (elections, council seats, steward nominations, delegate incentive enrollment, service-provider mandates). A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. An individual's own accountability/reporting thread under a program (e.g. "<name> Delegate Thread", voting-rationale threads) is that person reporting their work — NEWS or NOISE, never ROLE. A record of what already happened (meeting minutes, recaps, retrospectives, feedback threads about a finished process) is NEWS, however much grant vocabulary it contains. An organization announcing money it has raised for itself (a VC round, a treasury top-up) is NEWS — a grant is money someone else can apply for. If the posting is months old, its application/nomination window has almost certainly passed: classify NEWS with status "closed" unless the text states a still-future deadline. Today is ${today}.
+      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = any actionable compensated work opportunity with a currently open or announced path to apply/participate: full-time or part-time employment, contracts, consulting/fractional work, internships, fellowships/residencies, paid bounties, elections, council seats, steward nominations, delegate programs, or service-provider mandates. A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. An individual's own accountability/reporting thread under a program (e.g. "<name> Delegate Thread", voting-rationale threads) is that person reporting their work — NEWS or NOISE, never ROLE. A record of what already happened (meeting minutes, recaps, retrospectives, feedback threads about a finished process) is NEWS, however much grant vocabulary it contains. An organization announcing money it has raised for itself (a VC round, a treasury top-up) is NEWS — a grant is money someone else can apply for. If the posting is months old, its application/nomination window has almost certainly passed: classify NEWS with status "closed" unless the text states a still-future deadline. Today is ${today}.
 
 Forum: ${input.protocol} (${input.vertical})
 Selected because: ${input.signal}

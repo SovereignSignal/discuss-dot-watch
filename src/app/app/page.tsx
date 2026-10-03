@@ -30,6 +30,7 @@ import { useFeedFilters, normalizeForumUrl } from '@/hooks/useFeedFilters';
 import { c } from '@/lib/theme';
 import { DiscussionReader } from '@/components/DiscussionReader';
 import { DigestView } from '@/components/DigestView';
+import { OpportunitiesView } from '@/components/OpportunitiesView';
 import { SavedView } from '@/components/SavedView';
 import { SettingsView } from '@/components/SettingsView';
 
@@ -50,7 +51,7 @@ const ALL_FORUMS_LIST = FORUM_CATEGORIES.flatMap(cat =>
 const SERVER_FORUM_URLS = new Set(ALL_FORUMS_LIST.map(f => f.value));
 
 export default function AppPage() {
-  const [activeView, setActiveView] = useState<'feed' | 'briefs' | 'projects' | 'saved' | 'settings'>('feed');
+  const [activeView, setActiveView] = useState<'feed' | 'briefs' | 'opportunities' | 'projects' | 'saved' | 'settings'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'your'>('all');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -570,6 +571,8 @@ export default function AppPage() {
                   )}
                 </>
               )}
+
+              {activeView === 'opportunities' && <OpportunitiesView />}
 
               {activeView === 'projects' && (
                 <div className="flex-1 overflow-y-auto">
