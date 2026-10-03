@@ -94,12 +94,10 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         url: 'https://research.rsk.dev/',
         tier: 2,
       },
-      {
-        name: 'Moonbeam',
-        url: 'https://forum.moonbeam.network/',
-        grantsCategories: [{ id: 7, slug: 'grant-proposals', parentSlug: 'governance' }, { id: 8, slug: 'treasury-proposals', parentSlug: 'governance' }],
-        tier: 2,
-      },
+      // Moonbeam forum was archived in 2026 and now serves an HTML archive
+      // shell instead of the anonymous Discourse JSON API. Historical data
+      // remains in Postgres; current community discussion moved to Discord.
+
       {
         name: 'Regen Network',
         url: 'https://forum.regen.network/',
