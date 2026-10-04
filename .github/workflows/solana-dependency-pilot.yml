@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,3 +42,14 @@ jobs:
           path: package-lock.json
       - name: Realms module import smoke
         run: node --import tsx -e "import('./src/lib/realmsClient.ts').then(m=>{const api=m.getRealmsDao?m:m.default;if(!api?.getRealmsDao('pyth'))process.exit(1); console.log('REALMS_IMPORT_OK')})"
+      - name: Export credential-free review workspace
+        run: |
+          git ls-files -z | tar --null -T - -cf /tmp/review-source.tar
+          tar -czf /tmp/review-dependencies.tar.gz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-review-${{ github.run_id }}
+          path: |
+            /tmp/review-source.tar
+            /tmp/review-dependencies.tar.gz
+          retention-days: 1
