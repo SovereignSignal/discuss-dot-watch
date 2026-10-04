@@ -1,0 +1,39 @@
+name: Solana dependency pilot
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/lib/realmsClient.ts'
+      - '.github/workflows/solana-dependency-pilot.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm i -g npm@11
+      - name: Resolve pilot dependency graph
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Install resolved graph
+        run: npm ci
+      - name: Verify targeted versions
+        run: |
+          npm ls @solana/web3.js jayson uuid stream-json
+          node -e "const l=require('./package-lock.json'); const p=l.packages; const j=p['node_modules/jayson']; const u=p['node_modules/jayson/node_modules/uuid']||p['node_modules/uuid']; const s=p['node_modules/jayson/node_modules/stream-json']||p['node_modules/stream-json']; console.log(JSON.stringify({jayson:j?.version,uuid:u?.version,streamJson:s?.version})); if(!u||Number(u.version.split('.')[0])<11||!s||Number(s.version.split('.')[1])<5) process.exit(1)"
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Production audit
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: Realms module import smoke
+        run: node --import tsx -e "import('./src/lib/realmsClient.ts').then(m=>{if(!m.getRealmsDao('pyth'))process.exit(1); console.log('REALMS_IMPORT_OK')})"
