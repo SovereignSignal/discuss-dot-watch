@@ -4,6 +4,7 @@ import { getDb, initializeSchema } from '../src/lib/db';
 import { initializeCorpusSchema, startCorpusJob, pauseCorpusJob, resumeCorpusJob, searchCorpus, corpusStatus } from '../src/lib/corpusStore';
 import { runCorpusTick, type CorpusFetch } from '../src/lib/corpusWorker';
 import { classifyCorpusTopic, validateCorpusExtraction } from '../src/lib/corpusClassifier';
+import { initializeCorpusPromotionSchema, promoteCorpusTopic, withdrawCorpusPromotion } from '../src/lib/corpusPromotion';
 import { PILOT_SOURCES } from '../src/lib/corpusPolicy';
 
 // Dedicated ephemeral CI database only. Never set this variable to a production URL.
@@ -15,6 +16,8 @@ test('corpus PostgreSQL pilot: checkpoint, replay, search, leases, independent l
   await initializeSchema();
   await initializeCorpusSchema();
   await initializeCorpusSchema();
+  await initializeCorpusPromotionSchema();
+  await initializeCorpusPromotionSchema();
   const db = getDb();
   for (const s of PILOT_SOURCES) await db`INSERT INTO forums (url, name, category, tier) VALUES (${s.origin + '/'}, ${s.name}, 'crypto', 2) ON CONFLICT (url) DO NOTHING`;
   const asOf = new Date().toISOString();
@@ -70,6 +73,22 @@ test('corpus PostgreSQL pilot: checkpoint, replay, search, leases, independent l
   assert.equal(modelCalls, 2);
   const classified = (await searchCorpus('hiring', 'internet-computer')).items[0];
   assert.equal(classified.classifications.length, 2);
+  const promoted = await promoteCorpusTopic(work.topicId, 'opportunities');
+  assert.equal(promoted.promoted, true);
+  assert.equal(promoted.classification, 'ROLE');
+  assert.equal(promoted.kind, 'contract');
+  const liveRows = await db`SELECT topic_ref_id, classification, kind, status, notified_at FROM grants_items WHERE topic_ref_id = ${promoted.grantsRefId}`;
+  assert.equal(liveRows.length, 1);
+  assert.equal(liveRows[0].classification, 'ROLE');
+  assert.equal(liveRows[0].kind, 'contract');
+  assert.equal(liveRows[0].status, 'open');
+  assert.ok(liveRows[0].notified_at);
+  await assert.rejects(() => promoteCorpusTopic(work.topicId, 'funding'), /classification_not_promotable/);
+  const replayPromotion = await promoteCorpusTopic(work.topicId, 'opportunities');
+  assert.equal(replayPromotion.grantsRefId, promoted.grantsRefId);
+  assert.equal(Number((await db`SELECT count(*)::int AS n FROM grants_items WHERE topic_ref_id = ${promoted.grantsRefId}`)[0].n), 1);
+  await withdrawCorpusPromotion(work.topicId, 'opportunities');
+  assert.equal((await db`SELECT status FROM grants_items WHERE topic_ref_id = ${promoted.grantsRefId}`)[0].status, 'closed');
   const notify = await db`SELECT count(*)::int AS n FROM topic_documents WHERE notify = true`;
   assert.equal(notify[0].n, 0);
   const original = (await db`SELECT fetched_at, content_hash FROM topic_documents WHERE topic_id = ${result.items[0].topicId}`)[0];
@@ -102,5 +121,5 @@ test('corpus PostgreSQL pilot: checkpoint, replay, search, leases, independent l
   await runCorpusTick(emptyJob, async () => ({ topic_list: { topics: [old], more_topics_url: '/latest.json?page=1' } }));
   await runCorpusTick(emptyJob, fetch);
   assert.equal((await corpusStatus()).jobs.find(j => j.id === emptyJob)?.status, 'complete');
-  console.log('CORPUS_INTEGRATION_PROOF ' + JSON.stringify({ bodyOnlySearch: true, duplicateFreeReplay: true, leaseRecovery: true, independentLaneRows: 2, notifications: 0, deletionFreshnessPreserved: true }));
+  console.log('CORPUS_INTEGRATION_PROOF ' + JSON.stringify({ bodyOnlySearch: true, duplicateFreeReplay: true, leaseRecovery: true, independentLaneRows: 2, controlledPromotion: true, historicalEmailSuppression: true, notifications: 0, deletionFreshnessPreserved: true }));
 });
