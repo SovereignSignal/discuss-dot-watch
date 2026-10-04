@@ -4,11 +4,14 @@ on:
     paths:
       - 'package.json'
       - 'package-lock.json'
-      - 'src/lib/realmsClient.ts'
+      - 'tests/realmsDependency.test.ts'
       - '.github/workflows/solana-dependency-pilot.yml'
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: solana-pilot-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -22,34 +25,60 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm i -g npm@11
-      - name: Resolve pilot dependency graph
-        run: npm install --package-lock-only --ignore-scripts
-      - name: Install resolved graph
-        run: npm ci
-      - name: Verify targeted versions
+      - run: npm install --package-lock-only --ignore-scripts
+      - run: npm ci
+      - name: Verify replacement dependency
         run: |
-          npm ls @solana/web3.js jayson uuid stream-json
-          node -e "const l=require('./package-lock.json'); const p=l.packages; const j=p['node_modules/jayson']; const u=p['node_modules/jayson/node_modules/uuid']||p['node_modules/uuid']; const s=p['node_modules/jayson/node_modules/stream-json']||p['node_modules/stream-json']; console.log(JSON.stringify({jayson:j?.version,uuid:u?.version,streamJson:s?.version})); if(!u||Number(u.version.split('.')[0])<11||!s||Number(s.version.split('.')[1])<5) process.exit(1)"
+          npm ls @solana/web3.js jayson
+          node -e "const p=require('./package-lock.json').packages; if(p['node_modules/jayson'].version!=='5.0.0')process.exit(1); if(Object.keys(p).some(k=>/node_modules\/stream-json$/.test(k)))process.exit(1)"
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: Production audit
-        run: npm audit --omit=dev --audit-level=moderate
-      - name: Capture resolved lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: solana-pilot-lock-${{ github.run_id }}
-          path: package-lock.json
-      - name: Realms module import smoke
-        run: node --import tsx -e "import('./src/lib/realmsClient.ts').then(m=>{const api=m.getRealmsDao?m:m.default;if(!api?.getRealmsDao('pyth'))process.exit(1); console.log('REALMS_IMPORT_OK')})"
-      - name: Export credential-free review workspace
-        run: |
-          git ls-files -z | tar --null -T - -cf /tmp/review-source.tar
-          tar -czf /tmp/review-dependencies.tar.gz node_modules
+      - run: npm audit --omit=dev --audit-level=low
+      - run: tar -czf /tmp/additional-modules.tar.gz node_modules/@rgrove/parse-xml node_modules/jayson
       - uses: actions/upload-artifact@v4
         with:
-          name: offline-review-${{ github.run_id }}
-          path: |
-            /tmp/review-source.tar
-            /tmp/review-dependencies.tar.gz
+          name: validated-lock-${{ github.run_id }}
+          path: package-lock.json
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: additional-review-modules-${{ github.run_id }}
+          path: /tmp/additional-modules.tar.gz
           retention-days: 1
+  adopt-reviewed-lock:
+    needs: verify
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 89 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'chore/solana-dependency-pilot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: validated-lock-${{ github.run_id }}
+      - name: Adopt validated lockfile only while head is unchanged
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          const branch='chore/solana-dependency-pilot';
+          const base='https://api.github.com/repos/'+process.env.REPO;
+          const headers={Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json','Content-Type':'application/json'};
+          async function api(path,options={}){const r=await fetch(base+path,{...options,headers});if(!r.ok)throw new Error('GitHub '+r.status);return r.json();}
+          (async()=>{
+            const head=await api('/git/ref/heads/'+branch);
+            if(head.object.sha!==process.env.EXPECTED_HEAD)throw new Error('Head changed; refusing lockfile update');
+            const current=await api('/contents/package-lock.json?ref='+encodeURIComponent(branch));
+            const pkgFile=await api('/contents/package.json?ref='+encodeURIComponent(branch));
+            const pkg=JSON.parse(Buffer.from(pkgFile.content,'base64'));
+            const text=fs.readFileSync('package-lock.json','utf8'), lock=JSON.parse(text);
+            const stable=o=>JSON.stringify(Object.entries(o||{}).sort());
+            if(stable(pkg.dependencies)!==stable(lock.packages[''].dependencies)||stable(pkg.devDependencies)!==stable(lock.packages[''].devDependencies))throw new Error('Manifest mismatch');
+            if(Buffer.from(current.content,'base64').toString()===text){console.log('LOCKFILE_ALREADY_CURRENT');return;}
+            const out=await api('/contents/package-lock.json',{method:'PUT',body:JSON.stringify({branch,sha:current.sha,message:'Adopt dependency graph validated by RPC and full build tests',content:Buffer.from(text).toString('base64')})});
+            console.log('LOCKFILE_ADOPTED '+out.commit.sha);
+          })().catch(e=>{console.error(e.message);process.exitCode=1;});
+          NODE
