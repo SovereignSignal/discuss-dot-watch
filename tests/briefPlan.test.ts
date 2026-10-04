@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planBrief, displayProtocol, formatDailyBriefText, summaryLines, shouldSummarize } from '@/lib/dailyBrief';
+import { planBrief, displayProtocol, formatDailyBriefText, summaryLines, shouldSummarize, guardBriefSummary } from '@/lib/dailyBrief';
 import { correctGrantKind } from '@/lib/grantsClassifier';
 import type { BriefItemRow } from '@/lib/grantsStore';
 
@@ -148,4 +148,13 @@ test('the summary threshold counts items, not folded lines', () => {
   assert.equal(summaryLines(plan).length, 2);
   assert.equal(shouldSummarize(plan), true);
   assert.equal(shouldSummarize(planBrief([], [row({ kind: 'rfp' }), row({ kind: 'rfp' })])), false);
+});
+
+
+test('summary cannot claim nothing actionable when roles exist', () => {
+  const plan = planBrief([
+    row({ protocol: 'n8n', title: 'Hiring automation engineer', program: 'Automation Engineer', kind: 'contract' }),
+  ], []);
+  const guarded = guardBriefSummary(plan, 'Nothing actionable today; these are only third-party job postings.');
+  assert.match(guarded || '', /Actionable paid work today includes Automation Engineer \(n8n\)\./);
 });
