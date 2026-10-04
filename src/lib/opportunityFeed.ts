@@ -21,7 +21,6 @@ export function parseOpportunityQuery(params: URLSearchParams): OpportunityQuery
   if (wire && !['crypto','ai','oss'].includes(wire)) throw new OpportunityQueryError('Invalid wire');
   if (kind && !KINDS.has(kind)) throw new OpportunityQueryError('Invalid kind');
   if (sort !== 'recent' && sort !== 'fit') throw new OpportunityQueryError('Invalid sort');
-  // The fit view is explicitly a bounded shortlist. Recent mode is the exhaustive paginated view.
   if (sort === 'fit' && cursor !== undefined) throw new OpportunityQueryError('Fit shortlist has no cursor; use recent mode for pagination');
   return {limit,cursor,wire: wire as OpportunityQuery['wire'],kind,sort};
 }
@@ -31,7 +30,6 @@ export function eligibleOpportunity(row: GrantsItemRow, now = Date.now()): Grant
   if (isJobSeekerTitle(row.title) || isCandidateOrFilledTitle(row.title)) return null;
   if (['closed','awarded','paused','withdrawn','completed'].includes(row.status || '')) return null;
   const deadline = row.deadline ? new Date(row.deadline).getTime() : null;
-  // Extracted calendar deadlines remain available through the stated UTC day.
   if (deadline !== null && Number.isFinite(deadline) && deadline + 86400000 <= now) return null;
   const created = row.topic_created_at ? new Date(row.topic_created_at).getTime() : null;
   if (created !== null && (created > now || (created < now - 90 * 86400000 && (deadline === null || deadline < now)))) return null;
@@ -54,7 +52,6 @@ export function buildOpportunityPage(raw: GrantsItemRow[], q: OpportunityQuery, 
   if (q.sort === 'fit') eligible.sort((a,b) => compareFit(a,b,now));
   const selected = eligible.slice(0,q.limit);
   const moreInWindow = eligible.length > selected.length;
-  // Cursor follows the last EMITTED row, never the last prefetched row.
   const nextCursor = q.sort === 'recent' && (moreInWindow || capped)
     ? (selected.at(-1)?.id ?? window.at(-1)?.id ?? null) : null;
   return {
@@ -77,12 +74,22 @@ export function buildOpportunityPage(raw: GrantsItemRow[], q: OpportunityQuery, 
 
 export async function queryOpportunityFeed(q: OpportunityQuery) {
   const db = getDb();
+  // Apply canonical duplicate suppression before the cursor. A reviewed row or
+  // newer closure supersedes the older copy on every page, not just page one.
   const rows = await db`
     SELECT id,topic_ref_id,forum_url,protocol,vertical,title,url,signal,classification,kind,confidence,
       program,amount_min,amount_max,currency,deadline,chain,status,apply_url,model,replies,views,likes,
       topic_created_at,last_activity_at,first_seen_at,updated_at,LEFT(first_post_text,2000) AS first_post_text
     FROM grants_items
     WHERE classification='ROLE' AND confidence>=60
+      AND NOT EXISTS (
+        SELECT 1 FROM grants_items newer
+        WHERE newer.classification='ROLE' AND newer.confidence>=60 AND newer.id>grants_items.id
+          AND newer.vertical IS NOT DISTINCT FROM grants_items.vertical
+          AND lower(btrim(coalesce(newer.protocol,'')))=lower(btrim(coalesce(grants_items.protocol,'')))
+          AND regexp_replace(lower(btrim(newer.title)), '[[:space:]]+', ' ', 'g')
+            = regexp_replace(lower(btrim(grants_items.title)), '[[:space:]]+', ' ', 'g')
+      )
       ${q.wire ? db`AND vertical=${q.wire}` : db``}
       ${q.cursor !== undefined ? db`AND id<${q.cursor}` : db``}
     ORDER BY id DESC LIMIT ${CANDIDATE_LIMIT + 1}
