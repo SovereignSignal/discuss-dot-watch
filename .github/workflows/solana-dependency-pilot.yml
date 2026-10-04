@@ -36,4 +36,4 @@ jobs:
       - name: Production audit
         run: npm audit --omit=dev --audit-level=moderate
       - name: Realms module import smoke
-        run: node --import tsx -e "import('./src/lib/realmsClient.ts').then(m=>{if(!m.getRealmsDao('pyth'))process.exit(1); console.log('REALMS_IMPORT_OK')})"
+        run: node --import tsx -e "import('./src/lib/realmsClient.ts').then(m=>{const api=m.getRealmsDao?m:m.default;if(!api?.getRealmsDao('pyth'))process.exit(1); console.log('REALMS_IMPORT_OK')})"
