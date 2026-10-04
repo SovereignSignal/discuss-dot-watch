@@ -35,5 +35,10 @@ jobs:
       - run: npm run build
       - name: Production audit
         run: npm audit --omit=dev --audit-level=moderate
+      - name: Capture resolved lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: solana-pilot-lock-${{ github.run_id }}
+          path: package-lock.json
       - name: Realms module import smoke
         run: node --import tsx -e "import('./src/lib/realmsClient.ts').then(m=>{const api=m.getRealmsDao?m:m.default;if(!api?.getRealmsDao('pyth'))process.exit(1); console.log('REALMS_IMPORT_OK')})"
