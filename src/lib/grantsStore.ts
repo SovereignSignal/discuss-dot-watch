@@ -94,7 +94,7 @@ export async function getGrantChipRows(limit = 2000): Promise<GrantChipRow[]> {
     FROM grants_items WHERE classification IN ('GRANT','ROLE') AND confidence>=60
       AND (status IS DISTINCT FROM 'closed') ORDER BY id DESC LIMIT ${limit}
   `;
-  return rows.filter(r => r.classification !== 'ROLE' || (!isJobSeekerTitle(r.title) && !isCandidateOrFilledTitle(r.title)))
+  return rows.filter(r => r.classification !== 'ROLE' || (!isJobSeekerTitle(r.title) && !isCandidateOrFilledTitle(r.title,r.first_post_text || '')))
     .map(r => ({...r,kind:r.classification === 'ROLE' ? supportedRoleKind(r.title,r.first_post_text || '',r.kind) : r.kind})) as unknown as GrantChipRow[];
 }
 

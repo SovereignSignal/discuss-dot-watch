@@ -1,6 +1,7 @@
 /** Generic, deterministic attention profile. No personal data and no model calls.
  * This score is preference fit, never classifier confidence or proof of eligibility.
  */
+import {isImminentDeadline, roleContentExclusion} from './opportunityEligibility';
 export const FIT_PROFILE = 'operations-ai-v1';
 export interface FitInput { title: string; program?: string | null; first_post_text?: string | null }
 export interface OpportunityFit { profile: string; score: number; band: 'strong' | 'possible' | 'specialist'; reasons: string[]; cautions: string[] }
@@ -38,8 +39,9 @@ export function isJobSeekerTitle(title: string): boolean {
     || /^i\b.*\b(?:want to learn|need (?:an? )?internship|looking for (?:work|a job)|seeking (?:work|a role))\b/i.test(clean)
     || /^i['’]m\s+(?:looking for (?:work|a job)|available for work)\b/i.test(clean);
 }
-export function isCandidateOrFilledTitle(title: string): boolean {
-  return /\b(?:self.nomination|nomination AMA|has joined|appointment of|successor nomination)\b|^\s*feedback on election/i.test(title);
+/** Backward-compatible name; callers with stored bodies get stronger checks. */
+export function isCandidateOrFilledTitle(title: string, body=''): boolean {
+  return roleContentExclusion(title,body) !== null;
 }
 const KIND_EVIDENCE: Record<string, RegExp> = {
   full_time: /\bfull[ -]?time\b/i, part_time: /\bpart[ -]?time\b/i,
@@ -53,6 +55,6 @@ export function supportedRoleKind(title: string, body: string, kind: string | nu
   return rule && !rule.test(title + '\n' + body) ? null : kind;
 }
 export function compareFit(a: FitInput & { id: number; deadline?: Date | null }, b: FitInput & { id: number; deadline?: Date | null }, now = Date.now()): number {
-  const urgent = (x: typeof a) => x.deadline && x.deadline.getTime() >= now && x.deadline.getTime() <= now + 7 * 86400000 ? 1 : 0;
+  const urgent = (x: typeof a) => isImminentDeadline(x.deadline,now) ? 1 : 0;
   return urgent(b) - urgent(a) || scoreOpportunityFit(b).score - scoreOpportunityFit(a).score || b.id - a.id;
 }

@@ -1,0 +1,77 @@
+name: Release assurance
+on:
+  pull_request:
+    paths:
+      - 'src/lib/opportunity*.ts'
+      - 'src/lib/briefRoleSelection.ts'
+      - 'src/components/OpportunitiesView.tsx'
+      - 'scripts/release-browser-smoke.mjs'
+      - '.github/workflows/release-assurance.yml'
+      - 'package*.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-assurance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser-and-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm i -g npm@11
+      - run: npm ci
+      - name: Capture full and production-only dependency audit
+        shell: bash
+        run: |
+          mkdir -p smoke-artifacts
+          set +e
+          npm audit --json > smoke-artifacts/audit-full.json
+          full=$?
+          npm audit --omit=dev --json > smoke-artifacts/audit-production.json
+          prod=$?
+          set -e
+          node - "$full" "$prod" <<'NODE'
+          const fs=require('node:fs');
+          for(const [name,exit] of [['full',process.argv[2]],['production',process.argv[3]]]) {
+            const report=JSON.parse(fs.readFileSync(`smoke-artifacts/audit-${name}.json`,'utf8'));
+            if(!report.metadata || report.error) throw new Error('Audit registry/report failure: '+name);
+            const findings=Object.entries(report.vulnerabilities || {}).map(([name,v])=>({name,severity:v.severity,isDirect:v.isDirect,range:v.range,fixAvailable:v.fixAvailable,via:v.via,nodes:v.nodes}));
+            console.log('DEPENDENCY_AUDIT '+JSON.stringify({scope:name,exit:Number(exit),totals:report.metadata.vulnerabilities,findings}));
+          }
+          NODE
+      - run: npm run build
+      - name: Install isolated browser tooling
+        run: |
+          npm install --prefix "$RUNNER_TEMP/browser-tools" --no-save --ignore-scripts playwright@1.63.0
+          node "$RUNNER_TEMP/browser-tools/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Desktop and mobile browser regression
+        shell: bash
+        run: |
+          NEXT_PHASE=phase-production-build npm start -- --port 3000 > smoke-artifacts/server.log 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for n in $(seq 1 45); do
+            curl --silent --fail http://127.0.0.1:3000/app > /dev/null && break
+            sleep 1
+          done
+          if grep -q '\[Boot\] Background loops started' smoke-artifacts/server.log; then
+            echo 'Isolation failed: background jobs started in browser test' >&2
+            exit 1
+          fi
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser-tools/node_modules/playwright" node scripts/release-browser-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-assurance-${{ github.run_id }}
+          path: smoke-artifacts/
+          retention-days: 14

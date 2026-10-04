@@ -3,12 +3,13 @@ import { useEffect, useState } from 'react';
 import { BriefcaseBusiness, ExternalLink } from 'lucide-react';
 import { roleKindLabel } from '@/lib/roleKinds';
 import type { OpportunityFit } from '@/lib/opportunityFit';
+import type { SourceFreshness } from '@/lib/opportunityEligibility';
 
 type Opportunity = {
   id:number; title:string; organization:string|null; vertical:string|null; engagement:string;
   confidence:number; compensationMin:number|null; compensationMax:number|null; currency:string|null;
   deadline:string|null; topicCreatedAt:string|null; status:string; url:string; applyUrl:string|null;
-  fit?:OpportunityFit;
+  fit?:OpportunityFit; freshness?:SourceFreshness;
 };
 const KINDS = ['', 'full_time','part_time','contract','fractional','consulting','internship','fellowship','residency','bounty','council_seat','steward','working_group','election','service_provider','other'];
 const safeLink = (value:string|null) => {
@@ -54,9 +55,9 @@ export function OpportunitiesView() {
     const range = maximum === undefined ? minimum + '+' : minimum !== undefined && minimum !== maximum ? minimum + '–' + maximum : maximum;
     return (range + ' ' + (item.currency || '')).trim();
   };
-  return <section className="flex-1 overflow-y-auto"><div className="max-w-4xl mx-auto px-5 sm:px-6 py-6">
+  return <section className="flex-1 min-w-0 overflow-y-auto"><div className="max-w-4xl mx-auto px-5 sm:px-6 py-6">
     <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2"><BriefcaseBusiness className="w-5 h-5"/>Opportunities</h1>
-    <p className="mt-1 mb-4 text-sm" style={{color:'var(--ds-fg-muted)'}}>Paid-work signals across the source network. Check the source before applying.</p>
+    <p className="mt-1 mb-4 text-sm" style={{color:'var(--ds-fg-muted)'}}>Paid-work signals across the source network. Availability requires a source check before applying.</p>
     <label className="text-sm flex flex-wrap gap-2 items-center mb-3">Sort
       <select aria-label="Opportunity sort" value={sort} onChange={event => change(kind,event.target.value as 'recent'|'fit')} className="rounded-md border px-3 py-2" style={{background:'var(--ds-bg-elev)',borderColor:'var(--ds-border)',color:'var(--ds-fg)'}}>
         <option value="recent">Recent discoveries</option><option value="fit">Operations &amp; AI fit</option>
@@ -67,8 +68,9 @@ export function OpportunitiesView() {
     {error && <div role="alert" className="rounded-lg border p-4 mb-4" style={{borderColor:'var(--ds-border)'}}>The opportunity feed could not be loaded. {error}. <button className="underline" onClick={() => {setLoading(true);setRetry(n => n+1);}}>Retry</button></div>}
     {!loading && !error && items.length === 0 && <p className="border border-dashed rounded-lg p-8 text-center" style={{borderColor:'var(--ds-border)',color:'var(--ds-fg-muted)'}}>No matching opportunities in this result window.</p>}
     <div className="space-y-3">{items.map(item => <article key={item.id} className="rounded-lg border p-4" style={{borderColor:'var(--ds-border)',background:'var(--ds-bg-elev)'}}>
-      <a href={safeLink(item.url)} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold flex gap-2 justify-between" style={{color:'var(--ds-fg)'}}>{item.title}<ExternalLink className="w-4 h-4 shrink-0"/></a>
-      <p className="text-xs mt-2" style={{color:'var(--ds-fg-muted)'}}>{[item.organization,roleKindLabel(item.engagement),money(item),item.topicCreatedAt ? 'Posted ' + item.topicCreatedAt.slice(0,10) : 'Posting date unknown',item.deadline ? 'Deadline ' + item.deadline.slice(0,10) : null,item.status].filter(Boolean).join(' · ')}</p>
+      <a href={safeLink(item.url)} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold flex gap-2 justify-between" style={{color:'var(--ds-fg)'}}><span className="min-w-0 break-words">{item.title}</span><ExternalLink className="w-4 h-4 shrink-0"/></a>
+      <p className="text-xs mt-2" style={{color:'var(--ds-fg-muted)'}}>{[item.organization,roleKindLabel(item.engagement),money(item),item.topicCreatedAt ? 'Posted ' + item.topicCreatedAt.slice(0,10) : 'Posting date unknown',item.deadline ? 'Deadline ' + item.deadline.slice(0,10) : null,'Reported status: '+item.status+' (unverified)'].filter(Boolean).join(' · ')}</p>
+      {item.freshness?.state === 'older_source' && <p className="text-xs mt-2" style={{color:'var(--ds-fg-muted)'}}>Older source ({item.freshness.ageDays} days). Confirm that applications are still accepted.</p>}
       {sort === 'fit' && item.fit && <div className="text-xs mt-3" style={{color:'var(--ds-fg-muted)'}}><strong>{item.fit.score}/100 fit</strong> · {item.confidence}% classification confidence<p className="mt-1">{item.fit.reasons.join('; ') || 'No direct match to this attention profile.'}</p>{item.fit.cautions.length > 0 && <p className="mt-1">{item.fit.cautions.join('; ')}.</p>}</div>}
       {safeLink(item.applyUrl) && <a className="text-xs underline inline-block mt-2" href={safeLink(item.applyUrl)} target="_blank" rel="noopener noreferrer">Application link</a>}
     </article>)}</div>
