@@ -65,7 +65,7 @@ test('kind filtering occurs before the page cap', () => {
 });
 test('invalid cursor, limit, filters and ranked cursor are rejected', () => {
   for (const query of ['cursor=invalid','cursor=-1','cursor=1abc','cursor=90071992547409999','limit=0','limit=NaN','wire=unknown','kind=oops','sort=oops','sort=fit&cursor=12']) {
-    assert.throws(() => parseOpportunityQuery(new URLSearchParams(query)),undefined,query);
+    assert.throws(() => parseOpportunityQuery(new URLSearchParams(query)),/Invalid|shortlist/,query);
   }
 });
 test('calendar deadline is inclusive and stale unbounded roles are excluded', () => {
