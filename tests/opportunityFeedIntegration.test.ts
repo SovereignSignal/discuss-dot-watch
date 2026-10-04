@@ -40,3 +40,19 @@ test('PostgreSQL opportunity query, full paging and fit-ranked brief selection',
   assert.equal(untouched[0].n,0);
   console.log('OPPORTUNITY_INTEGRATION_PROOF ' + JSON.stringify({pagingComplete:true,storedSeekerExcluded:true,unsupportedKindCleared:true,fitIndependent:true,briefRanksBeforeCap:true,notificationsSent:0}));
 });
+test('canonical duplicate stays suppressed after a cursor and after closure', {skip:!testUrl}, async () => {
+  const db = getDb();
+  for (const [ref,title] of [['duplicate-old','Consulting assignment'],['different','Different paid task'],['duplicate-new','Consulting   assignment']]) {
+    await db`INSERT INTO grants_items(topic_ref_id,protocol,vertical,title,url,classification,kind,confidence,status,topic_created_at)
+      VALUES(${ref},'Duplicate integration fixture','ai',${title},${'https://example.org/' + ref},'ROLE','other',90,'open',NOW())`;
+  }
+  const first = await queryOpportunityFeed({limit:1,sort:'recent',wire:'ai'});
+  assert.equal(first.items[0].refId,'duplicate-new');
+  assert.ok(first.meta.nextCursor);
+  const second = await queryOpportunityFeed({limit:100,sort:'recent',wire:'ai',cursor:first.meta.nextCursor!});
+  assert.deepEqual(second.items.map(i => i.refId),['different']);
+  await db`UPDATE grants_items SET status='closed' WHERE topic_ref_id='duplicate-new'`;
+  const closed = await queryOpportunityFeed({limit:100,sort:'recent',wire:'ai'});
+  assert.deepEqual(closed.items.map(i => i.refId),['different']);
+  console.log('OPPORTUNITY_DEDUPE_PROOF ' + JSON.stringify({crossPageDuplicateSuppression:true,newerClosureSuppressesOldCopy:true}));
+});
