@@ -34,6 +34,7 @@ import { acquireGrantsScanLock, holdGrantsScanLock, releaseGrantsScanLock } from
 import { FORUM_CATEGORIES, ForumPreset, SignalSurface, getSignalSurfaces } from './forumPresets';
 import { fetchEAForumTaggedPosts } from './eaForumClient';
 import { safeFetch } from './safeFetch';
+import { initializeSurfaceObservabilitySchema, recordSurfaceAttempt, recordTopicSurfaceMatches, signalSurfaceKey, type SurfaceLane } from './surfaceObservability';
 
 // ── Tuning ──────────────────────────────────────────────────────────
 const MAX_CLASSIFY_PER_RUN = 120;      // classify calls per scan (backlog drains over cycles)
@@ -49,6 +50,7 @@ type Vertical = 'crypto' | 'ai' | 'oss';
 
 interface Candidate {
   refId: string;
+  provenance?: Array<{ surfaceKey: string; lane: SurfaceLane }>;
   forumUrl: string;
   protocol: string;
   vertical: Vertical;
@@ -183,12 +185,11 @@ function stripHtml(html: string): string {
 }
 
 /** Parse a Discourse RSS feed (forum /latest.rss or category .rss). */
-async function fetchDiscourseRss(feedUrl: string): Promise<RssItem[]> {
+interface RssFetchResult { items: RssItem[]; status: 'ok'|'empty'|'failed'; httpStatus: number|null; errorCode: string|null }
+async function fetchDiscourseRss(feedUrl: string): Promise<RssFetchResult> {
   try {
-    const res = await safeFetch(feedUrl, {
-      headers: { 'User-Agent': 'discuss.watch/1.0' },
-    });
-    if (!res.ok) return [];
+    const res = await safeFetch(feedUrl, { headers: { 'User-Agent': 'discuss.watch/1.0' } });
+    if (!res.ok) return { items: [], status: 'failed', httpStatus: res.status, errorCode: `http_${res.status}` };
     const xml = await res.text();
     const items: RssItem[] = [];
     const itemBlocks = xml.split('<item>').slice(1);
@@ -212,10 +213,11 @@ async function fetchDiscourseRss(feedUrl: string): Promise<RssItem[]> {
         pubDate: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : null,
       });
     }
-    return items;
+    return { items, status: items.length === 0 ? 'empty' : 'ok', httpStatus: res.status, errorCode: null };
   } catch (err) {
     console.error(`[GrantsScan] RSS fetch failed for ${feedUrl}:`, err);
-    return [];
+    const errorCode = err instanceof Error ? err.name || 'fetch_error' : 'fetch_error';
+    return { items: [], status: 'failed', httpStatus: null, errorCode };
   }
 }
 
@@ -359,8 +361,8 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
       continue;
     }
     rssFetches++;
-    const items = await fetchDiscourseRss(`${forumUrl.replace(/\/$/, '')}/latest.rss`);
-    const byId = new Map(items.map(i => [i.topicId, i]));
+    const latestResult = await fetchDiscourseRss(`${forumUrl.replace(/\/$/, '')}/latest.rss`);
+    const byId = new Map(latestResult.items.map(i => [i.topicId, i]));
     for (const cand of fresh) {
       const item = cand.topicId != null ? byId.get(cand.topicId) : undefined;
       // A candidate whose forum WAS fetched but whose topic fell outside
@@ -386,32 +388,33 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
     }
     for (const { preset, vertical, surface } of batch) {
       const base = preset.url.replace(/\/$/, '');
-      const items = await fetchDiscourseRss(signalSurfaceFeedUrl(preset.url, surface));
-      for (const item of items) {
+      const feedUrl = signalSurfaceFeedUrl(preset.url, surface);
+      const surfaceKey = signalSurfaceKey({ forumUrl: preset.url, lane: surface.lane, type: surface.type, slug: surface.slug, id: surface.type === 'category' ? surface.id : undefined, tagId: surface.type === 'tag' ? surface.tagId : undefined });
+      const result = await fetchDiscourseRss(feedUrl);
+      await recordSurfaceAttempt({
+        surfaceKey, forumUrl: preset.url, protocol: preset.name, lane: surface.lane,
+        surfaceType: surface.type, surfaceSlug: surface.slug, feedUrl,
+        status: result.status, httpStatus: result.httpStatus, parsedItems: result.items.length, errorCode: result.errorCode,
+      });
+      const matches: Array<{ topicRefId: string; surfaceKey: string; lane: SurfaceLane }> = [];
+      for (const item of result.items) {
         const refId = discourseRefId(preset.name, item.topicId);
+        matches.push({ topicRefId: refId, surfaceKey, lane: surface.lane });
         if (candidates.has(refId)) {
           const existing = candidates.get(refId)!;
           if (!existing.body) existing.body = item.body;
+          existing.provenance = [...(existing.provenance || []), { surfaceKey, lane: surface.lane }];
           continue;
         }
         candidates.set(refId, {
-          refId,
-          forumUrl: preset.url,
-          protocol: preset.name,
-          vertical,
-          title: item.title,
-          url: `${base}/t/${item.slug}/${item.topicId}`,
-          tags: [],
-          body: item.body,
+          refId, provenance: [{ surfaceKey, lane: surface.lane }],
+          forumUrl: preset.url, protocol: preset.name, vertical, title: item.title,
+          url: `${base}/t/${item.slug}/${item.topicId}`, tags: [], body: item.body,
           signal: `${surface.lane} ${surface.type}: ${surface.slug}`,
-          replies: 0,
-          views: 0,
-          likes: 0,
-          createdAt: item.pubDate,
-          bumpedAt: item.pubDate,
-          topicId: item.topicId,
+          replies: 0, views: 0, likes: 0, createdAt: item.pubDate, bumpedAt: item.pubDate, topicId: item.topicId,
         });
       }
+      await recordTopicSurfaceMatches(matches);
       await new Promise(r => setTimeout(r, RSS_FETCH_DELAY_MS));
     }
 
@@ -463,6 +466,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
   const stopLockHeartbeat = holdGrantsScanLock(lockToken);
   const started = Date.now();
   try {
+    await initializeSurfaceObservabilitySchema();
     const candidates = await collectCandidates(cachedForums);
     if (candidates.length === 0) {
       console.log('[GrantsScan] No candidates this cycle');
