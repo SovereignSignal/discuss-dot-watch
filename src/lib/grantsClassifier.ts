@@ -32,7 +32,7 @@ export function correctGrantKind(title: string, kind: string | null): string | n
 }
 export function correctRoleClassification(title: string, body: string, classification: GrantsClassification, kind: string | null): {classification: GrantsClassification; kind: string | null} {
   if (classification !== 'ROLE') return {classification,kind};
-  if (isJobSeekerTitle(title) || isCandidateOrFilledTitle(title)) return {classification:'NEWS',kind:null};
+  if (isJobSeekerTitle(title) || isCandidateOrFilledTitle(title,body)) return {classification:'NEWS',kind:null};
   return {classification,kind:supportedRoleKind(title,body,kind)};
 }
 const MAX_BODY_CHARS = 6000;
