@@ -7,12 +7,12 @@ import {GovernanceAccountParser, Proposal, ProposalState} from '@solana/spl-gove
 const require = createRequire(import.meta.url);
 // Fixed ProposalV1 wire layout, independent of the SDK serializer.
 function fixture() {
-  const n64=(n:bigint)=>{const b=Buffer.alloc(8);b.writeBigUInt64LE(n);return b;};
+  const n64=(n:number)=>{const b=Buffer.alloc(8);b.writeBigUInt64LE(BigInt(n));return b;};
   const str=(s:string)=>{const b=Buffer.from(s);const n=Buffer.alloc(4);n.writeUInt32LE(b.length);return Buffer.concat([n,b]);};
   return Buffer.concat([
     Buffer.from([5]),Buffer.alloc(32,1),Buffer.alloc(32,2),Buffer.from([2]),Buffer.alloc(32,3),Buffer.from([1,1]),
-    n64(12345678901234n),n64(30n),Buffer.alloc(6),n64(1780000000n),
-    Buffer.from([0]),Buffer.from([1]),n64(1780000100n),Buffer.from([0,0,0,0]),
+    n64(12345678901234),n64(30),Buffer.alloc(6),n64(1780000000),
+    Buffer.from([0]),Buffer.from([1]),n64(1780000100),Buffer.from([0,0,0,0]),
     Buffer.from([0,0,0]),str('Read-only governance fixture'),str('https://example.org/proposal'),
   ]);
 }
