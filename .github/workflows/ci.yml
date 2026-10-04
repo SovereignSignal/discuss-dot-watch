@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 # Cancel superseded runs on the same ref
 concurrency:
   group: ci-${{ github.ref }}
@@ -18,14 +21,15 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      # Match production (nixpacks.toml) — the lockfile is npm@11-generated and
-      # older npm reads its peer-dep resolution inconsistently (spurious "missing" deps).
+      # Match the npm major used to generate the lockfile and by production.
       - name: Pin npm to 11 (match production)
         run: npm i -g npm@11
 
@@ -44,12 +48,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      # The app gracefully degrades without secrets, so the build needs none.
-      # Run audit for visibility, but don't fail the workflow: the one remaining
-      # HIGH finding is brace-expansion/minimatch inside eslint-config-next's
-      # bundled plugins. There is no compatible fix (brace-expansion >=5.0.8 is
-      # ESM-only and breaks minimatch's CJS require), so we keep monitoring but
-      # don't block deploys or spam failure emails.
-      - name: Audit (high+)
+      # Production high/critical findings or registry failures now block CI.
+      # The Oct 4 audit reported five moderate production package entries;
+      # passing this threshold does not mean all vulnerabilities are resolved.
+      - name: Production audit (blocking high+)
+        run: npm audit --omit=dev --audit-level=high
+
+      # Preserve visibility of the separate development-only chain through
+      # braces -> micromatch -> fast-glob -> the Next ESLint plugin/config.
+      # Full and production JSON reports are archived by Release assurance.
+      # Do not force npm's suggested major downgrades as an automatic fix.
+      - name: Full dependency audit (advisory)
         run: npm audit --audit-level=high
         continue-on-error: true
