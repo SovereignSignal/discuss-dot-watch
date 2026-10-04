@@ -17,7 +17,7 @@ test('surface health distinguishes empty, failure and recovery and preserves mul
   assert.equal(row.status,'empty'); assert.ok(row.succeeded_at); assert.equal(row.consecutive_failures,0);
   await recordSurfaceAttempt({surfaceKey:funding,forumUrl:forum,protocol:'Example',lane:'funding',surfaceType:'category',surfaceSlug:'grants',feedUrl:forum+'c/grants/7.rss',status:'failed',httpStatus:503,parsedItems:0,errorCode:'http_503',attemptedAt:t1});
   row=(await getSurfaceHealth() as unknown as HealthRow[]).find(x=>x.surface_key===funding)!;
-  assert.equal(row.status,'failed'); assert.equal(row.consecutive_failures,1); assert.equal(new Date(row.succeeded_at).toISOString(),t0.toISOString()); assert.ok(row.next_retry_at);
+  assert.equal(row.status,'failed'); assert.equal(row.consecutive_failures,1); assert.ok(row.succeeded_at); assert.equal(row.succeeded_at!.toISOString(),t0.toISOString()); assert.ok(row.next_retry_at);
   await recordSurfaceAttempt({surfaceKey:funding,forumUrl:forum,protocol:'Example',lane:'funding',surfaceType:'category',surfaceSlug:'grants',feedUrl:forum+'c/grants/7.rss',status:'ok',httpStatus:200,parsedItems:3,attemptedAt:t2});
   await recordSurfaceAttempt({surfaceKey:roles,forumUrl:forum,protocol:'Example',lane:'opportunities',surfaceType:'tag',surfaceSlug:'rfp',feedUrl:forum+'tag/rfp.rss',status:'ok',httpStatus:200,parsedItems:1,attemptedAt:t2});
   row=(await getSurfaceHealth() as unknown as HealthRow[]).find(x=>x.surface_key===funding)!;
