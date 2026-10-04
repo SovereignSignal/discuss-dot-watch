@@ -1,0 +1,50 @@
+name: Runtime Docker pilot
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/runtime-docker.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Assert credential files are excluded
+        run: |
+          grep -Fxq '.env' .dockerignore
+          grep -Fxq '.env.*' .dockerignore
+          grep -Fxq '.git' .dockerignore
+          ! grep -E '^(ARG|ENV) .*(TOKEN|SECRET|KEY|DATABASE_URL|REDIS_URL|RESEND|ANTHROPIC|OLLAMA)' Dockerfile
+      - name: Build without runtime credentials
+        run: docker build --no-cache -t discuss-watch-runtime-pilot .
+      - name: Inspect image config and history
+        run: |
+          docker inspect discuss-watch-runtime-pilot --format '{{json .Config.Env}}' > image-env.json
+          docker history --no-trunc discuss-watch-runtime-pilot > image-history.txt
+          ! grep -Ei '(DATABASE_URL|REDIS_URL|CRON_SECRET|RESEND_API_KEY|ANTHROPIC_API_KEY|OLLAMA_API_KEY|GITHUB_TOKEN|ENCRYPTION_KEY)' image-history.txt
+          ! grep -Ei '(DATABASE_URL|REDIS_URL|CRON_SECRET|RESEND_API_KEY|ANTHROPIC_API_KEY|OLLAMA_API_KEY|GITHUB_TOKEN|ENCRYPTION_KEY)' image-env.json
+      - name: Start isolated container
+        run: |
+          docker run -d --rm --name discuss-watch-pilot -p 18080:8080 discuss-watch-runtime-pilot
+          for i in $(seq 1 40); do curl -fsS http://127.0.0.1:18080/ >/dev/null && exit 0; sleep 1; done
+          docker logs discuss-watch-pilot
+          exit 1
+      - name: Smoke public routes without credentials
+        run: |
+          curl -fsS http://127.0.0.1:18080/app >/dev/null
+          test "$(curl -s -o /tmp/admin -w '%{http_code}' http://127.0.0.1:18080/api/admin/corpus)" = "401"
+      - name: Capture container evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-docker-${{ github.run_id }}
+          path: |
+            image-env.json
+            image-history.txt
