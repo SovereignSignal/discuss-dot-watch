@@ -1,6 +1,7 @@
 import { getDb } from './db';
 import type { GrantsItemRow } from './grantsStore';
 import { compareFit, FIT_PROFILE, isCandidateOrFilledTitle, isJobSeekerTitle, scoreOpportunityFit, supportedRoleKind } from './opportunityFit';
+import {sourceFreshness} from './opportunityEligibility';
 
 export const CANDIDATE_LIMIT = 500;
 const KINDS = new Set(['full_time','part_time','contract','fractional','consulting','internship','fellowship','residency','bounty','council_seat','steward','working_group','election','delegate_incentive','service_provider','other']);
@@ -27,12 +28,13 @@ export function parseOpportunityQuery(params: URLSearchParams): OpportunityQuery
 
 export function eligibleOpportunity(row: GrantsItemRow, now = Date.now()): GrantsItemRow | null {
   if (row.classification !== 'ROLE' || row.confidence < 60) return null;
-  if (isJobSeekerTitle(row.title) || isCandidateOrFilledTitle(row.title)) return null;
+  if (isJobSeekerTitle(row.title) || isCandidateOrFilledTitle(row.title,row.first_post_text || '')) return null;
   if (['closed','awarded','paused','withdrawn','completed'].includes(row.status || '')) return null;
   const deadline = row.deadline ? new Date(row.deadline).getTime() : null;
-  if (deadline !== null && Number.isFinite(deadline) && deadline + 86400000 <= now) return null;
+  const endOfDeadlineDay = deadline === null ? null : Math.floor(deadline/86400000)*86400000+86400000;
+  if (endOfDeadlineDay !== null && Number.isFinite(endOfDeadlineDay) && endOfDeadlineDay <= now) return null;
   const created = row.topic_created_at ? new Date(row.topic_created_at).getTime() : null;
-  if (created !== null && (created > now || (created < now - 90 * 86400000 && (deadline === null || deadline < now)))) return null;
+  if (created !== null && (created > now || (created < now - 90 * 86400000 && (endOfDeadlineDay === null || endOfDeadlineDay <= now)))) return null;
   return {...row, kind: supportedRoleKind(row.title, row.first_post_text || '', row.kind)};
 }
 
@@ -64,18 +66,18 @@ export function buildOpportunityPage(raw: GrantsItemRow[], q: OpportunityQuery, 
       firstSeenAt: row.first_seen_at, lastActivityAt: row.last_activity_at, topicCreatedAt: row.topic_created_at,
       excerpt: (row.first_post_text || '').slice(0,320) || null,
       fit: scoreOpportunityFit(row),
+      freshness: sourceFreshness(row.topic_created_at,now),
     })),
     meta: {count: selected.length, nextCursor, sort: q.sort, profile: FIT_PROFILE,
       candidateLimit: CANDIDATE_LIMIT, candidatesScanned: window.length, candidateWindowCapped: capped,
       shortlistTruncated: q.sort === 'fit' && (moreInWindow || capped),
-      fitIsConfidence: false, deadlinePriorityDays: 7},
+      fitIsConfidence: false, deadlinePriorityDays: 7, availabilityVerified: false},
   };
 }
 
 export async function queryOpportunityFeed(q: OpportunityQuery) {
   const db = getDb();
-  // Apply canonical duplicate suppression before the cursor. A reviewed row or
-  // newer closure supersedes the older copy on every page, not just page one.
+  // Canonical duplicate suppression precedes the cursor on every page.
   const rows = await db`
     SELECT id,topic_ref_id,forum_url,protocol,vertical,title,url,signal,classification,kind,confidence,
       program,amount_min,amount_max,currency,deadline,chain,status,apply_url,model,replies,views,likes,
