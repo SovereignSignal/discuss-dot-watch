@@ -111,6 +111,32 @@ export function correctGrantKind(title: string, kind: string | null): string | n
   return kind;
 }
 
+
+/** First-person "I need work/training" posts are demand for an opportunity,
+ * not an opportunity someone else can act on. Keep this narrow so employer
+ * titles such as "Looking for an n8n freelancer" remain eligible. */
+const JOB_SEEKER_RE = /^(?:\[[^\]]+\]\s*)?(?:i\s+(?:am|'m|want|need|would like|seek)|seeking\s+(?:work|a\s+job|an?\s+internship)|looking\s+for\s+(?:work|a\s+job|an?\s+internship)|freelancer\s+for\s+hire)\b/i;
+
+const ROLE_KIND_EVIDENCE: Record<string, RegExp> = {
+  full_time: /\bfull[-\s]?time\b/i,
+  part_time: /\bpart[-\s]?time\b/i,
+  contract: /\b(?:contract(?:or|ing)?|1099|freelanc(?:e|er|ing))\b/i,
+  fractional: /\bfractional\b/i,
+  consulting: /\bconsult(?:ant|ing|ancy)\b/i,
+  internship: /\bintern(?:ship)?\b/i,
+  fellowship: /\bfellowship\b/i,
+  residency: /\bresiden(?:cy|t)\b/i,
+  bounty: /\bbount(?:y|ies)\b/i,
+};
+
+export function correctRoleClassification(title: string, body: string, classification: GrantsClassification, kind: string | null): { classification: GrantsClassification; kind: string | null } {
+  if (classification !== 'ROLE') return { classification, kind };
+  if (JOB_SEEKER_RE.test(title.trim())) return { classification: 'NEWS', kind: null };
+  const evidence = `${title}\n${body}`;
+  const re = kind ? ROLE_KIND_EVIDENCE[kind] : undefined;
+  return { classification, kind: re && !re.test(evidence) ? null : kind };
+}
+
 const MAX_BODY_CHARS = 6000;
 
 const CLASSIFY_TOOL_NAME = 'record_grants_classification';
@@ -165,7 +191,7 @@ export async function classifyGrantsCandidate(
       schema: CLASSIFY_SCHEMA,
       toolName: CLASSIFY_TOOL_NAME,
       toolDescription: CLASSIFY_TOOL_DESCRIPTION,
-      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = any actionable compensated work opportunity with a currently open or announced path to apply/participate: full-time or part-time employment, contracts, consulting/fractional work, internships, fellowships/residencies, paid bounties, elections, council seats, steward nominations, delegate programs, or service-provider mandates. A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. An individual's own accountability/reporting thread under a program (e.g. "<name> Delegate Thread", voting-rationale threads) is that person reporting their work — NEWS or NOISE, never ROLE. A record of what already happened (meeting minutes, recaps, retrospectives, feedback threads about a finished process) is NEWS, however much grant vocabulary it contains. An organization announcing money it has raised for itself (a VC round, a treasury top-up) is NEWS — a grant is money someone else can apply for. If the posting is months old, its application/nomination window has almost certainly passed: classify NEWS with status "closed" unless the text states a still-future deadline. Today is ${today}.
+      prompt: `You are a grants and governance-roles intelligence analyst for ${input.vertical === 'crypto' ? 'crypto/DAO' : input.vertical === 'ai' ? 'AI/ML' : 'open source'} ecosystems. Classify this forum discussion and extract funding/role details. GRANT = money for projects. ROLE = any actionable compensated work opportunity with a currently open or announced path to apply/participate: full-time or part-time employment, contracts, consulting/fractional work, internships, fellowships/residencies, paid bounties, elections, council seats, steward nominations, delegate programs, or service-provider mandates. A discussion that merely mentions, administers, reviews, or renews a council/committee/program without an open application window is NEWS or NOISE, never ROLE. An individual's own accountability/reporting thread under a program (e.g. "<name> Delegate Thread", voting-rationale threads) is that person reporting their work — NEWS or NOISE, never ROLE. A record of what already happened (meeting minutes, recaps, retrospectives, feedback threads about a finished process) is NEWS, however much grant vocabulary it contains. A person asking for work, mentorship, an internship, or clients for themselves is NEWS/NOISE, never ROLE. For ROLE kind, only state full_time, part_time, contract, fractional, consulting, internship, fellowship, residency or bounty when that arrangement is explicit in the title/body; otherwise use other. An organization announcing money it has raised for itself (a VC round, a treasury top-up) is NEWS — a grant is money someone else can apply for. If the posting is months old, its application/nomination window has almost certainly passed: classify NEWS with status "closed" unless the text states a still-future deadline. Today is ${today}.
 
 Forum: ${input.protocol} (${input.vertical})
 Selected because: ${input.signal}
@@ -227,9 +253,12 @@ Extract only what the text states — never invent amounts or deadlines. Amounts
       }
     }
 
+    const correctedRole = correctRoleClassification(input.title, body, classification, str(out.kind));
+    classification = correctedRole.classification;
+
     return {
       classification,
-      kind: classification === 'GRANT' ? correctGrantKind(input.title, str(out.kind)) : str(out.kind),
+      kind: classification === 'GRANT' ? correctGrantKind(input.title, str(out.kind)) : correctedRole.kind,
       confidence: Math.round(Math.max(0, Math.min(100, num(out.confidence) ?? 0))),
       program: str(out.program),
       amountMin: num(out.amount_min),
