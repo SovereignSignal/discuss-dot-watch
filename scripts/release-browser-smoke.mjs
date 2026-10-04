@@ -56,12 +56,15 @@ for(const viewport of [{name:'desktop',width:1440,height:1000},{name:'mobile',wi
     assert.equal(await page.locator('article').count(),1);
     failNext=true;
     await page.getByRole('button',{name:'All work types',exact:true}).click();
-    await page.getByRole('alert').waitFor();
+    // Next also has an ARIA alert for route announcements. Assert against the
+    // actual feed error so its permanent announcer is not a false failure.
+    const feedError=page.getByRole('alert').filter({hasText:'The opportunity feed could not be loaded.'});
+    await feedError.waitFor({state:'visible'});
     assert.equal(await page.getByText('No matching opportunities in this result window.',{exact:true}).count(),0);
     await page.screenshot({path:out+'/'+viewport.name+'-error.png',fullPage:true});
     await page.getByRole('button',{name:'Retry',exact:true}).click();
     await page.getByText('Operations lead',{exact:true}).waitFor();
-    await page.getByRole('alert').waitFor({state:'detached'});
+    await feedError.waitFor({state:'detached'});
     assert.equal(await page.locator('article').count(),2);
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2);
     assert.equal(overflow,false,'horizontal page overflow');
