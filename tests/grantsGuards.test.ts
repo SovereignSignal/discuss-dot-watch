@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyGrantsCandidate, type GrantsClassification } from '@/lib/grantsClassifier';
+import { classifyGrantsCandidate, correctRoleClassification, type GrantsClassification } from '@/lib/grantsClassifier';
 
 const ENV = ['LLM_PROVIDER', 'OLLAMA_API_KEY', 'LLM_MODEL', 'LLM_MODEL_CLASSIFY'] as const;
 
@@ -120,4 +120,38 @@ test('an RFP whose body reports what a program raised is still a ROLE/GRANT', as
     await classifyWith('GRANT', 'rfp', { title: 'Request for Proposals: Security audits for v4 hooks' }),
     'GRANT',
   );
+});
+
+
+test('first-person internship seeker is not an opportunity', () => {
+  const corrected = correctRoleClassification(
+    'I want to learn N8N and need internship under a mentor where I can learn and grow',
+    '',
+    'ROLE',
+    'internship',
+  );
+  assert.equal(corrected.classification, 'NEWS');
+  assert.equal(corrected.kind, null);
+});
+
+test('unsupported work arrangement is cleared but the paid role remains', () => {
+  const corrected = correctRoleClassification(
+    '[HIRING] n8n + Looker Studio builder for marketing reporting | Paid test → ongoing',
+    'Paid test followed by ongoing work for the right person.',
+    'ROLE',
+    'full_time',
+  );
+  assert.equal(corrected.classification, 'ROLE');
+  assert.equal(corrected.kind, null);
+});
+
+test('explicit contract evidence preserves contract kind', () => {
+  const corrected = correctRoleClassification(
+    '[Hiring] Contract implementer (remote, 1099)',
+    'This is a contract role.',
+    'ROLE',
+    'contract',
+  );
+  assert.equal(corrected.classification, 'ROLE');
+  assert.equal(corrected.kind, 'contract');
 });
