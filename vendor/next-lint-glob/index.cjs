@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable @typescript-eslint/no-require-imports -- The pinned Next lint plugin requires a CommonJS module. */
 const {isAbsolute} = require('node:path');
 const {globSync} = require('tinyglobby');
 
