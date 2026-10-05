@@ -10,7 +10,7 @@ export async function importPilotCorpus(limit=100){
   if(!Number.isInteger(limit)||limit<1||limit>200)throw new IntelligenceError('invalid_import_limit');
   await ensureIntelligence();const db=getDb();
   const exists=await db`SELECT to_regclass('public.topic_documents') AS table_name`;
-  if(!exists[0]?.table_name)return {imported:0,scanned:0,complete:true,notify:false};
+  if(!exists[0]?.table_name)return {imported:0,written:0,preservedNewer:0,scanned:0,complete:true,notify:false};
   await db`CREATE TABLE IF NOT EXISTS corpus_import_receipts(
     topic_id INTEGER PRIMARY KEY REFERENCES topic_documents(topic_id) ON DELETE CASCADE,
     import_revision TEXT NOT NULL,disposition TEXT NOT NULL,imported_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
@@ -21,7 +21,7 @@ export async function importPilotCorpus(limit=100){
     WHERE d.fetch_status='fetched' AND NOT d.search_hidden AND d.fetched_at IS NOT NULL
       AND r.import_revision IS DISTINCT FROM md5(jsonb_build_array(d.content_hash,d.truncated,d.source_closed,d.source_archived,d.source_updated_at)::text)
     ORDER BY d.topic_id LIMIT ${limit}`;
-  let imported=0,preservedNewer=0,blocked=0;
+  let written=0,preservedNewer=0,blocked=0;
   for(const row of rows){
     const key=sourceKey(row.forum_url),sources=await db`SELECT name FROM ingestion_sources WHERE source_key=${key}`;
     if(!sources.length){blocked++;continue;}
@@ -29,7 +29,6 @@ export async function importPilotCorpus(limit=100){
     const url=key+'/t/'+(row.slug?row.slug+'/':'')+row.discourse_id;
     if(!isAllowedUrl(url)){blocked++;continue;}
     const result=await db.begin(async tx=>{
-      // Same lock as ingestDocuments: the freshness decision and write are atomic.
       await tx`SELECT pg_advisory_xact_lock(hashtext(${ref}))`;
       const current=await tx`SELECT * FROM intelligence_documents WHERE ref_id=${ref} FOR UPDATE`;
       const old=current[0];
@@ -64,7 +63,7 @@ export async function importPilotCorpus(limit=100){
         ON CONFLICT(topic_id) DO UPDATE SET import_revision=EXCLUDED.import_revision,disposition=EXCLUDED.disposition,imported_at=now()`;
       return disposition;
     });
-    if(result==='imported')imported++;else preservedNewer++;
+    if(result==='imported')written++;else preservedNewer++;
   }
   const pending=await db`SELECT count(*)::int n FROM topic_documents d LEFT JOIN corpus_import_receipts r ON r.topic_id=d.topic_id
     WHERE d.fetch_status='fetched' AND NOT d.search_hidden AND d.fetched_at IS NOT NULL
@@ -72,5 +71,7 @@ export async function importPilotCorpus(limit=100){
   const complete=Number(pending[0].n)===0,last=rows.at(-1)?.topic_id??0;
   await db`INSERT INTO intelligence_migrations(name,last_id,completed_at) VALUES('pilot-v2-revisions',${last},${complete?new Date():null})
     ON CONFLICT(name) DO UPDATE SET last_id=GREATEST(intelligence_migrations.last_id,EXCLUDED.last_id),completed_at=EXCLUDED.completed_at,updated_at=now()`;
-  return {imported,preservedNewer,blocked,scanned:rows.length,remaining:Number(pending[0].n),lastId:last,complete,notify:false};
+  // imported retains the processed-source-record contract; written distinguishes
+  // actual body replacements from receipts that preserve newer native evidence.
+  return {imported:written+preservedNewer,written,preservedNewer,blocked,scanned:rows.length,remaining:Number(pending[0].n),lastId:last,complete,notify:false};
 }
