@@ -1,0 +1,79 @@
+name: One-time closeout lock adoption
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/closeout-lock-adoption.yml'
+permissions:
+  contents: read
+concurrency:
+  group: closeout-lock-adoption
+  cancel-in-progress: false
+jobs:
+  verify-and-adopt:
+    if: github.event.pull_request.number == 90 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/intelligence-closeout'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm i -g npm@11
+      - name: Apply narrowly scoped compatible glob alias
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p=JSON.parse(fs.readFileSync('package.json','utf8'));
+          p.overrides ||= {};
+          p.overrides['@next/eslint-plugin-next']={...(p.overrides['@next/eslint-plugin-next']||{}),'fast-glob':'npm:tinyglobby@0.2.17'};
+          fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          NODE
+          npm install --package-lock-only --ignore-scripts
+          npm ci
+      - run: node scripts/lint-root-contract.mjs
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
+      - name: All dependency graphs must be clean
+        run: |
+          npm audit --audit-level=low
+          npm audit --omit=dev --audit-level=low
+      - name: Export reproducible offline review workspace
+        run: |
+          mkdir -p /tmp/closeout-export
+          tar --exclude=.git --exclude=.next --exclude='*.log' -czf /tmp/closeout-export/workspace.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: closeout-validated-workspace-${{ github.run_id }}
+          path: /tmp/closeout-export/workspace.tar.gz
+          retention-days: 3
+      - name: Adopt only manifest and lock with branch-head lease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const repo=process.env.REPOSITORY, expected=process.env.EXPECTED_HEAD;
+          const headers={Authorization:'Bearer '+process.env.GH_TOKEN,'Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'};
+          async function api(path,method='GET',body){const r=await fetch('https://api.github.com/repos/'+repo+path,{method,headers,body:body?JSON.stringify(body):undefined});const d=await r.json();if(!r.ok)throw new Error(method+' '+path+' '+r.status);return d;}
+          (async()=>{
+            const ref=await api('/git/ref/heads/feat/intelligence-closeout');
+            if(ref.object.sha!==expected)throw new Error('Branch moved; refusing stale lock adoption');
+            const base=await api('/git/commits/'+expected);
+            const files=['package.json','package-lock.json'];
+            const tree=await api('/git/trees','POST',{base_tree:base.tree.sha,tree:files.map(path=>({path,mode:'100644',type:'blob',content:fs.readFileSync(path,'utf8')}))});
+            const commit=await api('/git/commits','POST',{message:'Adopt dependency graph validated by actual Next lint contracts and full audit',tree:tree.sha,parents:[expected]});
+            const latest=await api('/git/ref/heads/feat/intelligence-closeout');if(latest.object.sha!==expected)throw new Error('Branch lease lost');
+            await api('/git/refs/heads/feat/intelligence-closeout','PATCH',{sha:commit.sha,force:false});
+            console.log('LOCK_ADOPTION '+JSON.stringify({expected,commit:commit.sha,files,fullAuditClean:true}));
+          })().catch(e=>{console.error(e.message);process.exit(1)});
+          NODE
