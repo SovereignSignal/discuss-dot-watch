@@ -1,5 +1,5 @@
 'use client';
-import {useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 type Row=Record<string,unknown>;
 type Snapshot={sources:Row[];surfaces:Row[];documents:Row;evaluations:Row[];lanes:Row[];watches:Row[];discoveries:Row[];yield:Row[];asOf:string};
@@ -13,12 +13,18 @@ export default function IntelligenceOperator(){
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[receipt,setReceipt]=useState<unknown>(null),[query,setQuery]=useState(''),[items,setItems]=useState<Row[]>([]);
   const [watchName,setWatchName]=useState(''),[instructions,setInstructions]=useState(''),[exclusions,setExclusions]=useState(''),[watchSources,setWatchSources]=useState('');
   const [sourceName,setSourceName]=useState(''),[sourceUrl,setSourceUrl]=useState(''),[adapter,setAdapter]=useState('rss'),[vertical,setVertical]=useState('oss'),[automatic,setAutomatic]=useState(false);
-  const headers=()=>({Authorization:'Bearer '+token,'Content-Type':'application/json'});
-  async function get(path:string){const r=await fetch('/api/admin/intelligence'+path,{headers:headers(),cache:'no-store'});const data=await r.json();if(!r.ok)throw new Error(data.error||'Request failed');return data;}
-  async function reload(){setBusy(true);setError('');try{setSnapshot(await get(''));}catch(e){setError(e instanceof Error?e.message:'Request failed');}finally{setBusy(false);}}
-  async function action(body:unknown){setBusy(true);setError('');try{const r=await fetch('/api/admin/intelligence',{method:'POST',headers:headers(),body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Action failed');setReceipt(d);setSnapshot(await get(''));}catch(e){setError(e instanceof Error?e.message:'Action failed');}finally{setBusy(false);}}
-  async function loadItems(next:string,watchId?:string){setView(next);setItems([]);setError('');setBusy(true);try{if(['funding','opportunities','corpus'].includes(next))setItems((await get('?view='+next+'&q='+encodeURIComponent(query))).items||[]);if(next==='watch-results')setItems((await get('?view=watch&id='+encodeURIComponent(watchId||''))).items||[]);}catch(e){setError(e instanceof Error?e.message:'Query failed');}finally{setBusy(false);}}
-  async function trace(id:unknown){setBusy(true);try{setReceipt(await get('?view=trace&id='+encodeURIComponent(String(id))));}catch(e){setError(e instanceof Error?e.message:'Trace failed');}finally{setBusy(false);}}
+  const epoch=useRef(0),pending=useRef(new Set<AbortController>());
+  useEffect(()=>()=>{epoch.current++;for(const request of pending.current)request.abort();},[]);
+  function lock(){epoch.current++;for(const request of pending.current)request.abort();pending.current.clear();setToken('');setSnapshot(null);setReceipt(null);setItems([]);setError('');setBusy(false);}
+  async function request(path:string,version:number,body?:unknown){
+    const controller=new AbortController();pending.current.add(controller);
+    try{const r=await fetch('/api/admin/intelligence'+path,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:controller.signal,cache:'no-store'});const data=await r.json();if(epoch.current!==version)throw new DOMException('Operator locked','AbortError');if(!r.ok)throw new Error(data.error||'Request failed');return data;}
+    finally{pending.current.delete(controller);}
+  }
+  async function reload(){const version=epoch.current;setBusy(true);setError('');try{const data=await request('',version);if(epoch.current===version)setSnapshot(data);}catch(e){if(epoch.current===version)setError(e instanceof Error?e.message:'Request failed');}finally{if(epoch.current===version)setBusy(false);}}
+  async function action(body:unknown){const version=epoch.current;setBusy(true);setError('');try{const d=await request('',version,body);if(epoch.current!==version)return;setReceipt(d);const data=await request('',version);if(epoch.current===version)setSnapshot(data);}catch(e){if(epoch.current===version)setError(e instanceof Error?e.message:'Action failed');}finally{if(epoch.current===version)setBusy(false);}}
+  async function loadItems(next:string,watchId?:string){const version=epoch.current;setView(next);setItems([]);setError('');setBusy(true);try{if(['funding','opportunities','corpus'].includes(next)){const d=await request('?view='+next+'&q='+encodeURIComponent(query),version);if(epoch.current===version)setItems(d.items||[]);}if(next==='watch-results'){const d=await request('?view=watch&id='+encodeURIComponent(watchId||''),version);if(epoch.current===version)setItems(d.items||[]);}}catch(e){if(epoch.current===version)setError(e instanceof Error?e.message:'Query failed');}finally{if(epoch.current===version)setBusy(false);}}
+  async function trace(id:unknown){const version=epoch.current;setBusy(true);try{const data=await request('?view=trace&id='+encodeURIComponent(String(id)),version);if(epoch.current===version)setReceipt(data);}catch(e){if(epoch.current===version)setError(e instanceof Error?e.message:'Trace failed');}finally{if(epoch.current===version)setBusy(false);}}
   const button=(label:string,body:unknown)=><Button disabled={busy} onClick={()=>void action(body)}>{label}</Button>;
   const field=(label:string,value:string,set:(s:string)=>void,type='text')=><label className="block text-xs my-2">{label}<input type={type} value={value} onChange={e=>set(e.target.value)} className="block w-full rounded border px-3 py-2 mt-1" style={style}/></label>;
   const rows=snapshot?.sources.filter(r=>(text(r.name)+' '+text(r.health)+' '+text(r.adapter)).toLowerCase().includes(query.toLowerCase()))||[];
@@ -28,8 +34,8 @@ export default function IntelligenceOperator(){
     {!snapshot?<form onSubmit={e=>{e.preventDefault();void reload();}} className="max-w-lg border rounded p-4" style={style}>
       {field('Admin bearer token',token,setToken,'password')}<button type="submit" disabled={busy} className="border rounded px-4 py-2" style={style}>Open operator</button><p className="text-xs mt-2">The token stays in this page’s memory and is never included in a URL.</p>
     </form>:<>
-      <div className="flex gap-2 flex-wrap mb-4"><Button disabled={busy} onClick={()=>void reload()}>Refresh status</Button><Button onClick={()=>{setToken('');setSnapshot(null);setReceipt(null);setItems([]);}}>Lock</Button><span className="text-xs self-center">As of {stamp(snapshot.asOf)}</span></div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">{[['Configured sources',snapshot.sources.length],['Full first posts',snapshot.documents.full_bodies],['Body backlog',snapshot.documents.missing_bodies],['Partial legacy bodies',snapshot.documents.partial_bodies]].map(([label,value])=><div key={String(label)} className="border rounded p-3" style={style}><p className="text-xs">{String(label)}</p><strong className="text-xl">{text(value)}</strong></div>)}</div>
+      <div className="flex gap-2 flex-wrap mb-4"><Button disabled={busy} onClick={()=>void reload()}>Refresh status</Button><Button onClick={lock}>Lock</Button><span className="text-xs self-center">As of {stamp(snapshot.asOf)}</span></div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">{[['Configured sources',snapshot.sources.length],['Fetched source bodies',snapshot.documents.full_bodies],['Body backlog',snapshot.documents.missing_bodies],['Partial legacy bodies',snapshot.documents.partial_bodies]].map(([label,value])=><div key={String(label)} className="border rounded p-3" style={style}><p className="text-xs">{String(label)}</p><strong className="text-xl">{text(value)}</strong></div>)}</div>
       <nav aria-label="Operator sections" className="flex gap-2 overflow-x-auto pb-3">{['sources','surfaces','corpus','funding','opportunities','watches','discovery','maintenance'].map(name=><button key={name} aria-pressed={view===name} onClick={()=>void loadItems(name)} className="border rounded px-3 py-2 text-sm whitespace-nowrap" style={style}>{name}</button>)}</nav>
       {field('Search sources or corpus',query,setQuery)}
       {['corpus','funding','opportunities'].includes(view)&&<Button disabled={busy} onClick={()=>void loadItems(view)}>Search {view}</Button>}

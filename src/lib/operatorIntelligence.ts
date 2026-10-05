@@ -29,12 +29,15 @@ export async function setSurfacePaused(key:string,paused:boolean){
 export async function probeSurface(key:string){
   await ensureIntelligence();const db=getDb();
   const source=await db`SELECT r.feed_url FROM source_surface_registry r WHERE r.surface_key=${key}`;if(!source.length)throw new IntelligenceError('surface_not_found');
-  const rows=await db`SELECT r.*,s.next_retry_at FROM source_surface_registry r LEFT JOIN source_surfaces s USING(surface_key) WHERE r.feed_url=${source[0].feed_url}`;
+  const rows=await db`SELECT r.*,s.next_retry_at,p.enabled AS source_enabled,p.paused AS source_paused FROM source_surface_registry r JOIN ingestion_sources p ON p.source_key=r.source_key LEFT JOIN source_surfaces s USING(surface_key) WHERE r.feed_url=${source[0].feed_url}`;
+  const active=rows.filter(r=>r.enabled&&!r.paused&&r.source_enabled&&!r.source_paused);
+  if(!active.some(r=>r.surface_key===key))throw new IntelligenceError('surface_not_active');
   if(rows.some(r=>r.next_retry_at&&new Date(r.next_retry_at).getTime()>Date.now()))throw new IntelligenceError('surface_retry_not_due');
-  const defs:SurfaceDefinition[]=rows.map(r=>({key:r.surface_key,sourceKey:r.source_key,forumUrl:r.forum_url,protocol:r.protocol,lane:r.lane,type:r.surface_type,slug:r.surface_slug,feedUrl:r.feed_url,priority:r.priority,intervalSeconds:r.interval_seconds,enabled:r.enabled}));
+  const defs:SurfaceDefinition[]=active.map(r=>({key:r.surface_key,sourceKey:r.source_key,forumUrl:r.forum_url,protocol:r.protocol,lane:r.lane,type:r.surface_type,slug:r.surface_slug,feedUrl:r.feed_url,priority:r.priority,intervalSeconds:r.interval_seconds,enabled:r.enabled}));
   const items=await acquireSurfaceGroup(defs);
   const docs=await ingestDocuments(items.map(i=>({refId:i.refId,sourceKey:defs[0].sourceKey,title:i.title,url:i.url,body:i.body,createdAt:i.publishedAt,updatedAt:i.updatedAt,historical:true,evidenceScope:'operator_surface_probe'})));
-  return {downloadedEndpoints:1,logicalSurfaces:defs.length,stored:docs.length,documents:docs.slice(0,10).map(d=>({id:d.id,refId:d.ref_id,title:d.title})),notify:false};
+  const outcomes=await db`SELECT status,http_status,error_code FROM source_surfaces WHERE surface_key=${key}`;
+  return {status:outcomes[0]?.status||'unknown',httpStatus:outcomes[0]?.http_status??null,errorCode:outcomes[0]?.error_code??null,downloadedEndpoints:1,logicalSurfaces:defs.length,stored:docs.length,documents:docs.slice(0,10).map(d=>({id:d.id,refId:d.ref_id,title:d.title})),notify:false};
 }
 export async function intelligenceTrace(id:number){
   await ensureIntelligence();const db=getDb();const docs=await db`SELECT * FROM intelligence_documents WHERE id=${id}`;if(!docs.length)throw new IntelligenceError('document_not_found');

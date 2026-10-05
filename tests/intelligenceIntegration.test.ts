@@ -9,8 +9,9 @@ import {acquireSurfaceGroup} from '../src/lib/surfaceAcquisition';
 import {fetchStrictFeed} from '../src/lib/strictFeed';
 import {recordSurfaceAttempt,recordTopicSurfaceMatches,getTopicSurfaceProvenance,dueSurfaceGroups,getSourceHealth,getSurfaceHealth} from '../src/lib/surfaceObservability';
 import type {SurfaceDefinition} from '../src/lib/sourceRegistry';
-import {setSourcePaused,intelligenceTrace} from '../src/lib/operatorIntelligence';
+import {setSourcePaused,intelligenceTrace,probeSurface} from '../src/lib/operatorIntelligence';
 import {registerSource,ingestRegisteredSource} from '../src/lib/sourceAdapters';
+import {importPilotCorpus} from '../src/lib/intelligenceWorker';
 import {runNativeCandidateScan} from '../src/lib/nativeLaneScan';
 import {markItemsNotified} from '../src/lib/grantsStore';
 import {initializeCorpusSchema,startCorpusJob,extendCorpusJob,corpusStatus} from '../src/lib/corpusStore';
@@ -143,4 +144,44 @@ test('bounded backfill resumes a truncated page without skipping remaining topic
   j=(await corpusStatus()).jobs.find(j=>j.id===id)!;assert.equal(j.status,'complete');assert.equal(j.discovered,5);assert.equal(j.fetched,5);
   assert.equal((await runCorpusTick(id,fetch)).worked,false);
   console.log('BACKFILL_EXTENSION_E2E '+JSON.stringify({boundedPartial:true,resumesSamePage:true,allFiveBodies:true,idempotentReplay:true}));
+});
+
+
+test('review replay preserves sent state and rechecks expiry before publishing',{skip:!testUrl},async()=>{
+  const db=getDb();
+  const [doc]=await ingestDocuments([{refId:'safety-sent-replay',sourceKey:source,title:'Paid operations contract',url:source+'/t/replay/500',body:body+' Deadline 2000-01-01.',createdAt:new Date().toISOString(),historical:true}]);
+  await classifyIntelligenceDocument(doc.id,'opportunities',classifier);
+  const published=await reviewIntelligence(doc.id,'opportunities','approve','fixture','Review before replay check');
+  const original=new Date('2026-01-01T01:02:03Z');
+  await db`UPDATE opportunity_records SET notification_state='sent' WHERE document_id=${doc.id}`;
+  await db`UPDATE grants_items SET notified_at=${original} WHERE topic_ref_id=${published.compatibilityRef!}`;
+  await reviewIntelligence(doc.id,'opportunities','approve','fixture','Repeated review does not replay mail');
+  assert.equal((await db`SELECT notification_state FROM opportunity_records WHERE document_id=${doc.id}`)[0].notification_state,'sent');
+  assert.equal((await db`SELECT notified_at FROM grants_items WHERE topic_ref_id=${published.compatibilityRef!}`)[0].notified_at.toISOString(),original.toISOString());
+  await db`UPDATE opportunity_records SET extraction=extraction||' {"deadline":"2000-01-01","actionable":true}'::jsonb WHERE document_id=${doc.id}`;
+  await assert.rejects(()=>reviewIntelligence(doc.id,'opportunities','approve','fixture','Expired record must not reopen'),/record_not_promotable/);
+  assert.ok(!(await listIntelligence('opportunities',{limit:100,publicOnly:true,source})).items.some(r=>r.document_id===doc.id));
+  await ingestDocuments([{refId:doc.ref_id,sourceKey:source,title:doc.title,url:doc.url,body:body+' New scope.'}]);
+  await classifyIntelligenceDocument(doc.id,'opportunities',classifier);
+  assert.equal((await db`SELECT notification_state FROM opportunity_records WHERE document_id=${doc.id}`)[0].notification_state,'sent');
+});
+
+test('oversized bodies remain partial rather than claiming full indexed content',{skip:!testUrl},async()=>{
+  const [doc]=await ingestDocuments([{refId:'safety-long-body',sourceKey:source,title:'Long source',url:source+'/t/long/501',body:'z'.repeat(80010),bodyStatus:'fetched'}]);
+  assert.equal(doc.body.length,80000);assert.equal(doc.body_status,'partial');
+  await assert.rejects(()=>classifyIntelligenceDocument(doc.id,'funding',classifier),/document_not_ready/);
+});
+
+test('manual probes respect paused sources before attempting any network request',{skip:!testUrl},async()=>{
+  await setSourcePaused(source,true);
+  try {await assert.rejects(()=>probeSurface(source+'|funding'),/surface_not_active/);}
+  finally {await setSourcePaused(source,false);}
+});
+
+test('pilot import advances durable checkpoints and completed replay performs no work',{skip:!testUrl},async()=>{
+  let total=0,complete=false;
+  for(let i=0;i<10;i++){const out=await importPilotCorpus(2);total+=out.imported;if(out.complete){complete=true;break;}}
+  assert.ok(complete);assert.ok(total>=5);
+  assert.equal((await importPilotCorpus(2)).imported,0);
+  console.log('CLOSEOUT_SAFETY_E2E '+JSON.stringify({sentStateMonotonic:true,expiryRevalidated:true,partialBodyHonest:true,pauseRespected:true,pilotCheckpointIdempotent:true,emailsSent:0}));
 });

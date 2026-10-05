@@ -17,11 +17,8 @@ const obj=(v:unknown):Record<string,unknown>=>v&&typeof v==='object'&&!Array.isA
 const str=(v:unknown)=>typeof v==='string'?v:'';
 const time=(v:unknown)=>typeof v==='string'&&Number.isFinite(Date.parse(v))?new Date(v).toISOString():typeof v==='number'&&v>0&&v<Date.now()+60000?new Date(v).toISOString():null;
 const safeLink=(v:unknown,base:string)=>{try{const s=str(v),u=new URL(s,base);return s&&isAllowedUrl(u.href)?u.href:null;}catch{return null;}};
-export function sourceText(html:string){
-  const links=[...html.matchAll(/href\s*=\s*["']([^"']+)["']/gi)].map(m=>m[1].replace(/&amp;/g,'&')).filter(url=>isAllowedUrl(url)).slice(0,30);
-  const text=plainText(html),unique=[...new Set(links)].filter(url=>!text.includes(url));
-  return (text+(unique.length?'\nSource links:\n'+unique.join('\n'):'')).slice(0,80000);
-}
+import {sourceText} from './sourceBodyText';
+export {sourceText} from './sourceBodyText';
 export function validateSourceConfiguration(raw:unknown):SourceConfiguration{
   const parsed=sourceConfiguration.safeParse(raw);if(!parsed.success)throw new IntelligenceError('invalid_source_configuration');
   const c=parsed.data,u=new URL(c.url);if(u.protocol!=='https:'||!isAllowedUrl(c.url))throw new IntelligenceError('unsafe_source_url');

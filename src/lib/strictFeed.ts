@@ -2,6 +2,7 @@ import {parseXml} from '@rgrove/parse-xml';
 import {plainText, retryAfterSeconds} from './corpusPolicy';
 import {safeFetch, readCappedText} from './safeFetch';
 import {isAllowedUrl} from './url';
+import {sourceText} from './sourceBodyText';
 
 export interface FeedItem { externalId:string; title:string; url:string; body:string; publishedAt:string|null; updatedAt:string|null }
 export interface FeedResult { status:'ok'|'empty'|'failed'; httpStatus:number|null; items:FeedItem[]; invalidItems:number; errorCode:string|null; retrySeconds:number|null; startedAt:Date; completedAt:Date; bytes:number }
@@ -57,7 +58,7 @@ export function parseFeed(xml:string,baseUrl:string):{items:FeedItem[];invalidIt
     const raw=field(entry,'encoded')||field(entry,'description')||field(entry,'content')||field(entry,'summary');
     const publishedAt=date(field(entry,channel?'pubDate':'published'));
     const updatedAt=date(field(entry,'updated'))||publishedAt;
-    items.push({externalId:field(entry,channel?'guid':'id')||url,title,url,body:plainText(raw).slice(0,80000),publishedAt,updatedAt});
+    items.push({externalId:field(entry,channel?'guid':'id')||url,title,url,body:sourceText(raw),publishedAt,updatedAt});
   }
   if(entries.length&&!items.length)throw new FeedError('no_valid_feed_items');
   return {items,invalidItems};

@@ -8,7 +8,7 @@ import type {DiscussionTopic} from '@/types';
 import {randomUUID} from 'node:crypto';
 export async function observeSourceTopics(key:string,topics:DiscussionTopic[],scope:string){
   if(!topics.length||!isDatabaseConfigured())return;
-  const documents:DocumentInput[]=topics.filter(t=>t.visible!==false).slice(0,100).map(t=>({refId:t.refId,sourceKey:key,title:t.title,url:t.externalUrl||`${(t.forumUrl||key).replace(/\/$/,'')}/t/${t.slug}/${t.id}`,body:t.firstPostText?sourceText(t.firstPostText):undefined,tags:t.tags||[],createdAt:t.createdAt||null,updatedAt:t.bumpedAt||null,closed:t.closed||t.archived,historical:!t.createdAt||Date.parse(t.createdAt)<Date.now()-48*3600000,evidenceScope:scope}));
+  const documents:DocumentInput[]=topics.slice(0,100).map(t=>({refId:t.refId,sourceKey:key,title:t.title,url:t.externalUrl||`${(t.forumUrl||key).replace(/\/$/,'')}/t/${t.slug}/${t.id}`,body:t.firstPostText?sourceText(t.firstPostText):undefined,tags:t.tags||[],createdAt:t.createdAt||null,updatedAt:t.bumpedAt||null,closed:t.closed||t.archived,hidden:t.visible===false,historical:!t.createdAt||Date.parse(t.createdAt)<Date.now()-48*3600000,evidenceScope:scope}));
   await ingestDocuments(documents);
 }
 async function ensureWorker(){
@@ -45,7 +45,7 @@ export async function hydrateCorpus(limit=6){
       const first=(payload.post_stream.posts as Array<{post_number:number;cooked:string}>).find(p=>p.post_number===1);
       const body=sourceText(first?.cooked||parsed.bodyText);
       await ingestDocuments([{refId:d.ref_id,sourceKey:d.source_key,url:d.url,title:parsed.topic.title,body,tags:parsed.topic.tags,createdAt:parsed.topic.createdAt,updatedAt:parsed.sourceUpdatedAt,closed:parsed.topic.closed||parsed.topic.archived,hidden:false,evidenceScope:'discourse_first_post'}]);
-      await recordOutboundLinks(Number(d.id),body);await db`UPDATE intelligence_documents SET body_retry_at=NULL,body_error=NULL,body_attempts=body_attempts+1 WHERE id=${d.id} AND body_lease=${token}`;fetched++;
+      await recordOutboundLinks(Number(d.id),body);await db`UPDATE intelligence_documents SET body_retry_at=${body.length>80000?new Date(Date.now()+86400000):null},body_error=${body.length>80000?'body_truncated':null},body_attempts=body_attempts+1 WHERE id=${d.id} AND body_lease=${token}`;fetched++;
     }catch{failed++;await db`UPDATE intelligence_documents SET body_retry_at=now()+interval '15 minutes',body_error='body_fetch_or_parse_failed',body_attempts=body_attempts+1 WHERE id=${d.id} AND body_lease=${token}`;}
     finally{await db`UPDATE intelligence_documents SET body_lease=NULL,body_lease_until=NULL WHERE id=${d.id} AND body_lease=${token}`;}
   }
@@ -67,14 +67,17 @@ export async function classifyCorpusBatch(limit=5){
 }
 export async function importPilotCorpus(limit=100){
   await ensureIntelligence();const db=getDb();
-  const exists=await db`SELECT to_regclass('public.topic_documents') AS table_name`;if(!exists[0]?.table_name)return {imported:0};
-  const rows=await db`SELECT d.*,t.created_at,t.bumped_at,t.slug,t.discourse_id,f.url AS forum_url FROM topic_documents d JOIN topics t ON t.id=d.topic_id JOIN forums f ON f.id=t.forum_id WHERE d.fetch_status='fetched' AND NOT d.search_hidden ORDER BY d.topic_id LIMIT ${Math.min(200,limit)}`;
+  const exists=await db`SELECT to_regclass('public.topic_documents') AS table_name`;if(!exists[0]?.table_name)return {imported:0,complete:true};
+  const checkpoint=await db`INSERT INTO intelligence_migrations(name) VALUES('pilot-v1') ON CONFLICT(name) DO UPDATE SET updated_at=now() RETURNING last_id`;
+  const rows=await db`SELECT d.*,t.created_at,t.bumped_at,t.slug,t.discourse_id,f.url AS forum_url FROM topic_documents d JOIN topics t ON t.id=d.topic_id JOIN forums f ON f.id=t.forum_id WHERE d.fetch_status='fetched' AND NOT d.search_hidden AND d.topic_id>${checkpoint[0].last_id} ORDER BY d.topic_id LIMIT ${Math.min(200,limit)}`;
   let imported=0;
   for(const row of rows){
     const key=sourceKey(row.forum_url),sources=await db`SELECT source_key,name FROM ingestion_sources WHERE source_key=${key}`;if(!sources.length)continue;
-    await ingestDocuments([{refId:String(sources[0].name).toLowerCase().replace(/\s+/g,'-')+'-'+row.discourse_id,sourceKey:key,title:row.title,url:key+'/t/'+(row.slug?row.slug+'/':'')+row.discourse_id,body:row.body_text,tags:row.tags,createdAt:row.created_at?.toISOString(),updatedAt:row.source_updated_at?.toISOString(),closed:row.source_closed||row.source_archived,historical:true,evidenceScope:'bounded_first_post_backfill'}]);imported++;
+    await ingestDocuments([{refId:String(sources[0].name).toLowerCase().replace(/\s+/g,'-')+'-'+row.discourse_id,sourceKey:key,title:row.title,url:key+'/t/'+(row.slug?row.slug+'/':'')+row.discourse_id,body:row.body_text,bodyStatus:row.truncated?'partial':'fetched',tags:row.tags,createdAt:row.created_at?.toISOString(),updatedAt:row.source_updated_at?.toISOString(),closed:row.source_closed||row.source_archived,historical:true,evidenceScope:'bounded_first_post_backfill'}]);imported++;
   }
-  return {imported,notify:false};
+  const last=rows.at(-1)?.topic_id??checkpoint[0].last_id,complete=rows.length<Math.min(200,limit);
+  await db`UPDATE intelligence_migrations SET last_id=GREATEST(last_id,${last}),completed_at=CASE WHEN ${complete} THEN now() ELSE NULL END,updated_at=now() WHERE name='pilot-v1'`;
+  return {imported,scanned:rows.length,lastId:last,complete,notify:false};
 }
 export async function runIntelligenceMaintenance(){
   if(!isDatabaseConfigured()||process.env.INTELLIGENCE_DISABLED==='true')return;

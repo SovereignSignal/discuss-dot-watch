@@ -9,7 +9,7 @@ const browser=await chromium.launch({headless:true}),receipts=[];
 const token='fixture-memory-only-token';
 for(const v of [{name:'desktop',width:1440,height:1000},{name:'mobile',width:390,height:844}]){
  const context=await browser.newContext({viewport:{width:v.width,height:v.height}}),page=await context.newPage();page.setDefaultTimeout(15000);
- const errors=[],writes=[],requests=[];let fail=false,stage='initialize';
+ const errors=[],writes=[],requests=[];let fail=false,stage='initialize',holdNext=false,releaseHeld,notifyHeld;
  page.on('pageerror',error=>errors.push(error.message));
  // Track attempted persistence as well as final storage state. Reader prefetch
  // can set migration/theme flags; a zero-total-storage assertion tests the wrong invariant.
@@ -40,6 +40,11 @@ for(const v of [{name:'desktop',width:1440,height:1000},{name:'mobile',width:390
   if(u.pathname!=='/api/admin/intelligence'){assert.ok(!String(req.headers().authorization||'').includes(token));await route.fulfill({status:200,contentType:'application/json',body:'{}'});return;}
   requests.push({method:req.method(),view:u.searchParams.get('view')});
   assert.equal(req.headers().authorization,'Bearer '+token);assert.ok(!String(req.postData()||'').includes(token));
+  if(holdNext&&req.method()==='GET'&&!u.searchParams.get('view')){
+    holdNext=false;await new Promise(resolve=>{releaseHeld=resolve;notifyHeld();});
+    try{await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(snapshot)});}catch{/* Lock aborted the in-flight request. */}
+    return;
+  }
   if(fail){fail=false;await route.fulfill({status:503,contentType:'application/json',body:'{"error":"fixture_unavailable"}'});return;}
   if(req.method()==='POST'){writes.push(JSON.parse(req.postData()));await route.fulfill({status:200,contentType:'application/json',body:'{"worked":true,"notify":false}'});return;}
   const view=u.searchParams.get('view');
@@ -62,13 +67,15 @@ for(const v of [{name:'desktop',width:1440,height:1000},{name:'mobile',width:390
   await page.getByRole('button',{name:'Refresh status',exact:true}).click();await page.getByTestId('operator-error').waitFor({state:'detached'});
   stage='layout';await page.screenshot({path:out+'/operator-'+v.name+'.png',fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2),false);
-  stage='lock';await assertNoCredentialPersistence();
-  await page.getByRole('button',{name:'Lock',exact:true}).click();assert.equal(await page.getByLabel('Admin bearer token').inputValue(),'');
+  stage='lock during in-flight refresh';await assertNoCredentialPersistence();
+  holdNext=true;const held=new Promise(resolve=>{notifyHeld=resolve;});
+  await page.getByRole('button',{name:'Refresh status',exact:true}).click();await held;
+  await page.getByRole('button',{name:'Lock',exact:true}).click();releaseHeld();await page.waitForLoadState('networkidle');assert.equal(await page.getByLabel('Admin bearer token').inputValue(),'');
   await page.getByText('Configured sources',{exact:true}).waitFor({state:'detached'});await assertNoCredentialPersistence();
   stage='reload clears credential';const count=requests.length;await page.reload({waitUntil:'networkidle'});
   assert.equal(await page.getByLabel('Admin bearer token').inputValue(),'');assert.equal(requests.length,count);
   await assertNoCredentialPersistence();assert.deepEqual(errors,[]);
-  receipts.push({viewport:v.name,passed:true,backendWrites:0,fixtureActions:writes.map(x=>x.action),checks:['auth UI','no credential storage writes','no token in URL/cookies','surface action','body search','evidence trace','semantic watch action','match view','visible failure','retry','layout','lock','reload clears token','runtime']});
+  receipts.push({viewport:v.name,passed:true,backendWrites:0,fixtureActions:writes.map(x=>x.action),checks:['auth UI','no credential storage writes','no token in URL/cookies','surface action','body search','evidence trace','semantic watch action','match view','visible failure','retry','layout','in-flight lock race','reload clears token','runtime']});
  }catch(error){receipts.push({viewport:v.name,passed:false,stage,error:String(error),errors});await page.screenshot({path:out+'/operator-'+v.name+'-failed.png',fullPage:true});}
  await context.close();
 }
