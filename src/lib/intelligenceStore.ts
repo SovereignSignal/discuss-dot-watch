@@ -5,8 +5,9 @@ import {sourceKey} from './sourceRegistry';
 import {isCandidateOrFilledTitle,isJobSeekerTitle} from './opportunityFit';
 import {isAllowedUrl} from './url';
 import type {CorpusExtraction,CorpusClassificationInput,CorpusClassify} from './corpusClassifier';
-import {classifyCorpusDocument,validateCorpusExtraction} from './corpusClassifier';
-export const INTELLIGENCE_CLASSIFIER_VERSION='independent-lanes-v1';
+import {classifyCorpusDocument,validateCorpusExtraction,CORPUS_CLASSIFIER_VERSION} from './corpusClassifier';
+// Prompt/schema changes get independent history instead of reusing an old completed evaluation.
+export const INTELLIGENCE_CLASSIFIER_VERSION=`independent-lanes-v1:${CORPUS_CLASSIFIER_VERSION}`;
 export type IntelligenceLane='funding'|'opportunities';
 export interface DocumentInput {refId:string;sourceKey:string;url:string;title:string;body?:string;tags?:string[];createdAt?:string|null;updatedAt?:string|null;closed?:boolean;hidden?:boolean;historical?:boolean;bodyStatus?:'missing'|'partial'|'fetched'|'unavailable';evidenceScope?:string}
 export interface IntelligenceDocument {id:number;ref_id:string;source_key:string;url:string;title:string;body:string;tags:string[];content_hash:string;source_created_at:Date|null;source_updated_at:Date|null;body_status:string;source_closed:boolean;hidden:boolean;historical:boolean;first_seen_at:Date;last_seen_at:Date;verified_at:Date|null}
