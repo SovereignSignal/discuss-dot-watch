@@ -14,8 +14,19 @@ concurrency:
   cancel-in-progress: true
 jobs:
   integration:
+    name: PostgreSQL ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - corpusIntegration
+          - opportunityFeedIntegration
+          - surfaceObservability
+          - intelligenceIntegration
+    # Every suite owns a fresh service database. Native cutover tests publish
+    # fixture records by design; those must never contaminate another suite.
     services:
       postgres:
         image: postgres:16
@@ -39,6 +50,6 @@ jobs:
           cache: npm
       - run: npm i -g npm@11
       - run: npm ci
-      - run: node --import tsx --test --test-concurrency=1 tests/corpusPolicy.test.ts tests/corpusIntegration.test.ts tests/opportunityFit.test.ts tests/opportunityFeedIntegration.test.ts tests/surfaceObservability.test.ts tests/intelligenceIntegration.test.ts
+      - run: node --import tsx --test --test-concurrency=1 tests/${{ matrix.suite }}.test.ts
         env:
           CORPUS_TEST_DATABASE_URL: postgres://postgres:corpus_test_only@localhost:5432/corpus_test
