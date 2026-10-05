@@ -7,6 +7,7 @@ import { initializeCorpusSchema, startCorpusJob, corpusStatus, pauseCorpusJob, r
 import { runCorpusTick } from '@/lib/corpusWorker';
 import { classifyCorpusTopic } from '@/lib/corpusClassifier';
 import { initializeCorpusPromotionSchema, promoteCorpusTopic, withdrawCorpusPromotion } from '@/lib/corpusPromotion';
+import { corpusSchemaState } from '@/lib/corpusReadiness';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,10 +24,14 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('withdraw'), topicId: z.number().int().positive(), lane: z.enum(['funding','opportunities']) }),
 ]);
 const json = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
+const upgradeRequired = () => json({ error: 'corpus_upgrade_required', upgradeRequired: true, requiredAction: 'initialize' }, 409);
 export async function GET(request: NextRequest) {
   const auth = await verifyAdminAuth(request);
   if (isAuthError(auth)) return json({ error: auth.error }, auth.status);
-  try { return json(await corpusStatus()); } catch { return json({ error: 'corpus_status_failed' }, 503); }
+  try {
+    if ((await corpusSchemaState()).upgradeRequired) return upgradeRequired();
+    return json(await corpusStatus());
+  } catch { return json({ error: 'corpus_status_failed' }, 503); }
 }
 export async function POST(request: NextRequest) {
   const auth = await verifyAdminAuth(request);
@@ -42,6 +47,7 @@ export async function POST(request: NextRequest) {
     const input = schema.safeParse(parsed);
     if (!input.success) return json({ error: 'invalid_request' }, 400);
     const data = input.data;
+    if (data.action !== 'initialize' && (await corpusSchemaState()).upgradeRequired) return upgradeRequired();
     switch (data.action) {
       case 'initialize': await initializeCorpusSchema(); await initializeCorpusPromotionSchema(); return json({ initialized: true });
       case 'start': return json({ jobId: await startCorpusJob(data.source, data.days, data.asOf,{maxTopics:data.maxTopics,maxPages:data.maxPages}), notify: false });
