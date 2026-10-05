@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'Dockerfile'
+      - 'next.config.ts'
+      - 'src/lib/backgroundLoops.ts'
+      - 'package*.json'
       - '.dockerignore'
       - '.github/workflows/runtime-docker.yml'
   workflow_dispatch:
@@ -30,9 +33,12 @@ jobs:
           docker history --no-trunc discuss-watch-runtime-pilot > image-history.txt
           ! grep -Ei '(DATABASE_URL|REDIS_URL|CRON_SECRET|RESEND_API_KEY|ANTHROPIC_API_KEY|OLLAMA_API_KEY|GITHUB_TOKEN|ENCRYPTION_KEY)' image-history.txt
           ! grep -Ei '(DATABASE_URL|REDIS_URL|CRON_SECRET|RESEND_API_KEY|ANTHROPIC_API_KEY|OLLAMA_API_KEY|GITHUB_TOKEN|ENCRYPTION_KEY)' image-env.json
+      - name: Verify minimal non-root runtime
+        run: |
+          docker run --rm --entrypoint node discuss-watch-runtime-pilot -e "const fs=require('fs');if(process.getuid()===0)process.exit(1);for(const p of ['eslint','eslint-config-next','braces','micromatch','fast-glob']){try{require.resolve(p);throw new Error('Unexpected development package '+p)}catch(e){if(e.code!=='MODULE_NOT_FOUND')throw e}};if(!fs.existsSync('server.js'))throw new Error('Missing standalone server');console.log('STANDALONE_RUNTIME_OK')"
       - name: Start isolated container
         run: |
-          docker run -d --rm --name discuss-watch-pilot -p 18080:8080 discuss-watch-runtime-pilot
+          docker run -d --rm -e DISABLE_BACKGROUND_JOBS=true --name discuss-watch-pilot -p 18080:8080 discuss-watch-runtime-pilot
           for i in $(seq 1 40); do curl -fsS http://127.0.0.1:18080/ >/dev/null && exit 0; sleep 1; done
           docker logs discuss-watch-pilot
           exit 1

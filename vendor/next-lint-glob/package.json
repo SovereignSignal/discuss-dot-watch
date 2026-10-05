@@ -1,0 +1,10 @@
+{
+  "name": "fast-glob",
+  "version": "0.0.0-next-lint-adapter.1",
+  "private": true,
+  "main": "index.cjs",
+  "description": "Local discuss.watch adapter ONLY for pinned Next lint globSync. This is not the upstream fast-glob package.",
+  "dependencies": {
+    "tinyglobby": "0.2.17"
+  }
+}

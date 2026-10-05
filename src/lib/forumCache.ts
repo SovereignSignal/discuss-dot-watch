@@ -23,6 +23,9 @@ import { fetchRealmsProposals, isRealmsEnabled } from './realmsClient';
 import { fetchHackerNewsStories } from './hackerNewsClient';
 import { fetchLobstersStories } from './lobstersClient';
 import { safeFetch } from './safeFetch';
+import { ensureSurfaceObservability, recordSourceResult, pausedSourceKeys } from './surfaceObservability';
+import { sourceKey } from './sourceRegistry';
+import { observeSourceTopics, runIntelligenceMaintenance } from './intelligenceWorker';
 import { matchGrantsKeywords, matchRolesKeywords } from './grantsDetect';
 import { queueGrantsCandidate, runGrantsScan } from './grantsScan';
 import {
@@ -520,6 +523,7 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
     }
     
     const data: DiscourseLatestResponse = await response.json();
+    if (!data || !Array.isArray(data.topic_list?.topics)) return {topics:[],error:'Invalid topic-list shape'};
     
     const refIdPrefix = forum.name.toLowerCase().replace(/\s+/g, '-');
     const topics: DiscussionTopic[] = (data.topic_list?.topics || []).map((topic) =>
@@ -625,7 +629,8 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
  * Refresh external sources (EA Forum, LessWrong, GitHub Discussions, etc.)
  */
 async function refreshExternalSources(): Promise<void> {
-  const sources = getEnabledExternalSources();
+  const paused = await pausedSourceKeys();
+  const sources = getEnabledExternalSources().filter(s=>!paused.has('external:'+s.id));
   
   for (const source of sources) {
     try {
@@ -654,6 +659,7 @@ async function refreshExternalSources(): Promise<void> {
         continue;
       }
 
+      if (!result.error) await observeSourceTopics(`external:${source.id}`,result.posts,'native_'+source.sourceType).catch(()=>console.error('[Intelligence] external corpus persistence failed'));
       // Grants pipeline: queue candidates while full text is in hand, then
       // strip the transient body so it never reaches memory/Redis/responses.
       const vertical = source.category === 'crypto' || source.category === 'ai' || source.category === 'oss'
@@ -680,6 +686,7 @@ async function refreshExternalSources(): Promise<void> {
       }
 
       const key = `external:${source.id}`;
+      await recordSourceResult(key,result.posts,result.error,source.sourceType==='realms'?'cached_adapter_observation':'native_adapter_result').catch(()=>console.error('[SourceHealth] external outcome persistence failed'));
       const now = Date.now();
 
       // Update health state for external sources
@@ -783,13 +790,15 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
   const stopLockHeartbeat = holdRefreshLock(lockToken);
   
   console.log('[ForumCache] Starting cache refresh...');
+  await ensureSurfaceObservability().catch(()=>console.error('[SourceHealth] registry initialization failed'));
   
   try {
     // Get all Discourse forums from specified tiers (skip external sources like EA Forum, LessWrong)
     const EXTERNAL_SOURCE_TYPES = new Set(['ea-forum', 'lesswrong', 'github', 'snapshot', 'hackernews', 'lobsters', 'realms']);
+    const paused = await pausedSourceKeys();
     const forumsWithCategory = FORUM_CATEGORIES.flatMap(cat => 
       cat.forums
-        .filter(f => tiers.includes(f.tier) && (!f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType)))
+        .filter(f => !paused.has(sourceKey(f.url)) && tiers.includes(f.tier) && (!f.sourceType || !EXTERNAL_SOURCE_TYPES.has(f.sourceType)))
         .map(f => ({ forum: f, category: cat.id }))
     );
     
@@ -806,7 +815,9 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
       await Promise.all(
         batch.map(async ({ forum, category }) => {
           const result = await fetchForumTopics(forum);
+          if (!result.error) await observeSourceTopics(sourceKey(forum.url),result.topics,'discourse_topic_metadata').catch(()=>console.error('[Intelligence] forum corpus persistence failed'));
           const key = normalizeUrl(forum.url);
+          await recordSourceResult(sourceKey(forum.url),result.topics,result.error,'discourse_latest_http').catch(()=>console.error('[SourceHealth] native outcome persistence failed'));
           const now = Date.now();
 
           // Update health state
@@ -935,7 +946,7 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
 
     // Grants classification pipeline — fire-and-forget with its own lock,
     // so a slow scan never blocks or extends the refresh cycle.
-    void runGrantsScan(getAllCachedForums()).catch(err => {
+    void runGrantsScan(getAllCachedForums()).then(() => runIntelligenceMaintenance()).catch(err => {
       console.error('[GrantsScan] Post-refresh scan failed:', err);
     });
   } finally {

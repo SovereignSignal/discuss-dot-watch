@@ -8,7 +8,6 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded runs on the same ref
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -23,41 +22,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      # Match the npm major used to generate the lockfile and by production.
-      - name: Pin npm to 11 (match production)
+      - name: Pin npm to 11
         run: npm i -g npm@11
-
       - name: Install
         run: npm ci
-
       - name: Typecheck
         run: npm run typecheck
-
       - name: Test
         run: npm test
-
+      - name: Next lint dependency contract
+        run: node scripts/lint-root-contract.mjs
       - name: Lint
         run: npm run lint
-
       - name: Build
         run: npm run build
-
-      # Production high/critical findings or registry failures now block CI.
-      # The Oct 4 audit reported five moderate production package entries;
-      # passing this threshold does not mean all vulnerabilities are resolved.
-      - name: Production audit (blocking high+)
-        run: npm audit --omit=dev --audit-level=high
-
-      # Preserve visibility of the separate development-only chain through
-      # braces -> micromatch -> fast-glob -> the Next ESLint plugin/config.
-      # Full and production JSON reports are archived by Release assurance.
-      # Do not force npm's suggested major downgrades as an automatic fix.
-      - name: Full dependency audit (advisory)
-        run: npm audit --audit-level=high
-        continue-on-error: true
+      # Both locked graphs are clean. Registry failure or any advisory fails CI.
+      - name: Production audit (blocking all severities)
+        run: npm audit --omit=dev --audit-level=low
+      - name: Full dependency audit (blocking all severities)
+        run: npm audit --audit-level=low

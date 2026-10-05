@@ -136,6 +136,7 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
         {/* Admin */}
         {isSuperAdmin && (
           <div className="px-2 pb-2">
+            <Link href="/app/operator" className="text-xs px-3 py-2 block" style={{color:'var(--ds-fg-muted)'}}>Intelligence operator</Link>
             <Link href="/admin"
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-colors"
               style={{ color: 'var(--ds-fg-muted)', fontSize: 'var(--ds-text-sm)' }}

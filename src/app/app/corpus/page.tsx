@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { PILOT_SOURCES } from '@/lib/corpusPolicy';
+import { corpusSources } from '@/lib/corpusPolicy';
 import { searchCorpus, corpusStatus, type CorpusSearchItem } from '@/lib/corpusStore';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Corpus pilot | discuss.watch' };
+export const metadata = { title: 'First-post corpus | discuss.watch' };
+const PILOT_SOURCES=corpusSources();
 export default async function CorpusPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const q = typeof params.q === 'string' ? params.q.slice(0, 200) : '';
@@ -28,11 +29,11 @@ export default async function CorpusPage({ searchParams }: { searchParams: Promi
     <div className="max-w-4xl mx-auto">
       <Link href="/app" className="text-sm underline" style={{ color: 'var(--ds-fg-muted)' }}>Back to discussions</Link>
       <h1 className="text-2xl font-semibold mt-6">First-post corpus</h1>
-      <p className="mt-2 text-sm" style={{ color: 'var(--ds-fg-muted)' }}>Pilot: Internet Computer, Livepeer and Radworks. Search stored first-post text and titles. Coverage is limited to the runs below; a result is not evidence of a currently open opportunity.</p>
+      <p className="mt-2 text-sm" style={{ color: 'var(--ds-fg-muted)' }}>Search stored first-post text and titles from completed or partial bounded source runs. Coverage is limited to the runs below; a result is not evidence of a currently open opportunity.</p>
       <form method="get" className="flex flex-wrap gap-3 my-6">
         <input name="q" defaultValue={q} maxLength={200} placeholder="Search a phrase inside a post" aria-label="Search corpus" className="border rounded-md p-3 flex-1 min-w-48" style={{ borderColor: 'var(--ds-border)', background: 'var(--ds-bg-card)' }} />
         <select name="source" defaultValue={source} aria-label="Forum" className="border rounded-md p-3" style={{ borderColor: 'var(--ds-border)', background: 'var(--ds-bg-card)' }}>
-          <option value="">All pilot sources</option>{PILOT_SOURCES.map(s => <option key={s.key} value={s.key}>{s.name}</option>)}
+          <option value="">All registered forum sources</option>{PILOT_SOURCES.map(s => <option key={s.key} value={s.key}>{s.name}</option>)}
         </select>
         <button type="submit" className="border rounded-md px-5 py-3" style={{ borderColor: 'var(--ds-border)' }}>Search</button>
       </form>
@@ -40,7 +41,7 @@ export default async function CorpusPage({ searchParams }: { searchParams: Promi
         <h2 className="font-medium">Latest run per source</h2>
         {coverage.map(c => <p key={c.source} className="text-xs mt-2" style={{ color: 'var(--ds-fg-muted)' }}>{c.source}: {c.status}. {c.fetched}/{c.discovered} bodies. Created {c.cutoff} through {c.asOf}.</p>)}
       </section>}
-      {failure ? <p role="alert">Corpus search is temporarily unavailable.</p> : !configured ? <p>The pilot has not been initialized.</p> : items.length === 0 ? <p>No stored documents match this query. This does not mean the source forum has no matches.</p> : <section className="space-y-3">
+      {failure ? <p role="alert">Corpus search is temporarily unavailable.</p> : !configured ? <p>The bounded corpus has not been initialized.</p> : items.length === 0 ? <p>No stored documents match this query. This does not mean the source forum has no matches.</p> : <section className="space-y-3">
         <p className="text-xs" style={{ color: 'var(--ds-fg-muted)' }}>Showing up to 25 results. Historical classifications are review-only and send no alerts.</p>
         {items.map(item => <article key={item.topicId} className="border rounded-lg p-5" style={{ borderColor: 'var(--ds-border)', background: 'var(--ds-bg-card)' }}>
           <a href={item.url} target="_blank" rel="noreferrer" className="font-semibold underline">{item.title}</a>

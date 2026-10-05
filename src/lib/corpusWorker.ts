@@ -2,15 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from './db';
 import { safeFetch, readCappedText } from './safeFetch';
 import { ALL_FORUM_PRESETS } from './forumPresets';
+import {ingestDocuments} from './intelligenceStore';
 import { type CorpusJob, corpusStatus } from './corpusStore';
 import { assessPage, corpusSource, CorpusError, firstPostDocument, retryAfterSeconds,
-  MAX_CORPUS_PAGES, MAX_CORPUS_TOPICS, DOCUMENT_BATCH_SIZE } from './corpusPolicy';
+  corpusSources, DOCUMENT_BATCH_SIZE } from './corpusPolicy';
 
 export type CorpusFetch = (url: string) => Promise<unknown>;
 export async function fetchCorpusJson(url: string): Promise<unknown> {
   // URLs are constructed from the three fixed pilot origins and integer IDs.
   const origin = new URL(url).origin;
-  if (!['internet-computer','livepeer','radworks'].some(k => corpusSource(k).origin === origin)) throw new CorpusError('source_not_in_pilot');
+  if (!corpusSources().some(s => s.origin === origin)) throw new CorpusError('source_not_in_pilot');
   await new Promise(resolve => setTimeout(resolve, 5000));
   const response = await safeFetch(url, {
     sameHost: true, maxRedirects: 2, signal: AbortSignal.timeout(15_000), cache: 'no-store',
@@ -64,7 +65,7 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
         const existing = await tx`SELECT t.discourse_id FROM corpus_job_topics jt JOIN topics t ON t.id = jt.topic_id WHERE jt.job_id = ${id}`;
         const seen = new Set(existing.map(r => Number(r.discourse_id)));
         const fresh = page.eligible.filter(t => !seen.has(t.id));
-        const admitted = fresh.slice(0, Math.max(0, MAX_CORPUS_TOPICS - seen.size));
+        const admitted = fresh.slice(0, Math.max(0, (job.max_topics??100) - seen.size));
         for (const topic of admitted) {
           // Existing live metadata remains authoritative. Never zero engagement counters.
           await tx`INSERT INTO topics (forum_id, discourse_id, title, slug, category_id, tags, created_at, bumped_at, pinned, closed, archived)
@@ -78,10 +79,10 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
         }
         const truncated = admitted.length < fresh.length;
         const proven = !truncated && (page.exhausted || page.cutoffReached);
-        const limited = truncated || seen.size + admitted.length >= MAX_CORPUS_TOPICS || job.next_page + 1 >= MAX_CORPUS_PAGES;
+        const limited = truncated || seen.size + admitted.length >= (job.max_topics??100) || job.next_page + 1 >= (job.max_pages??10);
         const stop = proven ? (page.exhausted ? 'exhausted' : 'cutoff_reached') : limited ? 'pilot_budget_reached' : null;
-        await tx`UPDATE corpus_jobs SET next_page = ${job.next_page + 1},
-          page_hashes = ${tx.json([...job.page_hashes, page.pageHash])}, oldest_created = ${page.oldest},
+        await tx`UPDATE corpus_jobs SET next_page = ${truncated?job.next_page:job.next_page+1},
+          page_hashes = ${tx.json(truncated?job.page_hashes:[...job.page_hashes,page.pageHash])}, oldest_created = ${page.oldest},
           range_complete = ${proven}, phase = ${proven || limited ? 'bodies' : 'pages'}, stop_reason = ${stop},
           status = 'pending', lease_token = NULL, lease_until = NULL, retry_at = NULL, updated_at = now() WHERE id = ${id}`;
         console.log('[Corpus] page ' + JSON.stringify({ source: source.key, job: id, page: job.next_page, discovered: admitted.length, stop }));
@@ -103,6 +104,7 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
             await tx`UPDATE corpus_job_topics SET status = 'fetched', error = NULL WHERE job_id = ${id} AND topic_id = ${row.topic_id}`;
             await tx`UPDATE corpus_jobs SET lease_until = now() + interval '3 minutes', updated_at = now() WHERE id = ${id}`;
           });
+          await ingestDocuments([{refId:source.name.toLowerCase().replace(/\s+/g,'-')+'-'+row.discourse_id,sourceKey:source.origin,url:source.origin+'/t/'+row.discourse_id,title:doc.topic.title,body:doc.bodyText,tags:doc.topic.tags,createdAt:doc.topic.createdAt,updatedAt:doc.sourceUpdatedAt,closed:doc.topic.closed||doc.topic.archived,historical:true,evidenceScope:'bounded_historical_first_post'}]);
           console.log('[Corpus] body ' + JSON.stringify({ source: source.key, topicId: Number(row.topic_id), sourceTopicId: Number(row.discourse_id), chars: doc.bodyText.length, truncated: doc.truncated }));
         } catch (error) {
           const code = error instanceof CorpusError ? error.code : 'document_fetch_failed';

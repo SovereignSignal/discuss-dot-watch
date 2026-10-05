@@ -21,7 +21,7 @@ export interface BackgroundLoopDeps {
   startBackgroundRefresh(): void;
   startDelegateRefreshLoop(): void;
   startDailyBriefLoop(): void;
-  initSchema(): void;
+  initSchema(): void | Promise<void>;
 }
 
 async function loadDefaultDeps(): Promise<BackgroundLoopDeps> {
@@ -35,14 +35,13 @@ async function loadDefaultDeps(): Promise<BackgroundLoopDeps> {
     startBackgroundRefresh: forumCache.startBackgroundRefresh,
     startDelegateRefreshLoop: refreshEngine.startDelegateRefreshLoop,
     startDailyBriefLoop: briefLoop.startDailyBriefLoop,
-    initSchema: () => {
-      // Forward-compatible schema migrations at boot. Previously these only
-      // ran via admin endpoints, so ALTER TABLE migrations never reached
-      // production and the queries using them 500'd.
+    initSchema: async () => {
       if (db.isDatabaseConfigured()) {
-        db.initializeSchema().catch(err => {
-          console.error('[Schema] Boot-time schema init failed:', err);
-        });
+        await db.initializeSchema();
+        const {ensureIntelligence}=await import('./intelligenceStore');
+        await ensureIntelligence();
+        const {ensureWatches}=await import('./semanticWatches');
+        await ensureWatches();
       }
     },
   };
@@ -56,6 +55,7 @@ let inflight: Promise<BackgroundLoopsState> | null = null;
  * (and an Ollama classify burst) must never run inside an image build.
  */
 export function shouldStartBackgroundLoops(env: Partial<NodeJS.ProcessEnv> = process.env): boolean {
+  if (env.DISABLE_BACKGROUND_JOBS === 'true') return false;
   const phase = env.NEXT_PHASE;
   if (phase === 'phase-production-build' || phase === 'phase-development-build') return false;
   return true;
@@ -75,10 +75,10 @@ export function startBackgroundLoops(deps?: BackgroundLoopDeps): Promise<Backgro
   if (!inflight) {
     inflight = (async () => {
       const d = deps ?? await loadDefaultDeps();
+      await d.initSchema();
       d.startBackgroundRefresh();
       d.startDelegateRefreshLoop();
       d.startDailyBriefLoop();
-      d.initSchema();
       state = 'started';
       console.log('[Boot] Background loops started (cache refresh, delegate refresh, daily brief)');
       return state;
