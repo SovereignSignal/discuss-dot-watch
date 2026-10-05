@@ -3,9 +3,9 @@ import {safeFetch,readCappedText} from './safeFetch';
 import {firstPostDocument,retryAfterSeconds} from './corpusPolicy';
 import {sourceText,ingestRegisteredSource} from './sourceAdapters';
 import {ingestDocuments,ensureIntelligence,classifyIntelligenceDocument,recordOutboundLinks,type IntelligenceDocument,type DocumentInput,publishFreshIntelligence,INTELLIGENCE_CLASSIFIER_VERSION} from './intelligenceStore';
-import {sourceKey} from './sourceRegistry';
 import type {DiscussionTopic} from '@/types';
 import {randomUUID} from 'node:crypto';
+export {importPilotCorpus} from './pilotImport';
 export async function observeSourceTopics(key:string,topics:DiscussionTopic[],scope:string){
   if(!topics.length||!isDatabaseConfigured())return;
   const documents:DocumentInput[]=topics.slice(0,100).map(t=>({refId:t.refId,sourceKey:key,title:t.title,url:t.externalUrl||`${(t.forumUrl||key).replace(/\/$/,'')}/t/${t.slug}/${t.id}`,body:t.firstPostText?sourceText(t.firstPostText):undefined,tags:t.tags||[],createdAt:t.createdAt||null,updatedAt:t.bumpedAt||null,closed:t.closed||t.archived,hidden:t.visible===false,historical:!t.createdAt||Date.parse(t.createdAt)<Date.now()-48*3600000,evidenceScope:scope}));
@@ -64,20 +64,6 @@ export async function classifyCorpusBatch(limit=5){
   const results=[];
   for(const d of candidates)for(const lane of ['funding','opportunities'] as const){try{results.push(await classifyIntelligenceDocument(Number(d.id),lane));await publishFreshIntelligence(Number(d.id),lane);}catch{results.push({documentId:d.id,lane,error:'classification_failed'});}}
   return {documents:candidates.length,results,notify:false,historicalPromotion:false,livePostCutoverPolicy:true};
-}
-export async function importPilotCorpus(limit=100){
-  await ensureIntelligence();const db=getDb();
-  const exists=await db`SELECT to_regclass('public.topic_documents') AS table_name`;if(!exists[0]?.table_name)return {imported:0,complete:true};
-  const checkpoint=await db`INSERT INTO intelligence_migrations(name) VALUES('pilot-v1') ON CONFLICT(name) DO UPDATE SET updated_at=now() RETURNING last_id`;
-  const rows=await db`SELECT d.*,t.created_at,t.bumped_at,t.slug,t.discourse_id,f.url AS forum_url FROM topic_documents d JOIN topics t ON t.id=d.topic_id JOIN forums f ON f.id=t.forum_id WHERE d.fetch_status='fetched' AND NOT d.search_hidden AND d.topic_id>${checkpoint[0].last_id} ORDER BY d.topic_id LIMIT ${Math.min(200,limit)}`;
-  let imported=0;
-  for(const row of rows){
-    const key=sourceKey(row.forum_url),sources=await db`SELECT source_key,name FROM ingestion_sources WHERE source_key=${key}`;if(!sources.length)continue;
-    await ingestDocuments([{refId:String(sources[0].name).toLowerCase().replace(/\s+/g,'-')+'-'+row.discourse_id,sourceKey:key,title:row.title,url:key+'/t/'+(row.slug?row.slug+'/':'')+row.discourse_id,body:row.body_text,bodyStatus:row.truncated?'partial':'fetched',tags:row.tags,createdAt:row.created_at?.toISOString(),updatedAt:row.source_updated_at?.toISOString(),closed:row.source_closed||row.source_archived,historical:true,evidenceScope:'bounded_first_post_backfill'}]);imported++;
-  }
-  const last=rows.at(-1)?.topic_id??checkpoint[0].last_id,complete=rows.length<Math.min(200,limit);
-  await db`UPDATE intelligence_migrations SET last_id=GREATEST(last_id,${last}),completed_at=CASE WHEN ${complete} THEN now() ELSE NULL END,updated_at=now() WHERE name='pilot-v1'`;
-  return {imported,scanned:rows.length,lastId:last,complete,notify:false};
 }
 export async function runIntelligenceMaintenance(){
   if(!isDatabaseConfigured()||process.env.INTELLIGENCE_DISABLED==='true')return;
