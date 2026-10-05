@@ -1,0 +1,10 @@
+{
+  "name": "@discuss-watch/next-lint-glob",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.cjs",
+  "description": "Narrow Next ESLint globSync compatibility adapter; not a general fast-glob replacement",
+  "dependencies": {
+    "tinyglobby": "0.2.17"
+  }
+}
