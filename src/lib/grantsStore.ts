@@ -140,6 +140,8 @@ export async function markItemsNotified(ids: number[]): Promise<void> {
   if (!isDatabaseConfigured() || ids.length===0) return;
   const db = getDb();
   await db`UPDATE grants_items SET notified_at=NOW() WHERE id=ANY(${ids})`;
+  const native=await db`SELECT to_regclass('public.funding_records') AS present`;
+  if(native[0]?.present)for(const table of ['funding_records','opportunity_records'])await db`UPDATE ${db(table)} SET notification_state='sent' WHERE compatibility_ref IN(SELECT topic_ref_id FROM grants_items WHERE id=ANY(${ids})) AND notification_state='pending'`;
 }
 /** Observable expiry sweep. This does not send email or reset any watermark. */
 export async function markExpiredUnnotified(): Promise<number[]> {

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import sanitizeHtml from 'sanitize-html';
+import {ALL_FORUM_PRESETS} from './forumPresets';
 
 export const CORPUS_VERSION = 'first-post-v1';
 export const PILOT_SOURCES = [
@@ -7,7 +8,12 @@ export const PILOT_SOURCES = [
   { key: 'livepeer', name: 'Livepeer', origin: 'https://forum.livepeer.org' },
   { key: 'radworks', name: 'Radworks', origin: 'https://community.radworks.org' },
 ] as const;
-export type CorpusSource = typeof PILOT_SOURCES[number];
+export interface CorpusSource {key:string;name:string;origin:string}
+export function corpusSources():CorpusSource[]{
+  const map=new Map<string,CorpusSource>(PILOT_SOURCES.map(s=>[s.origin,s]));
+  for(const p of ALL_FORUM_PRESETS)if(!p.sourceType||p.sourceType==='discourse'){const origin=p.url.replace(/\/$/,'');if(!map.has(origin))map.set(origin,{key:origin,name:p.name,origin});}
+  return [...map.values()];
+}
 export type CorpusLane = 'funding' | 'opportunities';
 export const MAX_CORPUS_TOPICS = 100;
 export const MAX_CORPUS_PAGES = 10;
@@ -18,7 +24,7 @@ export class CorpusError extends Error {
   constructor(public code: string, public retrySeconds = 60) { super(code); }
 }
 export function corpusSource(key: string): CorpusSource {
-  const source = PILOT_SOURCES.find(s => s.key === key);
+  const source = corpusSources().find(s => s.key === key || s.origin === key);
   if (!source) throw new CorpusError('source_not_in_pilot');
   return source;
 }

@@ -10,7 +10,10 @@ test('surface health distinguishes empty, failure and recovery and preserves mul
   const forum='https://forum.example.org/';
   const funding=signalSurfaceKey({forumUrl:forum,lane:'funding',type:'category',slug:'grants',id:7});
   const roles=signalSurfaceKey({forumUrl:forum,lane:'opportunities',type:'tag',slug:'rfp'});
-  const t0=new Date('2026-10-04T10:00:00Z'), t1=new Date('2026-10-04T11:00:00Z'), t2=new Date('2026-10-04T12:00:00Z');
+  const db=getDb();
+  for(const [key,lane,type,slug] of [[funding,'funding','category','grants'],[roles,'opportunities','tag','rfp']])
+    await db`INSERT INTO source_surface_registry(surface_key,source_key,forum_url,protocol,lane,surface_type,surface_slug,feed_url) VALUES(${key},${forum},${forum},'Example',${lane},${type},${slug},${forum+'test.rss'}) ON CONFLICT DO NOTHING`;
+  const t0=new Date(Date.now()-120000),t1=new Date(Date.now()-60000),t2=new Date();
   await recordSurfaceAttempt({surfaceKey:funding,forumUrl:forum,protocol:'Example',lane:'funding',surfaceType:'category',surfaceSlug:'grants',feedUrl:forum+'c/grants/7.rss',status:'empty',httpStatus:200,parsedItems:0,attemptedAt:t0});
   type HealthRow = { surface_key:string; status:string; succeeded_at:Date|null; consecutive_failures:number; next_retry_at:Date|null; parsed_items:number };
   let row=(await getSurfaceHealth() as unknown as HealthRow[]).find(x=>x.surface_key===funding)!;
@@ -26,5 +29,5 @@ test('surface health distinguishes empty, failure and recovery and preserves mul
   await recordTopicSurfaceMatches([{topicRefId:'example-42',surfaceKey:funding,lane:'funding'}]);
   const provenance=await getTopicSurfaceProvenance('example-42') as unknown as Array<{lane:string}>;
   assert.equal(provenance.length,2); assert.deepEqual(new Set(provenance.map(x=>x.lane)),new Set(['funding','opportunities']));
-  console.log('SURFACE_OBSERVABILITY_PROOF '+JSON.stringify({emptyVsFailure:true,recovery:true,multiLaneProvenance:true,duplicateDownloadsRequired:false}));
+  console.log('SURFACE_OBSERVABILITY_PROOF '+JSON.stringify({emptyVsFailure:true,recovery:true,multiLaneProvenance:true,duplicateMatchRows:false}));
 });

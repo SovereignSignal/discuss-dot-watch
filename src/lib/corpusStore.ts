@@ -7,7 +7,7 @@ export interface CorpusJob {
   id: string; forum_id: number; source_key: string; as_of: Date; cutoff: Date;
   status: string; phase: string; next_page: number; range_complete: boolean;
   stop_reason: string | null; page_hashes: string[]; oldest_created: Date | null;
-  lease_token: string | null; lease_until: Date | null; retry_at: Date | null;
+  lease_token: string | null; lease_until: Date | null; retry_at: Date | null; max_topics: number; max_pages: number;
 }
 
 /** Explicit admin migration. No DDL on startup, public requests or live refresh. */
@@ -29,6 +29,8 @@ export async function initializeCorpusSchema(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (forum_id, as_of, cutoff, version), CHECK (cutoff <= as_of)
     )`;
+    await tx`ALTER TABLE corpus_jobs ADD COLUMN IF NOT EXISTS max_topics INTEGER NOT NULL DEFAULT 100`;
+    await tx`ALTER TABLE corpus_jobs ADD COLUMN IF NOT EXISTS max_pages INTEGER NOT NULL DEFAULT 10`;
     await tx`CREATE TABLE IF NOT EXISTS topic_documents (
       topic_id INTEGER PRIMARY KEY REFERENCES topics(id) ON DELETE CASCADE,
       source_key TEXT NOT NULL, source_post_id INTEGER, post_number INTEGER NOT NULL DEFAULT 1 CHECK (post_number = 1),
@@ -65,15 +67,17 @@ export async function corpusReady(): Promise<boolean> {
   const rows = await getDb()`SELECT to_regclass('public.topic_documents') IS NOT NULL AS ready`;
   return rows[0]?.ready === true;
 }
-export async function startCorpusJob(sourceKey: string, days: number, asOf: string): Promise<string> {
+export async function startCorpusJob(sourceKey: string, days: number, asOf: string, budgets: {maxTopics?:number;maxPages?:number} = {}): Promise<string> {
   const source = corpusSource(sourceKey);
   const window = corpusWindow(days, asOf);
+  const maxTopics=budgets.maxTopics??100,maxPages=budgets.maxPages??10;
+  if(!Number.isInteger(maxTopics)||maxTopics<1||maxTopics>2000||!Number.isInteger(maxPages)||maxPages<1||maxPages>200)throw new CorpusError('invalid_crawl_budget');
   if (!ALL_FORUM_PRESETS.some(p => p.url.replace(/\/$/, '') === source.origin)) throw new CorpusError('source_disabled');
   const db = getDb();
   const forum = await db`SELECT id FROM forums WHERE rtrim(url, '/') = ${source.origin} AND is_active = true ORDER BY id LIMIT 1`;
   if (!forum[0]) throw new CorpusError('source_missing_or_inactive');
-  const rows = await db`INSERT INTO corpus_jobs (id, forum_id, source_key, version, as_of, cutoff)
-    VALUES (${randomUUID()}, ${forum[0].id}, ${source.key}, ${CORPUS_VERSION}, ${window.asOf}, ${window.cutoff})
+  const rows = await db`INSERT INTO corpus_jobs (id, forum_id, source_key, version, as_of, cutoff,max_topics,max_pages)
+    VALUES (${randomUUID()}, ${forum[0].id}, ${source.key}, ${CORPUS_VERSION}, ${window.asOf}, ${window.cutoff},${maxTopics},${maxPages})
     ON CONFLICT (forum_id, as_of, cutoff, version) DO UPDATE SET version = EXCLUDED.version RETURNING id`;
   return String(rows[0].id);
 }
@@ -94,7 +98,7 @@ export async function corpusStatus() {
   if (!await corpusReady()) return { configured: false, jobs: [], sources: [] };
   const db = getDb();
   const jobs = await db`SELECT j.id, j.source_key, j.as_of, j.cutoff, j.status, j.phase, j.next_page,
-    j.range_complete, j.stop_reason, j.retry_at, j.updated_at,
+    j.range_complete, j.stop_reason, j.retry_at, j.updated_at,j.max_topics,j.max_pages,
     count(jt.topic_id)::int AS discovered,
     count(*) FILTER (WHERE jt.status = 'fetched')::int AS fetched,
     count(*) FILTER (WHERE jt.status = 'failed')::int AS failed
@@ -133,4 +137,10 @@ export async function searchCorpus(query = '', sourceKey = '', limit = 25): Prom
     bodyCharacters: Number(r.body_characters), truncated: r.truncated === true,
     excerpt: String(r.excerpt), classifications: r.classifications as CorpusSearchItem['classifications'],
   })) };
+}
+
+export async function extendCorpusJob(id:string,maxTopics:number,maxPages:number){
+  if(!Number.isInteger(maxTopics)||maxTopics<1||maxTopics>2000||!Number.isInteger(maxPages)||maxPages<1||maxPages>200)throw new CorpusError('invalid_crawl_budget');
+  const rows=await getDb()`UPDATE corpus_jobs SET max_topics=${maxTopics},max_pages=${maxPages},phase='pages',status='pending',stop_reason=NULL,lease_token=NULL,lease_until=NULL,retry_at=NULL,updated_at=now() WHERE id=${id} AND status='partial' AND NOT range_complete AND stop_reason='pilot_budget_reached' AND max_topics<=${maxTopics} AND max_pages<=${maxPages} AND (max_topics<${maxTopics} OR max_pages<${maxPages}) RETURNING id`;
+  if(!rows.length)throw new CorpusError('job_budget_not_extendable');return {id,extended:true,maxTopics,maxPages};
 }

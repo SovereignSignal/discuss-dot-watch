@@ -31,10 +31,15 @@ import { ollamaClassifyModel } from './llm';
 import { getClassifiedRefIds, upsertGrantsItem, updateGrantsEngagement } from './grantsStore';
 import { isDatabaseConfigured } from './db';
 import { acquireGrantsScanLock, holdGrantsScanLock, releaseGrantsScanLock } from './redis';
-import { FORUM_CATEGORIES, ForumPreset, SignalSurface, getSignalSurfaces } from './forumPresets';
+import { FORUM_CATEGORIES, ForumPreset, SignalSurface } from './forumPresets';
 import { fetchEAForumTaggedPosts } from './eaForumClient';
-import { safeFetch } from './safeFetch';
-import { initializeSurfaceObservabilitySchema, recordSurfaceAttempt, recordTopicSurfaceMatches, signalSurfaceKey, type SurfaceLane } from './surfaceObservability';
+import { fetchStrictFeed } from './strictFeed';
+import { ingestDocuments } from './intelligenceStore';
+import { acquireSurfaceGroup } from './surfaceAcquisition';
+import { interleaveCandidates, acquisitionLanes } from './sourceRegistry';
+import { ensureSurfaceObservability, dueSurfaceGroups, type SurfaceLane } from './surfaceObservability';
+
+import {runNativeCandidateScan} from './nativeLaneScan';
 
 // ── Tuning ──────────────────────────────────────────────────────────
 const MAX_CLASSIFY_PER_RUN = 120;      // classify calls per scan (backlog drains over cycles)
@@ -43,7 +48,7 @@ const MAX_RSS_FETCHES_PER_RUN = 30;    // /latest.rss body fetches
 const MAX_CATEGORY_FETCHES_PER_RUN = 25; // grants-category feeds get their own budget
 const CATEGORY_FETCH_INTERVAL_MS = 60 * 60 * 1000; // grants categories move slowly
 const RSS_FETCH_DELAY_MS = 500;
-const MAX_BODY_CHARS = 8000;
+const MAX_BODY_CHARS = 80000;
 const EA_FUNDING_TAG_ID = 'be4pBryMKxLhkmgvE'; // "Funding opportunities" on forum.effectivealtruism.org
 
 type Vertical = 'crypto' | 'ai' | 'oss';
@@ -135,13 +140,6 @@ function resolveVertical(categoryId: string): Vertical | null {
 }
 
 const presetByUrl = new Map<string, { preset: ForumPreset; vertical: Vertical }>();
-/** One entry per configured category feed, flattened so the rotating
- *  budget is spent per FEED rather than per forum. */
-const signalFeeds: Array<{
-  preset: ForumPreset;
-  vertical: Vertical;
-  surface: SignalSurface;
-}> = [];
 for (const cat of FORUM_CATEGORIES) {
   const vertical = resolveVertical(cat.id);
   if (!vertical) continue;
@@ -149,7 +147,6 @@ for (const cat of FORUM_CATEGORIES) {
     if (preset.sourceType && preset.sourceType !== 'discourse') continue;
     const entry = { preset, vertical };
     presetByUrl.set(preset.url.replace(/\/$/, '').toLowerCase(), entry);
-    for (const surface of getSignalSurfaces(preset)) signalFeeds.push({ ...entry, surface });
   }
 }
 
@@ -163,69 +160,21 @@ interface RssItem {
   pubDate: string | null;
 }
 
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&');
-}
-
-function stripHtml(html: string): string {
-  return decodeEntities(
-    html
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<[^>]+>/g, ' '),
-  )
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Parse a Discourse RSS feed (forum /latest.rss or category .rss). */
 interface RssFetchResult { items: RssItem[]; status: 'ok'|'empty'|'failed'; httpStatus: number|null; errorCode: string|null }
 async function fetchDiscourseRss(feedUrl: string): Promise<RssFetchResult> {
-  try {
-    const res = await safeFetch(feedUrl, { headers: { 'User-Agent': 'discuss.watch/1.0' } });
-    if (!res.ok) return { items: [], status: 'failed', httpStatus: res.status, errorCode: `http_${res.status}` };
-    const xml = await res.text();
-    const items: RssItem[] = [];
-    const itemBlocks = xml.split('<item>').slice(1);
-    for (const block of itemBlocks) {
-      const link = block.match(/<link>(.*?)<\/link>/)?.[1] || '';
-      const m = link.match(/\/t\/([^/]+)\/(\d+)/);
-      if (!m) continue;
-      const title = decodeEntities(
-        block.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)?.[1]?.trim() || '',
-      );
-      const desc = block.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)?.[1] || '';
-      const pubDate = block.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || null;
-      // Validate per-item so one malformed pubDate nulls that item's date
-      // instead of throwing and discarding the whole feed.
-      const parsed = pubDate ? new Date(pubDate) : null;
-      items.push({
-        topicId: parseInt(m[2], 10),
-        slug: m[1],
-        title,
-        body: stripHtml(desc).slice(0, MAX_BODY_CHARS),
-        pubDate: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : null,
-      });
-    }
-    return { items, status: items.length === 0 ? 'empty' : 'ok', httpStatus: res.status, errorCode: null };
-  } catch (err) {
-    console.error(`[GrantsScan] RSS fetch failed for ${feedUrl}:`, err);
-    const errorCode = err instanceof Error ? err.name || 'fetch_error' : 'fetch_error';
-    return { items: [], status: 'failed', httpStatus: null, errorCode };
+  const result = await fetchStrictFeed(feedUrl);
+  const origin = new URL(feedUrl).origin;
+  const items: RssItem[] = [];
+  for (const item of result.items) {
+    const url = new URL(item.url), match = url.pathname.match(/^\/t\/(?:([^/]+)\/)?(\d+)(?:\/\d+)?\/?$/);
+    if (url.origin !== origin || !match) continue;
+    items.push({topicId:Number(match[2]),slug:match[1]||'',title:item.title,body:item.body.slice(0,MAX_BODY_CHARS),pubDate:item.publishedAt});
   }
+  return {items,status:result.status==='failed'?'failed':result.items.length&&!items.length?'failed':items.length?'ok':'empty',httpStatus:result.httpStatus,errorCode:result.errorCode};
 }
 
 // ── Candidate collection ─────────────────────────────────────────────
 
-function discourseRefId(forumName: string, topicId: number): string {
-  return `${forumName.toLowerCase().replace(/\s+/g, '-')}-${topicId}`;
-}
 
 /**
  * RSS URL for one grants category.
@@ -298,12 +247,11 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
       const matched = matchGrantsKeywords(topic.title, topic.tags || [], topic.excerpt);
       // Role/position keywords feed the same classifier (ROLE class). Grants
       // matches take signal precedence so downstream ordering can prioritize.
-      const matchedRoles = matched.length === 0
-        ? matchRolesKeywords(topic.title, topic.tags || [], topic.excerpt)
-        : [];
+      const matchedRoles = matchRolesKeywords(topic.title, topic.tags || [], topic.excerpt);
       if (matched.length === 0 && matchedRoles.length === 0) continue;
       const cand: Candidate = {
         refId: topic.refId,
+        provenance: [...(matched.length ? [{surfaceKey: 'keywords:funding', lane: 'funding' as const}] : []), ...(matchedRoles.length ? [{surfaceKey: 'keywords:opportunities', lane: 'opportunities' as const}] : [])],
         forumUrl: preset.url,
         protocol: topic.protocol,
         vertical,
@@ -339,8 +287,8 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
   // noisier) role-keyword surface can never starve grant bodies — mirroring
   // the grants-first ordering of the classification cap below.
   const forumEntries = [...forumsNeedingBodies.entries()].sort(([, a], [, b]) => {
-    const aGrants = a.some(c => !c.signal.startsWith('roles:')) ? 0 : 1;
-    const bGrants = b.some(c => !c.signal.startsWith('roles:')) ? 0 : 1;
+    const aGrants = a.some(c => acquisitionLanes(c.signal,c.provenance).includes('funding')) ? 0 : 1;
+    const bGrants = b.some(c => acquisitionLanes(c.signal,c.provenance).includes('funding')) ? 0 : 1;
     return aGrants - bGrants;
   });
   let budgetExhausted = false;
@@ -362,6 +310,7 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
     }
     rssFetches++;
     const latestResult = await fetchDiscourseRss(`${forumUrl.replace(/\/$/, '')}/latest.rss`);
+    if (latestResult.status === 'failed') { for (const cand of fresh) candidates.delete(cand.refId); continue; }
     const byId = new Map(latestResult.items.map(i => [i.topicId, i]));
     for (const cand of fresh) {
       const item = cand.topicId != null ? byId.get(cand.topicId) : undefined;
@@ -375,49 +324,29 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
     console.log('[GrantsScan] Body-fetch budget exhausted this cycle — deferred forums retry next cycle');
   }
 
-  // 3. Dedicated grants categories (hourly — they move slowly).
-  // Own budget so /latest.rss volume can never starve them.
+  // Due groups are durable and budgeted by physical endpoint, not lane alias.
+  // Every attempted feed retains evidence, including failures and valid empties.
+  const groups = await dueSurfaceGroups(MAX_CATEGORY_FETCHES_PER_RUN);
+  for (const group of groups) {
+    const items = await acquireSurfaceGroup(group);
+    const entry = presetByUrl.get(group[0].forumUrl.replace(/\/$/, '').toLowerCase());
+    if (!entry) continue;
+    if (items.length) await ingestDocuments(items.map(item=>({refId:item.refId,sourceKey:group[0].sourceKey,url:item.url,title:item.title,body:item.body,createdAt:item.publishedAt,updatedAt:item.updatedAt,historical:true,evidenceScope:'discourse_surface_first_post'})));
+    for (const item of items) {
+      const existing = candidates.get(item.refId);
+      if (existing) {
+        if (!existing.body) existing.body = item.body.slice(0, MAX_BODY_CHARS);
+        existing.provenance = [...new Map([...(existing.provenance||[]),...item.provenance].map(p=>[p.surfaceKey,p])).values()];
+      } else candidates.set(item.refId, {
+        refId:item.refId,forumUrl:item.forumUrl,protocol:item.protocol,vertical:entry.vertical,title:item.title,url:item.url,
+        tags:[],body:item.body.slice(0,MAX_BODY_CHARS),signal:`${group[0].lane} ${group[0].type}: ${group[0].slug}`,
+        replies:0,views:0,likes:0,createdAt:item.publishedAt,bumpedAt:item.updatedAt,topicId:item.topicId,provenance:item.provenance,
+      });
+    }
+    await new Promise(r => setTimeout(r, RSS_FETCH_DELAY_MS));
+  }
   if (Date.now() - scan.lastCategoryFetch > CATEGORY_FETCH_INTERVAL_MS) {
     scan.lastCategoryFetch = Date.now();
-    const { batch, nextCursor } = selectCategoryBatch(
-      signalFeeds, scan.categoryCursor, MAX_CATEGORY_FETCHES_PER_RUN,
-    );
-    scan.categoryCursor = nextCursor;
-    if (batch.length < signalFeeds.length) {
-      console.log(`[GrantsScan] Category pass: ${batch.length} of ${signalFeeds.length} feeds this hour (rotating; resumes at index ${nextCursor})`);
-    }
-    for (const { preset, vertical, surface } of batch) {
-      const base = preset.url.replace(/\/$/, '');
-      const feedUrl = signalSurfaceFeedUrl(preset.url, surface);
-      const surfaceKey = signalSurfaceKey({ forumUrl: preset.url, lane: surface.lane, type: surface.type, slug: surface.slug, id: surface.type === 'category' ? surface.id : undefined, tagId: surface.type === 'tag' ? surface.tagId : undefined });
-      const result = await fetchDiscourseRss(feedUrl);
-      await recordSurfaceAttempt({
-        surfaceKey, forumUrl: preset.url, protocol: preset.name, lane: surface.lane,
-        surfaceType: surface.type, surfaceSlug: surface.slug, feedUrl,
-        status: result.status, httpStatus: result.httpStatus, parsedItems: result.items.length, errorCode: result.errorCode,
-      });
-      const matches: Array<{ topicRefId: string; surfaceKey: string; lane: SurfaceLane }> = [];
-      for (const item of result.items) {
-        const refId = discourseRefId(preset.name, item.topicId);
-        matches.push({ topicRefId: refId, surfaceKey, lane: surface.lane });
-        if (candidates.has(refId)) {
-          const existing = candidates.get(refId)!;
-          if (!existing.body) existing.body = item.body;
-          existing.provenance = [...(existing.provenance || []), { surfaceKey, lane: surface.lane }];
-          continue;
-        }
-        candidates.set(refId, {
-          refId, provenance: [{ surfaceKey, lane: surface.lane }],
-          forumUrl: preset.url, protocol: preset.name, vertical, title: item.title,
-          url: `${base}/t/${item.slug}/${item.topicId}`, tags: [], body: item.body,
-          signal: `${surface.lane} ${surface.type}: ${surface.slug}`,
-          replies: 0, views: 0, likes: 0, createdAt: item.pubDate, bumpedAt: item.pubDate, topicId: item.topicId,
-        });
-      }
-      await recordTopicSurfaceMatches(matches);
-      await new Promise(r => setTimeout(r, RSS_FETCH_DELAY_MS));
-    }
-
     // 4. EA Forum "Funding opportunities" tag (AI vertical)
     const eaPosts = await fetchEAForumTaggedPosts(EA_FUNDING_TAG_ID, 30);
     for (const { topic, body } of eaPosts) {
@@ -452,10 +381,6 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
     console.log('[GrantsScan] Database not configured, skipping');
     return;
   }
-  if (!isClassifierConfigured()) {
-    console.log('[GrantsScan] No LLM provider configured (ANTHROPIC_API_KEY or LLM_PROVIDER=ollama), skipping');
-    return;
-  }
   const lockToken = await acquireGrantsScanLock();
   if (!lockToken) {
     console.log('[GrantsScan] Another instance is scanning, skipping');
@@ -466,13 +391,20 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
   const stopLockHeartbeat = holdGrantsScanLock(lockToken);
   const started = Date.now();
   try {
-    await initializeSurfaceObservabilitySchema();
+    await ensureSurfaceObservability();
     const candidates = await collectCandidates(cachedForums);
     if (candidates.length === 0) {
       console.log('[GrantsScan] No candidates this cycle');
       return;
     }
 
+    if (!isClassifierConfigured()) { console.log('[GrantsScan] Acquisition completed; classifier not configured'); return; }
+    if(process.env.INTELLIGENCE_COMPATIBILITY_LEGACY!=='true'){
+      const result=await runNativeCandidateScan(candidates);
+      console.log('[GrantsScan] '+JSON.stringify(result));
+      return;
+    }
+    // Explicit rollback path only. Canonical processing above owns both lanes.
     const alreadyClassified = await getClassifiedRefIds(candidates.map(c => c.refId));
     const fresh = candidates.filter(c => !alreadyClassified.has(c.refId));
     const known = candidates.filter(c => alreadyClassified.has(c.refId));
@@ -493,10 +425,7 @@ export async function runGrantsScan(cachedForums: CachedForum[]): Promise<void> 
     // Grants-signal candidates classify before role-signal ones so the
     // one-time role-keyword backlog (and any future role flood) can never
     // starve grant classification within the per-run cap. Stable partition.
-    const ordered = [
-      ...fresh.filter(c => !c.signal.startsWith('roles:')),
-      ...fresh.filter(c => c.signal.startsWith('roles:')),
-    ];
+    const ordered = interleaveCandidates(fresh);
     const toClassify = ordered.slice(0, MAX_CLASSIFY_PER_RUN);
     if (fresh.length > toClassify.length) {
       console.log(`[GrantsScan] Capping classification at ${MAX_CLASSIFY_PER_RUN} (${fresh.length - toClassify.length} deferred to next cycle)`);
