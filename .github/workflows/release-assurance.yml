@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'src/lib/opportunity*.ts'
+      - 'src/lib/intelligence*.ts'
+      - 'src/components/IntelligenceOperator.tsx'
+      - 'src/app/app/operator/**'
+      - 'scripts/operator-browser-smoke.mjs'
       - 'src/lib/briefRoleSelection.ts'
       - 'src/components/OpportunitiesView.tsx'
       - 'scripts/release-browser-smoke.mjs'
@@ -57,7 +61,7 @@ jobs:
       - name: Desktop and mobile browser regression
         shell: bash
         run: |
-          NEXT_PHASE=phase-production-build npm start -- --port 3000 > smoke-artifacts/server.log 2>&1 &
+          DISABLE_BACKGROUND_JOBS=true npm start -- --port 3000 > smoke-artifacts/server.log 2>&1 &
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
           for n in $(seq 1 45); do
@@ -69,6 +73,7 @@ jobs:
             exit 1
           fi
           PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser-tools/node_modules/playwright" node scripts/release-browser-smoke.mjs
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser-tools/node_modules/playwright" node scripts/operator-browser-smoke.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
