@@ -17,7 +17,7 @@ test('independent evaluation identity follows the evidence recipe',()=>{
 });
 test('old deployed corpus schema returns an upgrade instruction and upgrades without erasing jobs',{skip:!url},async()=>{
   await initializeSchema();await initializeCorpusSchema();const db=getDb();
-  await db`INSERT INTO forums(url,name,is_active) VALUES('https://forum.dfinity.org/','Migration fixture',true) ON CONFLICT(url) DO UPDATE SET is_active=true`;
+  await db`INSERT INTO forums(url,name,category,is_active) VALUES('https://forum.dfinity.org/','Migration fixture','crypto',true) ON CONFLICT(url) DO UPDATE SET is_active=true`;
   const id=await startCorpusJob('internet-computer',7,'2026-10-03T12:00:00Z');
   await db`ALTER TABLE corpus_jobs DROP COLUMN max_topics`;
   await db`ALTER TABLE corpus_jobs DROP COLUMN max_pages`;
@@ -54,18 +54,18 @@ test('later-fetched old topic IDs import once per revision without overwriting n
   await db`INSERT INTO topic_documents(topic_id,source_key,title,body_text,content_hash,fetch_status,fetched_at,source_updated_at)
     VALUES(${id},${key},'Late hydrated topic','Older evidence imported despite its low topic ID.','revision-one','fetched','2026-01-02T00:00:00Z','2026-01-01T00:00:00Z')`;
   await db`INSERT INTO intelligence_migrations(name,last_id) VALUES('pilot-v1',999999999) ON CONFLICT(name) DO UPDATE SET last_id=999999999`;
-  const first=await importPilotCorpus(100);assert.equal(first.imported,1);assert.equal(first.complete,true);
+  const first=await importPilotCorpus(100);assert.equal(first.imported,1);assert.equal(first.written,1);assert.equal(first.complete,true);
   assert.equal((await importPilotCorpus(100)).imported,0);
   const ref='import-fixture-912345';
   assert.match(String((await db`SELECT body FROM intelligence_documents WHERE ref_id=${ref}`)[0].body),/low topic ID/);
   await db`UPDATE topic_documents SET body_text='A corrected source revision.',content_hash='revision-two',fetched_at='2026-01-03T00:00:00Z',source_updated_at='2026-01-03T00:00:00Z' WHERE topic_id=${id}`;
-  assert.equal((await importPilotCorpus(100)).imported,1);
+  assert.equal((await importPilotCorpus(100)).written,1);
   assert.equal((await db`SELECT body FROM intelligence_documents WHERE ref_id=${ref}`)[0].body,'A corrected source revision.');
   assert.equal((await importPilotCorpus(100)).scanned,0);
   await ingestDocuments([{refId:ref,sourceKey:key,url:key+'/t/late-topic/912345',title:'New native revision',body:'The newer verified native body must survive.',createdAt:'2026-01-01T00:00:00Z',historical:true}]);
   await db`UPDATE topic_documents SET body_text='Late arrival of an older snapshot.',content_hash='revision-three',fetched_at='2026-01-04T00:00:00Z' WHERE topic_id=${id}`;
   const protectedResult=await importPilotCorpus(100);
-  assert.equal(protectedResult.preservedNewer,1);assert.equal(protectedResult.imported,0);
+  assert.equal(protectedResult.preservedNewer,1);assert.equal(protectedResult.imported,1);assert.equal(protectedResult.written,0);
   assert.equal((await db`SELECT body FROM intelligence_documents WHERE ref_id=${ref}`)[0].body,'The newer verified native body must survive.');
   assert.equal((await importPilotCorpus(100)).scanned,0);
   assert.equal(Number((await db`SELECT count(*)::int n FROM intelligence_documents WHERE ref_id=${ref}`)[0].n),1);
