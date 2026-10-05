@@ -30,11 +30,12 @@ jobs:
           node <<'NODE'
           const fs=require('fs');
           const p=JSON.parse(fs.readFileSync('package.json','utf8'));
+          p.devDependencies['fast-glob']='file:vendor/next-lint-glob';
           p.overrides ||= {};
-          p.overrides['@next/eslint-plugin-next']={...(p.overrides['@next/eslint-plugin-next']||{}),'fast-glob':'file:./vendor/next-lint-glob'};
+          p.overrides['@next/eslint-plugin-next']={...(p.overrides['@next/eslint-plugin-next']||{}),'fast-glob':'$fast-glob'};
           fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
           NODE
-          npm install --package-lock-only --ignore-scripts
+          npm install --ignore-scripts
           npm ci
       - run: node scripts/lint-root-contract.mjs
       - run: npm run typecheck
@@ -46,10 +47,12 @@ jobs:
           npm audit --audit-level=low
           npm audit --omit=dev --audit-level=low
       - name: Export reproducible offline review workspace
+        if: always()
         run: |
           mkdir -p /tmp/closeout-export
           tar --exclude=.git --exclude=.next --exclude='*.log' -czf /tmp/closeout-export/workspace.tar.gz .
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: closeout-validated-workspace-${{ github.run_id }}
           path: /tmp/closeout-export/workspace.tar.gz
