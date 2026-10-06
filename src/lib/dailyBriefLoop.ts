@@ -35,7 +35,7 @@ async function tick(): Promise<void> {
   if (new Date().getUTCHours() < SEND_HOUR_UTC) return;
   try {
     const result = await runDailyBrief();
-    if (!result.sent && result.reason !== 'Already sent today' && result.reason !== 'No new items') {
+    if (!result.sent && result.reason !== 'Already sent today') {
       console.log(`[DailyBrief] Loop tick: not sent — ${result.reason}`);
     }
   } catch (error) {
