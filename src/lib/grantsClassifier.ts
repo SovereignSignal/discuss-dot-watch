@@ -2,6 +2,7 @@
 import { generateStructured, isLLMConfigured } from './llm';
 import { isAllowedUrl } from './url';
 import { isJobSeekerTitle, isCandidateOrFilledTitle, supportedRoleKind } from './opportunityFit';
+import { APPLICANT_RE, DELEGATE_REPORT_RE, FUNDRAISE_RE, RECORD_RE, UPDATE_RE } from './titleGuards';
 
 export type GrantsClassification = 'GRANT' | 'ROLE' | 'NEWS' | 'NOISE';
 export interface GrantsExtraction {
@@ -13,20 +14,18 @@ export interface GrantsCandidateInput {
   title: string; protocol: string; vertical: 'crypto' | 'ai' | 'oss'; tags: string[];
   body?: string; signal: string; createdAt?: string | null;
 }
-const DELEGATE_REPORT_RE = /delegate\s+(thread|communication|report|update)s?\b/i;
-// Retrospective FUNDING and APPLICATION calls remain eligible.
-const RECORD_RE = /\b(meeting minutes|minutes of the|post[- ]?mortem|(?:final|completion|closing) report)\b|\bretrospective\b(?!\s+(funding|round|grant|application))|^\s*feedback on\b/i;
-const FUNDRAISE_RE = /\b(?:has|have|had)\s+raised\s+[$€£\d]|\braises\s+[$€£\d]|\bseries\s+[a-e]\s+(?:round|funding|financing)\b/i;
+// Guard rationale and validation history live in titleGuards.ts.
 const OPPORTUNITY_GUARDS: ReadonlyArray<{ re: RegExp; from: readonly GrantsClassification[] }> = [
   {re:DELEGATE_REPORT_RE,from:['ROLE']}, {re:RECORD_RE,from:['GRANT','ROLE']}, {re:FUNDRAISE_RE,from:['GRANT','ROLE']},
 ];
-const UPDATE_RE = /\b(?:grant|progress|milestone|monthly|quarterly|project)\s+update\b|\bprogress report\b|\bupdate\s*#\s*\d/i;
+/** A DAO renewing an existing workstream or provider is a budget debate.
+ *  Titles naming a grant or program are exempt: "Hop Grants Program Renewal
+ *  and Redesign" is a real program (ShapeShift renewal, 2026-09-25). */
 const RENEWAL_RE = /\brenewal\b/i;
-const DISCUSSION_PREFIX_RE = /^\s*\[DIS\]/i;
 const PROGRAM_RE = /\b(?:grants?|program(?:me)?s?)\b/i;
 export function correctGrantKind(title: string, kind: string | null): string | null {
   if (UPDATE_RE.test(title)) return 'milestone_report';
-  if (DISCUSSION_PREFIX_RE.test(title)) return 'application';
+  if (APPLICANT_RE.test(title)) return 'application';
   if (RENEWAL_RE.test(title) && !PROGRAM_RE.test(title)) return 'budget_debate';
   return kind;
 }
