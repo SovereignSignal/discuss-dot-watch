@@ -23,6 +23,12 @@ import { getPipelineStats, assessPipelineHealth, type PipelineStats, type Pipeli
 
 const RECIPIENT = 'sov@sovereignsignal.com';
 const DAILY_CLAIM_KEY = 'daily-brief';
+/** A day with nothing new still mails a pipeline heartbeat, but only from this
+ *  hour: items that arrive after the 14:00 UTC loop start still go out the
+ *  same day, and an early external ping of /api/cron/grants-brief cannot burn
+ *  the day's slot on an empty email. */
+export const HEARTBEAT_HOUR_UTC = 18;
+const STATS_TIMEOUT_MS = 10_000;
 
 /**
  * Authoritative once-per-day claim in Postgres — atomic INSERT ON CONFLICT,
@@ -563,6 +569,12 @@ export function formatDailyBriefText(brief: DailyBriefContent): string {
 
 // ── Send orchestration (shared by the cron route and the loop) ───────
 
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms); });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
 export interface DailyBriefResult {
   sent: boolean;
   roles: number;
@@ -587,39 +599,51 @@ export async function runDailyBrief(): Promise<DailyBriefResult> {
     getUnnotifiedItems('ROLE'),
     getUnnotifiedItems('GRANT'),
   ]);
-  // A quiet day still sends: the pipeline footer is the daily heartbeat, and
-  // silence used to be indistinguishable from an outage. Items that arrive
-  // after an empty send simply lead tomorrow's brief.
+  // A quiet day still sends from HEARTBEAT_HOUR_UTC: the pipeline footer is
+  // the daily heartbeat, and silence used to be indistinguishable from an
+  // outage. Before that hour an empty run claims nothing.
+  if (roles.length === 0 && grants.length === 0 && new Date().getUTCHours() < HEARTBEAT_HOUR_UTC) {
+    return { sent: false, roles: 0, grants: 0, reason: 'No new items' };
+  }
+
+  // Claimed before the summary/send work so two racing triggers can't both
+  // pay for generation.
   if (!(await claimDay(day))) {
     return { sent: false, roles: roles.length, grants: grants.length, reason: 'Already sent today' };
   }
 
-  const plan = planBrief(roles, grants);
-  const brief: DailyBriefContent = {
-    date: new Date(),
-    roles,
-    grants,
-    summary: await generateSummary(plan).catch(() => null),
-    pipeline: await getPipelineStats()
-      .then(stats => (stats ? { stats, health: assessPipelineHealth(stats) } : null))
-      .catch(err => { console.error('[DailyBrief] Pipeline stats unavailable:', err); return null; }),
-  };
-  const counts = briefCounts(plan);
-  const dateStr = brief.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const warn = brief.pipeline && brief.pipeline.health.level !== 'ok' ? '⚠ ' : '';
-  if (brief.pipeline) console.log(`[DailyBrief] pipeline ${JSON.stringify({ level: brief.pipeline.health.level, ...pipelineLines(brief.pipeline) })}`);
+  // Any failure between the claim and a successful send releases the day so
+  // the next hourly tick retries; a lost day used to be silent.
+  let brief: DailyBriefContent;
+  let result: Awaited<ReturnType<typeof sendEmail>>;
+  try {
+    const plan = planBrief(roles, grants);
+    brief = {
+      date: new Date(),
+      roles,
+      grants,
+      summary: await generateSummary(plan).catch(() => null),
+      pipeline: await withTimeout(getPipelineStats(), STATS_TIMEOUT_MS)
+        .then(stats => (stats ? { stats, health: assessPipelineHealth(stats) } : null))
+        .catch(err => { console.error('[DailyBrief] Pipeline stats unavailable:', err); return null; }),
+    };
+    const counts = briefCounts(plan);
+    const dateStr = brief.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const warn = brief.pipeline && brief.pipeline.health.level !== 'ok' ? '⚠ ' : '';
+    if (brief.pipeline) console.log(`[DailyBrief] pipeline ${JSON.stringify({ level: brief.pipeline.health.level, ...pipelineLines(brief.pipeline) })}`);
 
-  const result = await sendEmail({
-    to: RECIPIENT,
-    subject: `${warn}Daily Brief — ${counts} — ${dateStr}`,
-    html: formatDailyBriefHtml(brief),
-    text: formatDailyBriefText(brief),
-    tags: [{ name: 'type', value: 'daily-brief' }],
-  });
+    result = await sendEmail({
+      to: RECIPIENT,
+      subject: `${warn}Daily Brief — ${counts} — ${dateStr}`,
+      html: formatDailyBriefHtml(brief),
+      text: formatDailyBriefText(brief),
+      tags: [{ name: 'type', value: 'daily-brief' }],
+    });
 
-  if (!result.success) {
-    await releaseDay(day);
-    throw new Error(`Daily brief send failed: ${result.error}`);
+    if (!result.success) throw new Error(`Daily brief send failed: ${result.error}`);
+  } catch (err) {
+    await releaseDay(day).catch(releaseErr => console.error('[DailyBrief] Failed to release the day claim:', releaseErr));
+    throw err;
   }
 
   // The email is out — a watermark-stamp failure must not masquerade as a

@@ -16,7 +16,7 @@ export interface PipelineStats {
   newTopics: number;
   /** Documents with a completed classification in the last 24h. */
   judged: number;
-  /** Classifications that failed in the last 24h (model errors, invalid output). */
+  /** Documents whose classification failed in the last 24h (model errors, invalid output). */
   failed: number;
   /** Judged actionable by the classifier plus the deterministic guards. */
   actionable: Lanes;
@@ -47,7 +47,8 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
     db`SELECT count(DISTINCT document_id)::int AS n FROM intelligence_evaluations
        WHERE state = 'complete' AND classified_at > now() - interval '24 hours'`,
     // A failure schedules its retry 15 minutes out, so next_retry_at dates it.
-    db`SELECT count(*)::int AS n FROM intelligence_evaluations
+    // Counted per document, like judged, so the error share compares like with like.
+    db`SELECT count(DISTINCT document_id)::int AS n FROM intelligence_evaluations
        WHERE state = 'failed' AND next_retry_at > now() - interval '24 hours'`,
     db`SELECT lane, count(*)::int AS n FROM intelligence_evaluations
        WHERE state = 'complete' AND classified_at > now() - interval '24 hours' AND result->>'actionable' = 'true'
@@ -57,7 +58,11 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
        GROUP BY lane`,
     db`SELECT count(*) FILTER (WHERE enabled AND NOT paused)::int AS enabled,
               count(*) FILTER (WHERE enabled AND NOT paused AND status = 'failed' AND consecutive_failures >= 3)::int AS failing,
-              count(*) FILTER (WHERE enabled AND NOT paused AND succeeded_at < now() - interval_seconds * interval '3 seconds')::int AS stale
+              -- Exclusive with failing, as in getSourceHealth(); a source that has
+              -- been tried but never succeeded counts as stale.
+              count(*) FILTER (WHERE enabled AND NOT paused AND NOT (status = 'failed' AND consecutive_failures >= 3)
+                AND (succeeded_at < now() - interval_seconds * interval '3 seconds'
+                     OR (succeeded_at IS NULL AND attempted_at < now() - interval_seconds * interval '3 seconds')))::int AS stale
        FROM ingestion_sources WHERE managed_by <> 'legacy'`,
   ]);
   return {

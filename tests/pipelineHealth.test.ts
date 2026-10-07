@@ -61,3 +61,17 @@ test('error rates and source rot degrade without crying wolf', () => {
   assert.equal(assessPipelineHealth({ ...stats, sources: { enabled: 363, failing: 12, stale: 5 } }, now).level, 'degraded');
   assert.equal(assessPipelineHealth({ ...stats, sources: { enabled: 363, failing: 0, stale: 40 } }, now).reasons[0], '40 of 363 sources stale');
 });
+
+test('an empty run before the heartbeat hour claims nothing (early cron pings cannot burn the day)', async (t) => {
+  const prev = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL; // no items, and any claim attempt would throw
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-07T14:05:00Z') });
+  try {
+    const { runDailyBrief, HEARTBEAT_HOUR_UTC } = await import('@/lib/dailyBrief');
+    assert.equal(HEARTBEAT_HOUR_UTC, 18);
+    assert.deepEqual(await runDailyBrief(), { sent: false, roles: 0, grants: 0, reason: 'No new items' });
+  } finally {
+    t.mock.timers.reset();
+    if (prev !== undefined) process.env.DATABASE_URL = prev;
+  }
+});
