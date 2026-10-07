@@ -1,5 +1,5 @@
 /**
- * Deterministic title guards shared by both classifiers (the canonical
+ * Deterministic guards (titles, plus the model's quoted evidence) shared by both classifiers (the canonical
  * independent-lanes path in corpusClassifier.ts and the legacy rollback path
  * in grantsClassifier.ts), so a rule learned on one path cannot be lost on the
  * other and every rule survives a model swap. Title-only by design: a body may
@@ -54,6 +54,17 @@ export const UPDATE_RE = /\b(?:grant|progress|milestone|monthly|quarterly|projec
  *  ("Gitcoin d/acc 2026 Funding Initiative"). Nervos Talk's "[DIS]" marks one
  *  team's proposal under discussion (2026-10-01). */
 export const APPLICANT_RE = /^\s*(?:\[\s*(?:application|dis|request[- ]for[- ]grant)\s*\]|(?:retro(?:active)?\s+)?grant\s+(?:application|request)\b|grant\s+proposal\s*[:\-–—|]|application\s*[:\-–—|]|request[- ]for[- ]grant\b)/i;
+
+/** The model's own quoted evidence states an ask: a team requesting money,
+ *  not a funder inviting applications. "[Discussion] PSEUDONYM: generative
+ *  portraits" (Polkadot) was queued as an open call on 2026-10-07 quoting
+ *  "Requested: 14,000 USD"; its title carries no applicant marker. Validated
+ *  2026-10-07 against 1,468 relevant funding evaluations: 176 matches, all
+ *  applications or DAO proposals, including all 12 then marked actionable.
+ *  A bare "requested" is excluded so "the requested amount must not exceed
+ *  $50k" in a real call stays eligible. Funding lane only: "we are seeking"
+ *  is how an honest job post reads. */
+export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:|\btotal\s+(?:funding\s+|budget\s+)?requested\b|\bfunding request\s*:|\bwe(?:'re|\s+are)\s+(?:seeking|applying|requesting)\b|\b(?:this|our)\s+proposal\s+(?:requests|seeks|asks)\b|\bbudget breakdown\b/i;
 
 /** The kind a title forces regardless of the model's answer, or null. Both
  *  are non-actionable kinds in the canonical lanes. */

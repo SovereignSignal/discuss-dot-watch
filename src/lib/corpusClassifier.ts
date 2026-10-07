@@ -5,7 +5,7 @@ import { generateStructured, isLLMConfigured } from './llm';
 import { isAllowedUrl } from './url';
 import { CorpusError, type CorpusLane } from './corpusPolicy';
 import { evidenceChoices } from './evidenceChoices';
-import { titleGuardKind } from './titleGuards';
+import { titleGuardKind, EVIDENCE_ASK_RE } from './titleGuards';
 
 export const CORPUS_CLASSIFIER_VERSION = 'corpus-lanes-v3';
 const extractionSchema = z.object({
@@ -47,6 +47,7 @@ export function validateCorpusExtraction(raw: unknown, input: CorpusClassificati
   // Applicant submissions, records and fundraises are never open calls or openings, whatever the model says.
   const guarded = titleGuardKind(input.title);
   if (guarded) out.kind = guarded;
+  if (input.lane === 'funding' && out.kind === 'open_call' && EVIDENCE_ASK_RE.test(evidence)) out.kind = 'application';
   const actionable = supported && out.relevant && out.confidence>=80 && out.availability === 'open'
     && (input.lane === 'funding' ? out.kind === 'open_call' : out.kind === 'paid_work' && out.paidEvidence);
   return {...out, actionable, reviewRequired:true};
