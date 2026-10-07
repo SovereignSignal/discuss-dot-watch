@@ -19,9 +19,16 @@ import { roleKindLabel, grantKindLabel } from './roleKinds';
 import { getUnnotifiedItems, markItemsNotified, markExpiredUnnotified, BriefItemRow } from './grantsStore';
 import { sendEmail } from './emailService';
 import { getDb } from './db';
+import { getPipelineStats, assessPipelineHealth, type PipelineStats, type PipelineHealth } from './pipelineHealth';
 
 const RECIPIENT = 'sov@sovereignsignal.com';
 const DAILY_CLAIM_KEY = 'daily-brief';
+/** A day with nothing new still mails a pipeline heartbeat, but only from this
+ *  hour: items that arrive after the 14:00 UTC loop start still go out the
+ *  same day, and an early external ping of /api/cron/grants-brief cannot burn
+ *  the day's slot on an empty email. */
+export const HEARTBEAT_HOUR_UTC = 18;
+const STATS_TIMEOUT_MS = 10_000;
 
 /**
  * Authoritative once-per-day claim in Postgres — atomic INSERT ON CONFLICT,
@@ -57,6 +64,8 @@ export interface DailyBriefContent {
   roles: BriefItemRow[];
   grants: BriefItemRow[];
   summary: string | null;
+  /** Null when the stats query failed: the brief still goes out, without the footer. */
+  pipeline?: { stats: PipelineStats; health: PipelineHealth } | null;
 }
 
 /**
@@ -166,7 +175,29 @@ function briefCounts(plan: BriefPlan): string {
   return [
     hl ? `${hl} highlight${hl === 1 ? '' : 's'}` : null,
     plan.rest.length ? `${plan.rest.length} more` : null,
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean).join(' · ') || 'nothing new';
+}
+
+function ago(at: Date | null, now = Date.now()): string {
+  if (!at) return 'never';
+  const min = Math.max(0, Math.round((now - at.getTime()) / 60_000));
+  return min < 90 ? `${min} min ago` : `${Math.round(min / 60)} h ago`;
+}
+
+/** The pipeline footer as plain lines, shared by the HTML and text parts. */
+export function pipelineLines(p: NonNullable<DailyBriefContent['pipeline']>, now = Date.now()): { funnel: string; detail: string; warnings: string[] } {
+  const { stats } = p;
+  const total = (l: { funding: number; opportunities: number }) => l.funding + l.opportunities;
+  const s = stats.sources;
+  return {
+    funnel: `${stats.newTopics} new topics → ${stats.judged} judged → ${total(stats.actionable)} actionable → ${total(stats.published)} published`,
+    detail: [
+      `last scan ${ago(stats.lastScanAt, now)}`,
+      `sources ${s.enabled - s.failing - s.stale}/${s.enabled} ok${s.failing ? `, ${s.failing} failing` : ''}${s.stale ? `, ${s.stale} stale` : ''}`,
+      `${stats.failed} classifier error${stats.failed === 1 ? '' : 's'}`,
+    ].join(' · '),
+    warnings: p.health.level === 'ok' ? [] : p.health.reasons,
+  };
 }
 
 /** Sum of stated maximums across a group; null when none states one. */
@@ -452,6 +483,18 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
   </div>`;
   })()}
 
+  ${brief.pipeline ? (() => {
+    const p = pipelineLines(brief.pipeline);
+    const warn = p.warnings.length > 0;
+    return `
+  <div style="margin-bottom: 24px; padding: 14px 16px; border-radius: 8px; font-size: 12px; line-height: 1.6; color: #71717a; border: 1px solid ${warn ? '#f59e0b' : '#e5e7eb'};">
+    <div style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">${warn ? '&#x26A0; Pipeline needs attention' : 'Pipeline · last 24h'}</div>
+    ${p.warnings.map(w => `<div style="color: #b45309; font-weight: 600;">${escapeHtml(w)}</div>`).join('')}
+    <div>${escapeHtml(p.funnel)}</div>
+    <div>${escapeHtml(p.detail)}</div>
+  </div>`;
+  })() : ''}
+
   <div style="text-align: center; margin: 32px 0;">
     <a href="${appUrl()}/app"
        style="display: inline-block; background: #18181b; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
@@ -514,11 +557,23 @@ export function formatDailyBriefText(brief: DailyBriefContent): string {
     }
     text += '\n';
   }
+  if (brief.pipeline) {
+    const p = pipelineLines(brief.pipeline);
+    text += `${p.warnings.length ? 'PIPELINE NEEDS ATTENTION' : 'PIPELINE — last 24h'}\n${'─'.repeat(30)}\n`;
+    for (const w of p.warnings) text += `⚠ ${w}\n`;
+    text += `${p.funnel}\n${p.detail}\n\n`;
+  }
   text += `---\nOpen: ${appUrl()}/app\n\ndiscuss.watch — Daily Brief`;
   return text;
 }
 
 // ── Send orchestration (shared by the cron route and the loop) ───────
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms); });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
 
 export interface DailyBriefResult {
   sent: boolean;
@@ -544,37 +599,51 @@ export async function runDailyBrief(): Promise<DailyBriefResult> {
     getUnnotifiedItems('ROLE'),
     getUnnotifiedItems('GRANT'),
   ]);
-  if (roles.length === 0 && grants.length === 0) {
+  // A quiet day still sends from HEARTBEAT_HOUR_UTC: the pipeline footer is
+  // the daily heartbeat, and silence used to be indistinguishable from an
+  // outage. Before that hour an empty run claims nothing.
+  if (roles.length === 0 && grants.length === 0 && new Date().getUTCHours() < HEARTBEAT_HOUR_UTC) {
     return { sent: false, roles: 0, grants: 0, reason: 'No new items' };
   }
 
-  // Claimed after the no-content check (an empty early run doesn't burn the
-  // day's slot) but before the summary/send work.
+  // Claimed before the summary/send work so two racing triggers can't both
+  // pay for generation.
   if (!(await claimDay(day))) {
     return { sent: false, roles: roles.length, grants: grants.length, reason: 'Already sent today' };
   }
 
-  const plan = planBrief(roles, grants);
-  const brief: DailyBriefContent = {
-    date: new Date(),
-    roles,
-    grants,
-    summary: await generateSummary(plan).catch(() => null),
-  };
-  const counts = briefCounts(plan);
-  const dateStr = brief.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // Any failure between the claim and a successful send releases the day so
+  // the next hourly tick retries; a lost day used to be silent.
+  let brief: DailyBriefContent;
+  let result: Awaited<ReturnType<typeof sendEmail>>;
+  try {
+    const plan = planBrief(roles, grants);
+    brief = {
+      date: new Date(),
+      roles,
+      grants,
+      summary: await generateSummary(plan).catch(() => null),
+      pipeline: await withTimeout(getPipelineStats(), STATS_TIMEOUT_MS)
+        .then(stats => (stats ? { stats, health: assessPipelineHealth(stats) } : null))
+        .catch(err => { console.error('[DailyBrief] Pipeline stats unavailable:', err); return null; }),
+    };
+    const counts = briefCounts(plan);
+    const dateStr = brief.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const warn = brief.pipeline && brief.pipeline.health.level !== 'ok' ? '⚠ ' : '';
+    if (brief.pipeline) console.log(`[DailyBrief] pipeline ${JSON.stringify({ level: brief.pipeline.health.level, ...pipelineLines(brief.pipeline) })}`);
 
-  const result = await sendEmail({
-    to: RECIPIENT,
-    subject: `Daily Brief — ${counts} — ${dateStr}`,
-    html: formatDailyBriefHtml(brief),
-    text: formatDailyBriefText(brief),
-    tags: [{ name: 'type', value: 'daily-brief' }],
-  });
+    result = await sendEmail({
+      to: RECIPIENT,
+      subject: `${warn}Daily Brief — ${counts} — ${dateStr}`,
+      html: formatDailyBriefHtml(brief),
+      text: formatDailyBriefText(brief),
+      tags: [{ name: 'type', value: 'daily-brief' }],
+    });
 
-  if (!result.success) {
-    await releaseDay(day);
-    throw new Error(`Daily brief send failed: ${result.error}`);
+    if (!result.success) throw new Error(`Daily brief send failed: ${result.error}`);
+  } catch (err) {
+    await releaseDay(day).catch(releaseErr => console.error('[DailyBrief] Failed to release the day claim:', releaseErr));
+    throw err;
   }
 
   // The email is out — a watermark-stamp failure must not masquerade as a

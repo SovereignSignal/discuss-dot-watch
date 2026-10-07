@@ -91,7 +91,9 @@ test('workstream renewals are budget debates, program renewals are not', () => {
 
 test('ordinary titles keep the model kind', () => {
   assert.equal(correctGrantKind('Fast grants for AI x animals', 'program_launch'), 'program_launch');
-  assert.equal(correctGrantKind('Grant Application - 0xramp', null), null);
+  assert.equal(correctGrantKind('Season 4 builder grants', null), null);
+  // Applicant titles are corrected since 2026-10-06 (titleGuards.ts).
+  assert.equal(correctGrantKind('Grant Application - 0xramp', null), 'application');
 });
 
 test('a token-denominated amount does not make a highlight; a dollar one does', () => {

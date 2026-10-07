@@ -1,0 +1,151 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { validateCorpusExtraction, type CorpusClassificationInput } from '@/lib/corpusClassifier';
+import { correctGrantKind } from '@/lib/grantsClassifier';
+import { titleGuardKind, EVIDENCE_ASK_RE } from '@/lib/titleGuards';
+
+const now = Date.parse('2026-10-06T00:00:00Z');
+const evidence = 'Applications are open until the end of the month for community projects.';
+const openCall = {
+  relevant: true, kind: 'open_call', availability: 'open', engagement: null, paidEvidence: false,
+  confidence: 100, evidence, deadline: null, applicationUrl: null,
+};
+const funding = (title: string): CorpusClassificationInput => ({
+  title, body: evidence, tags: [], createdAt: '2026-10-05T00:00:00Z', closed: false, lane: 'funding',
+});
+
+test('an applicant submission never publishes as an open call (Oct 5 brief, Zcash)', () => {
+  const out = validateCorpusExtraction(openCall, funding('Grant Application - Zcash Shielded Payments: An English/Korean Research Report'), now);
+  assert.equal(out.kind, 'application');
+  assert.equal(out.actionable, false);
+});
+
+test('a genuine open call is untouched by the guards', () => {
+  const out = validateCorpusExtraction(openCall, funding('2026 Community Microgrants call for applications'), now);
+  assert.equal(out.kind, 'open_call');
+  assert.equal(out.actionable, true);
+});
+
+test('records and fundraises are reports in both lanes', () => {
+  assert.equal(titleGuardKind('Zcash Community Grants Meeting Minutes 8/31/2026', 'funding'), 'report');
+  assert.equal(titleGuardKind('Kairos has raised $50M to build agent infra', 'funding'), 'report');
+  assert.equal(titleGuardKind('ZecLedger grant update #3', 'funding'), 'report');
+  assert.equal(titleGuardKind('Alice Delegate Thread', 'opportunities'), 'report');
+  const out = validateCorpusExtraction({ ...openCall, kind: 'paid_work', paidEvidence: true, evidence: 'We are hiring a paid contract engineer.' },
+    { ...funding('[Final Report] T3tris.finance'), body: 'We are hiring a paid contract engineer.', lane: 'opportunities' }, now);
+  assert.equal(out.actionable, false);
+});
+
+test('applicant markers seen in the corpus', () => {
+  for (const title of [
+    '[Application] Radicle vs. Web3 Tales Conference',
+    '[DIS] Vellum: Reputation Extension on did:ckb',
+    '[Request-for-grant] Build eth.link to near.link',
+    'Retroactive Grant Application - Vizor Wallet',
+    'GRANT PROPOSAL: MenoDAO - Bringing Dental Healthcare On-Chain',
+    'Grant Application: CoW Playground Offline Development Mode',
+  ]) assert.equal(titleGuardKind(title, 'funding'), 'application', title);
+});
+
+test('open calls and retro funding rounds are not applicant titles', () => {
+  for (const title of [
+    'Round 41 - GMC Call for Retrospective Applications - Deadline is October 7',
+    'Hop Grants Program Renewal and Redesign',
+    'Applications open: Retroactive Funding Round 3',
+    '[PROPOSAL] Gitcoin d/acc 2026 Funding Initiative: Restructuring the Grants Program',
+  ]) assert.equal(titleGuardKind(title, 'funding'), null, title);
+});
+
+test('the legacy path labels applicant titles the same way', () => {
+  assert.equal(correctGrantKind('Grant Application: CoW Execution Evidence Lab', 'rfp'), 'application');
+});
+
+test('the model quoting an ask demotes an open call in the funding lane (Oct 7 queue, Polkadot)', () => {
+  const ask = 'Requested: 14,000 USD';
+  const out = validateCorpusExtraction({ ...openCall, evidence: ask },
+    { ...funding('[Discussion] PSEUDONYM: generative portraits of Kusama and Polkadot'), body: `Proposal. ${ask}. Timeline.` }, now);
+  assert.equal(out.kind, 'application');
+  assert.equal(out.actionable, false);
+  const call = 'The requested amount must not exceed $50k per team.';
+  assert.equal(validateCorpusExtraction({ ...openCall, evidence: call }, { ...funding('Builder grants round 3'), body: call }, now).actionable, true);
+});
+
+test('an employer "seeking" a hire stays a paid opening', () => {
+  const post = 'We are seeking a paid contract engineer to join the team.';
+  const out = validateCorpusExtraction({ ...openCall, kind: 'paid_work', paidEvidence: true, evidence: post },
+    { ...funding('[HIRING] Frontend Developer'), body: post, lane: 'opportunities' }, now);
+  assert.equal(out.actionable, true);
+});
+
+// Funder language must never read as an ask (PR #94 review, 2026-10-07).
+test('funder titles stay open calls', () => {
+  for (const title of [
+    'Grant Application Window Now Open for Season 5',
+    'Grant Application Form - Builder Round 3',
+    'Grant Application Deadline Extended',
+    'Grant Request for Proposals: ZK tooling',
+    'Application: Open Call for Infrastructure Grants',
+    'Grant Update: Applications for Q4 Round Now Open',
+    'Monthly Update: Season 5 grants now open',
+    'GG24 raises $1.2M matching pool, applications open',
+  ]) assert.equal(titleGuardKind(title, 'funding'), null, title);
+});
+
+test('an employer announcing a raise and hiring is still an opening', () => {
+  assert.equal(titleGuardKind('Acme raises $20M and is hiring engineers', 'opportunities'), null);
+  assert.equal(titleGuardKind('Project Update: Hiring a paid contract dev', 'opportunities'), null);
+});
+
+test('guards keep the lanes the legacy path validated them for', () => {
+  assert.equal(titleGuardKind('Alice Delegate Thread', 'funding'), null);
+  assert.equal(titleGuardKind('ZecLedger grant update #3', 'opportunities'), null);
+  assert.equal(titleGuardKind('Grant Application: CoW Playground Offline Development Mode', 'opportunities'), null);
+});
+
+test('funder evidence is not an ask; applicant evidence is', () => {
+  for (const quote of [
+    'We are seeking proposals from teams building',
+    'We’re seeking applications for the next cohort',
+    'We are requesting proposals for the following RFPs',
+    'Requested amount: up to $25,000 per project',
+    'Total funding requested must not exceed $50k',
+    'Applicants must include a budget breakdown',
+    'We are seeking proposals for funding research on AI policy',
+    'We are seeking teams that need a grant to build tooling',
+    'We are requesting applications for $50k grants',
+  ]) assert.equal(EVIDENCE_ASK_RE.test(quote), false, quote);
+  for (const quote of [
+    'Requested: 14,000 USD',
+    'Requested funding: USD 20,000',
+    'Total Funding Requested: $15,000 USD (or equivalent in xDAI / USDC)',
+    'Total Budget Requested 6300 $',
+    'We are seeking funding from the UMA DAO to continue our work',
+    'Proposal for Optimism We are seeking a Builder Grant to fund the integration',
+    'We’re seeking funding to the tune of $600K.',
+    'We are applying for this grant to fund the next phase',
+    'Summary This proposal requests a grant of $15,000 USD',
+    'Budget breakdown Total: $15,000 USD, payable in CKB, over five months.',
+    'Incentive Support (Grant): We are requesting a $120,000 grant for the audit',
+    'Budget We are requesting: USD 27,700, paid in CKB equivalent at disbursement',
+    'We are requesting a total of 20,000 GTC',
+    'We are requesting a budget of 200,000 UMA tokens',
+    'Funding Request The total funding requested for this project is 16,800 xDAI',
+  ]) assert.equal(EVIDENCE_ASK_RE.test(quote), true, quote);
+});
+
+test('an "open" that is not an announcement never rescues a record or update (PR #94 re-review)', () => {
+  for (const title of [
+    'ZecLedger grant update #3 — open-source release',
+    'Grant update: open source wallet milestone 2',
+    'Grants Committee Meeting Minutes: open questions',
+    'Post-mortem: grants round, why proposals stayed open',
+    'Grants Committee Meeting Minutes: applications now open for round 9',
+  ]) assert.equal(titleGuardKind(title, 'funding'), 'report', title);
+  assert.equal(titleGuardKind('Post-mortem on our hiring process', 'opportunities'), 'report');
+});
+
+test('a fundraise that mentions hiring is still not funding (2026-09-02 Kairos)', () => {
+  const title = "Kairos has raised $50M to build talent infrastructure for AI safety (and we're hiring!)";
+  assert.equal(titleGuardKind(title, 'funding'), 'report');
+  assert.equal(titleGuardKind(title, 'opportunities'), null);
+});
