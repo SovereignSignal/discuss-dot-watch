@@ -8,7 +8,11 @@
  * external pinger.
  *
  * Sends at or after SEND_HOUR_UTC (14:00 UTC ≈ 7am PT) on the first
- * hourly tick of the window.
+ * hourly tick of the window. Ticks are aligned to TICK_MINUTE past the hour:
+ * counted from boot, every deploy used to move the send time by up to an
+ * hour (the 2026-10-07 deploy at 12:41 pushed the brief from 14:15 to 14:46).
+ * One catch-up tick still runs shortly after boot, so a deploy that lands
+ * after 14:00 on an unsent day mails without waiting for the next hour.
  */
 
 import { runDailyBrief } from './dailyBrief';
@@ -17,6 +21,15 @@ import { isDatabaseConfigured } from './db';
 const SEND_HOUR_UTC = 14;
 const INITIAL_DELAY_MS = 5 * 60 * 1000;   // let the process settle after boot
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // hourly
+export const TICK_MINUTE = 5;
+
+/** Milliseconds from `now` to the next HH:TICK_MINUTE:00 UTC, never zero. */
+export function msUntilNextAlignedTick(now = Date.now()): number {
+  const next = new Date(now);
+  next.setUTCMinutes(TICK_MINUTE, 0, 0);
+  if (next.getTime() <= now) next.setUTCHours(next.getUTCHours() + 1);
+  return next.getTime() - now;
+}
 
 let started = false;
 let warnedNoResend = false;
@@ -47,9 +60,10 @@ async function tick(): Promise<void> {
 export function startDailyBriefLoop(): void {
   if (started) return;
   started = true;
-  console.log(`[DailyBrief] Loop registered — sends daily at/after ${SEND_HOUR_UTC}:00 UTC`);
+  console.log(`[DailyBrief] Loop registered — sends daily at/after ${SEND_HOUR_UTC}:00 UTC, checks at :${String(TICK_MINUTE).padStart(2, '0')}`);
+  setTimeout(() => void tick(), INITIAL_DELAY_MS); // catch-up after boot
   setTimeout(() => {
     void tick();
     setInterval(() => void tick(), CHECK_INTERVAL_MS);
-  }, INITIAL_DELAY_MS);
+  }, msUntilNextAlignedTick());
 }
