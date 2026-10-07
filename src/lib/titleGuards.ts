@@ -58,11 +58,17 @@ export const UPDATE_RE = /\b(?:grant|progress|milestone|monthly|quarterly|projec
  *  the corpus sweep was re-run with them and still matched every applicant. */
 export const APPLICANT_RE = /^\s*(?:\[\s*(?:application|dis|request[- ]for[- ]grant)\s*\]|(?:retro(?:active)?\s+)?grant\s+(?:application|request)\b(?!\s*(?:window|form|portal|period|deadline|process|guidelines?|template|round|for\s+proposals|is\s+open|now\s+open|opens?\b))|grant\s+proposal\s*[:\-–—|]|application\s*[:\-–—|](?!\s*(?:open\b|now\s+open|call\b))|request[- ]for[- ]grant\b)/i;
 
-/** A title announcing something open: overrides the report guards, so "Grant
- *  Update: Applications for Q4 Round Now Open", "GG24 raises $1.2M matching
- *  pool, applications open" and "Acme raises $20M and is hiring" stay
- *  eligible (PR #94 review). */
-export const OPEN_SIGNAL_RE = /\b(?:applications?|nominations?|submissions?|proposals?|grants?)\b[^.]{0,40}?\b(?:now\s+)?open\b|\bnow\s+open\b|\bis\s+(?:now\s+)?live\b|\bcall\s+for\s+(?:applications|proposals|grants)\b|\bhiring\b/i;
+/** A title announcing something open: overrides the update and fundraise
+ *  guards, so "Grant Update: Applications for Q4 Round Now Open", "GG24 raises
+ *  $1.2M matching pool, applications open" stay eligible (PR #94 review). "Open" must be announced ("is/now
+ *  open", "open for/until"), never bare, so "open source" and "open
+ *  questions" don't count. Records are never rescued. */
+export const OPEN_SIGNAL_RE = /\b(?:applications?|nominations?|submissions?)\s+(?:are\s+|is\s+)?(?:now\s+)?open\b|\b(?:are|is|now)\s+open\b|\bopen\s+(?:for|until|now)\b|\bis\s+(?:now\s+)?live\b|\bcall\s+for\s+(?:applications|proposals|grants)\b/i;
+
+/** Hiring rescues a fundraise only in the opportunities lane: "Kairos has
+ *  raised $50M ... (and we're hiring!)" is the 2026-09-02 incident that
+ *  FUNDRAISE_RE exists for, and it is still not funding anyone can apply to. */
+const HIRING_RE = /\bhiring\b/i;
 
 /** The model's own quoted evidence states an ask: a team requesting money,
  *  not a funder inviting applications. "[Discussion] PSEUDONYM: generative
@@ -83,8 +89,9 @@ export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:
  *  funding, delegate threads in opportunities, records and fundraises in both. */
 export function titleGuardKind(title: string, lane: 'funding' | 'opportunities'): 'application' | 'report' | null {
   if (lane === 'funding' && APPLICANT_RE.test(title)) return 'application';
-  if (OPEN_SIGNAL_RE.test(title)) return null;
-  if (RECORD_RE.test(title) || FUNDRAISE_RE.test(title)) return 'report';
+  if (RECORD_RE.test(title)) return 'report';
+  if (OPEN_SIGNAL_RE.test(title) || (lane === 'opportunities' && HIRING_RE.test(title))) return null;
+  if (FUNDRAISE_RE.test(title)) return 'report';
   if (lane === 'funding' && UPDATE_RE.test(title)) return 'report';
   if (lane === 'opportunities' && DELEGATE_REPORT_RE.test(title)) return 'report';
   return null;

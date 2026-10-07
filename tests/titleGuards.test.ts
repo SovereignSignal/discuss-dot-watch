@@ -132,3 +132,20 @@ test('funder evidence is not an ask; applicant evidence is', () => {
     'Funding Request The total funding requested for this project is 16,800 xDAI',
   ]) assert.equal(EVIDENCE_ASK_RE.test(quote), true, quote);
 });
+
+test('an "open" that is not an announcement never rescues a record or update (PR #94 re-review)', () => {
+  for (const title of [
+    'ZecLedger grant update #3 — open-source release',
+    'Grant update: open source wallet milestone 2',
+    'Grants Committee Meeting Minutes: open questions',
+    'Post-mortem: grants round, why proposals stayed open',
+    'Grants Committee Meeting Minutes: applications now open for round 9',
+  ]) assert.equal(titleGuardKind(title, 'funding'), 'report', title);
+  assert.equal(titleGuardKind('Post-mortem on our hiring process', 'opportunities'), 'report');
+});
+
+test('a fundraise that mentions hiring is still not funding (2026-09-02 Kairos)', () => {
+  const title = "Kairos has raised $50M to build talent infrastructure for AI safety (and we're hiring!)";
+  assert.equal(titleGuardKind(title, 'funding'), 'report');
+  assert.equal(titleGuardKind(title, 'opportunities'), null);
+});
