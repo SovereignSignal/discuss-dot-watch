@@ -52,24 +52,40 @@ export const UPDATE_RE = /\b(?:grant|progress|milestone|monthly|quarterly|projec
  *  them mislabelled rfp/retro_round/program_launch), no open call caught.
  *  "[Proposal]" alone is excluded: it also heads real program restructurings
  *  ("Gitcoin d/acc 2026 Funding Initiative"). Nervos Talk's "[DIS]" marks one
- *  team's proposal under discussion (2026-10-01). */
-export const APPLICANT_RE = /^\s*(?:\[\s*(?:application|dis|request[- ]for[- ]grant)\s*\]|(?:retro(?:active)?\s+)?grant\s+(?:application|request)\b|grant\s+proposal\s*[:\-–—|]|application\s*[:\-–—|]|request[- ]for[- ]grant\b)/i;
+ *  team's proposal under discussion (2026-10-01). The lookaheads keep a
+ *  funder's own titles out ("Grant Application Window Now Open", "Grant
+ *  Request for Proposals", "Application: Open Call for ...", PR #94 review);
+ *  the corpus sweep was re-run with them and still matched every applicant. */
+export const APPLICANT_RE = /^\s*(?:\[\s*(?:application|dis|request[- ]for[- ]grant)\s*\]|(?:retro(?:active)?\s+)?grant\s+(?:application|request)\b(?!\s*(?:window|form|portal|period|deadline|process|guidelines?|template|round|for\s+proposals|is\s+open|now\s+open|opens?\b))|grant\s+proposal\s*[:\-–—|]|application\s*[:\-–—|](?!\s*(?:open\b|now\s+open|call\b))|request[- ]for[- ]grant\b)/i;
+
+/** A title announcing something open: overrides the report guards, so "Grant
+ *  Update: Applications for Q4 Round Now Open", "GG24 raises $1.2M matching
+ *  pool, applications open" and "Acme raises $20M and is hiring" stay
+ *  eligible (PR #94 review). */
+export const OPEN_SIGNAL_RE = /\b(?:applications?|nominations?|submissions?|proposals?|grants?)\b[^.]{0,40}?\b(?:now\s+)?open\b|\bnow\s+open\b|\bis\s+(?:now\s+)?live\b|\bcall\s+for\s+(?:applications|proposals|grants)\b|\bhiring\b/i;
 
 /** The model's own quoted evidence states an ask: a team requesting money,
  *  not a funder inviting applications. "[Discussion] PSEUDONYM: generative
  *  portraits" (Polkadot) was queued as an open call on 2026-10-07 quoting
  *  "Requested: 14,000 USD"; its title carries no applicant marker. Validated
- *  2026-10-07 against 1,468 relevant funding evaluations: 176 matches, all
+ *  2026-10-07 against 1,468 relevant funding evaluations: 177 matches, all
  *  applications or DAO proposals, including all 12 then marked actionable.
- *  A bare "requested" is excluded so "the requested amount must not exceed
- *  $50k" in a real call stays eligible. Funding lane only: "we are seeking"
+ *  Funder phrasing must not match (PR #94 review): an amount has to follow
+ *  "requested:", "we are seeking/requesting" needs a money object and is
+ *  excluded when what's sought is proposals, applications or teams, and a
+ *  bare "requested" or "budget breakdown" never counts. Funding lane only: "we are seeking"
  *  is how an honest job post reads. */
-export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:|\btotal\s+(?:funding\s+|budget\s+)?requested\b|\bfunding request\s*:|\bwe(?:'re|\s+are)\s+(?:seeking|applying|requesting)\b|\b(?:this|our)\s+proposal\s+(?:requests|seeks|asks)\b|\bbudget breakdown\b/i;
+export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:\s*(?:(?:usd|us\$|eur|gbp)\s*)?[$€£\d]|\btotal\s+(?:funding\s+|budget\s+)?requested(?:\s+for\s+this\s+project)?(?:\s+is)?\s*:?\s*(?:(?:usd|us\$)\s*)?[$€£\d]|\bfunding request\s*:|\bwe(?:['’]re|\s+are)\s+(?:applying\b|(?:seeking|requesting)\b\s*:?\s+(?!(?:\w+\s+)?(?:proposals|applications|applicants|teams|projects|builders|nominations|submissions|candidates|partners|contributors)\b)(?:[\w$,.-]+\s+){0,4}?(?:[$€£\d]|usd\b|funding\b|budget\b|grant\b|support\b))|\b(?:this|our)\s+proposal\s+(?:requests|seeks|asks)\b|\bbudget breakdown\W+(?:total\W+)?[$€£\d]/i;
 
 /** The kind a title forces regardless of the model's answer, or null. Both
- *  are non-actionable kinds in the canonical lanes. */
-export function titleGuardKind(title: string): 'application' | 'report' | null {
-  if (APPLICANT_RE.test(title)) return 'application';
-  if (RECORD_RE.test(title) || FUNDRAISE_RE.test(title) || UPDATE_RE.test(title) || DELEGATE_REPORT_RE.test(title)) return 'report';
+ *  are non-actionable kinds in the canonical lanes. Each guard runs only in
+ *  the lane the legacy path validated it for: applicant and update titles in
+ *  funding, delegate threads in opportunities, records and fundraises in both. */
+export function titleGuardKind(title: string, lane: 'funding' | 'opportunities'): 'application' | 'report' | null {
+  if (lane === 'funding' && APPLICANT_RE.test(title)) return 'application';
+  if (OPEN_SIGNAL_RE.test(title)) return null;
+  if (RECORD_RE.test(title) || FUNDRAISE_RE.test(title)) return 'report';
+  if (lane === 'funding' && UPDATE_RE.test(title)) return 'report';
+  if (lane === 'opportunities' && DELEGATE_REPORT_RE.test(title)) return 'report';
   return null;
 }

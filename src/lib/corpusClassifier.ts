@@ -45,7 +45,7 @@ export function validateCorpusExtraction(raw: unknown, input: CorpusClassificati
   if (now-Date.parse(input.createdAt)>90*86400000 && !out.deadline && out.availability === 'open') out.availability = 'unknown';
   if (/\b(?:freelancer for hire|looking for work|looking for (?:my )?next .*role|available for work)\b/i.test(input.title)) out.kind = 'job_seeker';
   // Applicant submissions, records and fundraises are never open calls or openings, whatever the model says.
-  const guarded = titleGuardKind(input.title);
+  const guarded = titleGuardKind(input.title, input.lane);
   if (guarded) out.kind = guarded;
   if (input.lane === 'funding' && out.kind === 'open_call' && EVIDENCE_ASK_RE.test(evidence)) out.kind = 'application';
   const actionable = supported && out.relevant && out.confidence>=80 && out.availability === 'open'
