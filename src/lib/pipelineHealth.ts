@@ -81,15 +81,38 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
  * policy: every reason returned lands in the owner's inbox, and any level
  * other than 'ok' puts ⚠ in the subject line.
  *
- * Known baselines (see project memory, 2026-09):
- * - the scan runs every ~15 minutes after each forum cache refresh;
- * - steady state is 2-4 published items a day, and a quiet day with zero is
- *   normal (supply is the constraint, not the pipeline);
- * - a model outage shows up as failed > 0 with judged near 0;
- * - roughly 480 sources, a handful of which fail on any given day.
+ * Thresholds come from production on 2026-10-07, after the cutover backlog
+ * drained: a scan every ~15 minutes, ~1,700 new topics and 270-570 judged a
+ * day, 4 classifier failures out of 5,732 ever, 363 sources with 0 failing
+ * and 5 stale. A day with nothing published is normal (supply is the
+ * constraint, 2-4 items on a typical day), so publishing volume never alerts.
  */
+export const MAX_SCAN_AGE_MS = 2 * 3_600_000; // 8 missed passes; survives a deploy
+export const MIN_FAILED_FOR_ALERT = 5;
+export const MAX_FAILED_SHARE = 0.05;
+export const MAX_FAILING_SOURCES = 10;
+export const MAX_STALE_SHARE = 0.05;
+
 export function assessPipelineHealth(stats: PipelineStats, now = Date.now()): PipelineHealth {
-  // TODO(owner): return { level, reasons } from the stats above.
-  void stats; void now;
+  const down: string[] = [];
+  const degraded: string[] = [];
+
+  if (!stats.classifierConfigured) down.push('Classifier not configured: nothing is being judged');
+  const scanAge = stats.lastScanAt ? now - stats.lastScanAt.getTime() : Infinity;
+  if (scanAge > MAX_SCAN_AGE_MS) {
+    down.push(stats.lastScanAt ? `No scan for ${Math.round(scanAge / 3_600_000)} h (normally every 15 min)` : 'No scan has ever run');
+  }
+  if (stats.newTopics === 0) down.push(`No new topics in 24h across ${stats.sources.enabled} sources`);
+  else if (stats.judged === 0) down.push(`${stats.newTopics} new topics but nothing judged in 24h`);
+
+  const attempts = stats.judged + stats.failed;
+  if (stats.failed >= MIN_FAILED_FOR_ALERT && stats.failed > attempts * MAX_FAILED_SHARE) {
+    degraded.push(`${stats.failed} classifier errors in 24h (${Math.round((stats.failed / attempts) * 100)}% of attempts)`);
+  }
+  if (stats.sources.failing >= MAX_FAILING_SOURCES) degraded.push(`${stats.sources.failing} sources failing repeatedly`);
+  if (stats.sources.stale > stats.sources.enabled * MAX_STALE_SHARE) degraded.push(`${stats.sources.stale} of ${stats.sources.enabled} sources stale`);
+
+  if (down.length) return { level: 'down', reasons: [...down, ...degraded] };
+  if (degraded.length) return { level: 'degraded', reasons: degraded };
   return { level: 'ok', reasons: [] };
 }

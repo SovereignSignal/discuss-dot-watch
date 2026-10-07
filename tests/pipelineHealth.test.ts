@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { formatDailyBriefHtml, formatDailyBriefText, pipelineLines } from '@/lib/dailyBrief';
-import type { PipelineStats } from '@/lib/pipelineHealth';
+import { assessPipelineHealth, type PipelineStats } from '@/lib/pipelineHealth';
 
 const now = Date.parse('2026-10-06T14:00:00Z');
 const stats: PipelineStats = {
@@ -38,4 +38,26 @@ test('reasons are escaped in the HTML part', () => {
   const html = formatDailyBriefHtml(brief);
   assert.match(html, /Pipeline needs attention/);
   assert.ok(!html.includes('<b>x</b>'));
+});
+
+test('the 2026-10-07 production baseline is healthy, including a day with nothing published', () => {
+  const prod: PipelineStats = { ...stats, newTopics: 1772, judged: 553, failed: 4, published: { funding: 0, opportunities: 0 },
+    sources: { enabled: 363, failing: 0, stale: 5 } };
+  assert.deepEqual(assessPipelineHealth(prod, now), { level: 'ok', reasons: [] });
+});
+
+test('a stalled scan, a dead classifier or silent sources are down', () => {
+  assert.equal(assessPipelineHealth({ ...stats, lastScanAt: new Date(now - 3 * 3_600_000) }, now).reasons[0], 'No scan for 3 h (normally every 15 min)');
+  assert.equal(assessPipelineHealth({ ...stats, lastScanAt: null }, now).level, 'down');
+  assert.equal(assessPipelineHealth({ ...stats, judged: 0 }, now).reasons[0], '412 new topics but nothing judged in 24h');
+  assert.equal(assessPipelineHealth({ ...stats, newTopics: 0 }, now).level, 'down');
+  assert.equal(assessPipelineHealth({ ...stats, classifierConfigured: false }, now).level, 'down');
+});
+
+test('error rates and source rot degrade without crying wolf', () => {
+  assert.equal(assessPipelineHealth({ ...stats, failed: 4, judged: 10 }, now).level, 'ok');      // below the floor
+  assert.equal(assessPipelineHealth({ ...stats, failed: 6, judged: 553 }, now).level, 'ok');     // ~1%
+  assert.deepEqual(assessPipelineHealth({ ...stats, failed: 40, judged: 360 }, now).reasons, ['40 classifier errors in 24h (10% of attempts)']);
+  assert.equal(assessPipelineHealth({ ...stats, sources: { enabled: 363, failing: 12, stale: 5 } }, now).level, 'degraded');
+  assert.equal(assessPipelineHealth({ ...stats, sources: { enabled: 363, failing: 0, stale: 40 } }, now).reasons[0], '40 of 363 sources stale');
 });
