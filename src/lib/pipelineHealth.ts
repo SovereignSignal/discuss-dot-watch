@@ -63,7 +63,10 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
               count(*) FILTER (WHERE enabled AND NOT paused AND NOT (status = 'failed' AND consecutive_failures >= 3)
                 AND (succeeded_at < now() - interval_seconds * interval '3 seconds'
                      OR (succeeded_at IS NULL AND attempted_at < now() - interval_seconds * interval '3 seconds')))::int AS stale
-       FROM ingestion_sources WHERE managed_by <> 'legacy'`,
+       FROM ingestion_sources
+       -- Scheduled sources only: legacy rows are history, and an operator source
+       -- refreshes only when its autoRefresh is on (otherwise it is manual).
+       WHERE managed_by <> 'legacy' AND NOT (managed_by = 'operator' AND coalesce(config->>'autoRefresh', 'false') <> 'true')`,
   ]);
   return {
     lastScanAt: scan[0]?.last_scan_at ? new Date(scan[0].last_scan_at) : null,
