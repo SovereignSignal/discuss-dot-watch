@@ -82,6 +82,8 @@ interface ForumCacheState {
   isRefreshing: boolean;
   lastRefreshStart: number;
   refreshInterval: NodeJS.Timeout | null;
+  /** When the background loop last included tier 3; absent until the first pass. */
+  lastTier3RefreshAt?: number | null;
 }
 const globalWithCache = globalThis as typeof globalThis & { __discussWatchForumCache?: ForumCacheState };
 const state: ForumCacheState = (globalWithCache.__discussWatchForumCache ??= {
@@ -984,6 +986,16 @@ async function hydrateMemoryFromRedis(): Promise<void> {
   }
 }
 
+/** Tier 3 (low-traffic forums) refreshes once a day: the first periodic pass
+ *  after boot, then every 24h. It used to refresh only on a manual admin call,
+ *  so after the 2026-10-05 cutover 11 tier-3 forums (Sui, Octant, Radiant,
+ *  Goldfinch, ...) served Oct 5 topics to the reader and the grants scan for
+ *  days, while the source registry promised a daily interval. */
+export const TIER3_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export function backgroundRefreshTiers(lastTier3At: number | null | undefined, now = Date.now()): (1 | 2 | 3)[] {
+  return lastTier3At == null || now - lastTier3At >= TIER3_INTERVAL_MS ? [1, 2, 3] : [1, 2];
+}
+
 /**
  * Start the background refresh loop
  */
@@ -1018,7 +1030,10 @@ export function startBackgroundRefresh(): void {
 
   // Schedule periodic refresh
   state.refreshInterval = setInterval(() => {
-    refreshCache([1, 2]).catch(err => {
+    const tiers = backgroundRefreshTiers(state.lastTier3RefreshAt);
+    // A pass skipped because one is already running must not count as tier 3's turn.
+    if (tiers.includes(3) && !state.isRefreshing) state.lastTier3RefreshAt = Date.now();
+    refreshCache(tiers).catch(err => {
       console.error('[ForumCache] Periodic refresh failed:', err);
     });
   }, CACHE_TTL_MS);

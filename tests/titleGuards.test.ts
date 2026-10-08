@@ -154,3 +154,17 @@ test('"open for comment" is not an announcement (PR #94 re-review, optional)', (
   assert.equal(titleGuardKind('Grant update: open for comment', 'funding'), 'report');
   assert.equal(titleGuardKind('Grant Update: open for applications until Nov 3', 'funding'), null);
 });
+
+test('asks phrased as "requests funding" or "Required Funding Total" (Oct 8 brief)', () => {
+  for (const quote of [
+    'Phase 1 requests funding only for the reasonable costs of incorporation, legal work',
+    'Required Funding Total: $600 (equivalent in CKB)',
+    'The LiveInfra SPE requests funding for Q2 2026 to sustain the Community Node service',
+  ]) assert.equal(EVIDENCE_ASK_RE.test(quote), true, quote);
+  const corven = 'Required Funding Total: $600 (equivalent in CKB)';
+  const out = validateCorpusExtraction({ ...openCall, evidence: corven },
+    { ...funding('Spark Program Proposal: Corven cloud-native IDE'), body: `Proposal. ${corven}. Milestones.` }, now);
+  assert.equal(out.actionable, false);
+  for (const quote of ['Required funding is disbursed per milestone.', 'Teams that need funding can apply below.'])
+    assert.equal(EVIDENCE_ASK_RE.test(quote), false, quote);
+});
