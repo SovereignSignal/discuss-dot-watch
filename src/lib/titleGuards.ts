@@ -79,9 +79,13 @@ const HIRING_RE = /\bhiring\b/i;
  *  Funder phrasing must not match (PR #94 review): an amount has to follow
  *  "requested:", "we are seeking/requesting" needs a money object and is
  *  excluded when what's sought is proposals, applications or teams, and a
- *  bare "requested" or "budget breakdown" never counts. Funding lane only: "we are seeking"
- *  is how an honest job post reads. */
-export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:\s*(?:(?:usd|us\$|eur|gbp)\s*)?[$€£\d]|\btotal\s+(?:funding\s+|budget\s+)?requested(?:\s+for\s+this\s+project)?(?:\s+is)?\s*:?\s*(?:(?:usd|us\$)\s*)?[$€£\d]|\bfunding request\s*:|\bwe(?:['’]re|\s+are)\s+(?:applying\b|(?:seeking|requesting)\b\s*:?\s+(?!(?:\w+\s+)?(?:proposals|applications|applicants|teams|projects|builders|nominations|submissions|candidates|partners|contributors)\b)(?:[\w$,.-]+\s+){0,4}?(?:[$€£\d]|usd\b|funding\b|budget\b|grant\b|support\b))|\b(?:this|our)\s+proposal\s+(?:requests|seeks|asks)\b|\bbudget breakdown\W+(?:total\W+)?[$€£\d]/i;
+ *  bare "requested" or "budget breakdown" never counts. "requests funding"
+ *  and "Required Funding Total" joined 2026-10-08 after "[ARFC] The Aave
+ *  Foundation, Phase 1" (auto-approved 7 times as its post was edited) and
+ *  "Spark Program Proposal: Corven" (the Oct 8 brief's only item): 49
+ *  production evaluations, all asks (ENS working group, LiveInfra SPE, Aave).
+ *  Funding lane only: "we are seeking" is how an honest job post reads. */
+export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:\s*(?:(?:usd|us\$|eur|gbp)\s*)?[$€£\d]|\btotal\s+(?:funding\s+|budget\s+)?requested(?:\s+for\s+this\s+project)?(?:\s+is)?\s*:?\s*(?:(?:usd|us\$)\s*)?[$€£\d]|\bfunding request\s*:|\bwe(?:['’]re|\s+are)\s+(?:applying\b|(?:seeking|requesting)\b\s*:?\s+(?!(?:\w+\s+)?(?:proposals|applications|applicants|teams|projects|builders|nominations|submissions|candidates|partners|contributors)\b)(?:[\w$,.-]+\s+){0,4}?(?:[$€£\d]|usd\b|funding\b|budget\b|grant\b|support\b))|\b(?:this|our)\s+proposal\s+(?:requests|seeks|asks)\b|\brequests\s+funding\b|\brequired\s+funding\s+total\s*:?\s*(?:(?:usd|us\$)\s*)?[$€£\d]|\bbudget breakdown\W+(?:total\W+)?[$€£\d]/i;
 
 /** The kind a title forces regardless of the model's answer, or null. Both
  *  are non-actionable kinds in the canonical lanes. Each guard runs only in
