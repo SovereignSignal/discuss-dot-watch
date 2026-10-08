@@ -4,7 +4,7 @@ import { getDb, initializeSchema } from '../src/lib/db';
 import { ensureIntelligence, reviewIntelligence } from '../src/lib/intelligenceStore';
 import { validateCorpusExtraction, type CorpusClassify } from '../src/lib/corpusClassifier';
 import { runNativeCandidateScan } from '../src/lib/nativeLaneScan';
-import { revalidatePublished, REVALIDATION_ACTOR } from '../src/lib/publishRevalidation';
+import { revalidatePublished, withdrawIfStillFailing, REVALIDATION_ACTOR } from '../src/lib/publishRevalidation';
 
 const testUrl = process.env.CORPUS_TEST_DATABASE_URL;
 if (testUrl) process.env.DATABASE_URL = testUrl;
@@ -36,8 +36,6 @@ test('a tightened guard withdraws auto-approved records and leaves operator appr
   assert.deepEqual(await state(auto), { review_state: 'approved', reviewed_by: 'fresh-evidence-policy-v1' });
 
   // The owner re-approves the second record by hand in the operator UI.
-  await reviewIntelligence(manual, 'funding', 'withdraw', 'admin', 'fixture: reset before a manual approval');
-  await db`UPDATE funding_records SET review_state='pending' WHERE document_id=${manual}`;
   await reviewIntelligence(manual, 'funding', 'approve', 'admin', 'fixture: owner approved by hand');
   assert.equal((await state(manual)).reviewed_by, 'admin');
 
@@ -52,10 +50,57 @@ test('a tightened guard withdraws auto-approved records and leaves operator appr
   assert.deepEqual(await state(manual), { review_state: 'approved', reviewed_by: 'admin' });
 
   const audit = await db`SELECT actor, reason FROM intelligence_reviews WHERE document_id=${auto} AND action='withdraw'`;
-  assert.equal(audit.length, 1); assert.equal(audit[0].actor, REVALIDATION_ACTOR); assert.match(audit[0].reason, /kind application/);
+  assert.equal(audit.length, 1); assert.equal(audit[0].actor, REVALIDATION_ACTOR); assert.match(audit[0].reason, /^guard: .*kind application/);
   const brief = await db`SELECT g.status FROM grants_items g JOIN funding_records r ON r.compatibility_ref=g.topic_ref_id WHERE r.document_id=${auto}`;
   assert.equal(brief[0].status, 'closed');
 
   // Idempotent: a withdrawn record is not re-checked or re-withdrawn.
   assert.equal((await revalidatePublished()).withdrawn, 0);
+
+  // Withdrawn content stays withdrawn: re-observing the same post changes nothing.
+  await runNativeCandidateScan([candidate(1)], 10, classifier);
+  assert.equal((await state(auto)).review_state, 'withdrawn');
+  // The author edits it into a real call (new content hash): re-classified, re-approved, mailable again.
+  await runNativeCandidateScan([{ ...candidate(1), title: 'Builder grants round 1: applications open' }], 10, classifier);
+  assert.equal((await state(auto)).review_state, 'approved');
+  const reopened = await db`SELECT g.status, g.notified_at FROM grants_items g JOIN funding_records r ON r.compatibility_ref=g.topic_ref_id WHERE r.document_id=${auto}`;
+  assert.equal(reopened[0].status, 'open'); assert.equal(reopened[0].notified_at, null);
+});
+
+test('the withdraw re-checks under the row lock (PR #97 review race)', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const created = new Date(Date.now() - 60_000).toISOString();
+  await runNativeCandidateScan([{ refId: 'revalidation-race', forumUrl: source, protocol: 'Revalidation fixture', title: 'Builder grants round 9',
+    url: `${source}/t/round/9`, tags: [], body: quote, createdAt: created, bumpedAt: created, signal: 'keywords: grants' }], 10, classifier);
+  const id = Number((await db`SELECT id FROM intelligence_documents WHERE ref_id='revalidation-race'`)[0].id);
+  const hash = String((await db`SELECT content_hash FROM funding_records WHERE document_id=${id}`)[0].content_hash);
+  await db`UPDATE intelligence_documents SET title='Grant Application - ' || title WHERE id=${id}`;
+
+  // A verdict computed on content that has since changed is not acted on.
+  assert.equal(await withdrawIfStillFailing(id, 'funding', 'stale-hash'), null);
+  assert.equal((await db`SELECT review_state FROM funding_records WHERE document_id=${id}`)[0].review_state, 'approved');
+  // The owner's hand approval lands between the sweep's read and its write. (An operator can only
+  // approve passing content, so model it as the approval switching to the owner on the same row.)
+  await db`UPDATE funding_records SET reviewed_by='admin' WHERE document_id=${id}`;
+  assert.equal(await withdrawIfStillFailing(id, 'funding', hash), null);
+  assert.equal((await db`SELECT review_state FROM funding_records WHERE document_id=${id}`)[0].review_state, 'approved');
+  // Restored to the auto-approver, the same call now withdraws, with the locked verdict as its reason.
+  await db`UPDATE funding_records SET reviewed_by='fresh-evidence-policy-v1' WHERE document_id=${id}`;
+  assert.match((await withdrawIfStillFailing(id, 'funding', hash))!, /^guard: /);
+});
+
+test('the opportunities lane is swept too', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const created = new Date(Date.now() - 60_000).toISOString();
+  const job = 'We are hiring an operations lead for a paid six-month contract.';
+  const jobs: CorpusClassify = async input => ({ model: 'fixture-revalidation', extraction: validateCorpusExtraction({
+    relevant: input.lane === 'opportunities', kind: input.lane === 'opportunities' ? 'paid_work' : 'other', availability: 'open',
+    engagement: 'contract', paidEvidence: true, confidence: 95, evidence: job, deadline: null, applicationUrl: null }, input) });
+  await runNativeCandidateScan([{ refId: 'revalidation-job', forumUrl: source, protocol: 'Revalidation fixture', title: 'Operations lead',
+    url: `${source}/t/job/1`, tags: [], body: job, createdAt: created, bumpedAt: created, signal: 'roles: hiring' }], 10, jobs);
+  const id = Number((await db`SELECT id FROM intelligence_documents WHERE ref_id='revalidation-job'`)[0].id);
+  assert.equal((await db`SELECT review_state FROM opportunity_records WHERE document_id=${id}`)[0].review_state, 'approved');
+  await db`UPDATE intelligence_documents SET title='Hiring post-mortem: operations lead' WHERE id=${id}`;
+  await revalidatePublished();
+  assert.equal((await db`SELECT review_state FROM opportunity_records WHERE document_id=${id}`)[0].review_state, 'withdrawn');
 });

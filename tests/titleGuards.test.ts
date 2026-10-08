@@ -173,9 +173,11 @@ test('personal expense reimbursement is not project funding (Oct 6, kidney post)
   const kidney = 'There is funding available that will reimburse up to $6000 of travel/food/lost wage expenses.';
   const out = validateCorpusExtraction({ ...openCall, evidence: kidney }, { ...funding('On donating a kidney'), body: `Essay. ${kidney} More essay.` }, now);
   assert.equal(out.actionable, false);
+  assert.equal(PERSONAL_REIMBURSEMENT_RE.test('Funding will reimburse up to $6,000.00 of travel and lost wages.'), true);
   for (const quote of [
     'RFP-47: Creating an Isolated Fractional Reserve Market to Reimburse Radiant Depositors on BSC',
     'Grants reimburse audit costs for projects building on the network.',
+    'Devcon travel grants reimburse travel and lodging for selected attendees.',
   ]) assert.equal(PERSONAL_REIMBURSEMENT_RE.test(quote), false, quote);
 });
 

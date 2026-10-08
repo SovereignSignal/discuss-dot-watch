@@ -19,6 +19,8 @@ export const AUTO_APPROVER = 'fresh-evidence-policy-v1';
 export const REVALIDATION_ACTOR = 'revalidation-policy-v1';
 /** The fresh policy only publishes sources under 30 days old; older ones have aged out of the brief anyway. */
 const WINDOW_DAYS = 30;
+/** Safety bound only: the window holds a few dozen records at 2-4 a day, and each check is a regex pass. */
+const MAX_PER_LANE = 1000;
 
 export interface RevalidationInput {
   extraction: unknown;
@@ -39,10 +41,26 @@ export function revalidationVerdict(r: RevalidationInput, now = Date.now()): str
     return 'stored extraction no longer validates';
   }
   if (current.actionable) return null;
-  return `no longer actionable under current validation (kind ${current.kind}, availability ${current.availability})`;
+  // Expiry (deadline passed, source closed) is routine; a guard catch means a published item was wrong.
+  const prefix = current.availability === 'closed' ? 'expired' : 'guard';
+  return `${prefix}: no longer actionable under current validation (kind ${current.kind}, availability ${current.availability})`;
 }
 
-export async function revalidatePublished(limit = 100): Promise<{ checked: number; withdrawn: number }> {
+/** Withdraws only if, under the row lock, the record is still the same auto-approved content and still fails. */
+export async function withdrawIfStillFailing(documentId: number, lane: IntelligenceLane, contentHash: string): Promise<string | null> {
+  let reason: string | null = null;
+  await reviewIntelligence(documentId, lane, 'withdraw', REVALIDATION_ACTOR, 'revalidation', 'operator', row => {
+    if (row.review_state !== 'approved' || row.reviewed_by !== AUTO_APPROVER || row.content_hash !== contentHash) return false;
+    reason = revalidationVerdict({
+      extraction: row.extraction, title: String(row.title), body: String(row.body ?? ''), tags: [],
+      createdAt: row.source_created_at ? new Date(row.source_created_at as string).toISOString() : '', closed: Boolean(row.source_closed), lane,
+    });
+    return reason ?? false; // the verdict computed under the lock is what the audit log records
+  });
+  return reason;
+}
+
+export async function revalidatePublished(limit = MAX_PER_LANE): Promise<{ checked: number; withdrawn: number }> {
   if (!isDatabaseConfigured()) return { checked: 0, withdrawn: 0 };
   const db = getDb();
   let checked = 0;
@@ -50,11 +68,11 @@ export async function revalidatePublished(limit = 100): Promise<{ checked: numbe
   for (const lane of ['funding', 'opportunities'] as const) {
     const table = lane === 'funding' ? 'funding_records' : 'opportunity_records';
     const rows = await db`
-      SELECT r.document_id, r.extraction, d.title, d.body, d.tags, d.source_created_at, d.source_closed
+      SELECT r.document_id, r.content_hash, r.extraction, d.title, d.body, d.tags, d.source_created_at, d.source_closed
       FROM ${db(table)} r JOIN intelligence_documents d ON d.id = r.document_id AND d.content_hash = r.content_hash
       WHERE r.review_state = 'approved' AND r.reviewed_by = ${AUTO_APPROVER} AND NOT d.hidden
         AND d.source_created_at > now() - ${WINDOW_DAYS} * interval '1 day'
-      ORDER BY r.document_id DESC LIMIT ${Math.min(500, Math.max(1, limit))}`;
+      ORDER BY r.reviewed_at ASC LIMIT ${Math.min(MAX_PER_LANE, Math.max(1, limit))}`;
     for (const row of rows) {
       checked++;
       const reason = revalidationVerdict({
@@ -63,9 +81,10 @@ export async function revalidatePublished(limit = 100): Promise<{ checked: numbe
       });
       if (!reason) continue;
       try {
-        await reviewIntelligence(Number(row.document_id), lane, 'withdraw', REVALIDATION_ACTOR, reason);
+        const confirmed = await withdrawIfStillFailing(Number(row.document_id), lane, String(row.content_hash));
+        if (!confirmed) continue; // changed since the read: operator decision, new content, or now passing
         withdrawn++;
-        console.log(`[Revalidation] withdrew ${lane} document ${row.document_id}: ${reason}`);
+        console.log(`[Revalidation] withdrew ${lane} document ${row.document_id}: ${confirmed}`);
       } catch (err) {
         console.error(`[Revalidation] withdraw failed for ${lane} document ${row.document_id}:`, err);
       }

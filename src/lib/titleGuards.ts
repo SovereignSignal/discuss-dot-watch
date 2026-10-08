@@ -92,10 +92,12 @@ export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:
  *  swap. "On donating a kidney" (LessWrong) was the 2026-10-06 brief's only
  *  item, quoting "funding available that will reimburse up to $6000 of
  *  travel/food/lost wage expenses". It is the only actionable match among all
- *  production evaluations as of 2026-10-08 (n=1, so deliberately narrow: the
- *  cost words must follow "reimburse" within the sentence, which leaves
- *  "Reimburse Radiant Depositors" RFPs alone). Funding lane only. */
-export const PERSONAL_REIMBURSEMENT_RE = /\breimburs\w*\b[^.]{0,80}?\b(?:travel|food|meals?|lodging|lost\s+wages?)\b/i;
+ *  production evaluations as of 2026-10-08 (n=1, so deliberately narrow:
+ *  "lost wages" must follow "reimburse" within the sentence. That is
+ *  compensation to a person, while a conference travel grant that reimburses
+ *  travel and lodging stays eligible, as do "Reimburse Radiant Depositors"
+ *  RFPs; PR #97 review). Funding lane only. */
+export const PERSONAL_REIMBURSEMENT_RE = /\breimburs\w*\b(?:[^.]|\.\d){0,80}?\blost[\s-]+wages?\b/i;
 
 /** The kind a title forces regardless of the model's answer, or null. Both
  *  are non-actionable kinds in the canonical lanes. Each guard runs only in
