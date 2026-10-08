@@ -104,3 +104,22 @@ test('the opportunities lane is swept too', { skip: !testUrl }, async () => {
   await revalidatePublished();
   assert.equal((await db`SELECT review_state FROM opportunity_records WHERE document_id=${id}`)[0].review_state, 'withdrawn');
 });
+
+test('an item the legacy pipeline already mailed is never mailed again after an edit (PR #97 re-review)', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const created = new Date(Date.now() - 60_000).toISOString();
+  const post = { refId: 'revalidation-legacy', forumUrl: source, protocol: 'Revalidation fixture', title: 'Builder grants round 7',
+    url: `${source}/t/round/7`, tags: [], body: quote, createdAt: created, bumpedAt: created, signal: 'keywords: grants' };
+  // The legacy classifier published and mailed this topic before the native record existed.
+  await db`INSERT INTO grants_items(topic_ref_id,protocol,vertical,title,url,classification,confidence,kind,signal,notified_at,topic_created_at)
+    VALUES(${post.refId},'Revalidation fixture','crypto',${post.title},${post.url},'GRANT',90,'rfp','keywords: grants',now()-interval '1 hour',${created})`;
+  await runNativeCandidateScan([post], 10, classifier);
+  const id = Number((await db`SELECT id FROM intelligence_documents WHERE ref_id=${post.refId}`)[0].id);
+  const record = (await db`SELECT review_state, notification_state FROM funding_records WHERE document_id=${id}`)[0];
+  assert.deepEqual(record, { review_state: 'approved', notification_state: 'sent' });
+  // An edit closes the row; the fresh re-approval of the new content must keep the mail stamp.
+  await runNativeCandidateScan([{ ...post, title: 'Builder grants round 7: applications open' }], 10, classifier);
+  const row = (await db`SELECT status, notified_at FROM grants_items WHERE topic_ref_id=${post.refId}`)[0];
+  assert.equal(row.status, 'open');
+  assert.notEqual(row.notified_at, null);
+});

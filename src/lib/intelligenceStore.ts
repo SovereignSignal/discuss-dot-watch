@@ -111,14 +111,18 @@ export async function reviewIntelligence(documentId:number,lane:IntelligenceLane
     const cutover=await tx`SELECT (value->>'at')::timestamptz AS at FROM intelligence_settings WHERE name='native-cutover'`;
     const fresh=mode==='fresh-policy'&&action==='approve'&&!row.historical&&row.source_created_at&&cutover[0]?.at&&new Date(row.source_created_at)>=new Date(cutover[0].at)&&Date.now()-new Date(row.source_created_at).getTime()<30*86400000;
     if(mode==='fresh-policy'&&(!fresh||row.review_state!=='pending'))return {documentId,lane,state:row.review_state,notificationState:row.notification_state,worked:false};
-    const notification=row.notification_state==='sent'?'sent':fresh?'pending':'suppressed';
+    const base=String(row.ref_id).replace(/::(?:funding|opportunities)$/,'');
+    const existing=await tx`SELECT topic_ref_id FROM grants_items WHERE topic_ref_id=${base} AND classification=${lane==='funding'?'GRANT':'ROLE'}`;
+    const ref=String(row.compatibility_ref||existing[0]?.topic_ref_id||base+'::'+lane);
+    // A row the legacy pipeline already stamped (mailed, or expired on purpose) is never mailed again: the native
+    // record inherits that as 'sent', so a later closure and fresh re-approval cannot clear the stamp (PR #97 review).
+    const prior=(await tx`SELECT notified_at,signal FROM grants_items WHERE topic_ref_id=${ref}`)[0];
+    const legacyStamped=!!prior?.notified_at&&!String(prior.signal||'').startsWith('intelligence-reviewed:');
+    const notification=row.notification_state==='sent'||legacyStamped?'sent':fresh?'pending':'suppressed';
     const state=action==='approve'?'approved':action==='reject'?'rejected':'withdrawn';
     await tx`UPDATE ${db(table)} SET review_state=${state},reviewed_at=now(),reviewed_by=${actor},notification_state=${notification},updated_at=now() WHERE document_id=${documentId}`;
     await tx`INSERT INTO intelligence_reviews(document_id,lane,content_hash,action,actor,reason) VALUES(${documentId},${lane},${row.content_hash},${action},${actor},${auditReason.slice(0,1000)})`;
     const deadline=extraction.deadline&&Number.isFinite(Date.parse(extraction.deadline))?new Date(extraction.deadline):null;
-    const base=String(row.ref_id).replace(/::(?:funding|opportunities)$/,'');
-    const existing=await tx`SELECT topic_ref_id FROM grants_items WHERE topic_ref_id=${base} AND classification=${lane==='funding'?'GRANT':'ROLE'}`;
-    const ref=String(row.compatibility_ref||existing[0]?.topic_ref_id||base+'::'+lane);
     await tx`UPDATE ${db(table)} SET compatibility_ref=${ref} WHERE document_id=${documentId}`;
     if(action==='approve')await tx`INSERT INTO grants_items(topic_ref_id,forum_url,protocol,vertical,title,url,first_post_text,signal,classification,kind,confidence,status,deadline,apply_url,model,topic_created_at,last_activity_at,notified_at)
       VALUES(${ref},${row.forum_url},${row.protocol},${row.vertical},${row.title},${row.url},${String(row.body).slice(0,2000)},${'intelligence-reviewed:'+lane},${lane==='funding'?'GRANT':'ROLE'},${lane==='funding'?fundingKindFromTitle(row.title):extraction.engagement||'other'},${row.confidence},'open',${deadline},${extraction.applicationUrl},${row.model},${row.source_created_at},${row.source_updated_at},${fresh?null:new Date()})
