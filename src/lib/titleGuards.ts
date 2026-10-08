@@ -87,6 +87,16 @@ const HIRING_RE = /\bhiring\b/i;
  *  Funding lane only: "we are seeking" is how an honest job post reads. */
 export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:\s*(?:(?:usd|us\$|eur|gbp)\s*)?[$€£\d]|\btotal\s+(?:funding\s+|budget\s+)?requested(?:\s+for\s+this\s+project)?(?:\s+is)?\s*:?\s*(?:(?:usd|us\$)\s*)?[$€£\d]|\bfunding request\s*:|\bwe(?:['’]re|\s+are)\s+(?:applying\b|(?:seeking|requesting)\b\s*:?\s+(?!(?:\w+\s+)?(?:proposals|applications|applicants|teams|projects|builders|nominations|submissions|candidates|partners|contributors)\b)(?:[\w$,.-]+\s+){0,4}?(?:[$€£\d]|usd\b|funding\b|budget\b|grant\b|support\b))|\b(?:this|our)\s+proposal\s+(?:requests|seeks|asks)\b|\brequests\s+funding\b|\brequired\s+funding\s+total\s*:?\s*(?:(?:usd|us\$)\s*)?[$€£\d]|\bbudget breakdown\W+(?:total\W+)?[$€£\d]/i;
 
+/** Money that reimburses one person's own costs is not project funding: the
+ *  corpus classifier's prompt says so, and this makes it hold across a model
+ *  swap. "On donating a kidney" (LessWrong) was the 2026-10-06 brief's only
+ *  item, quoting "funding available that will reimburse up to $6000 of
+ *  travel/food/lost wage expenses". It is the only actionable match among all
+ *  production evaluations as of 2026-10-08 (n=1, so deliberately narrow: the
+ *  cost words must follow "reimburse" within the sentence, which leaves
+ *  "Reimburse Radiant Depositors" RFPs alone). Funding lane only. */
+export const PERSONAL_REIMBURSEMENT_RE = /\breimburs\w*\b[^.]{0,80}?\b(?:travel|food|meals?|lodging|lost\s+wages?)\b/i;
+
 /** The kind a title forces regardless of the model's answer, or null. Both
  *  are non-actionable kinds in the canonical lanes. Each guard runs only in
  *  the lane the legacy path validated it for: applicant and update titles in
@@ -99,4 +109,16 @@ export function titleGuardKind(title: string, lane: 'funding' | 'opportunities')
   if (lane === 'funding' && UPDATE_RE.test(title)) return 'report';
   if (lane === 'opportunities' && DELEGATE_REPORT_RE.test(title)) return 'report';
   return null;
+}
+
+/** The brief's kind for an approved open call. The canonical classifier only
+ *  says "open_call", so every published funding item read "Program launch"
+ *  whether it was an RFP, a fellowship or a retro round (2026-10-07 brief:
+ *  "Targeted RFP: Cosmos Hub ..." and "Brains Fellowship Applications Open!"
+ *  both labelled Program launch). Title-only, like the guards. */
+export function fundingKindFromTitle(title: string): 'rfp' | 'retro_round' | 'fellowship' | 'program_launch' {
+  if (/\b(?:rfps?|requests?\s+for\s+proposals?)\b/i.test(title)) return 'rfp';
+  if (/\bretro(?:active|spective)?\s*[-‐]?\s*(?:pgf|public\s+goods|funding|rounds?|grants?|applications)\b|\bretro\s*pgf\b/i.test(title)) return 'retro_round';
+  if (/\bfellowships?\b/i.test(title)) return 'fellowship';
+  return 'program_launch';
 }

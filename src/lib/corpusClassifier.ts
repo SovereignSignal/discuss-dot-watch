@@ -5,7 +5,7 @@ import { generateStructured, isLLMConfigured } from './llm';
 import { isAllowedUrl } from './url';
 import { CorpusError, type CorpusLane } from './corpusPolicy';
 import { evidenceChoices } from './evidenceChoices';
-import { titleGuardKind, EVIDENCE_ASK_RE } from './titleGuards';
+import { titleGuardKind, EVIDENCE_ASK_RE, PERSONAL_REIMBURSEMENT_RE } from './titleGuards';
 
 export const CORPUS_CLASSIFIER_VERSION = 'corpus-lanes-v3';
 const extractionSchema = z.object({
@@ -48,6 +48,7 @@ export function validateCorpusExtraction(raw: unknown, input: CorpusClassificati
   const guarded = titleGuardKind(input.title, input.lane);
   if (guarded) out.kind = guarded;
   if (input.lane === 'funding' && out.kind === 'open_call' && EVIDENCE_ASK_RE.test(evidence)) out.kind = 'application';
+  if (input.lane === 'funding' && out.kind === 'open_call' && PERSONAL_REIMBURSEMENT_RE.test(evidence)) out.kind = 'other';
   const actionable = supported && out.relevant && out.confidence>=80 && out.availability === 'open'
     && (input.lane === 'funding' ? out.kind === 'open_call' : out.kind === 'paid_work' && out.paidEvidence);
   return {...out, actionable, reviewRequired:true};

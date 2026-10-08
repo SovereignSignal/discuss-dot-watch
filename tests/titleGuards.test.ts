@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateCorpusExtraction, type CorpusClassificationInput } from '@/lib/corpusClassifier';
 import { correctGrantKind } from '@/lib/grantsClassifier';
-import { titleGuardKind, EVIDENCE_ASK_RE } from '@/lib/titleGuards';
+import { titleGuardKind, EVIDENCE_ASK_RE, PERSONAL_REIMBURSEMENT_RE, fundingKindFromTitle } from '@/lib/titleGuards';
 
 const now = Date.parse('2026-10-06T00:00:00Z');
 const evidence = 'Applications are open until the end of the month for community projects.';
@@ -167,4 +167,24 @@ test('asks phrased as "requests funding" or "Required Funding Total" (Oct 8 brie
   assert.equal(out.actionable, false);
   for (const quote of ['Required funding is disbursed per milestone.', 'Teams that need funding can apply below.'])
     assert.equal(EVIDENCE_ASK_RE.test(quote), false, quote);
+});
+
+test('personal expense reimbursement is not project funding (Oct 6, kidney post)', () => {
+  const kidney = 'There is funding available that will reimburse up to $6000 of travel/food/lost wage expenses.';
+  const out = validateCorpusExtraction({ ...openCall, evidence: kidney }, { ...funding('On donating a kidney'), body: `Essay. ${kidney} More essay.` }, now);
+  assert.equal(out.actionable, false);
+  for (const quote of [
+    'RFP-47: Creating an Isolated Fractional Reserve Market to Reimburse Radiant Depositors on BSC',
+    'Grants reimburse audit costs for projects building on the network.',
+  ]) assert.equal(PERSONAL_REIMBURSEMENT_RE.test(quote), false, quote);
+});
+
+test('published funding gets a kind from its title, not a blanket "Program launch"', () => {
+  assert.equal(fundingKindFromTitle('Targeted RFP: Cosmos Hub Sponsored Endpoint Provider'), 'rfp');
+  assert.equal(fundingKindFromTitle('Request for Proposals: AI policy in middle powers'), 'rfp');
+  assert.equal(fundingKindFromTitle('Round 41 - GMC Call for Retrospective Applications - Deadline is October 7'), 'retro_round');
+  assert.equal(fundingKindFromTitle('Retro Funding 7: applications open'), 'retro_round');
+  assert.equal(fundingKindFromTitle('Brains Fellowship Applications Open!'), 'fellowship');
+  assert.equal(fundingKindFromTitle('DRIP Season 2 Is Live'), 'program_launch');
+  assert.equal(fundingKindFromTitle('Strategic Animal Funding Circle: Applications open for autumn'), 'program_launch');
 });

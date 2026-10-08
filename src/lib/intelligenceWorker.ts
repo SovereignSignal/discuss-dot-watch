@@ -5,6 +5,7 @@ import {sourceText,ingestRegisteredSource} from './sourceAdapters';
 import {ingestDocuments,ensureIntelligence,classifyIntelligenceDocument,recordOutboundLinks,type IntelligenceDocument,type DocumentInput,publishFreshIntelligence,INTELLIGENCE_CLASSIFIER_VERSION} from './intelligenceStore';
 import type {DiscussionTopic} from '@/types';
 import {randomUUID} from 'node:crypto';
+import {revalidatePublished} from './publishRevalidation';
 export {importPilotCorpus} from './pilotImport';
 export async function observeSourceTopics(key:string,topics:DiscussionTopic[],scope:string){
   if(!topics.length||!isDatabaseConfigured())return;
@@ -74,4 +75,7 @@ export async function runIntelligenceMaintenance(){
   const body=await hydrateCorpus(Number.isInteger(bodyBudget)?Math.min(50,Math.max(1,bodyBudget)):6);
   console.log('[Intelligence] body maintenance '+JSON.stringify(body));
   if(process.env.INTELLIGENCE_CLASSIFY_ENABLED!=='false')await classifyCorpusBatch(5);
+  // Guards tighten over time; auto-approved records must keep passing them.
+  const revalidation=await revalidatePublished().catch(e=>{console.error('[Revalidation] sweep failed:',e);return null;});
+  if(revalidation?.withdrawn)console.log('[Revalidation] '+JSON.stringify(revalidation));
 }
