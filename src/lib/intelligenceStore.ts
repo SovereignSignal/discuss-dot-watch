@@ -6,6 +6,7 @@ import {isCandidateOrFilledTitle,isJobSeekerTitle} from './opportunityFit';
 import {isAllowedUrl} from './url';
 import type {CorpusExtraction,CorpusClassificationInput,CorpusClassify} from './corpusClassifier';
 import {classifyCorpusDocument,validateCorpusExtraction,CORPUS_CLASSIFIER_VERSION} from './corpusClassifier';
+import {fundingKindFromTitle} from './titleGuards';
 // Prompt/schema changes get independent history instead of reusing an old completed evaluation.
 export const INTELLIGENCE_CLASSIFIER_VERSION=`independent-lanes-v1:${CORPUS_CLASSIFIER_VERSION}`;
 export type IntelligenceLane='funding'|'opportunities';
@@ -115,7 +116,7 @@ export async function reviewIntelligence(documentId:number,lane:IntelligenceLane
     const ref=String(row.compatibility_ref||existing[0]?.topic_ref_id||base+'::'+lane);
     await tx`UPDATE ${db(table)} SET compatibility_ref=${ref} WHERE document_id=${documentId}`;
     if(action==='approve')await tx`INSERT INTO grants_items(topic_ref_id,forum_url,protocol,vertical,title,url,first_post_text,signal,classification,kind,confidence,status,deadline,apply_url,model,topic_created_at,last_activity_at,notified_at)
-      VALUES(${ref},${row.forum_url},${row.protocol},${row.vertical},${row.title},${row.url},${String(row.body).slice(0,2000)},${'intelligence-reviewed:'+lane},${lane==='funding'?'GRANT':'ROLE'},${lane==='funding'?'program_launch':extraction.engagement||'other'},${row.confidence},'open',${deadline},${extraction.applicationUrl},${row.model},${row.source_created_at},${row.source_updated_at},${fresh?null:new Date()})
+      VALUES(${ref},${row.forum_url},${row.protocol},${row.vertical},${row.title},${row.url},${String(row.body).slice(0,2000)},${'intelligence-reviewed:'+lane},${lane==='funding'?'GRANT':'ROLE'},${lane==='funding'?fundingKindFromTitle(row.title):extraction.engagement||'other'},${row.confidence},'open',${deadline},${extraction.applicationUrl},${row.model},${row.source_created_at},${row.source_updated_at},${fresh?null:new Date()})
       ON CONFLICT(topic_ref_id) DO UPDATE SET title=EXCLUDED.title,first_post_text=EXCLUDED.first_post_text,classification=EXCLUDED.classification,kind=EXCLUDED.kind,confidence=EXCLUDED.confidence,status='open',deadline=EXCLUDED.deadline,apply_url=EXCLUDED.apply_url,signal=EXCLUDED.signal,notified_at=CASE WHEN ${fresh} THEN grants_items.notified_at ELSE coalesce(grants_items.notified_at,now()) END,updated_at=now()`;
     else await tx`UPDATE grants_items SET status='closed',notified_at=coalesce(notified_at,now()),updated_at=now() WHERE topic_ref_id=${ref} AND signal=${'intelligence-reviewed:'+lane}`;
     return {documentId,lane,state,compatibilityRef:ref,notificationState:notification};

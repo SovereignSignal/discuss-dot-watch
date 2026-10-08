@@ -160,3 +160,8 @@ test('summary cannot claim nothing actionable when roles exist', () => {
   const guarded = guardBriefSummary(plan, 'Nothing actionable today; these are only third-party job postings.');
   assert.match(guarded || '', /Actionable paid work today includes Automation Engineer \(n8n\)\./);
 });
+
+test('a fellowship is a highlight like any open call', () => {
+  const plan = planBrief([], [row({ protocol: 'EA Forum', kind: 'fellowship' })]);
+  assert.equal(plan.highlights.length, 1);
+});
