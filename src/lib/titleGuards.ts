@@ -61,9 +61,9 @@ export const APPLICANT_RE = /^\s*(?:\[\s*(?:application|dis|request[- ]for[- ]gr
 /** A title announcing something open: overrides the update and fundraise
  *  guards, so "Grant Update: Applications for Q4 Round Now Open", "GG24 raises
  *  $1.2M matching pool, applications open" stay eligible (PR #94 review). "Open" must be announced ("is/now
- *  open", "open for/until"), never bare, so "open source" and "open
- *  questions" don't count. Records are never rescued. */
-export const OPEN_SIGNAL_RE = /\b(?:applications?|nominations?|submissions?)\s+(?:are\s+|is\s+)?(?:now\s+)?open\b|\b(?:are|is|now)\s+open\b|\bopen\s+(?:for|until|now)\b|\bis\s+(?:now\s+)?live\b|\bcall\s+for\s+(?:applications|proposals|grants)\b/i;
+ *  open", "open for applications"), never bare, so "open source", "open
+ *  questions" and "open for comment" don't count. Records are never rescued. */
+export const OPEN_SIGNAL_RE = /\b(?:applications?|nominations?|submissions?)\s+(?:are\s+|is\s+)?(?:now\s+)?open\b|\b(?:are|is|now)\s+open\b|\bopen\s+(?:now\b|for\s+(?:applications|proposals|submissions|nominations)\b)|\bis\s+(?:now\s+)?live\b|\bcall\s+for\s+(?:applications|proposals|grants)\b/i;
 
 /** Hiring rescues a fundraise only in the opportunities lane: "Kairos has
  *  raised $50M ... (and we're hiring!)" is the 2026-09-02 incident that

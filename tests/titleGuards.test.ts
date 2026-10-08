@@ -149,3 +149,8 @@ test('a fundraise that mentions hiring is still not funding (2026-09-02 Kairos)'
   assert.equal(titleGuardKind(title, 'funding'), 'report');
   assert.equal(titleGuardKind(title, 'opportunities'), null);
 });
+
+test('"open for comment" is not an announcement (PR #94 re-review, optional)', () => {
+  assert.equal(titleGuardKind('Grant update: open for comment', 'funding'), 'report');
+  assert.equal(titleGuardKind('Grant Update: open for applications until Nov 3', 'funding'), null);
+});
