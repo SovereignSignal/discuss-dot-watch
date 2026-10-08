@@ -9,6 +9,18 @@ import postgres from 'postgres';
 // Lazy initialization
 let sql: ReturnType<typeof postgres> | null = null;
 
+/** Server notices below WARNING are routine: every boot's IF NOT EXISTS
+ *  migrations answer "already exists, skipping", and full-text indexing of
+ *  forum bodies answers "word is too long to be indexed". postgres.js logs each
+ *  as a multi-line object by default, which pushed a boot past Railway's
+ *  500 lines/sec limit and dropped 65 log lines (2026-10-08). WARNING and above
+ *  still log, on one line. */
+export function logPostgresNotice(notice: { severity?: string; message?: string; code?: string }): void {
+  const severity = (notice.severity || '').toUpperCase();
+  if (['DEBUG', 'LOG', 'INFO', 'NOTICE'].includes(severity)) return;
+  console.warn(`[Postgres] ${severity || 'NOTICE'} ${notice.code ?? ''} ${notice.message ?? ''}`.trim());
+}
+
 export function getDb() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -20,6 +32,7 @@ export function getDb() {
       max: 10,
       idle_timeout: 20,
       connect_timeout: 10,
+      onnotice: logPostgresNotice,
     });
   }
   return sql;
