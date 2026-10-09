@@ -190,3 +190,8 @@ test('published funding gets a kind from its title, not a blanket "Program launc
   assert.equal(fundingKindFromTitle('DRIP Season 2 Is Live'), 'program_launch');
   assert.equal(fundingKindFromTitle('Strategic Animal Funding Circle: Applications open for autumn'), 'program_launch');
 });
+
+test('a thread for discussing submitted applications is a record (Rocket Pool, rounds 37-42)', () => {
+  for (const n of [37, 40, 42]) assert.equal(titleGuardKind(`Round ${n} - GMC Community Discussion of Submitted Applications`, 'funding'), 'report');
+  assert.equal(titleGuardKind('Round 42 - GMC Call for Grant Applications - Deadline is November 7', 'funding'), null);
+});

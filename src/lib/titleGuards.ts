@@ -33,6 +33,11 @@ export const DELEGATE_REPORT_RE = /delegate\s+(thread|communication|report|updat
  *    finished grants ("[Final Report] T3tris.finance", Arbitrum). */
 export const RECORD_RE = /\b(meeting minutes|minutes of the|post[- ]?mortem|(?:final|completion|closing) report)\b|\bretrospective\b(?!\s+(funding|round|grant|application))|^\s*feedback on\b/i;
 
+/** A thread for discussing applications others submitted is a record, not a call. Rocket Pool opens
+ *  one every round ("Round 42 - GMC Community Discussion of Submitted Applications") and both
+ *  classifiers mislabelled it each time: program_launch, retro_round, application (rounds 37-42). */
+export const SUBMISSIONS_DISCUSSION_RE = /\bdiscussion\s+of\s+(?:the\s+)?(?:submitted|received)\s+(?:grant\s+)?(?:applications|proposals|submissions)\b/i;
+
 /** An organization announcing money it raised FOR ITSELF. Nothing to apply
  *  to, and the headline figure promotes it into the brief's highlights
  *  ("Kairos has raised $50M ...", 2026-09-02). A currency or digit must
@@ -105,7 +110,7 @@ export const PERSONAL_REIMBURSEMENT_RE = /\breimburs\w*\b(?:[^.]|\.\d){0,80}?\bl
  *  funding, delegate threads in opportunities, records and fundraises in both. */
 export function titleGuardKind(title: string, lane: 'funding' | 'opportunities'): 'application' | 'report' | null {
   if (lane === 'funding' && APPLICANT_RE.test(title)) return 'application';
-  if (RECORD_RE.test(title)) return 'report';
+  if (RECORD_RE.test(title) || SUBMISSIONS_DISCUSSION_RE.test(title)) return 'report';
   if (OPEN_SIGNAL_RE.test(title) || (lane === 'opportunities' && HIRING_RE.test(title))) return null;
   if (FUNDRAISE_RE.test(title)) return 'report';
   if (lane === 'funding' && UPDATE_RE.test(title)) return 'report';
