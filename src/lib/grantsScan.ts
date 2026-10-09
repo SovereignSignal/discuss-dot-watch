@@ -331,7 +331,7 @@ async function collectCandidates(cachedForums: CachedForum[]): Promise<Candidate
     const items = await acquireSurfaceGroup(group);
     const entry = presetByUrl.get(group[0].forumUrl.replace(/\/$/, '').toLowerCase());
     if (!entry) continue;
-    if (items.length) await ingestDocuments(items.map(item=>({refId:item.refId,sourceKey:group[0].sourceKey,url:item.url,title:item.title,body:item.body,createdAt:item.publishedAt,updatedAt:item.updatedAt,historical:true,evidenceScope:'discourse_surface_first_post'})));
+    if (items.length) await ingestDocuments(items.map(item=>({refId:item.refId,sourceKey:group[0].sourceKey,url:item.url,title:item.title,body:item.body,createdAt:item.publishedAt,updatedAt:item.updatedAt,historical:!(Date.parse(item.publishedAt??'')>=Date.now()-48*3600000),evidenceScope:'discourse_surface_first_post'})));
     for (const item of items) {
       const existing = candidates.get(item.refId);
       if (existing) {

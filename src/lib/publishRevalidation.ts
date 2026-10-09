@@ -13,7 +13,7 @@
  */
 import { getDb, isDatabaseConfigured } from './db';
 import { validateCorpusExtraction, type CorpusExtraction } from './corpusClassifier';
-import { reviewIntelligence, type IntelligenceLane } from './intelligenceStore';
+import { reviewIntelligence, publishFreshIntelligence, INTELLIGENCE_CLASSIFIER_VERSION, type IntelligenceLane } from './intelligenceStore';
 
 export const AUTO_APPROVER = 'fresh-evidence-policy-v1';
 export const REVALIDATION_ACTOR = 'revalidation-policy-v1';
@@ -91,4 +91,43 @@ export async function revalidatePublished(limit = MAX_PER_LANE): Promise<{ check
     }
   }
   return { checked, withdrawn };
+}
+
+/**
+ * Publishes fresh, actionable records that are still pending. Publication normally happens right
+ * after classification; a record classified while its document was wrongly flagged historical
+ * stayed pending even after the flag cleared, and nothing classified it again (Rocket Pool Round
+ * 42's three calls, 2026-10-08). publishFreshIntelligence re-applies the whole fresh policy
+ * (cutover, 30-day window, current validation, confidence), so this only releases records that
+ * would have published on their own.
+ */
+export async function publishPendingFresh(limit = 200): Promise<{ checked: number; published: number }> {
+  if (!isDatabaseConfigured()) return { checked: 0, published: 0 };
+  const db = getDb();
+  let checked = 0, published = 0;
+  for (const lane of ['funding', 'opportunities'] as const) {
+    const table = lane === 'funding' ? 'funding_records' : 'opportunity_records';
+    const rows = await db`
+      SELECT r.document_id, r.extraction, d.title, d.body, d.source_created_at, d.source_closed
+      FROM ${db(table)} r JOIN intelligence_documents d ON d.id = r.document_id AND d.content_hash = r.content_hash
+      WHERE r.review_state = 'pending' AND r.extraction->>'actionable' = 'true' AND r.classifier_version = ${INTELLIGENCE_CLASSIFIER_VERSION}
+        AND NOT d.historical AND NOT d.hidden AND d.source_created_at > now() - ${WINDOW_DAYS} * interval '1 day'
+        -- Pre-cutover rows can never publish; selecting them would starve newer ones under the limit.
+        AND d.source_created_at >= (SELECT (value->>'at')::timestamptz FROM intelligence_settings WHERE name = 'native-cutover')
+      ORDER BY r.document_id LIMIT ${Math.min(500, Math.max(1, limit))}`;
+    for (const row of rows) {
+      checked++;
+      // Current validation first: a record a newer guard rejects stays pending quietly instead of
+      // failing the approval (record_not_promotable) and logging an error every cycle.
+      if (revalidationVerdict({ extraction: row.extraction, title: String(row.title), body: String(row.body ?? ''), tags: [],
+        createdAt: new Date(row.source_created_at).toISOString(), closed: Boolean(row.source_closed), lane })) continue;
+      try {
+        const result = await publishFreshIntelligence(Number(row.document_id), lane) as { worked?: boolean; state?: string };
+        if (result.worked !== false && result.state === 'approved') { published++; console.log(`[Revalidation] published pending ${lane} document ${row.document_id}`); }
+      } catch (err) {
+        console.error(`[Revalidation] publish failed for ${lane} document ${row.document_id}:`, err);
+      }
+    }
+  }
+  return { checked, published };
 }
