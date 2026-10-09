@@ -240,3 +240,18 @@ test('a grants-category call ingested as historical is corrected and published (
   assert.equal((await db`SELECT review_state, reviewed_by FROM funding_records WHERE document_id=${id}`)[0].review_state, 'approved');
   assert.equal((await publishPendingFresh()).published, 0);
 });
+
+test('a path without tag data does not flip the content hash (Round 42 retrospective, 2026-10-09)', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const { ingestDocuments } = await import('../src/lib/intelligenceStore');
+  const base = { refId: 'tag-flip', sourceKey: source, url: `${source}/t/tag-flip/1`, title: 'Round 42 - GMC Call for Retrospective Applications', body: quote, createdAt: new Date().toISOString(), historical: false };
+  await ingestDocuments([{ ...base, tags: ['gmc_round_42', 'gmc_round_discussion'] }]); // forum scan: topic tags
+  const hash = async () => (await db`SELECT content_hash, tags FROM intelligence_documents WHERE ref_id='tag-flip'`)[0];
+  const before = await hash();
+  await ingestDocuments([{ ...base, tags: [] }]); // grants-category surface: no tag data
+  const after = await hash();
+  assert.equal(after.content_hash, before.content_hash);
+  assert.deepEqual(after.tags, ['gmc_round_42', 'gmc_round_discussion']);
+  await ingestDocuments([{ ...base, tags: ['gmc_round_42'] }]); // a real tag change still changes the hash
+  assert.notEqual((await hash()).content_hash, before.content_hash);
+});

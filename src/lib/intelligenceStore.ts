@@ -20,6 +20,10 @@ export class IntelligenceError extends Error {constructor(public code:string){su
  * grants-category calls could never auto-publish (Rocket Pool Round 42, posted 2026-10-08 00:09 UTC, first
  * seen 01:06). Backfills, imports, probes and migration pass historical:true on purpose ("always suppress
  * mail", below), so they never clear it (PR #99 review). Never flips fresh to historical. */
+// An empty tag list means "this path has no tag data", like an undefined body: the grants-category
+// surface sends [] while the forum scan sends the topic's tags, and overwriting flipped the content hash
+// every cycle. Each flip closed the brief row and stamped it handled, so the post never mailed (Rocket
+// Pool Round 42 retrospective call, 2026-10-09; 21 documents with records were flipping).
 function freshAtFirstSight(old:IntelligenceDocument,i:DocumentInput):boolean{
   if(i.historical!==false)return false;
   const created=(i.createdAt&&Number.isFinite(Date.parse(i.createdAt))?Date.parse(i.createdAt):old.source_created_at?new Date(old.source_created_at).getTime():NaN);
@@ -63,7 +67,7 @@ export async function ingestDocuments(inputs:DocumentInput[]):Promise<Intelligen
     const previous=await tx`SELECT * FROM intelligence_documents WHERE ref_id=ANY(${unique.map(i=>i.refId)})`;
     const map=new Map((previous as unknown as IntelligenceDocument[]).map(i=>[i.ref_id,i]));
     const rows=unique.map(i=>{
-      const old=map.get(i.refId),title=i.title.replace(/\u0000/g,'').slice(0,2000),body=i.body===undefined?old?.body||'':i.body.replace(/\u0000/g,'').slice(0,80000),tags=(i.tags??old?.tags??[]).slice(0,50);
+      const old=map.get(i.refId),title=i.title.replace(/\u0000/g,'').slice(0,2000),body=i.body===undefined?old?.body||'':i.body.replace(/\u0000/g,'').slice(0,80000),tags=(i.tags?.length?i.tags:old?.tags??i.tags??[]).slice(0,50);
       const hidden=i.hidden??(i.bodyStatus==='unavailable'?true:old?.hidden??false),closed=i.closed??old?.source_closed??false;
       return {ref_id:i.refId,source_key:i.sourceKey,url:i.url,title,body,tags,content_hash:documentHash({title,body,tags,closed,hidden}),source_created_at:date(i.createdAt)??old?.source_created_at??null,source_updated_at:date(i.updatedAt)??old?.source_updated_at??null,body_status:i.body!==undefined&&i.body.replace(/\u0000/g,'').length>80000&&i.bodyStatus!=='unavailable'?'partial':i.bodyStatus??(i.body===undefined?old?.body_status??'missing':body?'fetched':'missing'),source_closed:closed,hidden,historical:old?old.historical&&!freshAtFirstSight(old,i):(i.historical??true),evidence_scope:i.evidenceScope??'source_body',verified_at:i.body!==undefined?new Date():old?.verified_at??null};
     });
