@@ -30,13 +30,14 @@ export interface RevalidationInput {
   createdAt: string;
   closed: boolean;
   lane: IntelligenceLane;
+  url?: string;
 }
 
 /** Null when the record still qualifies; otherwise the reason it no longer does. */
 export function revalidationVerdict(r: RevalidationInput, now = Date.now()): string | null {
   let current: CorpusExtraction;
   try {
-    current = validateCorpusExtraction(r.extraction, { title: r.title, body: r.body, tags: r.tags, createdAt: r.createdAt, closed: r.closed, lane: r.lane }, now);
+    current = validateCorpusExtraction(r.extraction, { url: r.url, title: r.title, body: r.body, tags: r.tags, createdAt: r.createdAt, closed: r.closed, lane: r.lane }, now);
   } catch {
     return 'stored extraction no longer validates';
   }
@@ -52,7 +53,7 @@ export async function withdrawIfStillFailing(documentId: number, lane: Intellige
   await reviewIntelligence(documentId, lane, 'withdraw', REVALIDATION_ACTOR, 'revalidation', 'operator', row => {
     if (row.review_state !== 'approved' || row.reviewed_by !== AUTO_APPROVER || row.content_hash !== contentHash) return false;
     reason = revalidationVerdict({
-      extraction: row.extraction, title: String(row.title), body: String(row.body ?? ''), tags: [],
+      extraction: row.extraction, url: String(row.url ?? ''), title: String(row.title), body: String(row.body ?? ''), tags: [],
       createdAt: row.source_created_at ? new Date(row.source_created_at as string).toISOString() : '', closed: Boolean(row.source_closed), lane,
     });
     return reason ?? false; // the verdict computed under the lock is what the audit log records
@@ -68,7 +69,7 @@ export async function revalidatePublished(limit = MAX_PER_LANE): Promise<{ check
   for (const lane of ['funding', 'opportunities'] as const) {
     const table = lane === 'funding' ? 'funding_records' : 'opportunity_records';
     const rows = await db`
-      SELECT r.document_id, r.content_hash, r.extraction, d.title, d.body, d.tags, d.source_created_at, d.source_closed
+      SELECT r.document_id, r.content_hash, r.extraction, d.url, d.title, d.body, d.tags, d.source_created_at, d.source_closed
       FROM ${db(table)} r JOIN intelligence_documents d ON d.id = r.document_id AND d.content_hash = r.content_hash
       WHERE r.review_state = 'approved' AND r.reviewed_by = ${AUTO_APPROVER} AND NOT d.hidden
         AND d.source_created_at > now() - ${WINDOW_DAYS} * interval '1 day'
@@ -76,7 +77,7 @@ export async function revalidatePublished(limit = MAX_PER_LANE): Promise<{ check
     for (const row of rows) {
       checked++;
       const reason = revalidationVerdict({
-        extraction: row.extraction, title: String(row.title), body: String(row.body ?? ''), tags: (row.tags as string[]) ?? [],
+        extraction: row.extraction, url: String(row.url ?? ''), title: String(row.title), body: String(row.body ?? ''), tags: (row.tags as string[]) ?? [],
         createdAt: new Date(row.source_created_at).toISOString(), closed: Boolean(row.source_closed), lane,
       });
       if (!reason) continue;
@@ -108,7 +109,7 @@ export async function publishPendingFresh(limit = 200): Promise<{ checked: numbe
   for (const lane of ['funding', 'opportunities'] as const) {
     const table = lane === 'funding' ? 'funding_records' : 'opportunity_records';
     const rows = await db`
-      SELECT r.document_id, r.extraction, d.title, d.body, d.source_created_at, d.source_closed
+      SELECT r.document_id, r.extraction, d.url, d.title, d.body, d.source_created_at, d.source_closed
       FROM ${db(table)} r JOIN intelligence_documents d ON d.id = r.document_id AND d.content_hash = r.content_hash
       WHERE r.review_state = 'pending' AND r.extraction->>'actionable' = 'true' AND r.classifier_version = ${INTELLIGENCE_CLASSIFIER_VERSION}
         AND NOT d.historical AND NOT d.hidden AND d.source_created_at > now() - ${WINDOW_DAYS} * interval '1 day'
@@ -119,7 +120,7 @@ export async function publishPendingFresh(limit = 200): Promise<{ checked: numbe
       checked++;
       // Current validation first: a record a newer guard rejects stays pending quietly instead of
       // failing the approval (record_not_promotable) and logging an error every cycle.
-      if (revalidationVerdict({ extraction: row.extraction, title: String(row.title), body: String(row.body ?? ''), tags: [],
+      if (revalidationVerdict({ extraction: row.extraction, url: String(row.url ?? ''), title: String(row.title), body: String(row.body ?? ''), tags: [],
         createdAt: new Date(row.source_created_at).toISOString(), closed: Boolean(row.source_closed), lane })) continue;
       try {
         const result = await publishFreshIntelligence(Number(row.document_id), lane) as { worked?: boolean; state?: string };

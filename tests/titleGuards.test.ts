@@ -195,3 +195,13 @@ test('a thread for discussing submitted applications is a record (Rocket Pool, r
   for (const n of [37, 40, 42]) assert.equal(titleGuardKind(`Round ${n} - GMC Community Discussion of Submitted Applications`, 'funding'), 'report');
   assert.equal(titleGuardKind('Round 42 - GMC Call for Grant Applications - Deadline is November 7', 'funding'), null);
 });
+
+test('a Snapshot proposal is a vote, never an open call (Oct 10 queue, BIP-933)', () => {
+  const fee = '**10,286.807445 USDC** in unclaimed FeeDistributor rewards';
+  const vote = validateCorpusExtraction({ ...openCall, evidence: fee }, { ...funding('[BIP-933] Claim Timeless VeBalGrant USDC fees'), body: `Proposal. ${fee}.`,
+    url: 'https://snapshot.org/#/balancer.eth/proposal/0x5a66f49d3aa02d9474e13acd1e6ac81d4a93398a8df0ec6b3adbe5170a74d3d8' }, now);
+  assert.equal(vote.actionable, false);
+  // The same call on a forum stays an open call; a missing URL changes nothing.
+  assert.equal(validateCorpusExtraction(openCall, { ...funding('Builder grants round 3'), url: 'https://dao.rocketpool.net/t/round-42/4070' }, now).actionable, true);
+  assert.equal(validateCorpusExtraction(openCall, funding('Builder grants round 3'), now).actionable, true);
+});

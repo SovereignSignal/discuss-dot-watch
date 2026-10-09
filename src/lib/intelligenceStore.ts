@@ -90,7 +90,7 @@ export async function classifyIntelligenceDocument(documentId:number,lane:Intell
   const claimed=await db`INSERT INTO intelligence_evaluations(document_id,content_hash,lane,classifier_version,state,lease_token,lease_until) VALUES(${d.id},${d.content_hash},${lane},${INTELLIGENCE_CLASSIFIER_VERSION},'running',${token},now()+interval '5 minutes') ON CONFLICT(document_id,content_hash,lane,classifier_version) DO UPDATE SET state='running',lease_token=EXCLUDED.lease_token,lease_until=EXCLUDED.lease_until,attempts=intelligence_evaluations.attempts+1,error_code=NULL WHERE (intelligence_evaluations.state='failed' AND intelligence_evaluations.next_retry_at<=now()) OR (intelligence_evaluations.state='running' AND intelligence_evaluations.lease_until<now()) RETURNING document_id`;
   if(!claimed.length)return {worked:false,reason:'already_classified_or_leased'};
   try{
-    const input:CorpusClassificationInput={title:d.title,body:d.body,tags:d.tags,createdAt:d.source_created_at?.toISOString()||'',closed:d.source_closed,lane};
+    const input:CorpusClassificationInput={url:d.url,title:d.title,body:d.body,tags:d.tags,createdAt:d.source_created_at?.toISOString()||'',closed:d.source_closed,lane};
     const output=await classify(input),result=validateCorpusExtraction(output.extraction,input);
     if(lane==='opportunities'&&(isJobSeekerTitle(d.title)||isCandidateOrFilledTitle(d.title,d.body))){result.actionable=false;result.kind='other';result.availability='unknown';}
     await db.begin(async tx=>{
@@ -118,7 +118,7 @@ export async function reviewIntelligence(documentId:number,lane:IntelligenceLane
     const row=rows[0];if(!row)throw new IntelligenceError('current_record_not_found');
     const checked=precondition?precondition(row):true;if(!checked)return {documentId,lane,state:row.review_state,notificationState:row.notification_state,worked:false};
     const auditReason=typeof checked==='string'?checked:reason;
-    const extraction=action==='approve'?validateCorpusExtraction(row.extraction,{title:row.title,body:row.body,tags:[],createdAt:row.source_created_at?.toISOString()||'',closed:row.source_closed,lane}):row.extraction as CorpusExtraction;
+    const extraction=action==='approve'?validateCorpusExtraction(row.extraction,{url:row.url,title:row.title,body:row.body,tags:[],createdAt:row.source_created_at?.toISOString()||'',closed:row.source_closed,lane}):row.extraction as CorpusExtraction;
     if(action==='approve'&&(row.hidden||row.source_closed||row.classifier_version!==INTELLIGENCE_CLASSIFIER_VERSION||!extraction.actionable||row.confidence<80||!row.evidence))throw new IntelligenceError('record_not_promotable');
     const cutover=await tx`SELECT (value->>'at')::timestamptz AS at FROM intelligence_settings WHERE name='native-cutover'`;
     const fresh=mode==='fresh-policy'&&action==='approve'&&!row.historical&&row.source_created_at&&cutover[0]?.at&&new Date(row.source_created_at)>=new Date(cutover[0].at)&&Date.now()-new Date(row.source_created_at).getTime()<30*86400000;
