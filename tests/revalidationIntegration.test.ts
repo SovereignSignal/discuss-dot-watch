@@ -270,3 +270,19 @@ test('a feed excerpt never replaces a fetched first post (Discourse RSS boilerpl
   await ingestDocuments([{ ...base, refId: 'body-new', url: `${source}/t/body-new/1`, body: 'Excerpt only.', bodyIsExcerpt: true }]);
   assert.equal((await db`SELECT body FROM intelligence_documents WHERE ref_id='body-new'`)[0].body, 'Excerpt only.');
 });
+
+test('the classification backlog serves fresh documents before historical ones', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const { ingestDocuments } = await import('../src/lib/intelligenceStore');
+  const { classifyCorpusBatch } = await import('../src/lib/intelligenceWorker');
+  // Clear anything earlier tests left unclassified, so the batch sees only this backlog.
+  await db`UPDATE intelligence_documents SET hidden=true WHERE ref_id NOT LIKE 'backlog-%'`;
+  const old = new Date(Date.now() - 300 * 86400000).toISOString();
+  const docs = Array.from({ length: 4 }, (_, n) => ({ refId: `backlog-old-${n}`, sourceKey: source, url: `${source}/t/backlog-old/${n}`, title: `Old thread ${n}`, body: quote, bodyStatus: 'fetched' as const, createdAt: old, historical: true }));
+  await ingestDocuments(docs); // lower ids
+  await ingestDocuments([{ refId: 'backlog-fresh', sourceKey: source, url: `${source}/t/backlog-fresh/1`, title: 'Builder grants round 13', body: quote, bodyStatus: 'fetched' as const, createdAt: new Date().toISOString(), historical: false }]);
+  const out = await classifyCorpusBatch(1, classifier);
+  assert.equal(out.documents, 1);
+  const first = (await db`SELECT d.ref_id FROM intelligence_evaluations e JOIN intelligence_documents d ON d.id=e.document_id WHERE d.ref_id LIKE 'backlog-%'`)[0];
+  assert.equal(first.ref_id, 'backlog-fresh');
+});
