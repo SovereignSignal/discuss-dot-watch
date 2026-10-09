@@ -11,7 +11,7 @@ import {briefFields,type LegacyRow} from './extractionGrounding';
 // Prompt/schema changes get independent history instead of reusing an old completed evaluation.
 export const INTELLIGENCE_CLASSIFIER_VERSION=`independent-lanes-v1:${CORPUS_CLASSIFIER_VERSION}`;
 export type IntelligenceLane='funding'|'opportunities';
-export interface DocumentInput {refId:string;sourceKey:string;url:string;title:string;body?:string;tags?:string[];createdAt?:string|null;updatedAt?:string|null;closed?:boolean;hidden?:boolean;historical?:boolean;bodyStatus?:'missing'|'partial'|'fetched'|'unavailable';evidenceScope?:string}
+export interface DocumentInput {refId:string;sourceKey:string;url:string;title:string;body?:string;tags?:string[];createdAt?:string|null;updatedAt?:string|null;closed?:boolean;hidden?:boolean;historical?:boolean;bodyIsExcerpt?:boolean;bodyStatus?:'missing'|'partial'|'fetched'|'unavailable';evidenceScope?:string}
 export interface IntelligenceDocument {id:number;ref_id:string;source_key:string;url:string;title:string;body:string;tags:string[];content_hash:string;source_created_at:Date|null;source_updated_at:Date|null;body_status:string;source_closed:boolean;hidden:boolean;historical:boolean;first_seen_at:Date;last_seen_at:Date;verified_at:Date|null}
 export class IntelligenceError extends Error {constructor(public code:string){super(code);}}
 /** A document flagged historical is corrected when a LIVE observation reports it fresh (historical:false,
@@ -20,10 +20,6 @@ export class IntelligenceError extends Error {constructor(public code:string){su
  * grants-category calls could never auto-publish (Rocket Pool Round 42, posted 2026-10-08 00:09 UTC, first
  * seen 01:06). Backfills, imports, probes and migration pass historical:true on purpose ("always suppress
  * mail", below), so they never clear it (PR #99 review). Never flips fresh to historical. */
-// An empty tag list means "this path has no tag data", like an undefined body: the grants-category
-// surface sends [] while the forum scan sends the topic's tags, and overwriting flipped the content hash
-// every cycle. Each flip closed the brief row and stamped it handled, so the post never mailed (Rocket
-// Pool Round 42 retrospective call, 2026-10-09; 21 documents with records were flipping).
 function freshAtFirstSight(old:IntelligenceDocument,i:DocumentInput):boolean{
   if(i.historical!==false)return false;
   const created=(i.createdAt&&Number.isFinite(Date.parse(i.createdAt))?Date.parse(i.createdAt):old.source_created_at?new Date(old.source_created_at).getTime():NaN);
@@ -67,9 +63,14 @@ export async function ingestDocuments(inputs:DocumentInput[]):Promise<Intelligen
     const previous=await tx`SELECT * FROM intelligence_documents WHERE ref_id=ANY(${unique.map(i=>i.refId)})`;
     const map=new Map((previous as unknown as IntelligenceDocument[]).map(i=>[i.ref_id,i]));
     const rows=unique.map(i=>{
-      const old=map.get(i.refId),title=i.title.replace(/\u0000/g,'').slice(0,2000),body=i.body===undefined?old?.body||'':i.body.replace(/\u0000/g,'').slice(0,80000),tags=(i.tags?.length?i.tags:old?.tags??i.tags??[]).slice(0,50);
+      // Two fields must not flip the content hash between ingest paths, because every hash change closes the
+      // brief row and stamps it handled, so the post never mails (Rocket Pool Round 42 retrospective call,
+      // 2026-10-09; 59 tag-only and 12 RSS-body revisions in two days). An empty tag list means "this path has
+      // no tag data" (the grants-category surface sends []), and a feed excerpt never replaces a fetched first
+      // post (the RSS description carries "N posts - M participants / Read full topic").
+      const old=map.get(i.refId),title=i.title.replace(/\u0000/g,'').slice(0,2000),keepBody=i.body===undefined||(i.bodyIsExcerpt&&old?.body_status==='fetched'),body=keepBody?old?.body||'':i.body!.replace(/\u0000/g,'').slice(0,80000),tags=(i.tags?.length?i.tags:old?.tags??i.tags??[]).slice(0,50);
       const hidden=i.hidden??(i.bodyStatus==='unavailable'?true:old?.hidden??false),closed=i.closed??old?.source_closed??false;
-      return {ref_id:i.refId,source_key:i.sourceKey,url:i.url,title,body,tags,content_hash:documentHash({title,body,tags,closed,hidden}),source_created_at:date(i.createdAt)??old?.source_created_at??null,source_updated_at:date(i.updatedAt)??old?.source_updated_at??null,body_status:i.body!==undefined&&i.body.replace(/\u0000/g,'').length>80000&&i.bodyStatus!=='unavailable'?'partial':i.bodyStatus??(i.body===undefined?old?.body_status??'missing':body?'fetched':'missing'),source_closed:closed,hidden,historical:old?old.historical&&!freshAtFirstSight(old,i):(i.historical??true),evidence_scope:i.evidenceScope??'source_body',verified_at:i.body!==undefined?new Date():old?.verified_at??null};
+      return {ref_id:i.refId,source_key:i.sourceKey,url:i.url,title,body,tags,content_hash:documentHash({title,body,tags,closed,hidden}),source_created_at:date(i.createdAt)??old?.source_created_at??null,source_updated_at:date(i.updatedAt)??old?.source_updated_at??null,body_status:keepBody?old?.body_status??'missing':i.body!.replace(/\u0000/g,'').length>80000&&i.bodyStatus!=='unavailable'?'partial':i.bodyStatus??(body?'fetched':'missing'),source_closed:closed,hidden,historical:old?old.historical&&!freshAtFirstSight(old,i):(i.historical??true),evidence_scope:i.evidenceScope??'source_body',verified_at:i.body!==undefined?new Date():old?.verified_at??null};
     });
     const result=await tx`INSERT INTO intelligence_documents(ref_id,source_key,url,title,body,tags,content_hash,source_created_at,source_updated_at,body_status,source_closed,hidden,historical,evidence_scope,verified_at)
       SELECT ref_id,source_key,url,title,body,tags,content_hash,source_created_at,source_updated_at,body_status,source_closed,hidden,historical,evidence_scope,verified_at FROM jsonb_to_recordset(${db.json(rows)}) AS r(ref_id TEXT,source_key TEXT,url TEXT,title TEXT,body TEXT,tags TEXT[],content_hash TEXT,source_created_at TIMESTAMPTZ,source_updated_at TIMESTAMPTZ,body_status TEXT,source_closed BOOLEAN,hidden BOOLEAN,historical BOOLEAN,evidence_scope TEXT,verified_at TIMESTAMPTZ)
