@@ -86,3 +86,76 @@ test('records stored before these fields existed still validate and are not with
   assert.equal(validateCorpusExtraction(stored, safc, now).actionable, true);
   assert.equal(revalidationVerdict({ extraction: stored, title: safc.title, body: safc.body, tags: [], createdAt: safc.createdAt, closed: false, lane: 'funding' }, now), null);
 });
+
+// PR #98 review: values that must NOT ground, because a grounded date can close a live call.
+test('dates that are not deadlines do not ground', () => {
+  const no: Array<[string, string]> = [
+    ['2026-05-01', 'Step 1 may require a deadline extension.'],
+    ['2026-03-02', 'Phase 2 march toward the deadline.'],
+    ['2026-11-01', 'Milestone 1 - November 2026 deliverables.'],
+    ['2026-10-01', 'Plan for Q1. Oct deadline review.'],
+    ['2026-02-13', 'Release v2.13.2026 ships the deadline fix.'],
+    ['2026-11-01', 'The round opens November 1 and closes November 30.'],
+    ['2026-11-01', 'Our community call happened on 1 November 2026 with 40 people.'], // no deadline language
+  ];
+  for (const [iso, text] of no) assert.equal(dateMentioned(iso, text, 2026), false, text);
+  assert.equal(dateMentioned('2026-11-30', 'The round opens November 1 and closes November 30.', 2026), true);
+  assert.equal(dateMentioned('2026-05-01', 'Applications are due May 1.', 2026), true);
+  assert.equal(dateMentioned('2026-10-31', 'Submit by 31/10/2026.', 2026), true);
+});
+
+test('amounts that are not money do not ground', () => {
+  assert.equal(amountMentioned(3, 'We build web3 tooling and need funding.'), false);
+  assert.equal(amountMentioned(2026, 'The 2026 round funds tooling.'), false);
+  assert.equal(amountMentioned(10, 'We will fund up to 10 projects.'), false);
+  assert.equal(amountMentioned(1202, 'Planned for Q1 2026.'), false);
+  assert.equal(amountMentioned(3200000, 'We are awarding 3 200k grants.'), true); // ambiguous: both readings stated
+  assert.equal(amountMentioned(200000, 'We are awarding 3 200k grants.'), true);
+  assert.equal(amountMentioned(50, 'Small grants of $50 each.'), true);
+  assert.equal(amountMentioned(2000, 'A stipend of 2,000 USDC.'), true);
+});
+
+test('European and spaced thousands ground', () => {
+  assert.equal(amountMentioned(50000, 'Budget: €50.000 for the pilot.'), true);
+  assert.equal(amountMentioned(1000000, 'A fund of €1.000.000.'), true);
+  assert.equal(amountMentioned(50000, 'Total: 50.000,00 €'), true);
+  assert.equal(amountMentioned(20000, 'Requested: USD 20,000'), true);
+  assert.equal(amountMentioned(5000, 'Grant of 5 000 USD'), true);
+});
+
+test('currency needs the symbol on a number, or the code in capitals', () => {
+  assert.equal(currencyMentioned('USD', 'Grants paid in $OP tokens, 50k OP total.'), null);
+  assert.equal(currencyMentioned('OP', 'Grants paid in $OP tokens, 50k OP total.'), 'OP');
+  assert.equal(currencyMentioned('NEAR', 'Projects near completion get 5k.'), null);
+  assert.equal(currencyMentioned('NEAR', 'Grants of 5,000 NEAR.'), 'NEAR');
+  assert.equal(currencyMentioned('EUR', 'Budget: €50.000 for the pilot.'), 'EUR');
+  assert.equal(currencyMentioned('USD', 'stipend of 40 usd per day'), 'USD');
+});
+
+test('lower-case-led tickers and Swiss amounts ground (sweep iteration 4)', () => {
+  assert.equal(amountMentioned(2000, 'Funding request: 2,000 xDAI'), true);
+  assert.equal(amountMentioned(25, 'Offering 25.- € to KDE'), true);
+  assert.equal(currencyMentioned('xDAI', 'Funding request: 2,000 xDAI'), 'xDAI');
+  assert.equal(currencyMentioned('cUSD', 'every cUSD and CELO in and out'), 'cUSD');
+  assert.equal(currencyMentioned('EUR', 'Offering 25.- € to KDE'), 'EUR');
+  assert.equal(currencyMentioned('NEAR', 'Projects Near completion get 5k.'), null);
+});
+
+test('a legacy takeover keeps only legacy values that ground now (PR #98 review)', async () => {
+  const { briefFields } = await import('@/lib/extractionGrounding');
+  const none = { deadline: null, program: null, amountMin: null, amountMax: null, currency: null, applyUrl: null };
+  const text = 'Builder grants round 8. Funded through the Builder Program. Grants of 25,000 USDC. Applications close 30 November 2026. Apply at https://example.org/apply';
+  const legacy = { deadline: new Date('2026-11-30T00:00:00Z'), program: 'Builder Program', amount_min: null, amount_max: '25000', currency: 'USDC', apply_url: 'https://example.org/apply' };
+  const now = Date.parse('2026-10-09T00:00:00Z');
+  assert.deepEqual(briefFields(none, legacy, text, 'Builder grants round 8', 2026, now),
+    { deadline: '2026-11-30', program: 'Builder Program', amountMin: null, amountMax: 25000, currency: 'USDC', applyUrl: 'https://example.org/apply' });
+  // A hallucinated or stale legacy deadline, an amount the text no longer states, a vanished URL: all dropped.
+  const stale = { ...legacy, deadline: new Date('2026-09-30T00:00:00Z'), amount_max: '90000', apply_url: 'https://old.example.org' };
+  assert.deepEqual(briefFields(none, stale, text, 'Builder grants round 8', 2026, now),
+    { deadline: null, program: 'Builder Program', amountMin: null, amountMax: null, currency: null, applyUrl: null });
+  // Native values always win, and amount/currency never mix sources.
+  const native = { ...none, amountMax: 25000, currency: 'USDC' };
+  assert.equal(briefFields(native, { ...legacy, currency: 'USD' }, text, 'Builder grants round 8', 2026, now).currency, 'USDC');
+  // No legacy row: native values pass through untouched.
+  assert.deepEqual(briefFields(native, null, text, 'x', 2026, now), native);
+});

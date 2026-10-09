@@ -7,6 +7,7 @@ import {isAllowedUrl} from './url';
 import type {CorpusExtraction,CorpusClassificationInput,CorpusClassify} from './corpusClassifier';
 import {classifyCorpusDocument,validateCorpusExtraction,CORPUS_CLASSIFIER_VERSION} from './corpusClassifier';
 import {fundingKindFromTitle} from './titleGuards';
+import {briefFields,type LegacyRow} from './extractionGrounding';
 // Prompt/schema changes get independent history instead of reusing an old completed evaluation.
 export const INTELLIGENCE_CLASSIFIER_VERSION=`independent-lanes-v1:${CORPUS_CLASSIFIER_VERSION}`;
 export type IntelligenceLane='funding'|'opportunities';
@@ -116,17 +117,21 @@ export async function reviewIntelligence(documentId:number,lane:IntelligenceLane
     const ref=String(row.compatibility_ref||existing[0]?.topic_ref_id||base+'::'+lane);
     // A row the legacy pipeline already stamped (mailed, or expired on purpose) is never mailed again: the native
     // record inherits that as 'sent', so a later closure and fresh re-approval cannot clear the stamp (PR #97 review).
-    const prior=(await tx`SELECT notified_at,signal FROM grants_items WHERE topic_ref_id=${ref}`)[0];
+    const prior=(await tx`SELECT notified_at,signal,deadline,program,amount_min,amount_max,currency,apply_url FROM grants_items WHERE topic_ref_id=${ref}`)[0];
     const legacyStamped=!!prior?.notified_at&&!String(prior.signal||'').startsWith('intelligence-reviewed:');
     const notification=row.notification_state==='sent'||legacyStamped?'sent':fresh?'pending':'suppressed';
     const state=action==='approve'?'approved':action==='reject'?'rejected':'withdrawn';
     await tx`UPDATE ${db(table)} SET review_state=${state},reviewed_at=now(),reviewed_by=${actor},notification_state=${notification},updated_at=now() WHERE document_id=${documentId}`;
     await tx`INSERT INTO intelligence_reviews(document_id,lane,content_hash,action,actor,reason) VALUES(${documentId},${lane},${row.content_hash},${action},${actor},${auditReason.slice(0,1000)})`;
-    const deadline=extraction.deadline&&Number.isFinite(Date.parse(extraction.deadline))?new Date(extraction.deadline):null;
+    // Native grounded fields win; on a legacy takeover, legacy values that ground in the current text fill gaps.
+    const fields=briefFields({deadline:extraction.deadline??null,program:extraction.program??null,amountMin:extraction.amountMin??null,amountMax:extraction.amountMax??null,currency:extraction.currency??null,applyUrl:extraction.applicationUrl??null},
+      prior&&!String(prior.signal||'').startsWith('intelligence-reviewed:')?prior as unknown as LegacyRow:null,
+      `${row.title}\n${row.body}`,String(row.title),row.source_created_at?new Date(row.source_created_at as string).getUTCFullYear():null);
+    const deadline=fields.deadline&&Number.isFinite(Date.parse(fields.deadline))?new Date(fields.deadline):null;
     await tx`UPDATE ${db(table)} SET compatibility_ref=${ref} WHERE document_id=${documentId}`;
     if(action==='approve')await tx`INSERT INTO grants_items(topic_ref_id,forum_url,protocol,vertical,title,url,first_post_text,signal,classification,kind,confidence,status,deadline,apply_url,model,topic_created_at,last_activity_at,notified_at,program,amount_min,amount_max,currency)
-      VALUES(${ref},${row.forum_url},${row.protocol},${row.vertical},${row.title},${row.url},${String(row.body).slice(0,2000)},${'intelligence-reviewed:'+lane},${lane==='funding'?'GRANT':'ROLE'},${lane==='funding'?fundingKindFromTitle(row.title):extraction.engagement||'other'},${row.confidence},'open',${deadline},${extraction.applicationUrl},${row.model},${row.source_created_at},${row.source_updated_at},${fresh?null:new Date()},${extraction.program??null},${extraction.amountMin??null},${extraction.amountMax??null},${extraction.currency??null})
-      ON CONFLICT(topic_ref_id) DO UPDATE SET title=EXCLUDED.title,first_post_text=EXCLUDED.first_post_text,classification=EXCLUDED.classification,kind=EXCLUDED.kind,confidence=EXCLUDED.confidence,status='open',deadline=coalesce(EXCLUDED.deadline,grants_items.deadline),apply_url=coalesce(EXCLUDED.apply_url,grants_items.apply_url),program=coalesce(EXCLUDED.program,grants_items.program),amount_min=CASE WHEN EXCLUDED.amount_min IS NULL AND EXCLUDED.amount_max IS NULL THEN grants_items.amount_min ELSE EXCLUDED.amount_min END,amount_max=CASE WHEN EXCLUDED.amount_min IS NULL AND EXCLUDED.amount_max IS NULL THEN grants_items.amount_max ELSE EXCLUDED.amount_max END,currency=CASE WHEN EXCLUDED.amount_min IS NULL AND EXCLUDED.amount_max IS NULL THEN grants_items.currency ELSE EXCLUDED.currency END,signal=EXCLUDED.signal,notified_at=CASE WHEN ${notification==='pending'} AND grants_items.status='closed' AND grants_items.signal LIKE 'intelligence-reviewed:%' THEN NULL WHEN ${fresh} THEN grants_items.notified_at ELSE coalesce(grants_items.notified_at,now()) END,updated_at=now()`;
+      VALUES(${ref},${row.forum_url},${row.protocol},${row.vertical},${row.title},${row.url},${String(row.body).slice(0,2000)},${'intelligence-reviewed:'+lane},${lane==='funding'?'GRANT':'ROLE'},${lane==='funding'?fundingKindFromTitle(row.title):extraction.engagement||'other'},${row.confidence},'open',${deadline},${fields.applyUrl},${row.model},${row.source_created_at},${row.source_updated_at},${fresh?null:new Date()},${fields.program},${fields.amountMin},${fields.amountMax},${fields.currency})
+      ON CONFLICT(topic_ref_id) DO UPDATE SET title=EXCLUDED.title,first_post_text=EXCLUDED.first_post_text,classification=EXCLUDED.classification,kind=EXCLUDED.kind,confidence=EXCLUDED.confidence,status='open',deadline=EXCLUDED.deadline,apply_url=EXCLUDED.apply_url,program=EXCLUDED.program,amount_min=EXCLUDED.amount_min,amount_max=EXCLUDED.amount_max,currency=EXCLUDED.currency,signal=EXCLUDED.signal,notified_at=CASE WHEN ${notification==='pending'} AND grants_items.status='closed' AND grants_items.signal LIKE 'intelligence-reviewed:%' THEN NULL WHEN ${fresh} THEN grants_items.notified_at ELSE coalesce(grants_items.notified_at,now()) END,updated_at=now()`;
     // A closure stamps notified_at without mailing; a fresh re-approval of unmailed content must clear it or it never reaches the brief. Legacy and already-sent rows keep theirs.
     else await tx`UPDATE grants_items SET status='closed',notified_at=coalesce(notified_at,now()),updated_at=now() WHERE topic_ref_id=${ref} AND signal=${'intelligence-reviewed:'+lane}`;
     return {documentId,lane,state,compatibilityRef:ref,notificationState:notification};
