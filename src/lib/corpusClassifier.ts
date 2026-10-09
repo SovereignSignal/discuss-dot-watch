@@ -9,6 +9,7 @@ import { titleGuardKind, EVIDENCE_ASK_RE, PERSONAL_REIMBURSEMENT_RE } from './ti
 import { dateMentioned, amountMentioned, currencyMentioned, programMentioned } from './extractionGrounding';
 
 export const CORPUS_CLASSIFIER_VERSION = 'corpus-lanes-v3';
+const VOTE_URL_RE = /^https?:\/\/(?:www\.|v1\.)?snapshot\.(?:org|box)\//i;
 const extractionSchema = z.object({
   relevant: z.boolean(),
   kind: z.enum(['open_call','paid_work','application','report','job_seeker','other']),
@@ -25,7 +26,7 @@ const extractionSchema = z.object({
   currency: z.string().max(24).nullable().optional().default(null),
 });
 export type CorpusExtraction = z.infer<typeof extractionSchema> & { actionable: boolean; reviewRequired: true };
-export interface CorpusClassificationInput { title: string; body: string; tags: string[]; createdAt: string; closed: boolean; lane: CorpusLane }
+export interface CorpusClassificationInput { title: string; body: string; tags: string[]; createdAt: string; closed: boolean; lane: CorpusLane; url?: string }
 const normalized = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
 const PAID_EVIDENCE_RE = /\b(?:paid|pay(?:ment|s)?|compensat(?:e|ed|ion)|salary|wage|fee|rate|contract|hire|hiring|reward|bount(?:y|ies))\b|[$€£]|\b(?:usd|usdc|eth|lpt|icp|rad)\b/i;
 const ENGAGEMENT_EVIDENCE: Record<NonNullable<CorpusExtraction['engagement']>, RegExp | null> = {
@@ -69,6 +70,10 @@ export function validateCorpusExtraction(raw: unknown, input: CorpusClassificati
   if (guarded) out.kind = guarded;
   if (input.lane === 'funding' && out.kind === 'open_call' && EVIDENCE_ASK_RE.test(evidence)) out.kind = 'application';
   if (input.lane === 'funding' && out.kind === 'open_call' && PERSONAL_REIMBURSEMENT_RE.test(evidence)) out.kind = 'other';
+  // A Snapshot proposal is a vote, never a call anyone can apply to: of 126 funding-relevant Snapshot
+  // documents since the 2026-10-05 cutover, the 3 judged actionable were all wrong (an Aave budget ask,
+  // a Balancer token swap, "[BIP-933] Claim Timeless VeBalGrant USDC fees", queued for the Oct 10 brief).
+  if (input.lane === 'funding' && out.kind === 'open_call' && input.url && VOTE_URL_RE.test(input.url)) out.kind = 'other';
   const actionable = supported && out.relevant && out.confidence>=80 && out.availability === 'open'
     && (input.lane === 'funding' ? out.kind === 'open_call' : out.kind === 'paid_work' && out.paidEvidence);
   return {...out, actionable, reviewRequired:true};
