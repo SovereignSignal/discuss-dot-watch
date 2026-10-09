@@ -112,6 +112,8 @@ export async function publishPendingFresh(limit = 200): Promise<{ checked: numbe
       FROM ${db(table)} r JOIN intelligence_documents d ON d.id = r.document_id AND d.content_hash = r.content_hash
       WHERE r.review_state = 'pending' AND r.extraction->>'actionable' = 'true' AND r.classifier_version = ${INTELLIGENCE_CLASSIFIER_VERSION}
         AND NOT d.historical AND NOT d.hidden AND d.source_created_at > now() - ${WINDOW_DAYS} * interval '1 day'
+        -- Pre-cutover rows can never publish; selecting them would starve newer ones under the limit.
+        AND d.source_created_at >= (SELECT (value->>'at')::timestamptz FROM intelligence_settings WHERE name = 'native-cutover')
       ORDER BY r.document_id LIMIT ${Math.min(500, Math.max(1, limit))}`;
     for (const row of rows) {
       checked++;

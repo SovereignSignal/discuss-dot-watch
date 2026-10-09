@@ -226,8 +226,12 @@ test('a grants-category call ingested as historical is corrected and published (
   const { classifyIntelligenceDocument, publishFreshIntelligence } = await import('../src/lib/intelligenceStore');
   await classifyIntelligenceDocument(id, 'funding', classifier); await publishFreshIntelligence(id, 'funding');
   assert.equal((await db`SELECT review_state FROM funding_records WHERE document_id=${id}`)[0].review_state, 'pending');
-  // Any later observation corrects the flag from first-seen versus posted; an old topic stays historical.
-  await ingestDocuments([doc('round-42-grants', 'Round 42 - GMC Call for Grant Applications', posted), doc('old-round', 'Round 9 - GMC Call for Grant Applications', old)]);
+  // A backfill or probe re-observing it (historical:true on purpose) never clears the flag (PR #99 review).
+  await ingestDocuments([doc('round-42-grants', 'Round 42 - GMC Call for Grant Applications', posted)]);
+  assert.equal(await flag('round-42-grants'), true);
+  // A live observation (historical:false, from its date) corrects it; an old topic stays historical.
+  const live = (ref: string, title: string, createdAt: string) => ({ ...doc(ref, title, createdAt), historical: false, evidenceScope: 'source_candidate_body' });
+  await ingestDocuments([live('round-42-grants', 'Round 42 - GMC Call for Grant Applications', posted), live('old-round', 'Round 9 - GMC Call for Grant Applications', old)]);
   assert.equal(await flag('round-42-grants'), false);
   assert.equal(await flag('old-round'), true);
   // The maintenance catch-up publishes it, and only it.

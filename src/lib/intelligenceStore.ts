@@ -14,13 +14,14 @@ export type IntelligenceLane='funding'|'opportunities';
 export interface DocumentInput {refId:string;sourceKey:string;url:string;title:string;body?:string;tags?:string[];createdAt?:string|null;updatedAt?:string|null;closed?:boolean;hidden?:boolean;historical?:boolean;bodyStatus?:'missing'|'partial'|'fetched'|'unavailable';evidenceScope?:string}
 export interface IntelligenceDocument {id:number;ref_id:string;source_key:string;url:string;title:string;body:string;tags:string[];content_hash:string;source_created_at:Date|null;source_updated_at:Date|null;body_status:string;source_closed:boolean;hidden:boolean;historical:boolean;first_seen_at:Date;last_seen_at:Date;verified_at:Date|null}
 export class IntelligenceError extends Error {constructor(public code:string){super(code);}}
-/** Historical means "first seen more than 48h after it was created", so a document flagged historical is
- * corrected on any later observation once its creation date shows it was seen fresh. Surface feeds used to
+/** A document flagged historical is corrected when a LIVE observation reports it fresh (historical:false,
+ * computed from its date) and it was created within 48h of when we first saw it. Surface feeds used to
  * ingest everything as historical regardless of date, and the flag was written only on insert, so new
  * grants-category calls could never auto-publish (Rocket Pool Round 42, posted 2026-10-08 00:09 UTC, first
- * seen 01:06). Judged against first_seen_at, not now, so the correction does not expire. Never flips
- * fresh to historical; the fresh policy's cutover and 30-day rules still gate any mail. */
+ * seen 01:06). Backfills, imports, probes and migration pass historical:true on purpose ("always suppress
+ * mail", below), so they never clear it (PR #99 review). Never flips fresh to historical. */
 function freshAtFirstSight(old:IntelligenceDocument,i:DocumentInput):boolean{
+  if(i.historical!==false)return false;
   const created=(i.createdAt&&Number.isFinite(Date.parse(i.createdAt))?Date.parse(i.createdAt):old.source_created_at?new Date(old.source_created_at).getTime():NaN);
   return Number.isFinite(created)&&created>=new Date(old.first_seen_at).getTime()-48*3600000;
 }
