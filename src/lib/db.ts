@@ -293,7 +293,7 @@ export async function initializeSchema() {
   await db`
     UPDATE grants_items SET deadline = NULL
     WHERE deadline IS NOT NULL AND topic_created_at IS NOT NULL
-      AND signal NOT LIKE 'intelligence-reviewed:%'
+      AND (signal IS NULL OR signal NOT LIKE 'intelligence-reviewed:%')
       AND (deadline::date < topic_created_at::date OR deadline > topic_created_at + INTERVAL '180 days')
   `;
 

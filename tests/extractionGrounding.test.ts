@@ -159,3 +159,14 @@ test('a legacy takeover keeps only legacy values that ground now (PR #98 review)
   // No legacy row: native values pass through untouched.
   assert.deepEqual(briefFields(native, null, text, 'x', 2026, now), native);
 });
+
+test('PR #98 re-review: last edge cases', () => {
+  assert.equal(dateMentioned('2026-11-01', 'Applications due 2026-11-01T23:59:00Z.', 2026), true);
+  assert.equal(dateMentioned('2026-11-01', 'Launch: November 1 (applications open), closing later.', 2026), false);
+  assert.equal(amountMentioned(10, 'We will fund up to 10 AI projects.'), false);
+  assert.equal(amountMentioned(10, 'Grants of 10 ETH each.'), true);
+  assert.equal(currencyMentioned('ETH', 'Grants of 2 eth each.'), 'ETH');
+  assert.equal(currencyMentioned('USD', 'a budget of 50k US$'), 'USD');
+  assert.equal(currencyMentioned('USD', 'about 60 dollars per hour'), 'USD');
+  assert.equal(amountMentioned(60, 'about 60 dollars per hour'), true);
+});

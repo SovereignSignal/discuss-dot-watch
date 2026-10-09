@@ -47,6 +47,8 @@ export function dateMentioned(iso: string, text: string, postedYear: number | nu
   const cued = (start: number, end: number) => {
     const before = t.slice(Math.max(0, start - 70), start);
     if (OPENING_CUE.test(before.slice(-25))) return false;
+    // "Launch: November 1 (applications open)" is an opening date even though "applications" follows it.
+    if (/^\W*\(?\s*(?:applications?|submissions?|nominations?|the round|round|registration)?\s*(?:are\s+|is\s+)?(?:now\s+)?(?:opens?|opening|starts?|begins?|launch(?:es)?)\b/i.test(t.slice(end, end + 30))) return false;
     return DEADLINE_CUE.test(before) || DEADLINE_CUE.test(t.slice(end, end + 30));
   };
   // "Step 1 may require", "Phase 2 march": a bare May/March must be the capitalised month.
@@ -54,7 +56,8 @@ export function dateMentioned(iso: string, text: string, postedYear: number | nu
   const d = `0?${day}(?:st|nd|rd|th)?`;
   const mon = monthPattern(month);
   const forms: Array<{ re: RegExp; yearGroup: number | null }> = [
-    { re: new RegExp(`(?<![\\w-])${iso}(?![\\w-])`, 'g'), yearGroup: null },
+    // ISO, alone or with a time attached ("due 2026-11-01T23:59:00Z").
+    { re: new RegExp(`(?<![\\w-])${iso}(?![\\d-])`, 'g'), yearGroup: null },
     // "1 November 2026", "1st of November"; the day must start a word ("Q1. Oct" is not a date).
     { re: new RegExp(`(?<![\\w.])${d}(?:\\s+of)?[\\s.]+${mon}\\b\\.?(?:,?\\s+(\\d{4}))?`, 'gi'), yearGroup: 1 },
     { re: new RegExp(`\\b${mon}\\b\\.?\\s+${d}(?![\\d])(?:,?\\s+(\\d{4}))?`, 'gi'), yearGroup: 1 },
@@ -78,6 +81,8 @@ export function dateMentioned(iso: string, text: string, postedYear: number | nu
 
 const SCALE: Record<string, number> = { k: 1e3, thousand: 1e3, m: 1e6, mm: 1e6, mn: 1e6, million: 1e6, b: 1e9, bn: 1e9, billion: 1e9 };
 const FIAT = new Set(['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD', 'SGD', 'INR', 'BRL', 'NOK', 'SEK', 'DKK']);
+/** Capitalised words that follow numbers in grant posts without being money ("10 AI projects", "3 DAO seats"). */
+const NOT_CURRENCY = new Set(['AI', 'ML', 'DAO', 'DAOS', 'API', 'APIS', 'UI', 'UX', 'ZK', 'PR', 'PRS', 'RFP', 'RFPS', 'NFT', 'NFTS', 'DEFI', 'FTE', 'FTES', 'KPI', 'KPIS', 'Q', 'TB', 'GB', 'MB', 'PM', 'AM', 'UTC', 'PST', 'EST', 'CET', 'AOE', 'EVM', 'L1', 'L2', 'MVP', 'SDK', 'CLI', 'OSS', 'ETA', 'TBD', 'FAQ', 'USA', 'UK', 'EU', 'US']);
 
 interface Stated { value: number; money: boolean }
 
@@ -98,7 +103,9 @@ export function statedNumbers(text: string): Stated[] {
     const money = scale !== 1
       || /(?:[$€£¥]|US\$|\b(?:USD|EUR|GBP|USDC|USDT|DAI))\s?$/i.test(before)
       // "25.- €" (Swiss), "2,000 xDAI", "1,000 cUSD": tickers may start lower-case.
-      || /^(?:\.-)?\s?[€£$]/.test(after) || /^\s?(?:usd|eur|gbp|usdc|usdt|dai)\b/i.test(after) || /^\s?[a-z]?[A-Z]{2,6}\b/.test(after);
+      || /^(?:\.-)?\s?(?:[€£$]|US\$)/.test(after) || /^\s?(?:usd|eur|gbp|usdc|usdt|dai|eth|btc|dollars?|euros?|pounds?)\b/i.test(after)
+      // A capitalised code reads as money unless it is an ordinary capitalised word ("10 AI projects").
+      || (/^\s?[a-z]?[A-Z]{2,6}\b/.test(after) && !NOT_CURRENCY.has((/^\s?([a-z]?[A-Z]{2,6})\b/.exec(after)?.[1] ?? '').toUpperCase()));
     const readings = new Set<number>();
     if (raw.includes(',') && !/^\d{1,3}(?:\.\d{3})+,\d+$/.test(raw)) readings.add(Number(raw.replace(/,/g, '')));
     else if (/['’]/.test(raw)) readings.add(Number(raw.replace(/['’]/g, '')));
@@ -136,6 +143,10 @@ export function currencyMentioned(code: string, text: string): string | null {
     if (new RegExp(`${s}\\s?\\d|\\d(?:\\.-)?\\s?${s}`).test(text)) return iso;
   }
   const escaped = iso.replace(/\./g, '\\.');
+  if (iso === 'USD' && /\bUS\$|\bdollars?\b/i.test(text)) return iso;
+  if (iso === 'EUR' && /\d\s?euros?\b/i.test(text)) return iso;
+  // Major coins are written in lower case beside an amount ("2 eth").
+  if ((iso === 'ETH' || iso === 'BTC') && new RegExp(`\\d\\s?${iso}\\b`, 'i').test(text)) return iso;
   if (FIAT.has(iso)) return new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, 'i').test(text) ? iso : null;
   // A token ticker must be written as one: two or more capitals in the occurrence ("xDAI", "NEAR"),
   // so the word "near" never grounds NEAR. The text's own casing is returned ("xDAI", not "XDAI").
