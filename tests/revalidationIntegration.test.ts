@@ -208,3 +208,31 @@ test('a grounded deadline that passes withdraws the record as expired', { skip: 
   const audit = await db`SELECT reason FROM intelligence_reviews WHERE document_id=${id} AND action='withdraw'`;
   assert.equal(audit.length, 1); assert.match(audit[0].reason, /^expired: /);
 });
+
+test('a grants-category call ingested as historical is corrected and published (Rocket Pool Round 42)', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const { ingestDocuments } = await import('../src/lib/intelligenceStore');
+  const { publishPendingFresh } = await import('../src/lib/publishRevalidation');
+  await db`UPDATE intelligence_settings SET value=jsonb_build_object('at',now()-interval '4 days') WHERE name='native-cutover'`; // prod: Oct 5
+  const posted = new Date(Date.now() - 41 * 3600000).toISOString(); // posted 41h ago, first seen shortly after
+  const old = new Date(Date.now() - 400 * 86400000).toISOString();
+  const doc = (ref: string, title: string, createdAt: string) => ({ refId: ref, sourceKey: source, url: `${source}/t/${ref}/1`, title, body: quote, createdAt, historical: true, evidenceScope: 'discourse_surface_first_post' });
+  // The surface path used to flag every item historical, whatever its date.
+  await ingestDocuments([doc('round-42-grants', 'Round 42 - GMC Call for Grant Applications', posted), doc('old-round', 'Round 9 - GMC Call for Grant Applications', old)]);
+  const flag = async (ref: string) => (await db`SELECT historical FROM intelligence_documents WHERE ref_id=${ref}`)[0].historical;
+  assert.equal(await flag('round-42-grants'), true);
+  // It is classified while still flagged, so the fresh policy leaves it pending.
+  const id = Number((await db`SELECT id FROM intelligence_documents WHERE ref_id='round-42-grants'`)[0].id);
+  const { classifyIntelligenceDocument, publishFreshIntelligence } = await import('../src/lib/intelligenceStore');
+  await classifyIntelligenceDocument(id, 'funding', classifier); await publishFreshIntelligence(id, 'funding');
+  assert.equal((await db`SELECT review_state FROM funding_records WHERE document_id=${id}`)[0].review_state, 'pending');
+  // Any later observation corrects the flag from first-seen versus posted; an old topic stays historical.
+  await ingestDocuments([doc('round-42-grants', 'Round 42 - GMC Call for Grant Applications', posted), doc('old-round', 'Round 9 - GMC Call for Grant Applications', old)]);
+  assert.equal(await flag('round-42-grants'), false);
+  assert.equal(await flag('old-round'), true);
+  // The maintenance catch-up publishes it, and only it.
+  const released = await publishPendingFresh();
+  assert.equal(released.published, 1);
+  assert.equal((await db`SELECT review_state, reviewed_by FROM funding_records WHERE document_id=${id}`)[0].review_state, 'approved');
+  assert.equal((await publishPendingFresh()).published, 0);
+});
