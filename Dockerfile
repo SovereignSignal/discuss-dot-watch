@@ -1,12 +1,15 @@
 # syntax=docker/dockerfile:1
-FROM node:22-bookworm-slim AS deps
+# Official Docker Hub image via AWS's public mirror (same digest). Railway's shared
+# builders pull Docker Hub anonymously and hit its rate limit: two deploys of #102
+# failed on 429 Too Many Requests (2026-10-09).
+FROM public.ecr.aws/docker/library/node:22-bookworm-slim AS deps
 WORKDIR /app
 RUN npm install --global npm@11
 COPY package.json package-lock.json ./
 COPY vendor ./vendor
 RUN npm ci
 
-FROM node:22-bookworm-slim AS builder
+FROM public.ecr.aws/docker/library/node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
@@ -15,7 +18,7 @@ RUN npm run build
 
 # Only traced runtime files enter the final image. Developer dependencies never
 # appear in its layers. All real credentials are provided at process startup.
-FROM node:22-bookworm-slim AS runner
+FROM public.ecr.aws/docker/library/node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=8080 HOSTNAME=0.0.0.0
 RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
