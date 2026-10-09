@@ -123,3 +123,38 @@ test('an item the legacy pipeline already mailed is never mailed again after an 
   assert.equal(row.status, 'open');
   assert.notEqual(row.notified_at, null);
 });
+
+test('grounded deadline, amount and program travel from classification to the rendered brief', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const { getUnnotifiedItems } = await import('../src/lib/grantsStore');
+  const { formatDailyBriefText } = await import('../src/lib/dailyBrief');
+  const created = new Date(Date.now() - 60_000);
+  const deadline = new Date(created.getTime() + 20 * 86400000);
+  const human = deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); // "29 October 2026"
+  const iso = deadline.toISOString().slice(0, 10);
+  const body = `${quote} Funded through the Falcon Fund. Requests up to $50k. Application deadline: ${human}.`;
+  const fields: CorpusClassify = async input => ({ model: 'fixture-fields', extraction: validateCorpusExtraction({
+    relevant: input.lane === 'funding', kind: input.lane === 'funding' ? 'open_call' : 'other', availability: 'open', engagement: null,
+    paidEvidence: false, confidence: 95, evidence: quote, applicationUrl: null,
+    deadline: iso, amountMin: null, amountMax: 50000, currency: 'USD', program: 'Falcon Fund' }, input) });
+  await runNativeCandidateScan([{ refId: 'fields-1', forumUrl: source, protocol: 'Revalidation fixture', title: 'Fast grants for AI x animals',
+    url: `${source}/t/fields/1`, tags: [], body, createdAt: created.toISOString(), bumpedAt: created.toISOString(), signal: 'keywords: grants' }], 10, fields);
+  const row = (await db`SELECT program, amount_min, amount_max, currency, deadline FROM grants_items WHERE title='Fast grants for AI x animals'`)[0];
+  assert.deepEqual([row.program, row.amount_min, Number(row.amount_max), row.currency, row.deadline.toISOString().slice(0, 10)], ['Falcon Fund', null, 50000, 'USD', iso]);
+  const queued = (await getUnnotifiedItems('GRANT')).filter(i => i.title === 'Fast grants for AI x animals');
+  assert.equal(queued.length, 1);
+  const text = formatDailyBriefText({ date: new Date(), roles: [], grants: queued, summary: null });
+  assert.match(text, new RegExp(`Falcon Fund · Amount: up to 50,000 USD · Deadline: ${iso}`));
+});
+
+test('a takeover of a legacy row keeps its amount when the new extraction has none', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const created = new Date(Date.now() - 60_000).toISOString();
+  await db`INSERT INTO grants_items(topic_ref_id,protocol,vertical,title,url,classification,confidence,kind,signal,program,amount_max,currency,topic_created_at)
+    VALUES('fields-legacy','Revalidation fixture','crypto','Builder grants round 8',${`${source}/t/round/8`},'GRANT',90,'rfp','keywords: grants','Builder Program',25000,'USDC',${created})`;
+  await runNativeCandidateScan([{ refId: 'fields-legacy', forumUrl: source, protocol: 'Revalidation fixture', title: 'Builder grants round 8',
+    url: `${source}/t/round/8`, tags: [], body: quote, createdAt: created, bumpedAt: created, signal: 'keywords: grants' }], 10, classifier);
+  const row = (await db`SELECT signal, program, amount_max, currency FROM grants_items WHERE topic_ref_id='fields-legacy'`)[0];
+  assert.equal(row.signal, 'intelligence-reviewed:funding');
+  assert.deepEqual([row.program, Number(row.amount_max), row.currency], ['Builder Program', 25000, 'USDC']);
+});
