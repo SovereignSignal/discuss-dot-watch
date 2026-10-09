@@ -123,3 +123,88 @@ test('an item the legacy pipeline already mailed is never mailed again after an 
   assert.equal(row.status, 'open');
   assert.notEqual(row.notified_at, null);
 });
+
+test('grounded deadline, amount and program travel from classification to the rendered brief', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const { getUnnotifiedItems } = await import('../src/lib/grantsStore');
+  const { formatDailyBriefText } = await import('../src/lib/dailyBrief');
+  const created = new Date(Date.now() - 60_000);
+  const deadline = new Date(created.getTime() + 20 * 86400000);
+  const human = deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); // "29 October 2026"
+  const iso = deadline.toISOString().slice(0, 10);
+  const body = `${quote} Funded through the Falcon Fund. Requests up to $50k. Application deadline: ${human}.`;
+  const fields: CorpusClassify = async input => ({ model: 'fixture-fields', extraction: validateCorpusExtraction({
+    relevant: input.lane === 'funding', kind: input.lane === 'funding' ? 'open_call' : 'other', availability: 'open', engagement: null,
+    paidEvidence: false, confidence: 95, evidence: quote, applicationUrl: null,
+    deadline: iso, amountMin: null, amountMax: 50000, currency: 'USD', program: 'Falcon Fund' }, input) });
+  await runNativeCandidateScan([{ refId: 'fields-1', forumUrl: source, protocol: 'Revalidation fixture', title: 'Fast grants for AI x animals',
+    url: `${source}/t/fields/1`, tags: [], body, createdAt: created.toISOString(), bumpedAt: created.toISOString(), signal: 'keywords: grants' }], 10, fields);
+  const row = (await db`SELECT program, amount_min, amount_max, currency, deadline FROM grants_items WHERE title='Fast grants for AI x animals'`)[0];
+  assert.deepEqual([row.program, row.amount_min, Number(row.amount_max), row.currency, row.deadline.toISOString().slice(0, 10)], ['Falcon Fund', null, 50000, 'USD', iso]);
+  const queued = (await getUnnotifiedItems('GRANT')).filter(i => i.title === 'Fast grants for AI x animals');
+  assert.equal(queued.length, 1);
+  const text = formatDailyBriefText({ date: new Date(), roles: [], grants: queued, summary: null });
+  assert.match(text, new RegExp(`Falcon Fund · Amount: up to 50,000 USD · Deadline: ${iso}`));
+});
+
+test('a legacy takeover keeps legacy fields only where they ground in the current text (PR #98 review)', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const created = new Date(Date.now() - 60_000).toISOString();
+  const deadline = new Date(Date.now() + 30 * 86400000);
+  const human = deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const body = `${quote} Funded through the Builder Program. Grants of 25,000 USDC. Applications close ${human}.`;
+  const insertLegacy = (ref: string, n: number, extra: { deadline: string; amount: number }) => db`INSERT INTO grants_items(topic_ref_id,protocol,vertical,title,url,classification,confidence,kind,signal,program,amount_max,currency,deadline,topic_created_at)
+    VALUES(${ref},'Revalidation fixture','crypto',${`Builder grants round ${n}`},${`${source}/t/round/${n}`},'GRANT',90,'rfp','keywords: grants','Builder Program',${extra.amount},'USDC',${extra.deadline},${created})`;
+  const candidate = (ref: string, n: number, text: string) => ({ refId: ref, forumUrl: source, protocol: 'Revalidation fixture', title: `Builder grants round ${n}`,
+    url: `${source}/t/round/${n}`, tags: [], body: text, createdAt: created, bumpedAt: created, signal: 'keywords: grants' });
+
+  // Grounded legacy values survive the takeover.
+  await insertLegacy('fields-legacy', 8, { deadline: deadline.toISOString(), amount: 25000 });
+  await runNativeCandidateScan([candidate('fields-legacy', 8, body)], 10, classifier);
+  const kept = (await db`SELECT signal, program, amount_max, currency, deadline FROM grants_items WHERE topic_ref_id='fields-legacy'`)[0];
+  assert.equal(kept.signal, 'intelligence-reviewed:funding');
+  assert.deepEqual([kept.program, Number(kept.amount_max), kept.currency, kept.deadline?.toISOString().slice(0, 10)], ['Builder Program', 25000, 'USDC', deadline.toISOString().slice(0, 10)]);
+
+  // Ungrounded legacy values (an amount and deadline the post never states) are dropped, not reinstated.
+  await insertLegacy('fields-legacy-stale', 18, { deadline: new Date(Date.now() + 9 * 86400000).toISOString(), amount: 90000 });
+  await runNativeCandidateScan([candidate('fields-legacy-stale', 18, quote)], 10, classifier);
+  const dropped = (await db`SELECT program, amount_max, currency, deadline FROM grants_items WHERE topic_ref_id='fields-legacy-stale'`)[0];
+  assert.deepEqual([dropped.program, dropped.amount_max, dropped.currency, dropped.deadline], [null, null, null, null]);
+});
+
+test('a native re-approval without a deadline overwrites the previous one', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const created = new Date(Date.now() - 60_000).toISOString();
+  const deadline = new Date(Date.now() + 25 * 86400000);
+  const human = deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const withDeadline: CorpusClassify = async input => ({ model: 'fixture-fields', extraction: validateCorpusExtraction({
+    relevant: input.lane === 'funding', kind: input.lane === 'funding' ? 'open_call' : 'other', availability: 'open', engagement: null,
+    paidEvidence: false, confidence: 95, evidence: quote, applicationUrl: null, deadline: deadline.toISOString().slice(0, 10) }, input) });
+  const post = { refId: 'fields-rolling', forumUrl: source, protocol: 'Revalidation fixture', title: 'Builder grants round 11',
+    url: `${source}/t/round/11`, tags: [], body: `${quote} Applications close ${human}.`, createdAt: created, bumpedAt: created, signal: 'keywords: grants' };
+  await runNativeCandidateScan([post], 10, withDeadline);
+  assert.notEqual((await db`SELECT deadline FROM grants_items WHERE title='Builder grants round 11'`)[0].deadline, null);
+  // The author edits it to a rolling call: the re-approval carries no deadline, and the row must say so.
+  await runNativeCandidateScan([{ ...post, title: 'Builder grants round 11 (rolling)', body: `${quote} Rolling applications.` }], 10, classifier);
+  assert.equal((await db`SELECT deadline FROM grants_items WHERE title='Builder grants round 11 (rolling)'`)[0].deadline, null);
+});
+
+test('a grounded deadline that passes withdraws the record as expired', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const created = new Date(Date.now() - 60_000).toISOString(); // fresh, so the policy auto-approves it
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const human = new Date(`${tomorrow}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const dated: CorpusClassify = async input => ({ model: 'fixture-fields', extraction: validateCorpusExtraction({
+    relevant: input.lane === 'funding', kind: input.lane === 'funding' ? 'open_call' : 'other', availability: 'open', engagement: null,
+    paidEvidence: false, confidence: 95, evidence: quote, applicationUrl: null, deadline: tomorrow }, input) });
+  await runNativeCandidateScan([{ refId: 'fields-expiring', forumUrl: source, protocol: 'Revalidation fixture', title: 'Builder grants round 12',
+    url: `${source}/t/round/12`, tags: [], body: `${quote} Applications close ${human}.`, createdAt: created, bumpedAt: created, signal: 'keywords: grants' }], 10, dated);
+  const id = Number((await db`SELECT id FROM intelligence_documents WHERE ref_id='fields-expiring'`)[0].id);
+  assert.equal((await db`SELECT review_state FROM funding_records WHERE document_id=${id}`)[0].review_state, 'approved');
+  // Three days on, the deadline has passed: the sweep withdraws it, labelled as an expiry rather than a guard catch.
+  const real = Date.now;
+  Date.now = () => real() + 3 * 86400000;
+  try { await revalidatePublished(); } finally { Date.now = real; }
+  const audit = await db`SELECT reason FROM intelligence_reviews WHERE document_id=${id} AND action='withdraw'`;
+  assert.equal(audit.length, 1); assert.match(audit[0].reason, /^expired: /);
+});

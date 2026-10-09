@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planBrief, displayProtocol, formatDailyBriefText, summaryLines, shouldSummarize, guardBriefSummary } from '@/lib/dailyBrief';
+import { planBrief, displayProtocol, formatDailyBriefText, summaryLines, shouldSummarize, guardBriefSummary, formatAmount } from '@/lib/dailyBrief';
 import { correctGrantKind } from '@/lib/grantsClassifier';
 import type { BriefItemRow } from '@/lib/grantsStore';
 
@@ -133,8 +133,8 @@ test('summary lines tag each item with its kind so a report never reads as an op
   ));
   assert.deepEqual(lines, [
     '[EA Forum] Geefrevolutie is hiring! (Role: Working group)',
-    '[LessWrong] 2026 SFF grants (Program launch; 65,000,000 USD)',
-    '[Arbitrum] [Final Report] T3tris.finance (Milestone report; 25,000 USD)',
+    '[LessWrong] 2026 SFF grants (Program launch; up to 65,000,000 USD)',
+    '[Arbitrum] [Final Report] T3tris.finance (Milestone report; up to 25,000 USD)',
     '[Zcash] 2 new grant applications (Application)',
   ]);
 });
@@ -164,4 +164,18 @@ test('summary cannot claim nothing actionable when roles exist', () => {
 test('a fellowship is a highlight like any open call', () => {
   const plan = planBrief([], [row({ protocol: 'EA Forum', kind: 'fellowship' })]);
   assert.equal(plan.highlights.length, 1);
+});
+
+test('amounts read as ceilings, ranges or fixed figures', () => {
+  assert.equal(formatAmount(row({ amount_min: null, amount_max: '200000', currency: 'USD' })), 'up to 200,000 USD');
+  assert.equal(formatAmount(row({ amount_min: '5000', amount_max: '50000', currency: 'USDC' })), '5,000–50,000 USDC');
+  assert.equal(formatAmount(row({ amount_min: '25000', amount_max: '25000', currency: 'EUR' })), '25,000 EUR');
+  assert.equal(formatAmount(row({ amount_min: '1000', amount_max: null, currency: 'OP' })), '1,000+ OP');
+});
+
+test('the Oct 9 item renders with its deadline and ceiling once grounded', () => {
+  const text = formatDailyBriefText({ date: new Date('2026-10-10T14:05:00Z'), roles: [], summary: null, grants: [row({
+    protocol: 'EA Forum', kind: 'program_launch', title: 'Strategic Animal Funding Circle: Applications open for autumn 2026',
+    amount_min: null, amount_max: '200000', currency: 'USD', deadline: new Date('2026-11-01T00:00:00Z'), topic_created_at: new Date('2026-10-08T00:00:00Z'), confidence: 95 })] });
+  assert.match(text, /Program launch · Amount: up to 200,000 USD · Deadline: 2026-11-01 · Posted: 2026-10-08 · 95% confidence/);
 });

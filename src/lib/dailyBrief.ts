@@ -312,11 +312,12 @@ function fmtNum(v: string | null): string | null {
   return n.toLocaleString('en-US');
 }
 
-function formatAmount(row: BriefItemRow): string | null {
+export function formatAmount(row: BriefItemRow): string | null {
   const min = fmtNum(row.amount_min);
   const max = fmtNum(row.amount_max);
   if (min == null && max == null) return null;
-  const range = max == null ? `${min}+` : min != null && min !== max ? `${min}–${max}` : `${max}`;
+  // A lone maximum is a ceiling ("under $200k", "up to $50,000"), not a fixed award.
+  const range = max == null ? `${min}+` : min == null ? `up to ${max}` : min !== max ? `${min}–${max}` : `${max}`;
   return `${range} ${safeTitle(row.currency || '')}`.trim();
 }
 
