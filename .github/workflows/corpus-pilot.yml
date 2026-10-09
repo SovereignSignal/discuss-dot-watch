@@ -26,6 +26,7 @@ jobs:
           - surfaceObservability
           - intelligenceIntegration
           - corpusReadinessIntegration
+          - revalidationIntegration
     # Every suite owns a fresh service database. Native cutover tests publish
     # fixture records by design; those must never contaminate another suite.
     services:

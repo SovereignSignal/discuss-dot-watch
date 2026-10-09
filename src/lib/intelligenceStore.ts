@@ -6,6 +6,7 @@ import {isCandidateOrFilledTitle,isJobSeekerTitle} from './opportunityFit';
 import {isAllowedUrl} from './url';
 import type {CorpusExtraction,CorpusClassificationInput,CorpusClassify} from './corpusClassifier';
 import {classifyCorpusDocument,validateCorpusExtraction,CORPUS_CLASSIFIER_VERSION} from './corpusClassifier';
+import {fundingKindFromTitle} from './titleGuards';
 // Prompt/schema changes get independent history instead of reusing an old completed evaluation.
 export const INTELLIGENCE_CLASSIFIER_VERSION=`independent-lanes-v1:${CORPUS_CLASSIFIER_VERSION}`;
 export type IntelligenceLane='funding'|'opportunities';
@@ -95,28 +96,38 @@ export async function listIntelligence(lane:IntelligenceLane,options:{limit:numb
   const rows=await db`SELECT r.*,d.ref_id,d.url,d.title,d.source_key,s.name AS source_name,d.source_created_at,d.body_status,LEFT(d.body,300) AS excerpt,d.verified_at,d.source_closed FROM ${db(table)} r JOIN intelligence_documents d ON d.id=r.document_id JOIN ingestion_sources s ON s.source_key=d.source_key WHERE NOT d.hidden AND r.content_hash=d.content_hash AND r.extraction->>'relevant'='true' ${options.review?db`AND r.review_state=${options.review}`:db``} ${options.publicOnly?db`AND r.review_state='approved' AND NOT d.source_closed AND r.availability='open' AND r.classifier_version=${INTELLIGENCE_CLASSIFIER_VERSION} AND r.extraction->>'actionable'='true' AND (r.extraction->>'deadline' IS NULL OR r.extraction->>'deadline'>=to_char(CURRENT_DATE,'YYYY-MM-DD')) AND (d.source_created_at IS NULL OR d.source_created_at>=now()-interval '90 days' OR r.extraction->>'deadline'>=to_char(CURRENT_DATE,'YYYY-MM-DD'))`:db``} ${options.source?db`AND d.source_key=${options.source}`:db``} ${options.q?db`AND d.search_vector@@websearch_to_tsquery('english',${options.q})`:db``} ${options.cursor?db`AND d.id<${options.cursor}`:db``} ORDER BY d.id DESC LIMIT ${Math.min(100,options.limit)+1}`;
   const items=rows.slice(0,options.limit);return {items,meta:{count:items.length,nextCursor:rows.length>items.length?items.at(-1)?.document_id:null,lane,availabilityVerified:false,legacyEvidenceExplicit:true}};
 }
-export async function reviewIntelligence(documentId:number,lane:IntelligenceLane,action:'approve'|'reject'|'withdraw',actor:string,reason:string,mode:'operator'|'fresh-policy'='operator'){
+/** precondition runs on the LOCKED current row; false makes the call a no-op (worked:false), a string replaces the audit reason.
+ * The revalidation sweep uses it so an operator approval or newer content landing between its read and
+ * this write is never withdrawn on a stale verdict. */
+export async function reviewIntelligence(documentId:number,lane:IntelligenceLane,action:'approve'|'reject'|'withdraw',actor:string,reason:string,mode:'operator'|'fresh-policy'='operator',precondition?:(row:Record<string,unknown>)=>boolean|string){
   await ensureIntelligence();const db=getDb(),table=lane==='funding'?'funding_records':'opportunity_records';
   return db.begin(async tx=>{
     const rows=await tx`SELECT r.*,d.title,d.url,d.body,d.ref_id,d.source_key,d.source_created_at,d.source_updated_at,d.historical,d.source_closed,d.hidden,s.name AS protocol,s.vertical,s.url AS forum_url FROM ${db(table)} r JOIN intelligence_documents d ON d.id=r.document_id JOIN ingestion_sources s USING(source_key) WHERE r.document_id=${documentId} AND r.content_hash=d.content_hash FOR UPDATE OF r,d`;
     const row=rows[0];if(!row)throw new IntelligenceError('current_record_not_found');
+    const checked=precondition?precondition(row):true;if(!checked)return {documentId,lane,state:row.review_state,notificationState:row.notification_state,worked:false};
+    const auditReason=typeof checked==='string'?checked:reason;
     const extraction=action==='approve'?validateCorpusExtraction(row.extraction,{title:row.title,body:row.body,tags:[],createdAt:row.source_created_at?.toISOString()||'',closed:row.source_closed,lane}):row.extraction as CorpusExtraction;
     if(action==='approve'&&(row.hidden||row.source_closed||row.classifier_version!==INTELLIGENCE_CLASSIFIER_VERSION||!extraction.actionable||row.confidence<80||!row.evidence))throw new IntelligenceError('record_not_promotable');
     const cutover=await tx`SELECT (value->>'at')::timestamptz AS at FROM intelligence_settings WHERE name='native-cutover'`;
     const fresh=mode==='fresh-policy'&&action==='approve'&&!row.historical&&row.source_created_at&&cutover[0]?.at&&new Date(row.source_created_at)>=new Date(cutover[0].at)&&Date.now()-new Date(row.source_created_at).getTime()<30*86400000;
     if(mode==='fresh-policy'&&(!fresh||row.review_state!=='pending'))return {documentId,lane,state:row.review_state,notificationState:row.notification_state,worked:false};
-    const notification=row.notification_state==='sent'?'sent':fresh?'pending':'suppressed';
-    const state=action==='approve'?'approved':action==='reject'?'rejected':'withdrawn';
-    await tx`UPDATE ${db(table)} SET review_state=${state},reviewed_at=now(),reviewed_by=${actor},notification_state=${notification},updated_at=now() WHERE document_id=${documentId}`;
-    await tx`INSERT INTO intelligence_reviews(document_id,lane,content_hash,action,actor,reason) VALUES(${documentId},${lane},${row.content_hash},${action},${actor},${reason.slice(0,1000)})`;
-    const deadline=extraction.deadline&&Number.isFinite(Date.parse(extraction.deadline))?new Date(extraction.deadline):null;
     const base=String(row.ref_id).replace(/::(?:funding|opportunities)$/,'');
     const existing=await tx`SELECT topic_ref_id FROM grants_items WHERE topic_ref_id=${base} AND classification=${lane==='funding'?'GRANT':'ROLE'}`;
     const ref=String(row.compatibility_ref||existing[0]?.topic_ref_id||base+'::'+lane);
+    // A row the legacy pipeline already stamped (mailed, or expired on purpose) is never mailed again: the native
+    // record inherits that as 'sent', so a later closure and fresh re-approval cannot clear the stamp (PR #97 review).
+    const prior=(await tx`SELECT notified_at,signal FROM grants_items WHERE topic_ref_id=${ref}`)[0];
+    const legacyStamped=!!prior?.notified_at&&!String(prior.signal||'').startsWith('intelligence-reviewed:');
+    const notification=row.notification_state==='sent'||legacyStamped?'sent':fresh?'pending':'suppressed';
+    const state=action==='approve'?'approved':action==='reject'?'rejected':'withdrawn';
+    await tx`UPDATE ${db(table)} SET review_state=${state},reviewed_at=now(),reviewed_by=${actor},notification_state=${notification},updated_at=now() WHERE document_id=${documentId}`;
+    await tx`INSERT INTO intelligence_reviews(document_id,lane,content_hash,action,actor,reason) VALUES(${documentId},${lane},${row.content_hash},${action},${actor},${auditReason.slice(0,1000)})`;
+    const deadline=extraction.deadline&&Number.isFinite(Date.parse(extraction.deadline))?new Date(extraction.deadline):null;
     await tx`UPDATE ${db(table)} SET compatibility_ref=${ref} WHERE document_id=${documentId}`;
     if(action==='approve')await tx`INSERT INTO grants_items(topic_ref_id,forum_url,protocol,vertical,title,url,first_post_text,signal,classification,kind,confidence,status,deadline,apply_url,model,topic_created_at,last_activity_at,notified_at)
-      VALUES(${ref},${row.forum_url},${row.protocol},${row.vertical},${row.title},${row.url},${String(row.body).slice(0,2000)},${'intelligence-reviewed:'+lane},${lane==='funding'?'GRANT':'ROLE'},${lane==='funding'?'program_launch':extraction.engagement||'other'},${row.confidence},'open',${deadline},${extraction.applicationUrl},${row.model},${row.source_created_at},${row.source_updated_at},${fresh?null:new Date()})
-      ON CONFLICT(topic_ref_id) DO UPDATE SET title=EXCLUDED.title,first_post_text=EXCLUDED.first_post_text,classification=EXCLUDED.classification,kind=EXCLUDED.kind,confidence=EXCLUDED.confidence,status='open',deadline=EXCLUDED.deadline,apply_url=EXCLUDED.apply_url,signal=EXCLUDED.signal,notified_at=CASE WHEN ${fresh} THEN grants_items.notified_at ELSE coalesce(grants_items.notified_at,now()) END,updated_at=now()`;
+      VALUES(${ref},${row.forum_url},${row.protocol},${row.vertical},${row.title},${row.url},${String(row.body).slice(0,2000)},${'intelligence-reviewed:'+lane},${lane==='funding'?'GRANT':'ROLE'},${lane==='funding'?fundingKindFromTitle(row.title):extraction.engagement||'other'},${row.confidence},'open',${deadline},${extraction.applicationUrl},${row.model},${row.source_created_at},${row.source_updated_at},${fresh?null:new Date()})
+      ON CONFLICT(topic_ref_id) DO UPDATE SET title=EXCLUDED.title,first_post_text=EXCLUDED.first_post_text,classification=EXCLUDED.classification,kind=EXCLUDED.kind,confidence=EXCLUDED.confidence,status='open',deadline=EXCLUDED.deadline,apply_url=EXCLUDED.apply_url,signal=EXCLUDED.signal,notified_at=CASE WHEN ${notification==='pending'} AND grants_items.status='closed' AND grants_items.signal LIKE 'intelligence-reviewed:%' THEN NULL WHEN ${fresh} THEN grants_items.notified_at ELSE coalesce(grants_items.notified_at,now()) END,updated_at=now()`;
+    // A closure stamps notified_at without mailing; a fresh re-approval of unmailed content must clear it or it never reaches the brief. Legacy and already-sent rows keep theirs.
     else await tx`UPDATE grants_items SET status='closed',notified_at=coalesce(notified_at,now()),updated_at=now() WHERE topic_ref_id=${ref} AND signal=${'intelligence-reviewed:'+lane}`;
     return {documentId,lane,state,compatibilityRef:ref,notificationState:notification};
   });

@@ -9,6 +9,20 @@ import postgres from 'postgres';
 // Lazy initialization
 let sql: ReturnType<typeof postgres> | null = null;
 
+/** Routine notice codes, dropped: every boot's IF NOT EXISTS migrations answer
+ *  "already exists, skipping" (42P07 relation, 42701 column, 42710 object),
+ *  IF EXISTS drops answer 00000, and full-text indexing of forum bodies answers
+ *  "word is too long to be indexed" (54000). postgres.js logs each as a
+ *  multi-line object by default, which pushed a boot past Railway's 500
+ *  lines/sec limit and dropped 65 log lines (2026-10-08). Any other notice
+ *  still logs, on one line: 42622 (an identifier truncated to 63 characters)
+ *  is the only signal that two long index names collided (PR #97 review). */
+const ROUTINE_NOTICE_CODES = new Set(['42P07', '42701', '42710', '00000', '54000']);
+export function logPostgresNotice(notice: { severity?: string; message?: string; code?: string }): void {
+  if (notice.code && ROUTINE_NOTICE_CODES.has(notice.code)) return;
+  console.warn(`[Postgres] ${(notice.severity || 'NOTICE').toUpperCase()} ${notice.code ?? ''} ${notice.message ?? ''}`.trim());
+}
+
 export function getDb() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -20,6 +34,7 @@ export function getDb() {
       max: 10,
       idle_timeout: 20,
       connect_timeout: 10,
+      onnotice: logPostgresNotice,
     });
   }
   return sql;

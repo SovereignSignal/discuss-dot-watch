@@ -34,6 +34,7 @@ export const GRANT_KIND_LABELS: Record<string, string> = {
   milestone_report: 'Milestone report',
   budget_debate: 'Budget debate',
   retro_round: 'Retro round',
+  fellowship: 'Fellowship',
   other: 'Grant',
 };
 
