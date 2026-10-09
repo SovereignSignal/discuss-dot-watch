@@ -1,4 +1,5 @@
 import {getDb,isDatabaseConfigured} from './db';
+import type {CorpusClassify} from './corpusClassifier';
 import {safeFetch,readCappedText} from './safeFetch';
 import {firstPostDocument,retryAfterSeconds} from './corpusPolicy';
 import {sourceText,ingestRegisteredSource} from './sourceAdapters';
@@ -53,17 +54,22 @@ export async function hydrateCorpus(limit=6){
   return {attempted:claimed.length,fetched,failed,unavailable,notificationWrites:0};
 }
 /** Both classifiers evaluate the same content version independently. Review and
- * notifications are deliberately separate from this bounded classification run. */
-export async function classifyCorpusBatch(limit=5){
+ * notifications are deliberately separate from this bounded classification run.
+ * Fresh documents go first, then re-classifications of documents that already have a record, then the
+ * historical backlog: oldest-id-first left the 7 mailable documents (Rocket Pool's Round 42 retro call
+ * among them) behind 421 historical ones at 5 per cycle, roughly a day's wait (2026-10-09). */
+export async function classifyCorpusBatch(limit=5,classify?:CorpusClassify){
   await ensureIntelligence();const db=getDb();
   const rows=await db`SELECT d.* FROM intelligence_documents d WHERE d.body_status='fetched' AND NOT d.hidden AND EXISTS(
     SELECT 1 FROM (VALUES('funding'),('opportunities')) AS lane(name) WHERE NOT EXISTS(
       SELECT 1 FROM intelligence_evaluations e WHERE e.document_id=d.id AND e.content_hash=d.content_hash AND e.lane=lane.name AND e.classifier_version=${INTELLIGENCE_CLASSIFIER_VERSION}
       AND (e.state='complete' OR (e.state='running' AND e.lease_until>now()) OR (e.state='failed' AND (e.next_retry_at>now() OR e.attempts>=3)))
-    )) ORDER BY d.id LIMIT ${Math.min(20,Math.max(1,limit))}`;
+    )) ORDER BY (NOT d.historical AND d.source_created_at > now()-interval '30 days') DESC,
+      EXISTS(SELECT 1 FROM funding_records f WHERE f.document_id=d.id UNION ALL SELECT 1 FROM opportunity_records o WHERE o.document_id=d.id) DESC,
+      d.source_created_at DESC NULLS LAST, d.id LIMIT ${Math.min(20,Math.max(1,limit))}`;
   const candidates=rows as unknown as IntelligenceDocument[];
   const results=[];
-  for(const d of candidates)for(const lane of ['funding','opportunities'] as const){try{results.push(await classifyIntelligenceDocument(Number(d.id),lane));await publishFreshIntelligence(Number(d.id),lane);}catch{results.push({documentId:d.id,lane,error:'classification_failed'});}}
+  for(const d of candidates)for(const lane of ['funding','opportunities'] as const){try{results.push(await classifyIntelligenceDocument(Number(d.id),lane,classify));await publishFreshIntelligence(Number(d.id),lane);}catch{results.push({documentId:d.id,lane,error:'classification_failed'});}}
   return {documents:candidates.length,results,notify:false,historicalPromotion:false,livePostCutoverPolicy:true};
 }
 export async function runIntelligenceMaintenance(){
