@@ -240,3 +240,33 @@ test('a grants-category call ingested as historical is corrected and published (
   assert.equal((await db`SELECT review_state, reviewed_by FROM funding_records WHERE document_id=${id}`)[0].review_state, 'approved');
   assert.equal((await publishPendingFresh()).published, 0);
 });
+
+test('a path without tag data does not flip the content hash (Round 42 retrospective, 2026-10-09)', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const { ingestDocuments } = await import('../src/lib/intelligenceStore');
+  const base = { refId: 'tag-flip', sourceKey: source, url: `${source}/t/tag-flip/1`, title: 'Round 42 - GMC Call for Retrospective Applications', body: quote, createdAt: new Date().toISOString(), historical: false };
+  await ingestDocuments([{ ...base, tags: ['gmc_round_42', 'gmc_round_discussion'] }]); // forum scan: topic tags
+  const hash = async () => (await db`SELECT content_hash, tags FROM intelligence_documents WHERE ref_id='tag-flip'`)[0];
+  const before = await hash();
+  await ingestDocuments([{ ...base, tags: [] }]); // grants-category surface: no tag data
+  const after = await hash();
+  assert.equal(after.content_hash, before.content_hash);
+  assert.deepEqual(after.tags, ['gmc_round_42', 'gmc_round_discussion']);
+  await ingestDocuments([{ ...base, tags: ['gmc_round_42'] }]); // a real tag change still changes the hash
+  assert.notEqual((await hash()).content_hash, before.content_hash);
+});
+
+test('a feed excerpt never replaces a fetched first post (Discourse RSS boilerplate)', { skip: !testUrl }, async () => {
+  const db = getDb();
+  const { ingestDocuments } = await import('../src/lib/intelligenceStore');
+  const base = { refId: 'body-flip', sourceKey: source, url: `${source}/t/body-flip/1`, title: 'Round 42 - GMC Call for Grant Applications', createdAt: new Date().toISOString(), historical: false };
+  await ingestDocuments([{ ...base, body: quote, bodyStatus: 'fetched' as const }]); // hydrated first post
+  const doc = async () => (await db`SELECT content_hash, body, body_status FROM intelligence_documents WHERE ref_id='body-flip'`)[0];
+  const before = await doc();
+  await ingestDocuments([{ ...base, body: `${quote} 3 posts - 2 participants Read full topic`, bodyIsExcerpt: true }]); // surface feed
+  const after = await doc();
+  assert.deepEqual([after.content_hash, after.body, after.body_status], [before.content_hash, quote, 'fetched']);
+  // Without a fetched body, the excerpt is still the best text available and is stored.
+  await ingestDocuments([{ ...base, refId: 'body-new', url: `${source}/t/body-new/1`, body: 'Excerpt only.', bodyIsExcerpt: true }]);
+  assert.equal((await db`SELECT body FROM intelligence_documents WHERE ref_id='body-new'`)[0].body, 'Excerpt only.');
+});
