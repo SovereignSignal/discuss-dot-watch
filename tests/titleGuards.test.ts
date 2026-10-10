@@ -187,6 +187,9 @@ test('published funding gets a kind from its title, not a blanket "Program launc
   assert.equal(fundingKindFromTitle('Round 41 - GMC Call for Retrospective Applications - Deadline is October 7'), 'retro_round');
   assert.equal(fundingKindFromTitle('Retro Funding 7: applications open'), 'retro_round');
   assert.equal(fundingKindFromTitle('Brains Fellowship Applications Open!'), 'fellowship');
+  assert.equal(fundingKindFromTitle('Round 42 - GMC Call for Bounty Applications - Deadline is November 7'), 'bounty');
+  assert.equal(fundingKindFromTitle('Venus Bug Bounty Program with BNB Chain'), 'bounty');
+  assert.equal(fundingKindFromTitle('Retro Bounties for Outstanding Community Contributions'), 'bounty');
   assert.equal(fundingKindFromTitle('DRIP Season 2 Is Live'), 'program_launch');
   assert.equal(fundingKindFromTitle('Strategic Animal Funding Circle: Applications open for autumn'), 'program_launch');
 });
