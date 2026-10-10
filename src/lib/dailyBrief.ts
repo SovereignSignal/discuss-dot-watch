@@ -96,7 +96,7 @@ export function isHighlightGrant(g: BriefItemRow): boolean {
   if (kind === 'milestone_report') return false;
   if (kind === 'budget_debate') return amount != null && amount >= BUDGET_DEBATE_HIGHLIGHT_MIN;
 
-  if (['program_launch', 'rfp', 'retro_round', 'fellowship'].includes(kind)) return true;
+  if (['program_launch', 'rfp', 'retro_round', 'bounty', 'fellowship'].includes(kind)) return true;
   if (amount != null && amount >= 100_000) return true;
   if (g.deadline) {
     const days = (g.deadline.getTime() - Date.now()) / 86_400_000;
@@ -263,11 +263,16 @@ export function roleFallbackSummary(plan: BriefPlan): string {
     : `Actionable paid work today includes ${names.join(' and ')}.`;
 }
 
+/** The model narrates a missing amount instead of omitting it: "accepting Round 42 GMC bounty,
+ *  grant, and retrospective applications with an unspecified amount until November 7, 2026"
+ *  (2026-10-10). The prompt forbids it; this strips the clause so the rule survives a model swap. */
+const MISSING_AMOUNT_RE = /,?\s*(?:with|for)\s+(?:an?\s+)?(?:unspecified|undisclosed|unknown|unstated|undetermined)\s+(?:amounts?|budgets?|funding|sums?|values?)\b/gi;
+
 export function guardBriefSummary(plan: BriefPlan, summary: string | null): string | null {
   if (plan.roles.length > 0 && summary && /\b(?:nothing|no) actionable\b/i.test(summary)) {
     return roleFallbackSummary(plan);
   }
-  return summary;
+  return summary ? summary.replace(MISSING_AMOUNT_RE, '') : summary;
 }
 
 async function generateSummary(plan: BriefPlan): Promise<string | null> {
@@ -280,6 +285,7 @@ async function generateSummary(plan: BriefPlan): Promise<string | null> {
     context: 'DailyBrief',
     prompt: `You are a grants and governance analyst writing the top of a daily email for a professional grants operator. In at most 2 sentences, plain and specific:
 - Lead with what the reader can act on: open programs, RFPs, retro rounds and roles, with their community, amount and deadline.
+- State an amount or deadline only when a line gives one. Never say an amount is unspecified, undisclosed or unknown.
 - Mention applications, reports and budget debates only as brief context, never as opportunities. They are other teams' asks or finished work.
 - If an item reads as an announcement of grants already made, call it news, not an opportunity.
 - ROLE lines are already screened paid-work opportunities. If any Role line exists, never say there is nothing actionable. Lead with the strongest Role or open funding call.

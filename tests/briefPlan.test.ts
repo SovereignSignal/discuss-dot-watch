@@ -166,6 +166,22 @@ test('a fellowship is a highlight like any open call', () => {
   assert.equal(plan.highlights.length, 1);
 });
 
+test('a bounty call is a highlight and reads as a bounty', () => {
+  const item = row({ protocol: 'Rocket Pool', kind: 'bounty', title: 'Round 42 - GMC Call for Bounty Applications - Deadline is November 7' });
+  assert.equal(planBrief([], [item]).highlights.length, 1);
+  assert.match(formatDailyBriefText({ date: new Date(), roles: [], grants: [item], summary: null }), /\n {2}Bounty · /);
+});
+
+test('the summary never narrates a missing amount', () => {
+  const plan = planBrief([], [row({ kind: 'program_launch' })]);
+  // The 2026-10-10 brief, verbatim.
+  assert.equal(
+    guardBriefSummary(plan, 'Rocket Pool is also accepting Round 42 GMC bounty, grant, and retrospective applications with an unspecified amount until November 7, 2026.'),
+    'Rocket Pool is also accepting Round 42 GMC bounty, grant, and retrospective applications until November 7, 2026.');
+  assert.equal(guardBriefSummary(plan, 'Arbitrum opened an RFP, with undisclosed funding, due Oct 30.'), 'Arbitrum opened an RFP, due Oct 30.');
+  assert.equal(guardBriefSummary(plan, 'Gitcoin opened GG25 with a 1M USD matching pool.'), 'Gitcoin opened GG25 with a 1M USD matching pool.');
+});
+
 test('amounts read as ceilings, ranges or fixed figures', () => {
   assert.equal(formatAmount(row({ amount_min: null, amount_max: '200000', currency: 'USD' })), 'up to 200,000 USD');
   assert.equal(formatAmount(row({ amount_min: '5000', amount_max: '50000', currency: 'USDC' })), '5,000–50,000 USDC');

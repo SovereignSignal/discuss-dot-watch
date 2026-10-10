@@ -123,9 +123,12 @@ export function titleGuardKind(title: string, lane: 'funding' | 'opportunities')
  *  whether it was an RFP, a fellowship or a retro round (2026-10-07 brief:
  *  "Targeted RFP: Cosmos Hub ..." and "Brains Fellowship Applications Open!"
  *  both labelled Program launch). Title-only, like the guards. */
-export function fundingKindFromTitle(title: string): 'rfp' | 'retro_round' | 'fellowship' | 'program_launch' {
+export function fundingKindFromTitle(title: string): 'rfp' | 'retro_round' | 'bounty' | 'fellowship' | 'program_launch' {
   if (/\b(?:rfps?|requests?\s+for\s+proposals?)\b/i.test(title)) return 'rfp';
   if (/\bretro(?:active|spective)?\s*[-‐]?\s*(?:pgf|public\s+goods|funding|rounds?|grants?|applications)\b|\bretro\s*pgf\b/i.test(title)) return 'retro_round';
+  // "Round 42 - GMC Call for Bounty Applications" read "Program launch" (2026-10-10 brief). Of 24
+  // production grant titles naming a bounty, every one that reaches here (an approved open call) is one.
+  if (/\bbount(?:y|ies)\b/i.test(title)) return 'bounty';
   if (/\bfellowships?\b/i.test(title)) return 'fellowship';
   return 'program_launch';
 }
