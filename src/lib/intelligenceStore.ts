@@ -11,6 +11,16 @@ import {briefFields,type LegacyRow} from './extractionGrounding';
 // Prompt/schema changes get independent history instead of reusing an old completed evaluation.
 export const INTELLIGENCE_CLASSIFIER_VERSION=`independent-lanes-v1:${CORPUS_CLASSIFIER_VERSION}`;
 export type IntelligenceLane='funding'|'opportunities';
+/** Why the fresh policy will not auto-publish a source, or null when it may. The gate below and the
+ * brief's "held back" footer both read this, so the reasons the owner sees are the rules that ran. */
+export const FRESH_POLICY_MAX_AGE_MS=30*86400000;
+export function freshPolicyBlock(d:{historical:boolean;sourceCreatedAt:Date|null;cutoverAt:Date|null},now=Date.now()):string|null{
+  if(d.historical)return 'first seen over 48h after posting';
+  if(!d.sourceCreatedAt)return 'no creation date';
+  if(!d.cutoverAt||d.sourceCreatedAt<d.cutoverAt)return 'posted before the Oct 5 cutover';
+  if(now-d.sourceCreatedAt.getTime()>=FRESH_POLICY_MAX_AGE_MS)return 'over 30 days old';
+  return null;
+}
 export interface DocumentInput {refId:string;sourceKey:string;url:string;title:string;body?:string;tags?:string[];createdAt?:string|null;updatedAt?:string|null;closed?:boolean;hidden?:boolean;historical?:boolean;bodyIsExcerpt?:boolean;bodyStatus?:'missing'|'partial'|'fetched'|'unavailable';evidenceScope?:string}
 export interface IntelligenceDocument {id:number;ref_id:string;source_key:string;url:string;title:string;body:string;tags:string[];content_hash:string;source_created_at:Date|null;source_updated_at:Date|null;body_status:string;source_closed:boolean;hidden:boolean;historical:boolean;first_seen_at:Date;last_seen_at:Date;verified_at:Date|null}
 export class IntelligenceError extends Error {constructor(public code:string){super(code);}}
@@ -126,7 +136,7 @@ export async function reviewIntelligence(documentId:number,lane:IntelligenceLane
     const extraction=action==='approve'?validateCorpusExtraction(row.extraction,{url:row.url,title:row.title,body:row.body,tags:[],createdAt:row.source_created_at?.toISOString()||'',closed:row.source_closed,lane}):row.extraction as CorpusExtraction;
     if(action==='approve'&&(row.hidden||row.source_closed||row.classifier_version!==INTELLIGENCE_CLASSIFIER_VERSION||!extraction.actionable||row.confidence<80||!row.evidence))throw new IntelligenceError('record_not_promotable');
     const cutover=await tx`SELECT (value->>'at')::timestamptz AS at FROM intelligence_settings WHERE name='native-cutover'`;
-    const fresh=mode==='fresh-policy'&&action==='approve'&&!row.historical&&row.source_created_at&&cutover[0]?.at&&new Date(row.source_created_at)>=new Date(cutover[0].at)&&Date.now()-new Date(row.source_created_at).getTime()<30*86400000;
+    const fresh=mode==='fresh-policy'&&action==='approve'&&!freshPolicyBlock({historical:!!row.historical,sourceCreatedAt:row.source_created_at?new Date(row.source_created_at):null,cutoverAt:cutover[0]?.at?new Date(cutover[0].at):null});
     if(mode==='fresh-policy'&&(!fresh||row.review_state!=='pending'))return {documentId,lane,state:row.review_state,notificationState:row.notification_state,worked:false};
     const base=String(row.ref_id).replace(/::(?:funding|opportunities)$/,'');
     const existing=await tx`SELECT topic_ref_id FROM grants_items WHERE topic_ref_id=${base} AND classification=${lane==='funding'?'GRANT':'ROLE'}`;

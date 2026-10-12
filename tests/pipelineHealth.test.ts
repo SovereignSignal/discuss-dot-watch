@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { formatDailyBriefHtml, formatDailyBriefText, pipelineLines } from '@/lib/dailyBrief';
-import { assessPipelineHealth, type PipelineStats } from '@/lib/pipelineHealth';
+import { assessPipelineHealth, heldReason, type HeldRow, type PipelineStats } from '@/lib/pipelineHealth';
+import { freshPolicyBlock, INTELLIGENCE_CLASSIFIER_VERSION } from '@/lib/intelligenceStore';
 
 const now = Date.parse('2026-10-06T14:00:00Z');
 const stats: PipelineStats = {
@@ -74,4 +75,47 @@ test('an empty run before the heartbeat hour claims nothing (early cron pings ca
     t.mock.timers.reset();
     if (prev !== undefined) process.env.DATABASE_URL = prev;
   }
+});
+
+const cutoverAt = new Date('2026-10-05T04:09:00Z');
+const heldRow: HeldRow = {
+  title: 'Round 9 grants open', lane: 'funding', evalHash: 'h', docHash: 'h', recordHash: 'h',
+  hidden: false, closed: false, historical: false, sourceCreatedAt: new Date(now - 86_400_000),
+  reviewState: 'pending', classifierVersion: INTELLIGENCE_CLASSIFIER_VERSION, confidence: 90, hasEvidence: true,
+};
+
+test('the fresh policy publishes only live, post-cutover sources under 30 days old', () => {
+  const at = (ms: number) => new Date(now - ms);
+  assert.equal(freshPolicyBlock({ historical: false, sourceCreatedAt: at(86_400_000), cutoverAt }, now), null);
+  assert.equal(freshPolicyBlock({ historical: true, sourceCreatedAt: at(86_400_000), cutoverAt }, now), 'first seen over 48h after posting');
+  assert.equal(freshPolicyBlock({ historical: false, sourceCreatedAt: null, cutoverAt }, now), 'no creation date');
+  assert.equal(freshPolicyBlock({ historical: false, sourceCreatedAt: new Date('2026-10-01T00:00:00Z'), cutoverAt }, now), 'posted before the Oct 5 cutover');
+  assert.equal(freshPolicyBlock({ historical: false, sourceCreatedAt: at(86_400_000), cutoverAt: null }, now), 'posted before the Oct 5 cutover');
+  const later = Date.parse('2026-11-20T00:00:00Z');
+  assert.equal(freshPolicyBlock({ historical: false, sourceCreatedAt: new Date('2026-10-20T23:59:00Z'), cutoverAt }, later), 'over 30 days old');
+  assert.equal(freshPolicyBlock({ historical: false, sourceCreatedAt: new Date('2026-10-21T00:01:00Z'), cutoverAt }, later), null);
+});
+
+test('a held item reports the first gate rule it fails, in the gate\'s order', () => {
+  assert.equal(heldReason({ ...heldRow, historical: true }, cutoverAt, now), 'first seen over 48h after posting');
+  assert.equal(heldReason({ ...heldRow, recordHash: 'old' }, cutoverAt, now), 'content changed since it was judged');
+  assert.equal(heldReason({ ...heldRow, recordHash: null }, cutoverAt, now), 'content changed since it was judged');
+  assert.equal(heldReason({ ...heldRow, closed: true, historical: true }, cutoverAt, now), 'thread closed');
+  assert.equal(heldReason({ ...heldRow, reviewState: 'withdrawn' }, cutoverAt, now), 'withdrawn');
+  assert.equal(heldReason({ ...heldRow, classifierVersion: 'independent-lanes-v1:corpus-lanes-v2' }, cutoverAt, now), 'judged by an older classifier');
+  assert.equal(heldReason({ ...heldRow, hasEvidence: false }, cutoverAt, now), 'no quoted evidence');
+  // Passes every rule the footer can see: the gate's re-validation under current guards held it.
+  assert.equal(heldReason(heldRow, cutoverAt, now), 'failed re-validation at publish');
+});
+
+test('the footer names what was held and why, capped at five lines', () => {
+  const held = Array.from({ length: 7 }, (_, i) => ({ title: `Call ${i}\nnext`, lane: 'funding' as const, reason: 'over 30 days old' }));
+  const lines = pipelineLines({ stats: { ...stats, held }, health: { level: 'ok', reasons: [] } }, now);
+  assert.equal(lines.held[0], 'Held: Call 0 next (funding: over 30 days old)');
+  assert.equal(lines.held.length, 6);
+  assert.equal(lines.held[5], '+2 more held');
+  const brief = { date: new Date(now), roles: [], grants: [], summary: null, pipeline: { stats: { ...stats, held: [{ title: '<i>x</i>', lane: 'opportunities' as const, reason: 'thread closed' }] }, health: { level: 'ok' as const, reasons: [] } } };
+  assert.match(formatDailyBriefText(brief), /3 actionable → 1 published\nHeld: <i>x<\/i> \(opportunities: thread closed\)\n/);
+  assert.ok(!formatDailyBriefHtml(brief).includes('<i>x</i>'));
+  assert.deepEqual(pipelineLines({ stats, health: { level: 'ok', reasons: [] } }, now).held, []);
 });
