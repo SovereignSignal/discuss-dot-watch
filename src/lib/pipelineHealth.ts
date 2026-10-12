@@ -6,6 +6,7 @@
  */
 import { getDb, isDatabaseConfigured } from './db';
 import { isLLMConfigured } from './llm';
+import { freshPolicyBlock, INTELLIGENCE_CLASSIFIER_VERSION } from './intelligenceStore';
 
 type Lanes = { funding: number; opportunities: number };
 
@@ -24,6 +25,35 @@ export interface PipelineStats {
   published: Lanes;
   sources: { enabled: number; failing: number; stale: number };
   classifierConfigured: boolean;
+  /** Judged actionable in the last 24h but not published, each with the gate rule that stopped it. */
+  held?: HeldItem[];
+}
+
+export interface HeldItem { title: string; lane: 'funding' | 'opportunities'; reason: string }
+
+/** The row heldReason() reads: one actionable evaluation joined to its current record and document. */
+export interface HeldRow {
+  title: string; lane: 'funding' | 'opportunities';
+  evalHash: string; docHash: string; recordHash: string | null;
+  hidden: boolean; closed: boolean; historical: boolean; sourceCreatedAt: Date | null;
+  reviewState: string | null; classifierVersion: string | null; confidence: number | null; hasEvidence: boolean;
+}
+
+/**
+ * The first publish-gate rule a held item fails, in the order reviewIntelligence()
+ * applies them. Freshness comes from freshPolicyBlock(), the function the gate runs.
+ */
+export function heldReason(r: HeldRow, cutoverAt: Date | null, now = Date.now()): string {
+  if (r.evalHash !== r.docHash || r.recordHash !== r.docHash) return 'content changed since it was judged';
+  if (r.hidden) return 'hidden';
+  if (r.closed) return 'thread closed';
+  if (r.reviewState === 'rejected') return 'rejected in review';
+  if (r.reviewState === 'withdrawn') return 'withdrawn';
+  if (r.classifierVersion !== INTELLIGENCE_CLASSIFIER_VERSION) return 'judged by an older classifier';
+  if ((r.confidence ?? 0) < 80) return `confidence ${r.confidence ?? 0}`;
+  if (!r.hasEvidence) return 'no quoted evidence';
+  return freshPolicyBlock({ historical: r.historical, sourceCreatedAt: r.sourceCreatedAt, cutoverAt }, now)
+    ?? 'failed re-validation at publish';
 }
 
 export interface PipelineHealth {
@@ -40,7 +70,7 @@ const lanes = (rows: Array<{ lane: string; n: number }>): Lanes => ({
 export async function getPipelineStats(): Promise<PipelineStats | null> {
   if (!isDatabaseConfigured()) return null;
   const db = getDb();
-  const [scan, judged, failed, actionable, published, sources] = await Promise.all([
+  const [scan, judged, failed, actionable, published, sources, heldRows, cutover] = await Promise.all([
     db`SELECT max(last_seen_at) AS last_scan_at,
               count(*) FILTER (WHERE first_seen_at > now() - interval '24 hours' AND NOT historical)::int AS new_topics
        FROM intelligence_documents`,
@@ -67,7 +97,35 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
        -- Scheduled sources only: legacy rows are history, and an operator source
        -- refreshes only when its autoRefresh is on (otherwise it is manual).
        WHERE managed_by <> 'legacy' AND NOT (managed_by = 'operator' AND coalesce(config->>'autoRefresh', 'false') <> 'true')`,
+    // The actionable rows above that are not live in the brief's queue. Newest
+    // evaluation per document and lane, so a re-judged document counts once.
+    db`SELECT DISTINCT ON (e.document_id, e.lane) e.lane, e.content_hash AS eval_hash, d.title, d.content_hash AS doc_hash,
+              d.hidden, d.source_closed, d.historical, d.source_created_at,
+              coalesce(f.content_hash, o.content_hash) AS record_hash, coalesce(f.review_state, o.review_state) AS review_state,
+              coalesce(f.classifier_version, o.classifier_version) AS classifier_version,
+              coalesce(f.confidence, o.confidence) AS confidence, coalesce(f.evidence, o.evidence) IS NOT NULL AS has_evidence
+       FROM intelligence_evaluations e JOIN intelligence_documents d ON d.id = e.document_id
+       LEFT JOIN funding_records f ON e.lane = 'funding' AND f.document_id = e.document_id
+       LEFT JOIN opportunity_records o ON e.lane = 'opportunities' AND o.document_id = e.document_id
+       WHERE e.state = 'complete' AND e.classified_at > now() - interval '24 hours' AND e.result->>'actionable' = 'true'
+       ORDER BY e.document_id, e.lane, e.classified_at DESC`,
+    db`SELECT (value->>'at')::timestamptz AS at FROM intelligence_settings WHERE name = 'native-cutover'`,
   ]);
+  const cutoverAt = cutover[0]?.at ? new Date(cutover[0].at) : null;
+  const held: HeldItem[] = (heldRows as unknown as Array<Record<string, unknown>>)
+    .filter(r => r.review_state !== 'approved')
+    .map(r => {
+      const lane = r.lane as HeldItem['lane'];
+      return { title: String(r.title), lane, reason: heldReason({
+        title: String(r.title), lane, evalHash: String(r.eval_hash), docHash: String(r.doc_hash),
+        recordHash: r.record_hash == null ? null : String(r.record_hash),
+        hidden: !!r.hidden, closed: !!r.source_closed, historical: !!r.historical,
+        sourceCreatedAt: r.source_created_at ? new Date(r.source_created_at as string) : null,
+        reviewState: r.review_state == null ? null : String(r.review_state),
+        classifierVersion: r.classifier_version == null ? null : String(r.classifier_version),
+        confidence: r.confidence == null ? null : Number(r.confidence), hasEvidence: !!r.has_evidence,
+      }, cutoverAt) };
+    });
   return {
     lastScanAt: scan[0]?.last_scan_at ? new Date(scan[0].last_scan_at) : null,
     newTopics: Number(scan[0]?.new_topics ?? 0),
@@ -81,6 +139,7 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
       stale: Number(sources[0]?.stale ?? 0),
     },
     classifierConfigured: isLLMConfigured(),
+    held,
   };
 }
 

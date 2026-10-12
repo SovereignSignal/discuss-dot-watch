@@ -185,7 +185,9 @@ function ago(at: Date | null, now = Date.now()): string {
 }
 
 /** The pipeline footer as plain lines, shared by the HTML and text parts. */
-export function pipelineLines(p: NonNullable<DailyBriefContent['pipeline']>, now = Date.now()): { funnel: string; detail: string; warnings: string[] } {
+const MAX_HELD_LINES = 5;
+
+export function pipelineLines(p: NonNullable<DailyBriefContent['pipeline']>, now = Date.now()): { funnel: string; detail: string; warnings: string[]; held: string[] } {
   const { stats } = p;
   const total = (l: { funding: number; opportunities: number }) => l.funding + l.opportunities;
   const s = stats.sources;
@@ -197,6 +199,14 @@ export function pipelineLines(p: NonNullable<DailyBriefContent['pipeline']>, now
       `${stats.failed} classifier error${stats.failed === 1 ? '' : 's'}`,
     ].join(' · '),
     warnings: p.health.level === 'ok' ? [] : p.health.reasons,
+    // "2 actionable → 0 published" read as a malfunction when it was the gate
+    // working (2026-10-12 brief). Name each held item and the rule that held it.
+    held: (() => {
+      const held = stats.held ?? [];
+      const lines = held.slice(0, MAX_HELD_LINES).map(h => `Held: ${safeTitle(h.title)} (${h.lane}: ${h.reason})`);
+      if (held.length > MAX_HELD_LINES) lines.push(`+${held.length - MAX_HELD_LINES} more held`);
+      return lines;
+    })(),
   };
 }
 
@@ -498,6 +508,7 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
     <div style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">${warn ? '&#x26A0; Pipeline needs attention' : 'Pipeline · last 24h'}</div>
     ${p.warnings.map(w => `<div style="color: #b45309; font-weight: 600;">${escapeHtml(w)}</div>`).join('')}
     <div>${escapeHtml(p.funnel)}</div>
+    ${p.held.map(h => `<div>${escapeHtml(h)}</div>`).join('')}
     <div>${escapeHtml(p.detail)}</div>
   </div>`;
   })() : ''}
@@ -568,7 +579,7 @@ export function formatDailyBriefText(brief: DailyBriefContent): string {
     const p = pipelineLines(brief.pipeline);
     text += `${p.warnings.length ? 'PIPELINE NEEDS ATTENTION' : 'PIPELINE — last 24h'}\n${'─'.repeat(30)}\n`;
     for (const w of p.warnings) text += `⚠ ${w}\n`;
-    text += `${p.funnel}\n${p.detail}\n\n`;
+    text += `${p.funnel}\n${p.held.map(h => `${h}\n`).join('')}${p.detail}\n\n`;
   }
   text += `---\nOpen: ${appUrl()}/app\n\ndiscuss.watch — Daily Brief`;
   return text;
