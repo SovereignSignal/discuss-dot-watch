@@ -144,7 +144,8 @@ test('grounded deadline, amount and program travel from classification to the re
   const queued = (await getUnnotifiedItems('GRANT')).filter(i => i.title === 'Fast grants for AI x animals');
   assert.equal(queued.length, 1);
   const text = formatDailyBriefText({ date: new Date(), roles: [], grants: queued, summary: null });
-  assert.match(text, new RegExp(`Falcon Fund · Amount: up to 50,000 USD · Deadline: ${iso}`));
+  // The title doesn't name the program, so the program leads the card (#106).
+  assert.match(text, new RegExp(`\\] Falcon Fund\\n  Fast grants for AI x animals\\n  Program launch · Amount: up to 50,000 USD · Deadline: ${iso}`));
 });
 
 test('a legacy takeover keeps legacy fields only where they ground in the current text (PR #98 review)', { skip: !testUrl }, async () => {
