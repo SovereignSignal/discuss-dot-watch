@@ -83,9 +83,14 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
     db`SELECT lane, count(*)::int AS n FROM intelligence_evaluations
        WHERE state = 'complete' AND classified_at > now() - interval '24 hours' AND result->>'actionable' = 'true'
        GROUP BY lane`,
-    db`SELECT lane, count(*)::int AS n FROM intelligence_reviews
-       WHERE action = 'approve' AND created_at > now() - interval '24 hours'
-       GROUP BY lane`,
+    // Approved in the last 24h and still approved now, once per document: a
+    // later withdrawal shows under held, never under published as well.
+    db`SELECT r.lane, count(DISTINCT r.document_id)::int AS n FROM intelligence_reviews r
+       LEFT JOIN funding_records f ON r.lane = 'funding' AND f.document_id = r.document_id
+       LEFT JOIN opportunity_records o ON r.lane = 'opportunities' AND o.document_id = r.document_id
+       WHERE r.action = 'approve' AND r.created_at > now() - interval '24 hours'
+         AND coalesce(f.review_state, o.review_state) = 'approved'
+       GROUP BY r.lane`,
     db`SELECT count(*) FILTER (WHERE enabled AND NOT paused)::int AS enabled,
               count(*) FILTER (WHERE enabled AND NOT paused AND status = 'failed' AND consecutive_failures >= 3)::int AS failing,
               -- Exclusive with failing, as in getSourceHealth(); a source that has

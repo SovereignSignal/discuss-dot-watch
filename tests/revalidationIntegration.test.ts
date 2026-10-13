@@ -5,6 +5,7 @@ import { ensureIntelligence, reviewIntelligence } from '../src/lib/intelligenceS
 import { validateCorpusExtraction, type CorpusClassify } from '../src/lib/corpusClassifier';
 import { runNativeCandidateScan } from '../src/lib/nativeLaneScan';
 import { revalidatePublished, withdrawIfStillFailing, REVALIDATION_ACTOR } from '../src/lib/publishRevalidation';
+import { getPipelineStats } from '../src/lib/pipelineHealth';
 
 const testUrl = process.env.CORPUS_TEST_DATABASE_URL;
 if (testUrl) process.env.DATABASE_URL = testUrl;
@@ -53,6 +54,11 @@ test('a tightened guard withdraws auto-approved records and leaves operator appr
   assert.equal(audit.length, 1); assert.equal(audit[0].actor, REVALIDATION_ACTOR); assert.match(audit[0].reason, /^guard: .*kind application/);
   const brief = await db`SELECT g.status FROM grants_items g JOIN funding_records r ON r.compatibility_ref=g.topic_ref_id WHERE r.document_id=${auto}`;
   assert.equal(brief[0].status, 'closed');
+
+  // The footer counts the withdrawn record as held only, and the twice-approved one once.
+  const stats = await getPipelineStats();
+  assert.equal(stats?.published.funding, 1);
+  assert.ok(stats?.held?.some(h => h.title === 'Grant Application - Builder grants round 1'));
 
   // Idempotent: a withdrawn record is not re-checked or re-withdrawn.
   assert.equal((await revalidatePublished()).withdrawn, 0);
