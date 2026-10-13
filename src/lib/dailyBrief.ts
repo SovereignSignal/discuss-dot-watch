@@ -159,14 +159,29 @@ export interface BriefPlan {
   roles: BriefEntry[];
   highlights: BriefEntry[];
   rest: BriefEntry[];
+  /** AI and open-source grants: real calls, but outside the owner's crypto grants work. */
+  elsewhere: BriefEntry[];
 }
+
+/** The owner works crypto grants. In the month to 2026-10-13 most correct open calls came from
+ *  EA Forum and LessWrong, and on a quiet day one of them took the whole email ("Lucky hires",
+ *  Oct 13). Those stay in the brief, below everything crypto. Unknown vertical (legacy rows)
+ *  stays in the main sections rather than being demoted on a guess. */
+const isElsewhere = (g: BriefItemRow) => g.vertical === 'ai' || g.vertical === 'oss';
 
 export function planBrief(roles: BriefItemRow[], grants: BriefItemRow[]): BriefPlan {
   const uniqueGrants = dedupeByTitle(grants);
+  const main = uniqueGrants.filter(g => !isElsewhere(g));
+  const other = uniqueGrants.filter(isElsewhere);
+  const singles = (items: BriefItemRow[]) => items.map(g => ({ protocol: displayProtocol(g.protocol), items: [g] }));
   return {
     roles: groupEntries(dedupeByTitle(roles), r => ELECTION_KINDS.has(r.kind || '')),
-    highlights: uniqueGrants.filter(isHighlightGrant).map(g => ({ protocol: displayProtocol(g.protocol), items: [g] })),
-    rest: groupEntries(uniqueGrants.filter(g => !isHighlightGrant(g)), g => g.kind === 'application'),
+    highlights: singles(main.filter(isHighlightGrant)),
+    rest: groupEntries(main.filter(g => !isHighlightGrant(g)), g => g.kind === 'application'),
+    elsewhere: [
+      ...singles(other.filter(isHighlightGrant)),
+      ...groupEntries(other.filter(g => !isHighlightGrant(g)), g => g.kind === 'application'),
+    ],
   };
 }
 
@@ -175,6 +190,7 @@ function briefCounts(plan: BriefPlan): string {
   return [
     hl ? `${hl} highlight${hl === 1 ? '' : 's'}` : null,
     plan.rest.length ? `${plan.rest.length} more` : null,
+    plan.elsewhere.length ? `${plan.elsewhere.length} elsewhere` : null,
   ].filter(Boolean).join(' · ') || 'nothing new';
 }
 
@@ -343,16 +359,26 @@ function formatDeadline(deadline: Date | null): string | null {
   return deadline ? deadline.toISOString().slice(0, 10) : null;
 }
 
+const words = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/** The program as the card's headline when the forum title doesn't name it: "Lucky hires: how AI
+ *  safety orgs find their COOs" was an essay announcing the Organization Builders Program (Oct 13),
+ *  and the title alone never said what to apply for. */
+export function programHeadline(item: BriefItemRow): string | null {
+  const program = item.program ? safeTitle(item.program) : '';
+  return program && !words(item.title).includes(words(program)) ? program : null;
+}
+
+/** Facts under a card. No confidence: it read 90-100% on everything, the kidney post included. */
 function itemFacts(item: BriefItemRow, kind: 'role' | 'grant'): string[] {
   const amount = formatAmount(item);
   const deadline = formatDeadline(item.deadline);
   return [
     kind === 'role' ? roleKindLabel(item.kind) : grantKindLabel(item.kind),
-    item.program,
+    programHeadline(item) ? null : item.program,
     amount ? (kind === 'role' ? `Compensation: ${amount}` : `Amount: ${amount}`) : null,
     deadline ? `Deadline: ${deadline}` : null,
     item.topic_created_at ? `Posted: ${item.topic_created_at.toISOString().slice(0, 10)}` : null,
-    `${item.confidence}% confidence`,
   ].filter((f): f is string => Boolean(f));
 }
 
@@ -385,9 +411,12 @@ function itemCardHtml(entry: BriefEntry, kind: 'role' | 'grant'): string {
   const facts = grouped
     ? [groupTotal(entry.items), earliestDeadline(entry.items)].filter((f): f is string => Boolean(f)).map(f => escapeHtml(f))
     : itemFacts(item, kind).map(f => escapeHtml(f));
+  const headline = grouped ? null : programHeadline(item);
   const titleHtml = grouped
     ? `${escapeHtml(groupHeadline(entry, kind))}${groupListHtml(entry.items)}`
-    : titleLinkHtml(item);
+    : headline
+      ? `${escapeHtml(headline)}<div style="font-size: 13px; font-weight: 400; margin-top: 2px;">${titleLinkHtml(item)}</div>`
+      : titleLinkHtml(item);
 
   return `
     <tr>
@@ -418,7 +447,9 @@ function compactRowHtml(entry: BriefEntry): string {
         formatDeadline(item.deadline) ? `due ${formatDeadline(item.deadline)}` : null,
         item.topic_created_at ? `posted ${item.topic_created_at.toISOString().slice(0, 10)}` : null,
       ]).filter(Boolean).map(f => escapeHtml(String(f))).join(' &middot; ');
-  const titleHtml = grouped ? escapeHtml(groupHeadline(entry, 'grant')) : titleLinkHtml(item);
+  const headline = grouped ? null : programHeadline(item);
+  const titleHtml = grouped ? escapeHtml(groupHeadline(entry, 'grant'))
+    : headline ? `${escapeHtml(headline)}</span> &middot; <span>${titleLinkHtml(item)}` : titleLinkHtml(item);
   return `
     <tr>
       <td class="card" style="padding: 10px 4px; border-bottom: 1px solid #f3f4f6; font-size: 13px; line-height: 1.5;">
@@ -434,11 +465,25 @@ function sectionHtml(title: string, emoji: string, items: BriefEntry[], kind: 'r
   if (items.length === 0) return '';
   return `
   <div style="margin-bottom: 32px;">
-    <h2 style="font-size: 16px; font-weight: 700; color: #18181b; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
+    <h2 class="heading" style="font-size: 16px; font-weight: 700; color: #18181b; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px;">
       ${emoji} ${title}
     </h2>
     <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
       ${items.map(i => itemCardHtml(i, kind)).join('')}
+    </table>
+  </div>`;
+}
+
+/** A compact list section; `title` is trusted HTML (callers pass literals). */
+function compactSectionHtml(title: string, entries: BriefEntry[]): string {
+  if (entries.length === 0) return '';
+  return `
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 14px; font-weight: 700; color: #71717a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+      ${title}
+    </h2>
+    <table style="width: 100%; border-collapse: collapse;">
+      ${entries.map(compactRowHtml).join('')}
     </table>
   </div>`;
 }
@@ -463,13 +508,14 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
       body { background: #18181b !important; color: #fafafa !important; }
       .card { background: #27272a !important; border-color: #3f3f46 !important; }
       .card a, .card .title { color: #fafafa !important; }
+      .heading { color: #fafafa !important; }
     }
   </style>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; line-height: 1.6; color: #18181b; max-width: 600px; margin: 0 auto; padding: 20px; background: #ffffff;">
 
   <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
-    <h1 style="font-size: 22px; font-weight: 700; color: #18181b; margin: 0; letter-spacing: -0.5px;">
+    <h1 class="heading" style="font-size: 22px; font-weight: 700; color: #18181b; margin: 0; letter-spacing: -0.5px;">
       Daily Brief
     </h1>
     <p style="color: #71717a; margin-top: 4px; font-size: 13px; font-weight: 500;">
@@ -484,21 +530,10 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
     </p>
   </div>` : ''}
 
-  ${sectionHtml('Highlights — Roles & Positions', '&#x1F4BC;', plan.roles, 'role')}
   ${sectionHtml('Highlights — Grants & Programs', '&#x1F4B0;', plan.highlights, 'grant')}
-  ${(() => {
-    const rest = plan.rest;
-    if (rest.length === 0) return '';
-    return `
-  <div style="margin-bottom: 32px;">
-    <h2 style="font-size: 14px; font-weight: 700; color: #71717a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
-      Also new
-    </h2>
-    <table style="width: 100%; border-collapse: collapse;">
-      ${rest.map(compactRowHtml).join('')}
-    </table>
-  </div>`;
-  })()}
+  ${sectionHtml('Highlights — Roles & Positions', '&#x1F4BC;', plan.roles, 'role')}
+  ${compactSectionHtml('Also new', plan.rest)}
+  ${compactSectionHtml('Elsewhere — AI &amp; open source', plan.elsewhere)}
 
   ${brief.pipeline ? (() => {
     const p = pipelineLines(brief.pipeline);
@@ -552,29 +587,35 @@ export function formatDailyBriefText(brief: DailyBriefContent): string {
         s += `[${entry.protocol}] ${groupHeadline(entry, kind)}\n${groupLines(entry, kind)}\n`;
         continue;
       }
-      s += `[${entry.protocol}] ${safeTitle(item.title)}\n`;
+      const headline = programHeadline(item);
+      s += headline ? `[${entry.protocol}] ${headline}\n  ${safeTitle(item.title)}\n` : `[${entry.protocol}] ${safeTitle(item.title)}\n`;
       s += `  ${itemFacts(item, kind).join(' · ')}\n`;
       s += `${urlLine(item)}\n`;
     }
     return s;
   };
 
-  const plan = planBrief(brief.roles, brief.grants);
-  text += section('HIGHLIGHTS — ROLES & POSITIONS', plan.roles, 'role');
-  text += section('HIGHLIGHTS — GRANTS & PROGRAMS', plan.highlights, 'grant');
-  if (plan.rest.length > 0) {
-    text += `ALSO NEW\n${'─'.repeat(30)}\n`;
-    for (const entry of plan.rest) {
+  const compact = (title: string, entries: BriefEntry[]) => {
+    if (entries.length === 0) return '';
+    let s = `${title}\n${'─'.repeat(30)}\n`;
+    for (const entry of entries) {
       const item = entry.items[0];
       if (entry.items.length > 1) {
-        text += `[${entry.protocol}] ${groupHeadline(entry, 'grant')}\n${groupLines(entry, 'grant')}`;
+        s += `[${entry.protocol}] ${groupHeadline(entry, 'grant')}\n${groupLines(entry, 'grant')}`;
         continue;
       }
+      const headline = programHeadline(item);
       const bits = [formatAmount(item), formatDeadline(item.deadline) ? `due ${formatDeadline(item.deadline)}` : null].filter(Boolean).join(' · ');
-      text += `[${entry.protocol}] ${safeTitle(item.title)}${bits ? ` — ${bits}` : ''}\n${urlLine(item)}`;
+      s += `[${entry.protocol}] ${headline ? `${headline}: ` : ''}${safeTitle(item.title)}${bits ? ` — ${bits}` : ''}\n${urlLine(item)}`;
     }
-    text += '\n';
-  }
+    return s + '\n';
+  };
+
+  const plan = planBrief(brief.roles, brief.grants);
+  text += section('HIGHLIGHTS — GRANTS & PROGRAMS', plan.highlights, 'grant');
+  text += section('HIGHLIGHTS — ROLES & POSITIONS', plan.roles, 'role');
+  text += compact('ALSO NEW', plan.rest);
+  text += compact('ELSEWHERE — AI & OPEN SOURCE', plan.elsewhere);
   if (brief.pipeline) {
     const p = pipelineLines(brief.pipeline);
     text += `${p.warnings.length ? 'PIPELINE NEEDS ATTENTION' : 'PIPELINE — last 24h'}\n${'─'.repeat(30)}\n`;

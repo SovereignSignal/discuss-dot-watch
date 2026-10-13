@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planBrief, displayProtocol, formatDailyBriefText, summaryLines, shouldSummarize, guardBriefSummary, formatAmount } from '@/lib/dailyBrief';
+import { planBrief, displayProtocol, formatDailyBriefText, formatDailyBriefHtml, summaryLines, shouldSummarize, guardBriefSummary, formatAmount } from '@/lib/dailyBrief';
 import { correctGrantKind } from '@/lib/grantsClassifier';
 import type { BriefItemRow } from '@/lib/grantsStore';
 
@@ -193,5 +193,45 @@ test('the Oct 9 item renders with its deadline and ceiling once grounded', () =>
   const text = formatDailyBriefText({ date: new Date('2026-10-10T14:05:00Z'), roles: [], summary: null, grants: [row({
     protocol: 'EA Forum', kind: 'program_launch', title: 'Strategic Animal Funding Circle: Applications open for autumn 2026',
     amount_min: null, amount_max: '200000', currency: 'USD', deadline: new Date('2026-11-01T00:00:00Z'), topic_created_at: new Date('2026-10-08T00:00:00Z'), confidence: 95 })] });
-  assert.match(text, /Program launch · Amount: up to 200,000 USD · Deadline: 2026-11-01 · Posted: 2026-10-08 · 95% confidence/);
+  assert.match(text, /Program launch · Amount: up to 200,000 USD · Deadline: 2026-11-01 · Posted: 2026-10-08\n/);
+  assert.doesNotMatch(text, /confidence/);
+});
+
+// The month to 2026-10-13: most correct open calls were EA/AI-safety programs, and on quiet days
+// one of them took the whole email ("Lucky hires...", Oct 13). The owner works crypto grants.
+test('crypto calls lead; AI and open-source items move to a compact Elsewhere list', () => {
+  const crypto = row({ protocol: 'Rocket Pool', kind: 'program_launch', title: 'Round 42 grants open' });
+  const unknown = row({ protocol: 'Legacy', vertical: null, kind: 'rfp', title: 'Legacy RFP' });
+  const ai = row({ protocol: 'ea-forum', vertical: 'ai', kind: 'program_launch', title: 'Lucky hires' });
+  const oss = row({ protocol: 'KDE Discuss', vertical: 'oss', kind: 'application', title: 'KDE sprint ask' });
+  const plan = planBrief([], [ai, crypto, oss, unknown]);
+  assert.deepEqual(plan.highlights.map(e => e.items[0].title), ['Round 42 grants open', 'Legacy RFP']);
+  assert.deepEqual(plan.elsewhere.map(e => e.items[0].title), ['Lucky hires', 'KDE sprint ask']);
+  assert.equal(plan.rest.length, 0);
+  // The summary is written from the main sections only.
+  assert.ok(summaryLines(plan).every(l => !/Lucky hires|KDE/.test(l)));
+  assert.equal(shouldSummarize(planBrief([], [ai, ai, oss])), false);
+
+  const text = formatDailyBriefText({ date: new Date(), roles: [], grants: [ai, crypto], summary: null });
+  assert.ok(text.indexOf('Round 42 grants open') < text.indexOf('ELSEWHERE'));
+  assert.ok(text.indexOf('ELSEWHERE') < text.indexOf('Lucky hires'));
+  const html = formatDailyBriefHtml({ date: new Date(), roles: [], grants: [ai], summary: null });
+  assert.match(html, /1 elsewhere/);
+  assert.match(html, /Elsewhere — AI &amp; open source/);
+});
+
+test('grant sections lead the email, ahead of roles', () => {
+  const text = formatDailyBriefText({ date: new Date(), summary: null,
+    roles: [row({ kind: 'full_time', title: 'Ops lead' })], grants: [row({ kind: 'rfp', title: 'Cosmos RFP' })] });
+  assert.ok(text.indexOf('Cosmos RFP') < text.indexOf('Ops lead'));
+});
+
+test('a card names the program when the forum title does not', () => {
+  const item = row({ protocol: 'EA Forum', kind: 'program_launch', program: 'Organization Builders Program',
+    title: "Lucky hires: how AI safety orgs find their COOs (and why that doesn't scale)", deadline: new Date('2026-10-22T00:00:00Z') });
+  const text = formatDailyBriefText({ date: new Date(), roles: [], grants: [item], summary: null });
+  assert.match(text, /\[EA Forum\] Organization Builders Program\n {2}Lucky hires/);
+  // A title that already names the program is not repeated.
+  const named = row({ kind: 'program_launch', program: 'Round 42', title: 'Round 42 - GMC Call for Grant Applications' });
+  assert.match(formatDailyBriefText({ date: new Date(), roles: [], grants: [named], summary: null }), /\[Test\] Round 42 - GMC Call for Grant Applications\n {2}Program launch · Round 42/);
 });
