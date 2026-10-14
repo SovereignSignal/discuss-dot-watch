@@ -37,6 +37,8 @@ export interface HeldRow {
   evalHash: string; docHash: string; recordHash: string | null;
   hidden: boolean; closed: boolean; historical: boolean; sourceCreatedAt: Date | null;
   reviewState: string | null; classifierVersion: string | null; confidence: number | null; hasEvidence: boolean;
+  /** The latest publish check on this content: verdict null means it has not been answered yet. */
+  check?: { verdict: boolean | null; reason: string | null } | null;
 }
 
 /**
@@ -52,8 +54,11 @@ export function heldReason(r: HeldRow, cutoverAt: Date | null, now = Date.now())
   if (r.classifierVersion !== INTELLIGENCE_CLASSIFIER_VERSION) return 'judged by an older classifier';
   if ((r.confidence ?? 0) < 80) return `confidence ${r.confidence ?? 0}`;
   if (!r.hasEvidence) return 'no quoted evidence';
-  return freshPolicyBlock({ historical: r.historical, sourceCreatedAt: r.sourceCreatedAt, cutoverAt }, now)
-    ?? 'failed re-validation at publish';
+  const fresh = freshPolicyBlock({ historical: r.historical, sourceCreatedAt: r.sourceCreatedAt, cutoverAt }, now);
+  if (fresh) return fresh;
+  if (r.check?.verdict === false) return `publish check: ${r.check.reason ?? 'not open'}`;
+  if (r.check) return 'awaiting publish check';
+  return 'failed re-validation at publish';
 }
 
 export interface PipelineHealth {
@@ -108,8 +113,12 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
               d.hidden, d.source_closed, d.historical, d.source_created_at,
               coalesce(f.content_hash, o.content_hash) AS record_hash, coalesce(f.review_state, o.review_state) AS review_state,
               coalesce(f.classifier_version, o.classifier_version) AS classifier_version,
-              coalesce(f.confidence, o.confidence) AS confidence, coalesce(f.evidence, o.evidence) IS NOT NULL AS has_evidence
+              coalesce(f.confidence, o.confidence) AS confidence, coalesce(f.evidence, o.evidence) IS NOT NULL AS has_evidence,
+              pc.verdict AS check_verdict, pc.reason AS check_reason, pc.id IS NOT NULL AS checked
        FROM intelligence_evaluations e JOIN intelligence_documents d ON d.id = e.document_id
+       LEFT JOIN LATERAL (SELECT id, verdict, reason FROM publish_checks c
+         WHERE c.document_id = e.document_id AND c.lane = e.lane AND c.content_hash = d.content_hash
+         ORDER BY (c.verdict IS NOT NULL) DESC, c.id DESC LIMIT 1) pc ON true
        LEFT JOIN funding_records f ON e.lane = 'funding' AND f.document_id = e.document_id
        LEFT JOIN opportunity_records o ON e.lane = 'opportunities' AND o.document_id = e.document_id
        WHERE e.state = 'complete' AND e.classified_at > now() - interval '24 hours' AND e.result->>'actionable' = 'true'
@@ -129,6 +138,7 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
         reviewState: r.review_state == null ? null : String(r.review_state),
         classifierVersion: r.classifier_version == null ? null : String(r.classifier_version),
         confidence: r.confidence == null ? null : Number(r.confidence), hasEvidence: !!r.has_evidence,
+        check: r.checked ? { verdict: r.check_verdict == null ? null : !!r.check_verdict, reason: r.check_reason == null ? null : String(r.check_reason) } : null,
       }, cutoverAt) };
     });
   return {
