@@ -98,8 +98,12 @@ test('an employer announcing a raise and hiring is still an opening', () => {
 
 test('guards keep the lanes the legacy path validated them for', () => {
   assert.equal(titleGuardKind('Alice Delegate Thread', 'funding'), null);
-  assert.equal(titleGuardKind('ZecLedger grant update #3', 'opportunities'), null);
   assert.equal(titleGuardKind('Grant Application: CoW Playground Offline Development Mode', 'opportunities'), null);
+});
+
+test('a provider\'s monthly update is a report in the roles lane too (2026-10-14 brief)', () => {
+  assert.equal(titleGuardKind('Entropy Advisors Monthly Update: September 2026', 'opportunities'), 'report');
+  assert.equal(titleGuardKind('ZecLedger grant update #3', 'opportunities'), 'report');
 });
 
 test('funder evidence is not an ask; applicant evidence is', () => {

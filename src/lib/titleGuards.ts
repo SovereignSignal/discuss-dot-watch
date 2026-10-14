@@ -106,14 +106,16 @@ export const PERSONAL_REIMBURSEMENT_RE = /\breimburs\w*\b(?:[^.]|\.\d){0,80}?\bl
 
 /** The kind a title forces regardless of the model's answer, or null. Both
  *  are non-actionable kinds in the canonical lanes. Each guard runs only in
- *  the lane the legacy path validated it for: applicant and update titles in
- *  funding, delegate threads in opportunities, records and fundraises in both. */
+ *  the lane it was validated for: applicant titles in funding, delegate
+ *  threads in opportunities, records, fundraises and updates in both. Updates
+ *  joined opportunities 2026-10-14 ("Entropy Advisors Monthly Update" mailed
+ *  as a Position); the pattern matched no other title among 182 published roles. */
 export function titleGuardKind(title: string, lane: 'funding' | 'opportunities'): 'application' | 'report' | null {
   if (lane === 'funding' && APPLICANT_RE.test(title)) return 'application';
   if (RECORD_RE.test(title) || SUBMISSIONS_DISCUSSION_RE.test(title)) return 'report';
   if (OPEN_SIGNAL_RE.test(title) || (lane === 'opportunities' && HIRING_RE.test(title))) return null;
   if (FUNDRAISE_RE.test(title)) return 'report';
-  if (lane === 'funding' && UPDATE_RE.test(title)) return 'report';
+  if (UPDATE_RE.test(title)) return 'report';
   if (lane === 'opportunities' && DELEGATE_REPORT_RE.test(title)) return 'report';
   return null;
 }
