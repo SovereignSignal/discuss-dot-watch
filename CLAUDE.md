@@ -388,6 +388,16 @@ ever matched a Cardano digest that also carried urgent governance business, and 
 become `milestone_report`, and a "renewal" title becomes `budget_debate` unless it names a
 grant or program ("Hop Grants Program Renewal" is a real program).
 
+### Publish Check
+`publishFreshIntelligence()` asks one more question before auto-approving: `lib/publishCheck.ts`
+sends the post to a stronger model (`glm-5.3`, override `LLM_MODEL_VERIFY`) asking whether it
+announces something open a reader can apply to now, and a yes counts only with a quote found in
+the post. Verdicts are cached per content hash in `publish_checks`; calls are capped at 30 per
+24h; a failed or capped check leaves the record pending for the next pass, so nothing publishes
+unchecked. Held items show `publish check: <reason>` in the brief footer. The gate is off when no
+LLM is configured (dev, CI). Chosen by a 2026-10-14 bake-off of 10 Ollama Cloud models on 251
+gold-labelled items: glm-5.3 scored 99% precision / 99% recall, against 35% for what was mailed.
+
 ### Daily Brief Layout
 `planBrief()` in `dailyBrief.ts` is the one place the email's shape is decided; the subject,
 HTML, text and summary all read it. It drops repeated titles (the query also skips titles

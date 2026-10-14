@@ -45,6 +45,10 @@ export interface StructuredRequest extends TextRequest {
   schema: Record<string, unknown>;
   toolName: string;
   toolDescription: string;
+  /** Ollama model for this call instead of LLM_MODEL_CLASSIFY (the publish check runs a stronger model). */
+  ollamaModel?: string;
+  /** Reasoning setting for this call; null sends none. Default CLASSIFY_THINK. */
+  ollamaThink?: OllamaThink | null;
 }
 
 export interface StructuredResult {
@@ -273,14 +277,15 @@ export async function generateStructured(req: StructuredRequest): Promise<Struct
 
   try {
     if (provider === 'ollama') {
-      const model = ollamaClassifyModel();
+      const model = req.ollamaModel || ollamaClassifyModel();
+      const think = req.ollamaThink === undefined ? CLASSIFY_THINK : req.ollamaThink ?? undefined;
       // The schema-adherence nudge lives HERE, not in caller prompts, so the
       // Anthropic path's prompts stay byte-identical to the pre-layer code.
       // The full schema is inlined because Ollama Cloud applies the \`format\`
       // grammar only intermittently — the prompt must carry the contract.
       const prompt = `${req.prompt}\n\nRespond with ONLY a single JSON object (no prose, no markdown fences) matching this JSON schema (${req.toolName}):\n${JSON.stringify(req.schema)}`;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const outcome = await ollamaChat(model, prompt, req.maxTokens, { format: req.schema, think: CLASSIFY_THINK });
+        const outcome = await ollamaChat(model, prompt, req.maxTokens, { format: req.schema, think });
         if (!outcome.ok) {
           if (outcome.fatal) return null;
           continue;

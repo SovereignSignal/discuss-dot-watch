@@ -8,6 +8,7 @@ import type {CorpusExtraction,CorpusClassificationInput,CorpusClassify} from './
 import {classifyCorpusDocument,validateCorpusExtraction,CORPUS_CLASSIFIER_VERSION} from './corpusClassifier';
 import {fundingKindFromTitle} from './titleGuards';
 import {briefFields,type LegacyRow} from './extractionGrounding';
+import {defaultPublishCheck,runPublishCheck,type PublishCheck} from './publishCheck';
 // Prompt/schema changes get independent history instead of reusing an old completed evaluation.
 export const INTELLIGENCE_CLASSIFIER_VERSION=`independent-lanes-v1:${CORPUS_CLASSIFIER_VERSION}`;
 export type IntelligenceLane='funding'|'opportunities';
@@ -54,6 +55,8 @@ export async function initializeIntelligenceSchema(){
     await tx`CREATE TABLE IF NOT EXISTS discovery_references(url TEXT NOT NULL REFERENCES source_discoveries(url),document_id INTEGER NOT NULL REFERENCES intelligence_documents(id),PRIMARY KEY(url,document_id))`;
     await tx`ALTER TABLE funding_records ADD COLUMN IF NOT EXISTS compatibility_ref TEXT`;
     await tx`ALTER TABLE opportunity_records ADD COLUMN IF NOT EXISTS compatibility_ref TEXT`;
+    await tx`CREATE TABLE IF NOT EXISTS publish_checks(id BIGSERIAL PRIMARY KEY,document_id INTEGER NOT NULL,lane TEXT NOT NULL,content_hash TEXT NOT NULL,verdict BOOLEAN,quote TEXT,reason TEXT,model TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
+    await tx`CREATE INDEX IF NOT EXISTS publish_checks_record ON publish_checks(document_id,lane,content_hash)`;
     await tx`CREATE TABLE IF NOT EXISTS intelligence_settings(name TEXT PRIMARY KEY,value JSONB NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
     await tx`INSERT INTO intelligence_settings(name,value) VALUES('native-cutover',jsonb_build_object('at',now())) ON CONFLICT DO NOTHING`;
     await tx`CREATE TABLE IF NOT EXISTS intelligence_migrations(name TEXT PRIMARY KEY,last_id BIGINT NOT NULL DEFAULT 0,completed_at TIMESTAMPTZ,updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
@@ -195,9 +198,20 @@ export async function migrateLegacyIntelligence(limit=100){
 
 /** Only newly created, post-cutover source documents may enter the live email queue.
  * Backfills, migration, manual reviews and unknown creation dates always suppress mail. */
-export async function publishFreshIntelligence(documentId:number,lane:IntelligenceLane){
+export async function publishFreshIntelligence(documentId:number,lane:IntelligenceLane,check:PublishCheck|null=defaultPublishCheck()){
   const db=getDb(),table=lane==='funding'?'funding_records':'opportunity_records';
-  const rows=await db`SELECT r.*,d.historical,d.source_created_at FROM ${db(table)} r JOIN intelligence_documents d ON d.id=r.document_id AND d.content_hash=r.content_hash WHERE d.id=${documentId}`;
+  const rows=await db`SELECT r.*,d.historical,d.source_created_at,d.title,d.body,d.hidden,d.source_closed,s.name AS forum FROM ${db(table)} r JOIN intelligence_documents d ON d.id=r.document_id AND d.content_hash=r.content_hash JOIN ingestion_sources s USING(source_key) WHERE d.id=${documentId}`;
   const row=rows[0];if(!row||row.review_state!=='pending'||!row.extraction?.actionable)return {worked:false};
-  return reviewIntelligence(documentId,lane,'approve','fresh-evidence-policy-v1','Grounded actionable source created after native cutover. Historical and manual results remain suppressed.','fresh-policy');
+  let precondition:((r:Record<string,unknown>)=>boolean)|undefined;
+  if(check){
+    // Spend a check only on a record the gate below would otherwise approve.
+    const cutover=await db`SELECT (value->>'at')::timestamptz AS at FROM intelligence_settings WHERE name='native-cutover'`;
+    if(row.hidden||row.source_closed||row.classifier_version!==INTELLIGENCE_CLASSIFIER_VERSION||row.confidence<80||!row.evidence
+      ||freshPolicyBlock({historical:!!row.historical,sourceCreatedAt:row.source_created_at?new Date(row.source_created_at):null,cutoverAt:cutover[0]?.at?new Date(cutover[0].at):null}))return {worked:false};
+    const verdict=await runPublishCheck({documentId,lane,contentHash:String(row.content_hash)},{title:String(row.title),forum:String(row.forum),body:String(row.body??''),postedAt:row.source_created_at?new Date(row.source_created_at):null},check);
+    if(!verdict.pass)return {worked:false,state:'pending',held:verdict.reason};
+    // The verdict covers this content only; an edit since the check waits for a fresh one.
+    precondition=r=>r.content_hash===row.content_hash;
+  }
+  return reviewIntelligence(documentId,lane,'approve','fresh-evidence-policy-v1','Grounded actionable source created after native cutover. Historical and manual results remain suppressed.','fresh-policy',precondition);
 }
