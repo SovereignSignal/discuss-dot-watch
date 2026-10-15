@@ -36,7 +36,8 @@ export function iso(value: unknown): string {
   return new Date(value).toISOString();
 }
 export function corpusWindow(days: number, asOf: string, now = Date.now()) {
-  if (![7, 30, 180].includes(days)) throw new CorpusError('invalid_window');
+  // 365 and 730 exist for quiet governance forums (Uniswap: 8 proposals in 180 days); the topic and page budgets still bound the crawl.
+  if (![7, 30, 180, 365, 730].includes(days)) throw new CorpusError('invalid_window');
   const end = iso(asOf);
   if (Date.parse(end) > now + 60_000) throw new CorpusError('future_window');
   return { asOf: end, cutoff: new Date(Date.parse(end) - days * 86_400_000).toISOString() };

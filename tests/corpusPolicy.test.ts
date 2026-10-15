@@ -14,7 +14,8 @@ test('corpus jobs have explicit source and date-window allowlists', () => {
   assert.equal(corpusSource('livepeer').origin, 'https://forum.livepeer.org');
   assert.throws(() => corpusSource('http://127.0.0.1'));
   assert.deepEqual(corpusWindow(7, asOf, Date.parse(asOf)), { asOf, cutoff });
-  assert.throws(() => corpusWindow(365, asOf));
+  assert.deepEqual(corpusWindow(730, asOf, Date.parse(asOf)), { asOf, cutoff: '2024-10-03T00:00:00.000Z' });
+  assert.throws(() => corpusWindow(90, asOf));
   assert.throws(() => corpusWindow(7, '2036-10-03T00:00:00Z', Date.parse(asOf)));
 });
 test('cutoff uses creation time and ignores old pins', () => {
