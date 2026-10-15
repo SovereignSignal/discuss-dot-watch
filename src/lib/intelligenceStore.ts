@@ -23,7 +23,7 @@ export function freshPolicyBlock(d:{historical:boolean;sourceCreatedAt:Date|null
   return null;
 }
 export interface DocumentInput {refId:string;sourceKey:string;url:string;title:string;body?:string;tags?:string[];createdAt?:string|null;updatedAt?:string|null;closed?:boolean;hidden?:boolean;historical?:boolean;bodyIsExcerpt?:boolean;bodyStatus?:'missing'|'partial'|'fetched'|'unavailable';evidenceScope?:string}
-export interface IntelligenceDocument {id:number;ref_id:string;source_key:string;url:string;title:string;body:string;tags:string[];content_hash:string;source_created_at:Date|null;source_updated_at:Date|null;body_status:string;source_closed:boolean;hidden:boolean;historical:boolean;first_seen_at:Date;last_seen_at:Date;verified_at:Date|null}
+export interface IntelligenceDocument {id:number;ref_id:string;source_key:string;url:string;title:string;body:string;tags:string[];content_hash:string;source_created_at:Date|null;source_updated_at:Date|null;body_status:string;source_closed:boolean;hidden:boolean;historical:boolean;first_seen_at:Date;last_seen_at:Date;verified_at:Date|null;evidence_scope:string}
 export class IntelligenceError extends Error {constructor(public code:string){super(code);}}
 /** A document flagged historical is corrected when a LIVE observation reports it fresh (historical:false,
  * computed from its date) and it was created within 48h of when we first saw it. Surface feeds used to
@@ -80,10 +80,14 @@ export async function ingestDocuments(inputs:DocumentInput[]):Promise<Intelligen
       // brief row and stamps it handled, so the post never mails (Rocket Pool Round 42 retrospective call,
       // 2026-10-09; 59 tag-only and 12 RSS-body revisions in two days). An empty tag list means "this path has
       // no tag data" (the grants-category surface sends []), and a feed excerpt never replaces a fetched first
-      // post (the RSS description carries "N posts - M participants / Read full topic").
-      const old=map.get(i.refId),title=i.title.replace(/\u0000/g,'').slice(0,2000),keepBody=i.body===undefined||(i.bodyIsExcerpt&&old?.body_status==='fetched'),body=keepBody?old?.body||'':i.body!.replace(/\u0000/g,'').slice(0,80000),tags=(i.tags?.length?i.tags:old?.tags??i.tags??[]).slice(0,50);
+      // post (the RSS description carries "N posts - M participants / Read full topic"). Feed-only bodies
+      // may still update from later feeds. Keeping a body also preserves its provenance and verification time.
+      // Only the new RSS scope has unambiguous body provenance. Legacy surface scopes
+      // could have been stamped over a retained JSON body and keep their protection.
+      const old=map.get(i.refId),priorIsFeed=old?.evidence_scope==='discourse_latest_rss_first_post';
+      const title=i.title.replace(/\u0000/g,'').slice(0,2000),keepBody=i.body===undefined||(i.bodyIsExcerpt&&old?.body_status==='fetched'&&!priorIsFeed),body=keepBody?old?.body||'':i.body!.replace(/\u0000/g,'').slice(0,80000),tags=(i.tags?.length?i.tags:old?.tags??i.tags??[]).slice(0,50);
       const hidden=i.hidden??(i.bodyStatus==='unavailable'?true:old?.hidden??false),closed=i.closed??old?.source_closed??false;
-      return {ref_id:i.refId,source_key:i.sourceKey,url:i.url,title,body,tags,content_hash:documentHash({title,body,tags,closed,hidden}),source_created_at:date(i.createdAt)??old?.source_created_at??null,source_updated_at:date(i.updatedAt)??old?.source_updated_at??null,body_status:keepBody?old?.body_status??'missing':i.body!.replace(/\u0000/g,'').length>80000&&i.bodyStatus!=='unavailable'?'partial':i.bodyStatus??(body?'fetched':'missing'),source_closed:closed,hidden,historical:old?old.historical&&!freshAtFirstSight(old,i):(i.historical??true),evidence_scope:i.evidenceScope??'source_body',verified_at:i.body!==undefined?new Date():old?.verified_at??null};
+      return {ref_id:i.refId,source_key:i.sourceKey,url:i.url,title,body,tags,content_hash:documentHash({title,body,tags,closed,hidden}),source_created_at:date(i.createdAt)??old?.source_created_at??null,source_updated_at:date(i.updatedAt)??old?.source_updated_at??null,body_status:keepBody?old?.body_status??'missing':i.body!.replace(/\u0000/g,'').length>80000&&i.bodyStatus!=='unavailable'?'partial':i.bodyStatus??(body?'fetched':'missing'),source_closed:closed,hidden,historical:old?old.historical&&!freshAtFirstSight(old,i):(i.historical??true),evidence_scope:(keepBody?old?.evidence_scope:undefined)??i.evidenceScope??'source_body',verified_at:keepBody?old?.verified_at??null:new Date()};
     });
     const result=await tx`INSERT INTO intelligence_documents(ref_id,source_key,url,title,body,tags,content_hash,source_created_at,source_updated_at,body_status,source_closed,hidden,historical,evidence_scope,verified_at)
       SELECT ref_id,source_key,url,title,body,tags,content_hash,source_created_at,source_updated_at,body_status,source_closed,hidden,historical,evidence_scope,verified_at FROM jsonb_to_recordset(${db.json(rows)}) AS r(ref_id TEXT,source_key TEXT,url TEXT,title TEXT,body TEXT,tags TEXT[],content_hash TEXT,source_created_at TIMESTAMPTZ,source_updated_at TIMESTAMPTZ,body_status TEXT,source_closed BOOLEAN,hidden BOOLEAN,historical BOOLEAN,evidence_scope TEXT,verified_at TIMESTAMPTZ)

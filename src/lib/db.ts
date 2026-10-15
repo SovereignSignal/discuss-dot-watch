@@ -427,7 +427,7 @@ export async function bulkUpsertTopics(forumId: number, topics: Array<{
   archived?: boolean;
   createdAt?: string;
   bumpedAt?: string;
-}>): Promise<Array<{ id: number; discourseId: number }>> {
+}>, options: { preserveUnreportedFields?: boolean } = {}): Promise<Array<{ id: number; discourseId: number }>> {
   if (topics.length === 0) return [];
   const db = getDb();
 
@@ -460,16 +460,16 @@ export async function bulkUpsertTopics(forumId: number, topics: Array<{
     ON CONFLICT (forum_id, discourse_id) DO UPDATE SET
       title = EXCLUDED.title,
       slug = EXCLUDED.slug,
-      category_id = EXCLUDED.category_id,
-      tags = EXCLUDED.tags,
-      posts_count = EXCLUDED.posts_count,
-      views = EXCLUDED.views,
-      reply_count = EXCLUDED.reply_count,
-      like_count = EXCLUDED.like_count,
-      pinned = EXCLUDED.pinned,
-      closed = EXCLUDED.closed,
-      archived = EXCLUDED.archived,
-      bumped_at = EXCLUDED.bumped_at,
+      category_id = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.category_id ELSE EXCLUDED.category_id END,
+      tags = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.tags ELSE EXCLUDED.tags END,
+      posts_count = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.posts_count ELSE EXCLUDED.posts_count END,
+      views = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.views ELSE EXCLUDED.views END,
+      reply_count = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.reply_count ELSE EXCLUDED.reply_count END,
+      like_count = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.like_count ELSE EXCLUDED.like_count END,
+      pinned = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.pinned ELSE EXCLUDED.pinned END,
+      closed = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.closed ELSE EXCLUDED.closed END,
+      archived = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.archived ELSE EXCLUDED.archived END,
+      bumped_at = CASE WHEN ${!!options.preserveUnreportedFields} THEN topics.bumped_at ELSE EXCLUDED.bumped_at END,
       last_seen_at = NOW()
     RETURNING id, discourse_id
   `;

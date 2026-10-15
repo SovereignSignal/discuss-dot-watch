@@ -67,6 +67,8 @@ export interface DiscussionTopic {
    * scan before caching. Never persisted on cached/served topics.
    */
   firstPostText?: string;
+  /** RSS reports first-post content; numeric engagement fields are retained or unknown. */
+  metadataSource?: 'discourse-rss';
 }
 
 export interface KeywordAlert {
