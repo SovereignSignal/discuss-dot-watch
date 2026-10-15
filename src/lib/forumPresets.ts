@@ -64,6 +64,14 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
         tier: 2,
       },
       {
+        // Impact Pilot Program grants (Round 1 opened 2026-09-22); applications post under
+        // SD 0x36 Proposals, which the parent category's feed already carries.
+        name: 'Shutter DAO',
+        url: 'https://shutternetwork.discourse.group/',
+        grantsCategories: [{ id: 14, slug: 'shutter-dao' }],
+        tier: 2,
+      },
+      {
         name: 'Scroll',
         url: 'https://forum.scroll.io/',
         grantsCategories: [{ id: 16, slug: 'community-grants', parentSlug: 'global-community' }, { id: 10, slug: 'eco-growth' }],
