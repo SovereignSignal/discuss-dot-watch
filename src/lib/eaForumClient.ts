@@ -6,7 +6,7 @@
  */
 
 import { DiscussionTopic, SourceType } from '@/types';
-import { hashStringToNumber, truncateText } from './sourceClientUtils';
+import { hashStringToNumber, truncateText, stripHtml } from './sourceClientUtils';
 import { matchGrantsKeywords } from './grantsDetect';
 
 // API endpoints
@@ -36,7 +36,7 @@ query RecentPosts {
         slug
       }
       contents {
-        plaintextMainText
+        html
       }
     }
   }
@@ -60,7 +60,7 @@ interface EAForumPost {
     slug: string;
   } | null;
   contents: {
-    plaintextMainText: string;
+    html: string | null;
   } | null;
 }
 
@@ -121,13 +121,20 @@ export async function fetchEAForumPosts(
   }
 }
 
+/** The post as plain text. ForumMagnum caps plaintextMainText at 2,000 characters, so the
+ *  classifier never saw the second half of a long post: the Generator residency's "$8,500 per
+ *  month" (2026-10-15 brief) and most EA/LessWrong deadlines sit further down. html is whole. */
+export function postText(post: Pick<EAForumPost, 'contents'>): string | undefined {
+  return post.contents?.html ? stripHtml(post.contents.html) : undefined;
+}
+
 function transformPost(
   post: EAForumPost,
   source: 'ea-forum' | 'lesswrong',
   baseUrl: string,
   protocolCname: string,
 ): DiscussionTopic {
-  const fullText = post.contents?.plaintextMainText;
+  const fullText = postText(post);
   const tags = post.tags?.map(t => t.name) || [];
   const topic: DiscussionTopic = {
     id: hashStringToNumber(post._id),
@@ -188,7 +195,7 @@ export async function fetchEAForumTaggedPosts(
     if (json.errors?.length) return [];
     return json.data.posts.results.map(post => ({
       topic: transformPost(post, 'ea-forum', 'https://forum.effectivealtruism.org', 'ea-forum'),
-      body: post.contents?.plaintextMainText,
+      body: postText(post),
     }));
   } catch (error) {
     console.error('[EAForum] Tagged posts fetch failed:', error);
