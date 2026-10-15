@@ -456,9 +456,26 @@ harmless `restartPolicy null → set` line (a CLI read-back gap; the live servic
 ## Database Schema
 
 - **Core**: `src/lib/db.ts` (in `initializeSchema()`) — forums, topics, topic_snapshots, backfill_jobs, users, user_preferences, keyword_alerts, bookmarks, user_forums, user_forums_data, custom_forums, read_state, grants_items, daily_sends
+- **Corpus**: `src/lib/corpusStore.ts` (in `initializeCorpusSchema()`, an explicit admin `initialize` action, never on boot) — corpus_jobs, topic_documents, corpus_job_topics, corpus_classifications, topic_posts
 - **Delegates**: `src/lib/delegates/db.ts` (in `initializeDelegateSchema()`) — delegate_tenants, delegates, delegate_snapshots, tenant_admins, tenant_invites
 - Reference DDL: `src/lib/delegates/schema.sql` (base tables only; `tenant_admins` and `tenant_invites` are defined in code)
 - All schemas use `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for forward-compatible migrations. Schema runs on first API call, not as a separate migration step.
+
+## Writing Corpus (category-scoped jobs + thread replies)
+
+The bounded corpus crawler (`corpusWorker.ts`, admin `/api/admin/corpus`) backfills opening posts
+into `topic_documents` for a source and a 7/30/180-day window. Since 2026-10-15 a job may also be
+**category-scoped** (`start` takes `category: { id, slug }`), crawling
+`/c/{slug}/{id}/l/latest.json` instead of `/latest.json` (the slug form is the one Discourse serves;
+id-only redirects). One window can run once per category plus once uncategorised. The bodies phase
+also stores the thread's first page of replies (up to 20, from the same `/t/{id}.json` response, no
+extra fetch) in `topic_posts`, with `posts_total` on `topic_documents` for threads longer than that.
+Replies feed the writing-context work (community cards, exemplars, recurring objections for
+Longhand); they never enter classification, promotion or email. A 20-second in-process ticker
+(`startCorpusTickLoop`, started from `backgroundLoops`) advances operator-started jobs; nothing
+starts a job automatically. `CORPUS_TICK_DISABLED=true` turns the ticker off. After deploying a
+schema change here, call the admin `initialize` action once: `corpusSchemaState()` reports
+`upgradeRequired` until the new columns and `topic_posts` exist.
 
 ## Cron Jobs
 

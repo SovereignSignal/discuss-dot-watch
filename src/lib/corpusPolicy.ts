@@ -115,3 +115,55 @@ export function retryAfterSeconds(value: string | null, now = Date.now()): numbe
   const seconds = /^\d+$/.test(value.trim()) ? Number(value) : (Date.parse(value) - now) / 1000;
   return Number.isFinite(seconds) ? Math.max(1, Math.min(86_400, Math.ceil(seconds))) : 60;
 }
+
+/** Category-scoped crawls. Discourse serves the JSON list only at the slug form; the id-only form redirects. */
+export interface CorpusCategory { id: number; slug: string }
+export function parseCategory(value: unknown): CorpusCategory | null {
+  if (value == null) return null;
+  const c = record(value);
+  if (!Number.isSafeInteger(c.id) || Number(c.id) < 1 || typeof c.slug !== 'string' || !/^[a-z0-9][a-z0-9-]{0,99}$/.test(c.slug)) throw new CorpusError('invalid_category');
+  return { id: Number(c.id), slug: c.slug };
+}
+export function listingUrl(origin: string, page: number, category: CorpusCategory | null): string {
+  const path = category ? `/c/${category.slug}/${category.id}/l/latest.json` : '/latest.json';
+  return `${origin}${path}?order=created&ascending=false&page=${page}`;
+}
+
+/** The thread's first page of replies, from the same /t/{id}.json the first post came from: no extra fetch. */
+export const MAX_THREAD_POSTS = 20;
+export const MAX_POST_CHARS = 20_000;
+export interface ThreadPost {
+  postNumber: number; sourcePostId: number; username: string; bodyText: string; truncated: boolean;
+  replyTo: number | null; score: number; reads: number; createdAt: string;
+}
+export function threadPosts(data: unknown, expectedId: number): { posts: ThreadPost[]; postsTotal: number } {
+  const topic = parseTopic(data);
+  if (topic.id !== expectedId) throw new CorpusError('topic_identity_mismatch');
+  const stream = record(record(data).post_stream);
+  if (!Array.isArray(stream.posts)) throw new CorpusError('invalid_post_stream');
+  const ids = Array.isArray(stream.stream) ? stream.stream : stream.posts;
+  const seen = new Set<number>(), posts: ThreadPost[] = [];
+  for (const raw of stream.posts) {
+    const p = record(raw);
+    const number = Number(p.post_number);
+    // Replies only; the first post is the document. Hidden, deleted, whisper and system posts are not writing.
+    if (!Number.isSafeInteger(number) || number < 2 || seen.has(number) || !Number.isSafeInteger(p.id)) continue;
+    if (p.hidden === true || p.deleted_at || p.user_deleted === true || (p.post_type !== undefined && p.post_type !== 1)) continue;
+    if (typeof p.cooked !== 'string') continue;
+    const fullText = plainText(p.cooked);
+    if (!fullText) continue;
+    const bodyText = fullText.slice(0, MAX_POST_CHARS);
+    let createdAt: string;
+    try { createdAt = iso(p.created_at); } catch { continue; }
+    seen.add(number);
+    posts.push({
+      postNumber: number, sourcePostId: Number(p.id),
+      username: typeof p.username === 'string' ? p.username.replace(/\u0000/g, '').slice(0, 100) : '',
+      bodyText, truncated: fullText.length > bodyText.length,
+      replyTo: Number.isSafeInteger(p.reply_to_post_number) && Number(p.reply_to_post_number) >= 1 ? Number(p.reply_to_post_number) : null,
+      score: Number.isFinite(p.score) ? Number(p.score) : 0, reads: Number.isSafeInteger(p.reads) ? Number(p.reads) : 0, createdAt,
+    });
+    if (posts.length >= MAX_THREAD_POSTS) break;
+  }
+  return { posts: posts.sort((a, b) => a.postNumber - b.postNumber), postsTotal: ids.length };
+}

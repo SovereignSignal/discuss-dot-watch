@@ -5,7 +5,7 @@ import { ALL_FORUM_PRESETS } from './forumPresets';
 import {ingestDocuments} from './intelligenceStore';
 import { type CorpusJob, corpusStatus } from './corpusStore';
 import { assessPage, corpusSource, CorpusError, firstPostDocument, retryAfterSeconds,
-  corpusSources, DOCUMENT_BATCH_SIZE } from './corpusPolicy';
+  corpusSources, DOCUMENT_BATCH_SIZE, listingUrl, threadPosts } from './corpusPolicy';
 
 export type CorpusFetch = (url: string) => Promise<unknown>;
 export async function fetchCorpusJson(url: string): Promise<unknown> {
@@ -55,7 +55,8 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
   const token = job.lease_token;
   try {
     if (job.phase === 'pages') {
-      const data = await fetchJson(`${source.origin}/latest.json?order=created&ascending=false&page=${job.next_page}`);
+      const category = job.category_id && job.category_slug ? { id: job.category_id, slug: job.category_slug } : null;
+      const data = await fetchJson(listingUrl(source.origin, job.next_page, category));
       const page = assessPage(data, job.cutoff.toISOString(), job.as_of.toISOString());
       if (job.page_hashes.includes(page.pageHash)) throw new CorpusError('repeated_page');
       if (job.oldest_created && page.oldest && Date.parse(page.oldest) > job.oldest_created.getTime()) throw new CorpusError('pagination_not_advancing');
@@ -92,7 +93,9 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
         WHERE jt.job_id = ${id} AND jt.status = 'pending' ORDER BY t.created_at DESC, t.id DESC LIMIT ${DOCUMENT_BATCH_SIZE}`;
       for (const row of pending) {
         try {
-          const doc = firstPostDocument(await fetchJson(`${source.origin}/t/${Number(row.discourse_id)}.json`), Number(row.discourse_id));
+          const data = await fetchJson(`${source.origin}/t/${Number(row.discourse_id)}.json`);
+          const doc = firstPostDocument(data, Number(row.discourse_id));
+          const thread = threadPosts(data, Number(row.discourse_id));
           await db.begin(async tx => {
             const active = await tx`SELECT id FROM corpus_jobs WHERE id = ${id} AND lease_token = ${token} AND lease_until > now() FOR UPDATE`;
             if (!active.length) throw new CorpusError('lease_lost');
@@ -100,12 +103,18 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
               body_text = ${doc.bodyText}, content_hash = ${doc.contentHash}, source_updated_at = ${doc.sourceUpdatedAt},
               fetched_at = now(), last_attempt_at = now(), fetch_status = 'fetched', last_error = NULL,
               source_closed = ${doc.topic.closed}, source_archived = ${doc.topic.archived},
-              truncated = ${doc.truncated}, search_hidden = false WHERE topic_id = ${row.topic_id}`;
+              truncated = ${doc.truncated}, search_hidden = false, posts_total = ${thread.postsTotal} WHERE topic_id = ${row.topic_id}`;
+            // Replies ride along on the same response. A re-fetch replaces the page so edits and deletions are reflected.
+            await tx`DELETE FROM topic_posts WHERE topic_id = ${row.topic_id}`;
+            for (const p of thread.posts) {
+              await tx`INSERT INTO topic_posts (topic_id, post_number, source_post_id, username, body_text, truncated, reply_to, score, reads, created_at)
+                VALUES (${row.topic_id}, ${p.postNumber}, ${p.sourcePostId}, ${p.username}, ${p.bodyText}, ${p.truncated}, ${p.replyTo}, ${p.score}, ${p.reads}, ${p.createdAt})`;
+            }
             await tx`UPDATE corpus_job_topics SET status = 'fetched', error = NULL WHERE job_id = ${id} AND topic_id = ${row.topic_id}`;
             await tx`UPDATE corpus_jobs SET lease_until = now() + interval '3 minutes', updated_at = now() WHERE id = ${id}`;
           });
           await ingestDocuments([{refId:source.name.toLowerCase().replace(/\s+/g,'-')+'-'+row.discourse_id,sourceKey:source.origin,url:source.origin+'/t/'+row.discourse_id,title:doc.topic.title,body:doc.bodyText,tags:doc.topic.tags,createdAt:doc.topic.createdAt,updatedAt:doc.sourceUpdatedAt,closed:doc.topic.closed||doc.topic.archived,historical:true,evidenceScope:'bounded_historical_first_post'}]);
-          console.log('[Corpus] body ' + JSON.stringify({ source: source.key, topicId: Number(row.topic_id), sourceTopicId: Number(row.discourse_id), chars: doc.bodyText.length, truncated: doc.truncated }));
+          console.log('[Corpus] body ' + JSON.stringify({ source: source.key, topicId: Number(row.topic_id), sourceTopicId: Number(row.discourse_id), chars: doc.bodyText.length, truncated: doc.truncated, posts: thread.posts.length, postsTotal: thread.postsTotal }));
         } catch (error) {
           const code = error instanceof CorpusError ? error.code : 'document_fetch_failed';
           if (code === 'lease_lost') throw error;
@@ -141,4 +150,32 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
     console.log('[Corpus] error ' + JSON.stringify({ source: source.key, job: id, code }));
     return { worked: true, error: code };
   }
+}
+
+/**
+ * Drive operator-started corpus jobs without a human calling `tick` hundreds of times.
+ * One tick per interval, oldest claimable job first; the per-forum lease in claimJob keeps
+ * one crawl per host. Nothing starts a job here: an empty table is a no-op query.
+ */
+const TICK_INTERVAL_MS = 20_000;
+let tickTimer: NodeJS.Timeout | null = null;
+export async function tickPendingCorpusJob(fetchJson: CorpusFetch = fetchCorpusJson) {
+  const rows = await getDb()`SELECT id FROM corpus_jobs WHERE status IN ('pending','running')
+    AND (lease_until IS NULL OR lease_until < now()) AND (retry_at IS NULL OR retry_at < now())
+    ORDER BY updated_at ASC LIMIT 1`;
+  if (!rows.length) return null;
+  return runCorpusTick(String(rows[0].id), fetchJson);
+}
+export function startCorpusTickLoop() {
+  if (tickTimer || process.env.CORPUS_TICK_DISABLED === 'true') return;
+  let running = false;
+  tickTimer = setInterval(() => {
+    if (running) return;
+    running = true;
+    import('./corpusReadiness').then(({ corpusSchemaState }) => corpusSchemaState())
+      .then(state => (state.ready ? tickPendingCorpusJob() : null))
+      .catch(err => console.error('[Corpus] tick loop failed:', err instanceof Error ? err.message : err))
+      .finally(() => { running = false; });
+  }, TICK_INTERVAL_MS);
+  if (typeof tickTimer.unref === 'function') tickTimer.unref();
 }

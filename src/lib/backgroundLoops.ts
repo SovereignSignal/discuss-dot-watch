@@ -21,20 +21,23 @@ export interface BackgroundLoopDeps {
   startBackgroundRefresh(): void;
   startDelegateRefreshLoop(): void;
   startDailyBriefLoop(): void;
+  startCorpusTickLoop?(): void;
   initSchema(): void | Promise<void>;
 }
 
 async function loadDefaultDeps(): Promise<BackgroundLoopDeps> {
-  const [forumCache, refreshEngine, briefLoop, db] = await Promise.all([
+  const [forumCache, refreshEngine, briefLoop, db, corpusWorker] = await Promise.all([
     import('./forumCache'),
     import('./delegates/refreshEngine'),
     import('./dailyBriefLoop'),
     import('./db'),
+    import('./corpusWorker'),
   ]);
   return {
     startBackgroundRefresh: forumCache.startBackgroundRefresh,
     startDelegateRefreshLoop: refreshEngine.startDelegateRefreshLoop,
     startDailyBriefLoop: briefLoop.startDailyBriefLoop,
+    startCorpusTickLoop: corpusWorker.startCorpusTickLoop,
     initSchema: async () => {
       if (db.isDatabaseConfigured()) {
         await db.initializeSchema();
@@ -79,8 +82,9 @@ export function startBackgroundLoops(deps?: BackgroundLoopDeps): Promise<Backgro
       d.startBackgroundRefresh();
       d.startDelegateRefreshLoop();
       d.startDailyBriefLoop();
+      d.startCorpusTickLoop?.();
       state = 'started';
-      console.log('[Boot] Background loops started (cache refresh, delegate refresh, daily brief)');
+      console.log('[Boot] Background loops started (cache refresh, delegate refresh, daily brief, corpus ticks)');
       return state;
     })().catch(err => {
       inflight = null; // let a later caller retry
