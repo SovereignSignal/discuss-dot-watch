@@ -79,8 +79,11 @@ export function estimateCost(model: JudgeModel, prompts: string[]) {
   const usd = BATCH_DISCOUNT * (inputTokens / 1e6 * price.inputPerM + outputTokens / 1e6 * price.outputPerM);
   return { inputTokens, outputTokens, usd: Math.round(usd * 100) / 100 };
 }
+/** Batch custom_id allows only [A-Za-z0-9_-]; thread keys carry a colon. */
+export const customId = (key: string) => key.replace(':', '-');
+export const keyFromCustomId = (id: string) => id.replace(/^(discourse|magnum)-/, '$1:');
 export function buildRequest(model: JudgeModel, t: JudgeThread) {
-  return { custom_id: t.key, params: {
+  return { custom_id: customId(t.key), params: {
     model, max_tokens: MAX_OUTPUT_TOKENS, system: RUBRIC,
     messages: [{ role: 'user' as const, content: threadPrompt(t) + '\n\nRecord your judgement by calling record_scores exactly once.' }],
     tools: [{ name: 'record_scores', description: 'Record the writing-quality judgement for the opening post.', strict: true, input_schema: SCORE_SCHEMA }],
@@ -158,7 +161,8 @@ export async function judgeCollect(batchId: string, api: Pick<Anthropic['message
   for (const r of await db`SELECT 'magnum:' || d.id AS key, split_part(d.ref_id, ':', 1) AS source, d.title, d.url, d.body FROM intelligence_documents d JOIN document_thread_queue q ON q.document_id = d.id`) threads.set(String(r.key), r);
   let succeeded = 0, errored = 0, inputTokens = 0, outputTokens = 0;
   for await (const result of await batches.results(batchId)) {
-    const t = threads.get(result.custom_id);
+    const key = keyFromCustomId(result.custom_id);
+    const t = threads.get(key);
     if (result.result.type !== 'succeeded' || !t) { errored++; continue; }
     const message = result.result.message;
     const toolUse = message.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
@@ -169,7 +173,7 @@ export async function judgeCollect(batchId: string, api: Pick<Anthropic['message
     const found = !!score.bestPassage && normalize(String(t.body)).includes(normalize(score.bestPassage));
     inputTokens += message.usage.input_tokens; outputTokens += message.usage.output_tokens;
     await db`INSERT INTO writing_scores (thread_key, model, source, title, url, batch_id, clarity, argument, evidence, concision, disagreement, overall, moves, best_passage, passage_found, reason, input_tokens, output_tokens)
-      VALUES (${result.custom_id}, ${model}, ${String(t.source)}, ${String(t.title)}, ${String(t.url)}, ${batchId}, ${score.clarity}, ${score.argument}, ${score.evidence}, ${score.concision}, ${score.disagreement}, ${score.overall},
+      VALUES (${key}, ${model}, ${String(t.source)}, ${String(t.title)}, ${String(t.url)}, ${batchId}, ${score.clarity}, ${score.argument}, ${score.evidence}, ${score.concision}, ${score.disagreement}, ${score.overall},
         ${score.moves}, ${score.bestPassage}, ${found}, ${score.reason}, ${message.usage.input_tokens}, ${message.usage.output_tokens})
       ON CONFLICT (thread_key, model) DO UPDATE SET batch_id = EXCLUDED.batch_id, clarity = EXCLUDED.clarity, argument = EXCLUDED.argument, evidence = EXCLUDED.evidence, concision = EXCLUDED.concision,
         disagreement = EXCLUDED.disagreement, overall = EXCLUDED.overall, moves = EXCLUDED.moves, best_passage = EXCLUDED.best_passage, passage_found = EXCLUDED.passage_found, reason = EXCLUDED.reason,

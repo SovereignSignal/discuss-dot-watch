@@ -1,13 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRequest, estimateCost, parseScore, threadPrompt, RUBRIC, MOVES, type JudgeThread } from '../src/lib/writingQuality';
+import { buildRequest, estimateCost, parseScore, threadPrompt, customId, keyFromCustomId, RUBRIC, MOVES, type JudgeThread } from '../src/lib/writingQuality';
 
 const thread: JudgeThread = { key: 'discourse:1', source: 'https://gov.example.org', title: 'Proposal: fund the thing', url: 'https://gov.example.org/t/x/1',
   body: 'We propose to fund the thing. '.repeat(40), replies: [{ username: 'a', body: 'What is the budget?', score: 9 }, { username: 'b', body: 'x'.repeat(2000), score: 2 }] };
 
 test('a batch request carries the rubric, the thread, a strict tool and low effort, keyed by thread', () => {
   const r = buildRequest('claude-sonnet-5-5', thread);
-  assert.equal(r.custom_id, 'discourse:1');
+  assert.equal(r.custom_id, 'discourse-1');
+  assert.equal(keyFromCustomId(r.custom_id), 'discourse:1');
+  assert.equal(keyFromCustomId(customId('magnum:77')), 'magnum:77');
   assert.equal(r.params.model, 'claude-sonnet-5-5');
   assert.equal(r.params.system, RUBRIC);
   assert.match(r.params.messages[0].content, /OPENING POST:\nWe propose/);
