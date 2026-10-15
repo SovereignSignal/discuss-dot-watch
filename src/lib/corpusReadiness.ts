@@ -9,7 +9,9 @@ export async function corpusSchemaState():Promise<{ready:boolean;upgradeRequired
     AND (SELECT count(*) FROM information_schema.columns
       WHERE table_schema='public' AND table_name='corpus_jobs'
         AND column_name IN('max_topics','max_pages','category_id','category_slug'))=4
-    AND to_regclass('public.topic_posts') IS NOT NULL AS ready`;
+    AND to_regclass('public.topic_posts') IS NOT NULL
+    AND to_regclass('public.document_comments') IS NOT NULL
+    AND to_regclass('public.document_thread_queue') IS NOT NULL AS ready`;
   const ready=rows[0]?.ready===true;
   return {ready,upgradeRequired:!ready};
 }
