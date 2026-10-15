@@ -76,7 +76,8 @@ export async function loadThreads(spec: CommunitySpec, limit = 600): Promise<Cor
   const db = getDb();
   const threads: CorpusThread[] = [];
   if (spec.discourse) {
-    const rows = await db`SELECT t.id, t.discourse_id, t.title, t.slug, t.created_at, t.closed, t.reply_count, t.like_count, t.views, d.body_text,
+    // reply_count can be stale or zero for topics the live cache never saw; the thread fetch recorded the true size.
+    const rows = await db`SELECT t.id, t.discourse_id, t.title, t.slug, t.created_at, t.closed, GREATEST(t.reply_count, coalesce(d.posts_total, 1) - 1) AS reply_count, t.like_count, t.views, d.body_text,
         coalesce((SELECT jsonb_agg(jsonb_build_object('username', p.username, 'body', p.body_text, 'score', p.score, 'replyTo', p.reply_to) ORDER BY p.post_number)
           FROM topic_posts p WHERE p.topic_id = t.id), '[]'::jsonb) AS posts
       FROM topics t JOIN forums f ON f.id = t.forum_id JOIN topic_documents d ON d.topic_id = t.id

@@ -68,10 +68,11 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
         const fresh = page.eligible.filter(t => !seen.has(t.id));
         const admitted = fresh.slice(0, Math.max(0, (job.max_topics??100) - seen.size));
         for (const topic of admitted) {
-          // Existing live metadata remains authoritative. Never zero engagement counters.
-          await tx`INSERT INTO topics (forum_id, discourse_id, title, slug, category_id, tags, created_at, bumped_at, pinned, closed, archived)
+          // Existing live metadata remains authoritative. Never zero engagement counters. A topic the live
+          // cache never saw (older than /latest) takes its counts from the listing, or it would sit at zero forever.
+          await tx`INSERT INTO topics (forum_id, discourse_id, title, slug, category_id, tags, created_at, bumped_at, pinned, closed, archived, posts_count, reply_count, like_count, views)
             VALUES (${job.forum_id}, ${topic.id}, ${topic.title}, ${topic.slug}, ${topic.categoryId}, ${topic.tags},
-              ${topic.createdAt}, ${topic.bumpedAt}, ${topic.pinned}, ${topic.closed}, ${topic.archived})
+              ${topic.createdAt}, ${topic.bumpedAt}, ${topic.pinned}, ${topic.closed}, ${topic.archived}, ${topic.postsCount}, ${topic.replyCount}, ${topic.likeCount}, ${topic.views})
             ON CONFLICT (forum_id, discourse_id) DO NOTHING`;
           const rows = await tx`SELECT id FROM topics WHERE forum_id = ${job.forum_id} AND discourse_id = ${topic.id}`;
           const topicId = Number(rows[0].id);

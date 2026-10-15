@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assessPage, corpusSource, corpusWindow, firstPostDocument, plainText, retryAfterSeconds, MAX_DOCUMENT_CHARS } from '../src/lib/corpusPolicy';
+import { assessPage, corpusSource, corpusWindow, firstPostDocument, parseTopic, plainText, retryAfterSeconds, MAX_DOCUMENT_CHARS } from '../src/lib/corpusPolicy';
 import { validateCorpusExtraction, type CorpusClassificationInput } from '../src/lib/corpusClassifier';
 
 const asOf = '2026-10-03T00:00:00.000Z';
@@ -126,4 +126,11 @@ test('thread posts keep replies only, skip non-writing posts, and report the tru
   assert.equal(big.bodyText.length, MAX_POST_CHARS);
   const many = { ...topic(79), post_stream: { posts: Array.from({ length: 30 }, (_, i) => post(i + 2)) } };
   assert.equal(threadPosts(many, 79).posts.length, MAX_THREAD_POSTS);
+});
+
+test('listing topics carry engagement counts for first insert; missing or negative counts become zero', () => {
+  const t = parseTopic({ ...topic(5), posts_count: 12, reply_count: 11, like_count: 40, views: 900 });
+  assert.deepEqual([t.postsCount, t.replyCount, t.likeCount, t.views], [12, 11, 40, 900]);
+  const z = parseTopic({ ...topic(6), reply_count: -3, views: 'many' });
+  assert.deepEqual([z.postsCount, z.replyCount, z.likeCount, z.views], [0, 0, 0, 0]);
 });

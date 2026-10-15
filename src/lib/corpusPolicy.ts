@@ -60,7 +60,9 @@ export function record(value: unknown): Record<string, unknown> {
 export interface CorpusTopic {
   id: number; title: string; slug: string; tags: string[]; categoryId: number | null;
   createdAt: string; bumpedAt: string; pinned: boolean; closed: boolean; archived: boolean;
+  postsCount: number; replyCount: number; likeCount: number; views: number;
 }
+const count = (v: unknown) => (Number.isSafeInteger(v) && Number(v) >= 0 ? Number(v) : 0);
 export function parseTopic(value: unknown): CorpusTopic {
   const t = record(value);
   if (!Number.isSafeInteger(t.id) || Number(t.id) < 1 || typeof t.title !== 'string') throw new CorpusError('invalid_topic');
@@ -73,6 +75,7 @@ export function parseTopic(value: unknown): CorpusTopic {
     categoryId: Number.isSafeInteger(t.category_id) ? Number(t.category_id) : null,
     createdAt, bumpedAt: t.bumped_at ? iso(t.bumped_at) : createdAt,
     pinned: t.pinned === true, closed: t.closed === true, archived: t.archived === true,
+    postsCount: count(t.posts_count), replyCount: count(t.reply_count), likeCount: count(t.like_count), views: count(t.views),
   };
 }
 export function assessPage(data: unknown, cutoff: string, asOf: string) {
