@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Writing Lab / blind review</title>
+<style>
+:root{color-scheme:light dark;font:16px/1.55 system-ui,sans-serif}body{max-width:1000px;margin:48px auto;padding:0 24px}h1{font-size:2rem;letter-spacing:-.04em}p{max-width:75ch}header{border-bottom:1px solid;padding-bottom:20px}label{display:block;margin:12px 0}button,input,select,textarea{font:inherit}button{padding:8px 16px;cursor:pointer}textarea{width:100%;min-height:80px;box-sizing:border-box}article{border:1px solid;border-radius:8px;padding:20px;margin:18px 0}.text{white-space:pre-wrap;overflow-wrap:anywhere}.fields{display:flex;flex-wrap:wrap;gap:20px}.fields label{flex:1;min-width:180px}.fields select,.fields input{width:100%;box-sizing:border-box}small{opacity:.8}.bar{display:flex;align-items:center;gap:18px;margin:24px 0}#status{white-space:pre-wrap}input[type=file]{max-width:100%}
+</style>
+<header><small>DISCUSS.WATCH / WRITING LAB</small><h1>Which would you actually send?</h1><p>Compare each candidate against the same brief. Flag changed meaning even when the writing reads well. Condition labels stay hidden until ratings are locked.</p><small>Local only. No network requests or browser storage. Export ratings before closing this page. Do not load the separate key file.</small></header>
+<label>Blind comparison file <input id="load" type="file" accept="application/json,.json"></label>
+<label>Task briefs (optional, taskId + request) <input id="tasks" type="file" accept="application/json,.json"></label>
+<p id="status" role="status">Load the JSON produced by the blind command.</p>
+<div class="bar"><button id="prev" disabled>Previous</button><strong id="position"></strong><button id="next" disabled>Next</button><button id="export" disabled>Export ratings</button></div>
+<section id="brief"></section><section id="candidates"></section>
+<label id="preference" hidden>Preferred candidate (or tie / none) <select id="preferred"><option value="">Unrated</option><option>A</option><option>B</option><option>C</option><option>tie</option><option>none</option></select></label>
+<script>
+'use strict';
+let batch=[], index=0, briefs=new Map(), ratings=new Map();
+const $=id=>document.getElementById(id);
+const el=(tag,text)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
+async function json(file){if(!file||file.size>4*1024*1024)throw Error('Choose a JSON file smaller than 4 MiB.');return JSON.parse(await file.text());}
+function field(parent,title,choices,value,change){const label=el('label',title),select=el('select');for(const [v,t] of choices){const option=el('option',t);option.value=v;select.append(option);}select.value=value??'';select.onchange=()=>change(select.value);label.append(select);parent.append(label);}
+function render(){
+  const task=batch[index];if(!task)return;
+  $('position').textContent=`${index+1} / ${batch.length} · ${task.taskId}`;$('prev').disabled=index===0;$('next').disabled=index===batch.length-1;$('export').disabled=false;$('preference').hidden=false;
+  $('brief').replaceChildren();const request=briefs.get(task.taskId);
+  if(request){$('brief').append(el('h2','Brief'));const pre=el('div',JSON.stringify(request,null,2));pre.className='text';$('brief').append(pre);}else $('brief').append(el('p','No brief loaded. Load the task file before judging meaning or fit.'));
+  const r=ratings.get(task.taskId);$('preferred').value=r.preferred;$('candidates').replaceChildren();
+  for(const c of task.candidates){const a=el('article'),text=el('div',c.text);text.className='text';a.append(el('h2',`Candidate ${c.label}`),text);const fields=el('div');fields.className='fields';const score=r.candidates[c.label];
+    field(fields,'Would you send this?',[['','Unrated'],['yes','Yes, as written'],['minor','After minor edits'],['major','After major edits'],['no','No']],score.sendable,v=>score.sendable=v);
+    field(fields,'Meaning problem?',[['','Unrated'],['no','None found'],['yes','Yes'],['unsure','Unsure']],score.meaningIssue,v=>score.meaningIssue=v);
+    const label=el('label','Estimated edit minutes'),input=el('input');input.type='number';input.min='0';input.max='120';input.step='0.5';input.value=score.editMinutes??'';input.oninput=()=>{const n=Number(input.value);score.editMinutes=input.value!==''&&Number.isFinite(n)&&n>=0&&n<=120?n:null;};label.append(input);fields.append(label);a.append(fields);
+    const noteLabel=el('label','What needs changing?'),note=el('textarea');note.maxLength=2000;note.value=score.note;note.oninput=()=>score.note=note.value;noteLabel.append(note);a.append(noteLabel);$('candidates').append(a);
+  }
+}
+$('load').onchange=async event=>{try{const data=await json(event.target.files[0]);if(data.key||!Array.isArray(data.blind)||!data.blind.length||data.blind.length>100)throw Error('Expected the blind file, not the key.');const ids=new Set();
+  for(const t of data.blind){if(typeof t.taskId!=='string'||t.taskId.length>100||ids.has(t.taskId)||!Array.isArray(t.candidates)||t.candidates.length!==3)throw Error('Invalid task.');ids.add(t.taskId);const labels=new Set();for(const c of t.candidates){if(!['A','B','C'].includes(c.label)||labels.has(c.label)||typeof c.text!=='string'||c.text.length>20000)throw Error('Invalid candidate.');labels.add(c.label);}}
+  batch=data.blind;index=0;ratings=new Map(batch.map(t=>[t.taskId,{taskId:t.taskId,preferred:'',candidates:Object.fromEntries(t.candidates.map(c=>[c.label,{sendable:'',meaningIssue:'',editMinutes:null,note:''}]))}]));$('status').textContent='Loaded. Ratings are held in memory until you export them.';render();
+}catch{$('status').textContent='Could not load the file. Check its format and size; file contents are not logged.';}};
+$('tasks').onchange=async event=>{try{const data=await json(event.target.files[0]);if(!Array.isArray(data)||data.length>100)throw Error('Invalid tasks.');const map=new Map();for(const t of data){if(typeof t.taskId!=='string'||!t.request||typeof t.request!=='object')throw Error('Invalid task.');map.set(t.taskId,t.request);}briefs=map;render();}catch{$('status').textContent='Could not load the task briefs.';}};
+$('prev').onclick=()=>{index--;render();};$('next').onclick=()=>{index++;render();};$('preferred').onchange=()=>ratings.get(batch[index].taskId).preferred=$('preferred').value;
+$('export').onclick=()=>{const rows=[...ratings.values()];const complete=rows.every(r=>r.preferred&&Object.values(r.candidates).every(c=>c.sendable&&c.meaningIssue&&c.editMinutes!==null));const data={version:'0.1.0',exportedAt:new Date().toISOString(),complete,ratings:rows};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=el('a');a.href=url;a.download='writing-lab-ratings.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('status').textContent=complete?'Ratings exported. Keep the file as the locked review record.':'Partial ratings exported. Unrated fields remain explicit; this is not a completed evaluation.';};
+</script></html>

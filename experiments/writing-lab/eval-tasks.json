@@ -1,0 +1,186 @@
+[
+  {
+    "taskId": "w01",
+    "request": {
+      "brief": "Challenge a claim that downloads prove adoption. Explain what evidence would change your view.",
+      "audience": "Maintainers",
+      "intent": "disagree",
+      "genre": "forum-reply",
+      "facts": [
+        "There were 900 downloads.",
+        "There is no retention data."
+      ],
+      "protectedSpans": [
+        "900"
+      ],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w02",
+    "request": {
+      "brief": "Ask the client for the missing attachment, with warmth and no invented deadline.",
+      "audience": "An existing client",
+      "intent": "request",
+      "genre": "email",
+      "facts": [
+        "The attachment was not included."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w03",
+    "request": {
+      "brief": "Explain why a passing health check cannot establish that every import completed.",
+      "audience": "An engineer joining the project",
+      "intent": "explain",
+      "genre": "technical-note",
+      "facts": [
+        "The health check tests process availability.",
+        "Imports run separately."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w04",
+    "request": {
+      "brief": "Recommend a reversible change to the review process and name one tradeoff.",
+      "audience": "The team lead",
+      "intent": "propose",
+      "genre": "memo",
+      "facts": [
+        "Only requests above $7,500 would need a second reviewer.",
+        "Smaller requests would have one reviewer."
+      ],
+      "protectedSpans": [
+        "$7,500"
+      ],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w05",
+    "request": {
+      "brief": "Report partial progress honestly and avoid promising an unconfirmed finish date.",
+      "audience": "A client",
+      "intent": "update",
+      "genre": "email",
+      "facts": [
+        "Three of five exports have been checked.",
+        "Two exports still need checking."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w06",
+    "request": {
+      "brief": "Decline a speaking invitation politely without offering replacement speakers or future availability.",
+      "audience": "An event organizer",
+      "intent": "decline",
+      "genre": "email",
+      "facts": [
+        "The author cannot attend."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w07",
+    "request": {
+      "brief": "Thank the volunteer for carefully documenting the setup for other people.",
+      "audience": "A volunteer",
+      "intent": "appreciate",
+      "genre": "email",
+      "facts": [
+        "The setup notes let two new volunteers complete onboarding."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w08",
+    "request": {
+      "brief": "Disagree with a cost estimate while acknowledging what is known.",
+      "audience": "A budget committee",
+      "intent": "disagree",
+      "genre": "memo",
+      "facts": [
+        "The estimate excludes storage.",
+        "The amount of storage is unknown."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w09",
+    "request": {
+      "brief": "Ask a pointed question about who can reverse a decision. Stay civil and specific.",
+      "audience": "Governance participants",
+      "intent": "request",
+      "genre": "forum-reply",
+      "facts": [
+        "The proposal names an approver.",
+        "It does not describe a reversal process."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w10",
+    "request": {
+      "brief": "Explain the difference between a target date and a contractual commitment without sounding evasive.",
+      "audience": "A prospective client",
+      "intent": "explain",
+      "genre": "email",
+      "facts": [
+        "June 12 is a target.",
+        "No delivery date has been agreed."
+      ],
+      "protectedSpans": [
+        "June 12"
+      ],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w11",
+    "request": {
+      "brief": "Propose a small trial before switching providers. Do not invent a trial budget.",
+      "audience": "The operations group",
+      "intent": "propose",
+      "genre": "forum-reply",
+      "facts": [
+        "No provider has been selected.",
+        "A provider change would require migration."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  },
+  {
+    "taskId": "w12",
+    "request": {
+      "brief": "Report a failure and containment accurately; avoid implying that lost data was recovered.",
+      "audience": "On-call engineers",
+      "intent": "update",
+      "genre": "technical-note",
+      "facts": [
+        "Ingestion is paused.",
+        "Previously received records are retained.",
+        "The missing interval has not been recovered."
+      ],
+      "protectedSpans": [],
+      "maxWords": 140
+    }
+  }
+]

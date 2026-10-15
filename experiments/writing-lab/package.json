@@ -1,0 +1,8 @@
+{
+  "name": "discuss-writing-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node --test test.mjs", "mcp": "node mcp.mjs", "demo": "node cli.mjs prepare --input demo-request.json --demo" }
+}

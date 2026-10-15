@@ -1,0 +1,19 @@
+{
+  "brief": "Push back on approving the request until the delivery owner is named. Keep it constructive.",
+  "audience": "The proposal author and other reviewers",
+  "intent": "disagree",
+  "genre": "forum-reply",
+  "draft": "I might support the $18,000 request if a delivery owner is named. I cannot approve it yet.",
+  "facts": [
+    "The request is $18,000.",
+    "No delivery owner has been named."
+  ],
+  "protectedSpans": [
+    "$18,000"
+  ],
+  "maxWords": 90,
+  "preferences": [
+    "Use ordinary, direct language.",
+    "No ceremonial praise."
+  ]
+}

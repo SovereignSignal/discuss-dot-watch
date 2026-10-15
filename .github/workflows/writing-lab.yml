@@ -1,0 +1,26 @@
+name: Writing Lab
+on:
+  pull_request:
+    paths:
+      - 'experiments/writing-lab/**'
+      - '.claude/skills/discuss-writing/**'
+      - '.github/workflows/writing-lab.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test offline writing pilot
+        run: node --test experiments/writing-lab/test.mjs
+      - name: Verify executable syntax
+        run: |
+          for file in experiments/writing-lab/*.mjs; do node --check "$file"; done
