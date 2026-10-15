@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { getDb, isDatabaseConfigured } from './db';
 import { ALL_FORUM_PRESETS } from './forumPresets';
-import { CORPUS_VERSION, CorpusError, corpusSource, corpusWindow } from './corpusPolicy';
+import { CORPUS_VERSION, CorpusError, corpusSource, corpusWindow, parseCategory } from './corpusPolicy';
 
 export interface CorpusJob {
   id: string; forum_id: number; source_key: string; as_of: Date; cutoff: Date;
   status: string; phase: string; next_page: number; range_complete: boolean;
   stop_reason: string | null; page_hashes: string[]; oldest_created: Date | null;
   lease_token: string | null; lease_until: Date | null; retry_at: Date | null; max_topics: number; max_pages: number;
+  category_id: number | null; category_slug: string | null;
 }
 
 /** Explicit admin migration. No DDL on startup, public requests or live refresh. */
@@ -31,6 +32,11 @@ export async function initializeCorpusSchema(): Promise<void> {
     )`;
     await tx`ALTER TABLE corpus_jobs ADD COLUMN IF NOT EXISTS max_topics INTEGER NOT NULL DEFAULT 100`;
     await tx`ALTER TABLE corpus_jobs ADD COLUMN IF NOT EXISTS max_pages INTEGER NOT NULL DEFAULT 10`;
+    // Category-scoped jobs (writing corpus): one window may be crawled once per category, and once uncategorised.
+    await tx`ALTER TABLE corpus_jobs ADD COLUMN IF NOT EXISTS category_id INTEGER`;
+    await tx`ALTER TABLE corpus_jobs ADD COLUMN IF NOT EXISTS category_slug TEXT`;
+    await tx`ALTER TABLE corpus_jobs DROP CONSTRAINT IF EXISTS corpus_jobs_forum_id_as_of_cutoff_version_key`;
+    await tx`CREATE UNIQUE INDEX IF NOT EXISTS corpus_jobs_window_category ON corpus_jobs (forum_id, as_of, cutoff, version, COALESCE(category_id, 0))`;
     await tx`CREATE TABLE IF NOT EXISTS topic_documents (
       topic_id INTEGER PRIMARY KEY REFERENCES topics(id) ON DELETE CASCADE,
       source_key TEXT NOT NULL, source_post_id INTEGER, post_number INTEGER NOT NULL DEFAULT 1 CHECK (post_number = 1),
@@ -45,6 +51,17 @@ export async function initializeCorpusSchema(): Promise<void> {
       search_vector TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', title || ' ' || body_text)) STORED
     )`;
     await tx`CREATE INDEX IF NOT EXISTS idx_corpus_documents_search ON topic_documents USING GIN (search_vector)`;
+    await tx`ALTER TABLE topic_documents ADD COLUMN IF NOT EXISTS posts_total INTEGER`;
+    // Replies from the thread's first page, captured from the same fetch as the first post. Writing corpus only: never notified, never promoted.
+    await tx`CREATE TABLE IF NOT EXISTS topic_posts (
+      topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+      post_number INTEGER NOT NULL CHECK (post_number >= 2),
+      source_post_id INTEGER NOT NULL, username TEXT NOT NULL DEFAULT '',
+      body_text TEXT NOT NULL, truncated BOOLEAN NOT NULL DEFAULT false,
+      reply_to INTEGER, score REAL NOT NULL DEFAULT 0, reads INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL, fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (topic_id, post_number)
+    )`;
     await tx`CREATE TABLE IF NOT EXISTS corpus_job_topics (
       job_id UUID NOT NULL REFERENCES corpus_jobs(id) ON DELETE CASCADE,
       topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
@@ -67,18 +84,19 @@ export async function corpusReady(): Promise<boolean> {
   const rows = await getDb()`SELECT to_regclass('public.topic_documents') IS NOT NULL AS ready`;
   return rows[0]?.ready === true;
 }
-export async function startCorpusJob(sourceKey: string, days: number, asOf: string, budgets: {maxTopics?:number;maxPages?:number} = {}): Promise<string> {
+export async function startCorpusJob(sourceKey: string, days: number, asOf: string, budgets: {maxTopics?:number;maxPages?:number;category?:unknown} = {}): Promise<string> {
   const source = corpusSource(sourceKey);
   const window = corpusWindow(days, asOf);
+  const category = parseCategory(budgets.category);
   const maxTopics=budgets.maxTopics??100,maxPages=budgets.maxPages??10;
   if(!Number.isInteger(maxTopics)||maxTopics<1||maxTopics>2000||!Number.isInteger(maxPages)||maxPages<1||maxPages>200)throw new CorpusError('invalid_crawl_budget');
   if (!ALL_FORUM_PRESETS.some(p => p.url.replace(/\/$/, '') === source.origin)) throw new CorpusError('source_disabled');
   const db = getDb();
   const forum = await db`SELECT id FROM forums WHERE rtrim(url, '/') = ${source.origin} AND is_active = true ORDER BY id LIMIT 1`;
   if (!forum[0]) throw new CorpusError('source_missing_or_inactive');
-  const rows = await db`INSERT INTO corpus_jobs (id, forum_id, source_key, version, as_of, cutoff,max_topics,max_pages)
-    VALUES (${randomUUID()}, ${forum[0].id}, ${source.key}, ${CORPUS_VERSION}, ${window.asOf}, ${window.cutoff},${maxTopics},${maxPages})
-    ON CONFLICT (forum_id, as_of, cutoff, version) DO UPDATE SET version = EXCLUDED.version RETURNING id`;
+  const rows = await db`INSERT INTO corpus_jobs (id, forum_id, source_key, version, as_of, cutoff,max_topics,max_pages, category_id, category_slug)
+    VALUES (${randomUUID()}, ${forum[0].id}, ${source.key}, ${CORPUS_VERSION}, ${window.asOf}, ${window.cutoff},${maxTopics},${maxPages}, ${category?.id ?? null}, ${category?.slug ?? null})
+    ON CONFLICT (forum_id, as_of, cutoff, version, COALESCE(category_id, 0)) DO UPDATE SET version = EXCLUDED.version RETURNING id`;
   return String(rows[0].id);
 }
 export async function pauseCorpusJob(id: string): Promise<void> {
@@ -98,10 +116,11 @@ export async function corpusStatus() {
   if (!await corpusReady()) return { configured: false, jobs: [], sources: [] };
   const db = getDb();
   const jobs = await db`SELECT j.id, j.source_key, j.as_of, j.cutoff, j.status, j.phase, j.next_page,
-    j.range_complete, j.stop_reason, j.retry_at, j.updated_at,j.max_topics,j.max_pages,
+    j.range_complete, j.stop_reason, j.retry_at, j.updated_at,j.max_topics,j.max_pages, j.category_id, j.category_slug,
     count(jt.topic_id)::int AS discovered,
     count(*) FILTER (WHERE jt.status = 'fetched')::int AS fetched,
-    count(*) FILTER (WHERE jt.status = 'failed')::int AS failed
+    count(*) FILTER (WHERE jt.status = 'failed')::int AS failed,
+    (SELECT count(*) FROM topic_posts p JOIN corpus_job_topics x ON x.topic_id = p.topic_id WHERE x.job_id = j.id)::int AS posts
     FROM corpus_jobs j LEFT JOIN corpus_job_topics jt ON jt.job_id = j.id GROUP BY j.id ORDER BY j.created_at DESC LIMIT 50`;
   const sources = await db`SELECT source_key, count(*)::int AS documents,
     count(*) FILTER (WHERE fetched_at IS NOT NULL AND search_hidden = false)::int AS searchable,

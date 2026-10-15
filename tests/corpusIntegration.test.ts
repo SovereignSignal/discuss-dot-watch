@@ -123,3 +123,52 @@ test('corpus PostgreSQL pilot: checkpoint, replay, search, leases, independent l
   assert.equal((await corpusStatus()).jobs.find(j => j.id === emptyJob)?.status, 'complete');
   console.log('CORPUS_INTEGRATION_PROOF ' + JSON.stringify({ bodyOnlySearch: true, duplicateFreeReplay: true, leaseRecovery: true, independentLaneRows: 2, controlledPromotion: true, historicalEmailSuppression: true, notifications: 0, deletionFreshnessPreserved: true }));
 });
+
+import { tickPendingCorpusJob } from '../src/lib/corpusWorker';
+test('writing corpus: category-scoped job keeps thread replies from the same fetch and the loop drives it', { skip: !testUrl }, async () => {
+  await initializeCorpusSchema();
+  const db = getDb();
+  const asOf = new Date().toISOString();
+  const created = new Date(Date.parse(asOf) - 86_400_000).toISOString();
+  const topicRow = { id: 910001, title: 'Proposal: fund the thing', slug: 'proposal-fund', tags: [], category_id: 5, created_at: created, bumped_at: created, pinned: false };
+  const post = (post_number: number, extra: Record<string, unknown> = {}) => ({ id: 5000 + post_number, post_number, username: `delegate${post_number}`, cooked: `<p>Reply ${post_number}: what is the budget?</p>`, created_at: created, reply_to_post_number: post_number > 2 ? 2 : undefined, score: 3, reads: 9, ...extra });
+  const urls: string[] = [];
+  const fetch: CorpusFetch = async url => {
+    urls.push(url);
+    if (url.includes('/l/latest.json')) return { topic_list: { topics: [topicRow], more_topics_url: '' } };
+    if (url.includes('/latest.json')) throw new Error('uncategorised listing must not be used for a category job');
+    return { ...topicRow, post_stream: { stream: [5001, 5002, 5003, 5004, 5005, 5006, 5007], posts: [
+      { id: 5001, post_number: 1, cooked: '<p>We propose to fund the thing with 40k.</p>', created_at: created },
+      post(2), post(3), post(4, { hidden: true }), post(5, { post_type: 4 }),
+    ] } };
+  };
+  const category = { id: 5, slug: 'proposal-discussion' };
+  const job = await startCorpusJob('internet-computer', 7, asOf, { category });
+  // Same window, different category (or none) is a different job; same category replays.
+  assert.notEqual(await startCorpusJob('internet-computer', 7, asOf), job);
+  assert.notEqual(await startCorpusJob('internet-computer', 7, asOf, { category: { id: 9, slug: 'temperature-check' } }), job);
+  assert.equal(await startCorpusJob('internet-computer', 7, asOf, { category }), job);
+  await assert.rejects(() => startCorpusJob('internet-computer', 7, asOf, { category: { id: 5, slug: 'Bad Slug' } }), /invalid_category/);
+  // Pause the sibling jobs so the loop picks this one.
+  await db`UPDATE corpus_jobs SET status = 'paused' WHERE id <> ${job} AND source_key = 'internet-computer' AND as_of = ${asOf}`;
+  const first = await tickPendingCorpusJob(fetch);
+  assert.ok(first && first.worked);
+  assert.match(urls[0], /\/c\/proposal-discussion\/5\/l\/latest\.json\?order=created/);
+  await db`UPDATE corpus_jobs SET lease_until = NULL WHERE id = ${job}`;
+  await tickPendingCorpusJob(fetch);
+  const status = (await corpusStatus()).jobs.find(j => j.id === job);
+  assert.equal(status?.category_slug, 'proposal-discussion');
+  assert.equal(Number(status?.fetched), 1);
+  assert.equal(Number(status?.posts), 2);
+  const posts = await db`SELECT p.post_number, p.username, p.body_text, p.reply_to, p.score, d.posts_total
+    FROM topic_posts p JOIN topic_documents d ON d.topic_id = p.topic_id JOIN topics t ON t.id = p.topic_id
+    WHERE t.discourse_id = 910001 ORDER BY p.post_number`;
+  assert.deepEqual(posts.map(p => [p.post_number, p.username, p.reply_to]), [[2, 'delegate2', null], [3, 'delegate3', 2]]);
+  assert.equal(posts[0].body_text, 'Reply 2: what is the budget?');
+  assert.equal(posts[0].posts_total, 7);
+  // Replies never enter the notification path: no topic_posts row has any route to grants_items.
+  assert.equal(Number((await db`SELECT count(*)::int AS n FROM topic_documents WHERE notify = true`)[0].n), 0);
+  // No claimable job means the loop is a no-op, not an error.
+  await db`UPDATE corpus_jobs SET status = 'paused' WHERE status IN ('pending','running')`;
+  assert.equal(await tickPendingCorpusJob(fetch), null);
+});

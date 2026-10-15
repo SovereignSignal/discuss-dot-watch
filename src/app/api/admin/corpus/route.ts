@@ -14,7 +14,8 @@ export const runtime = 'nodejs';
 const source = z.string().min(3).max(300);
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('initialize') }),
-  z.object({ action: z.literal('start'), source, days: z.union([z.literal(7), z.literal(30), z.literal(180)]), asOf: z.string().datetime(),maxTopics:z.number().int().min(1).max(2000).optional(),maxPages:z.number().int().min(1).max(200).optional() }),
+  z.object({ action: z.literal('start'), source, days: z.union([z.literal(7), z.literal(30), z.literal(180)]), asOf: z.string().datetime(),maxTopics:z.number().int().min(1).max(2000).optional(),maxPages:z.number().int().min(1).max(200).optional(),
+    category: z.object({ id: z.number().int().positive(), slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/) }).optional() }),
   z.object({action:z.literal('extend'),jobId:z.string().uuid(),maxTopics:z.number().int().min(1).max(2000),maxPages:z.number().int().min(1).max(200)}),
   z.object({ action: z.literal('tick'), jobId: z.string().uuid() }),
   z.object({ action: z.literal('pause'), jobId: z.string().uuid() }),
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
     if (data.action !== 'initialize' && (await corpusSchemaState()).upgradeRequired) return upgradeRequired();
     switch (data.action) {
       case 'initialize': await initializeCorpusSchema(); await initializeCorpusPromotionSchema(); return json({ initialized: true });
-      case 'start': return json({ jobId: await startCorpusJob(data.source, data.days, data.asOf,{maxTopics:data.maxTopics,maxPages:data.maxPages}), notify: false });
+      case 'start': return json({ jobId: await startCorpusJob(data.source, data.days, data.asOf,{maxTopics:data.maxTopics,maxPages:data.maxPages,category:data.category}), notify: false });
       case 'extend':return json(await extendCorpusJob(data.jobId,data.maxTopics,data.maxPages));
       case 'tick': return json(await runCorpusTick(data.jobId));
       case 'pause': await pauseCorpusJob(data.jobId); return json({ paused: true });
