@@ -160,12 +160,20 @@ export async function runCorpusTick(id: string, fetchJson: CorpusFetch = fetchCo
  */
 const TICK_INTERVAL_MS = 20_000;
 let tickTimer: NodeJS.Timeout | null = null;
-export async function tickPendingCorpusJob(fetchJson: CorpusFetch = fetchCorpusJson) {
-  const rows = await getDb()`SELECT id FROM corpus_jobs WHERE status IN ('pending','running')
-    AND (lease_until IS NULL OR lease_until < now()) AND (retry_at IS NULL OR retry_at < now())
-    ORDER BY updated_at ASC LIMIT 1`;
+export const CORPUS_PARALLEL_HOSTS = 4;
+/** One job per host per tick, up to CORPUS_PARALLEL_HOSTS hosts at once. claimJob locks the forum row, so two
+ * ticks racing for the same host still serialise; the 5s pacing in fetchCorpusJson is per fetch, per job. */
+export async function tickPendingCorpusJob(fetchJson: CorpusFetch = fetchCorpusJson, parallel = CORPUS_PARALLEL_HOSTS) {
+  const rows = await getDb()`SELECT id, forum_id FROM (
+      SELECT DISTINCT ON (forum_id) id, forum_id, updated_at FROM corpus_jobs WHERE status IN ('pending','running')
+        AND (lease_until IS NULL OR lease_until < now()) AND (retry_at IS NULL OR retry_at < now())
+      ORDER BY forum_id, updated_at ASC) s ORDER BY updated_at ASC LIMIT ${Math.max(1, parallel)}`;
   if (!rows.length) return null;
-  return runCorpusTick(String(rows[0].id), fetchJson);
+  const picked = rows;
+  const results = await Promise.allSettled(picked.map(r => runCorpusTick(String(r.id), fetchJson)));
+  const first = results[0];
+  // Keep the single-job return shape for callers and tests; the rest ran alongside.
+  return first.status === 'fulfilled' ? { ...first.value, parallel: picked.length } : { worked: true, error: 'corpus_tick_failed', parallel: picked.length };
 }
 export function startCorpusTickLoop() {
   if (tickTimer || process.env.CORPUS_TICK_DISABLED === 'true') return;
