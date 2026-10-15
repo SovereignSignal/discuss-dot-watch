@@ -93,7 +93,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ 
         topics,
         cached: true,
-        cachedAt: cached.fetchedAt,
+        cachedAt: cached.fetchedAt || null,
+        stale: Boolean(cached.error),
+        refreshError: cached.error,
       });
     }
     
@@ -103,7 +105,7 @@ export async function GET(request: NextRequest) {
         {
           error: `Forum temporarily unavailable: ${cached.error}`,
           cached: true,
-          cachedAt: cached.fetchedAt,
+          cachedAt: cached.fetchedAt || null,
         },
         { status: 503 }
       );

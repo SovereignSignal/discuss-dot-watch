@@ -17,6 +17,8 @@ export interface ForumPreset {
   tier: 1 | 2 | 3;
   sourceType?: 'discourse' | 'ea-forum' | 'lesswrong' | 'github' | 'snapshot' | 'hackernews' | 'lobsters';
   sourceId?: string;  // Maps to EXTERNAL_SOURCES[].id for non-Discourse sources
+  /** Use the forum's public RSS topic list when anonymous JSON is unavailable. */
+  latestTransport?: 'rss';
   /**
    * Dedicated grants/funding Discourse categories watched by the grants
    * scan (lib/grantsScan.ts) — these threads rarely surface on /latest, so
@@ -239,6 +241,8 @@ const RAW_FORUM_CATEGORIES: ForumCategory[] = [
       {
         name: 'Celestia',
         url: 'https://forum.celestia.org/',
+        // Anonymous JSON is challenged at the edge; the official RSS feed is public.
+        latestTransport: 'rss',
         description: 'CIP discussions with rough consensus model',
         token: 'TIA',
         logoUrl: 'https://assets.coingecko.com/coins/images/31967/small/tia.jpg',

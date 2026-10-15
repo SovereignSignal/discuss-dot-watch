@@ -14,6 +14,7 @@
 
 import { DiscourseLatestResponse, DiscussionTopic } from '@/types';
 import { mapDiscourseTopic } from './discourseTopicMapper';
+import { fetchDiscourseRssTopics } from './discourseRss';
 import { FORUM_CATEGORIES, ForumPreset } from './forumPresets';
 import { getEnabledExternalSources } from './externalSources';
 import { fetchEAForumPosts } from './eaForumClient';
@@ -56,6 +57,18 @@ export interface CachedForum {
   topics: DiscussionTopic[];
   fetchedAt: number;
   error?: string;
+}
+
+/** Preserve the age and failure of cached content until a source fetch succeeds. */
+export function forumCacheAfterFetch(
+  url: string,
+  result: { topics: DiscussionTopic[]; error?: string },
+  previous?: CachedForum,
+  now = Date.now(),
+): CachedForum {
+  return result.error
+    ? { url, topics: previous?.topics ?? [], fetchedAt: previous?.fetchedAt ?? 0, error: result.error }
+    : { url, topics: result.topics, fetchedAt: now };
 }
 
 // Persistent health tracking across refresh cycles
@@ -165,6 +178,9 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
   // Presets store URLs with trailing slash; clients may omit it.
   const normalizedForumUrl = forumUrl.replace(/\/$/, '');
   const forumUrlWithSlash = normalizedForumUrl + '/';
+  const cached = memoryCache.get(key);
+  // A failed refresh must not turn a stale fallback into a fresh cache hit.
+  if (cached?.error && cached.topics.length > 0) return cached;
 
   // Try Redis first (try both URL forms since setCachedTopics uses preset URL)
   if (isRedisConfigured()) {
@@ -173,14 +189,13 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
       return {
         url: forumUrl,
         topics,
-        fetchedAt: Date.now(), // Redis handles TTL
+        fetchedAt: cached?.fetchedAt ?? 0, // Legacy Redis arrays carry no source fetch timestamp
+        error: cached?.error,
       };
     }
   }
 
   // Fall back to memory cache
-  const cached = memoryCache.get(key);
-
   // If memory cache has valid topics, return them
   if (cached && cached.topics.length > 0 && !cached.error) {
     if (Date.now() - cached.fetchedAt > CACHE_TTL_MS * 2) {
@@ -201,11 +216,12 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
           const topics = dbTopics.map((row: Record<string, unknown>) =>
             mapDbRowToTopic(row, { forumUrl })
           );
-          const fetchedAt = forumRecord.last_fetched_at ? new Date(forumRecord.last_fetched_at).getTime() : Date.now();
+          const fetchedAt = forumRecord.last_fetched_at ? new Date(forumRecord.last_fetched_at).getTime() : 0;
           console.log(`[ForumCache] Postgres fallback: serving ${topics.length} topics for ${forumRecord.name} (cache had: ${cached?.error || 'no data'})`);
           // Warm memory cache so subsequent requests don't hit Postgres again
-          memoryCache.set(key, { url: forumUrl, topics, fetchedAt });
-          return { url: forumUrl, topics, fetchedAt };
+          const fallback = { url: forumUrl, topics, fetchedAt, error: cached?.error };
+          memoryCache.set(key, fallback);
+          return fallback;
         }
       }
     } catch (error) {
@@ -215,6 +231,7 @@ export async function getCachedForum(forumUrl: string): Promise<CachedForum | nu
 
   // Return memory cache entry as-is (may have error) or null
   if (!cached) return null;
+  if (cached.error) return cached;
   if (Date.now() - cached.fetchedAt > CACHE_TTL_MS * 2) return null;
   return cached;
 }
@@ -386,9 +403,9 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         name: forum.name,
         url: forum.url,
         status: 'error',
-        topicCount: 0,
-        lastFetched: cached.fetchedAt,
-        lastActivityAt: null,
+        topicCount: cached.topics.length,
+        lastFetched: cached.fetchedAt || null,
+        lastActivityAt: latestBumpedAt(cached.topics),
         error: cached.error,
         ...base,
       });
@@ -398,7 +415,7 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         url: forum.url,
         status: 'ok',
         topicCount: cached.topics?.length || 0,
-        lastFetched: cached.fetchedAt,
+        lastFetched: cached.fetchedAt || null,
         lastActivityAt: latestBumpedAt(cached.topics),
         ...base,
       });
@@ -432,9 +449,9 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         name: source.name,
         url: source.id,
         status: 'error',
-        topicCount: 0,
-        lastFetched: cached.fetchedAt,
-        lastActivityAt: null,
+        topicCount: cached.topics.length,
+        lastFetched: cached.fetchedAt || null,
+        lastActivityAt: latestBumpedAt(cached.topics),
         error: cached.error,
         ...base,
       });
@@ -444,7 +461,7 @@ export function getForumHealthFromCache(): ForumHealthResult[] {
         url: source.id,
         status: 'ok',
         topicCount: cached.topics?.length || 0,
-        lastFetched: cached.fetchedAt,
+        lastFetched: cached.fetchedAt || null,
         lastActivityAt: latestBumpedAt(cached.topics),
         ...base,
       });
@@ -491,6 +508,10 @@ async function fetchForumTopics(forum: ForumPreset, retryCount = 0): Promise<{ t
       const waitSec = Math.ceil((outgoingLimit.resetAt - Date.now()) / 1000);
       console.log(`[ForumCache] ⏳ ${forum.name}: outgoing rate limit for ${domain}, skipping (resets in ${waitSec}s)`);
       return { topics: [], error: `Outgoing rate limit for ${domain}` };
+    }
+
+    if (forum.latestTransport === 'rss') {
+      return fetchDiscourseRssTopics(forum, memoryCache.get(normalizeUrl(forum.url))?.topics);
     }
 
     const apiUrl = `${baseUrl}/latest.json`;
@@ -599,23 +620,25 @@ async function persistToDatabase(forum: ForumPreset, category: string, topics: D
       archived: topic.archived,
       createdAt: topic.createdAt,
       bumpedAt: topic.bumpedAt,
-    })));
+    })), { preserveUnreportedFields: forum.latestTransport === 'rss' });
 
     // Engagement time-series: at most ONE snapshot per topic per UTC day
     // (idx_topic_snapshots_daily + ON CONFLICT DO NOTHING), so of the ~96
     // daily refresh cycles only the first actually writes. One extra statement
     // per forum per refresh; failures must never break the refresh.
     try {
-      const byDiscourseId = new Map(topics.map((t) => [t.id, t]));
-      await bulkInsertTopicSnapshots(upserted.map(({ id, discourseId }) => {
-        const topic = byDiscourseId.get(discourseId);
-        return {
-          topicId: id,
-          views: topic?.views,
-          replyCount: topic?.replyCount,
-          likeCount: topic?.likeCount,
-        };
-      }));
+      if (forum.latestTransport !== 'rss') {
+        const byDiscourseId = new Map(topics.map((t) => [t.id, t]));
+        await bulkInsertTopicSnapshots(upserted.map(({ id, discourseId }) => {
+          const topic = byDiscourseId.get(discourseId);
+          return {
+            topicId: id,
+            views: topic?.views,
+            replyCount: topic?.replyCount,
+            likeCount: topic?.likeCount,
+          };
+        }));
+      }
     } catch (error) {
       console.error(`[Snapshots] Snapshot insert failed for ${forum.name}:`, error);
     }
@@ -817,9 +840,12 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
       await Promise.all(
         batch.map(async ({ forum, category }) => {
           const result = await fetchForumTopics(forum);
-          if (!result.error) await observeSourceTopics(sourceKey(forum.url),result.topics,'discourse_topic_metadata').catch(()=>console.error('[Intelligence] forum corpus persistence failed'));
+          const scope = forum.latestTransport === 'rss' ? 'discourse_latest_rss_first_post' : 'discourse_topic_metadata';
+          if (!result.error) await observeSourceTopics(sourceKey(forum.url),result.topics,scope).catch(()=>console.error('[Intelligence] forum corpus persistence failed'));
+          // First-post bodies belong in the corpus, not the public topic cache.
+          if (forum.latestTransport === 'rss') result.topics.forEach(topic => { delete topic.firstPostText; });
           const key = normalizeUrl(forum.url);
-          await recordSourceResult(sourceKey(forum.url),result.topics,result.error,'discourse_latest_http').catch(()=>console.error('[SourceHealth] native outcome persistence failed'));
+          await recordSourceResult(sourceKey(forum.url),result.topics,result.error,forum.latestTransport === 'rss' ? 'discourse_latest_rss' : 'discourse_latest_http').catch(()=>console.error('[SourceHealth] native outcome persistence failed'));
           const now = Date.now();
 
           // Update health state
@@ -863,50 +889,17 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
             }
           }
 
-          // If fetch failed but we have existing topics (even from a previous error cycle), keep them
-          const existing = memoryCache.get(key);
-          if (result.error && existing && existing.topics && existing.topics.length > 0) {
-            // Keep the old topics, refresh the timestamp so TTL doesn't expire
+          // Keep stale content available without clearing the failure or advancing its age.
+          let existing = memoryCache.get(key);
+          if (result.error && existing?.topics.length) {
             console.log(`[ForumCache] ⚠️ ${forum.name}: keeping ${existing.topics.length} stale topics despite refresh error: ${result.error}`);
-            memoryCache.set(key, {
-              url: forum.url,
-              topics: existing.topics,
-              fetchedAt: Date.now(),
-              // Clear the error flag so getCachedForum serves these topics
-            });
-          } else if (result.error && (!existing || existing.topics.length === 0)) {
-            // Fetch failed with no memory fallback — try Redis before giving up
-            // This handles post-deploy scenarios where memory cache is empty
-            let redisFallback: DiscussionTopic[] | null = null;
-            if (isRedisConfigured()) {
-              const normalizedUrl = forum.url.replace(/\/$/, '');
-              redisFallback = await getCachedTopics(normalizedUrl) || await getCachedTopics(normalizedUrl + '/');
-            }
-            if (redisFallback && redisFallback.length > 0) {
-              console.log(`[ForumCache] ⚠️ ${forum.name}: using ${redisFallback.length} Redis-cached topics after refresh error: ${result.error}`);
-              memoryCache.set(key, {
-                url: forum.url,
-                topics: redisFallback,
-                fetchedAt: Date.now(),
-              });
-            } else {
-              // No fallback at all — store the error
-              memoryCache.set(key, {
-                url: forum.url,
-                topics: result.topics,
-                fetchedAt: Date.now(),
-                error: result.error,
-              });
-            }
-          } else {
-            // Store in memory cache (new data)
-            memoryCache.set(key, {
-              url: forum.url,
-              topics: result.topics,
-              fetchedAt: Date.now(),
-              error: result.error,
-            });
+          } else if (result.error && isRedisConfigured()) {
+            const normalizedUrl = forum.url.replace(/\/$/, '');
+            const topics = await getCachedTopics(normalizedUrl) || await getCachedTopics(normalizedUrl + '/');
+            // Legacy Redis arrays have no original source-fetch timestamp.
+            if (topics?.length) existing = { url: forum.url, topics, fetchedAt: 0 };
           }
+          memoryCache.set(key, forumCacheAfterFetch(forum.url, result, existing, now));
 
           // Store in Redis cache
           if (!result.error && result.topics.length > 0) {
@@ -976,7 +969,7 @@ async function hydrateMemoryFromRedis(): Promise<void> {
     let hydrated = 0;
     for (const { url, topics } of cached) {
       if (!topics || topics.length === 0) continue;
-      memoryCache.set(normalizeUrl(url), { url, topics, fetchedAt: Date.now() });
+      memoryCache.set(normalizeUrl(url), { url, topics, fetchedAt: 0 });
       hydrated++;
     }
     if (hydrated > 0) state.cacheVersion++;

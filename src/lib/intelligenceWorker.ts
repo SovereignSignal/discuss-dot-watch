@@ -10,7 +10,12 @@ import {revalidatePublished,publishPendingFresh} from './publishRevalidation';
 export {importPilotCorpus} from './pilotImport';
 export async function observeSourceTopics(key:string,topics:DiscussionTopic[],scope:string){
   if(!topics.length||!isDatabaseConfigured())return;
-  const documents:DocumentInput[]=topics.slice(0,100).map(t=>({refId:t.refId,sourceKey:key,title:t.title,url:t.externalUrl||`${(t.forumUrl||key).replace(/\/$/,'')}/t/${t.slug}/${t.id}`,body:t.firstPostText?sourceText(t.firstPostText):undefined,tags:t.tags||[],createdAt:t.createdAt||null,updatedAt:t.bumpedAt||null,closed:t.closed||t.archived,hidden:t.visible===false,historical:!t.createdAt||Date.parse(t.createdAt)<Date.now()-48*3600000,evidenceScope:scope}));
+  const documents:DocumentInput[]=topics.slice(0,100).map(t=>{
+    const rss=t.metadataSource==='discourse-rss';
+    // RSS display defaults are not observations of moderation or last activity.
+    // Preserve stronger stored evidence, including a previously fetched body.
+    return {refId:t.refId,sourceKey:key,title:t.title,url:t.externalUrl||`${(t.forumUrl||key).replace(/\/$/,'')}/t/${t.slug}/${t.id}`,body:t.firstPostText?sourceText(t.firstPostText):undefined,bodyIsExcerpt:rss,tags:t.tags||[],createdAt:t.createdAt||null,updatedAt:rss?undefined:t.bumpedAt||null,closed:rss?undefined:t.closed||t.archived,hidden:rss?undefined:t.visible===false,historical:!t.createdAt||Date.parse(t.createdAt)<Date.now()-48*3600000,evidenceScope:scope};
+  });
   await ingestDocuments(documents);
 }
 async function ensureWorker(){
@@ -23,16 +28,36 @@ async function ensureWorker(){
 }
 let workerReady:Promise<void>|undefined;
 const ready=()=>workerReady??=(ensureWorker().catch(e=>{workerReady=undefined;throw e;}));
-export async function hydrateCorpus(limit=6){
-  await ready();const db=getDb(),token=randomUUID();
-  const claimed=await db`WITH candidates AS (
-      SELECT d.id,row_number() OVER(PARTITION BY d.source_key ORDER BY d.verified_at ASC NULLS FIRST,d.id) AS source_rank
+/** Claim fresh unread bodies before the historical corpus. Keep one slot for
+ * backlog/reverification when the source cap allows, and prefer untried backlog
+ * over repeatedly failing URLs.
+ * The per-source cap, retry deadlines and atomic leases still bound every pass. */
+export async function claimHydrationDocuments(limit:number,token:string){
+  const db=getDb(),budget=Math.min(50,Math.max(1,limit));
+  return db`WITH due AS (
+      SELECT d.id,d.source_key,d.verified_at,d.body_attempts,
+        (NOT d.historical AND d.source_created_at IS NOT NULL AND d.source_created_at>now()-interval '30 days'
+          AND d.body_status IN('missing','partial') AND d.body_attempts=0) AS fresh_unseen
       FROM intelligence_documents d JOIN ingestion_sources s USING(source_key)
       WHERE s.adapter='discourse' AND s.enabled AND NOT s.paused AND NOT d.hidden
         AND (d.body_status IN('missing','partial') OR d.verified_at<now()-interval '1 day')
         AND (d.body_retry_at IS NULL OR d.body_retry_at<=now()) AND (d.body_lease_until IS NULL OR d.body_lease_until<now())
-    ), selected AS (SELECT d.id FROM intelligence_documents d JOIN candidates c ON c.id=d.id WHERE c.source_rank<=2 ORDER BY c.source_rank,d.verified_at ASC NULLS FIRST,d.id LIMIT ${Math.min(50,Math.max(1,limit))} FOR UPDATE OF d SKIP LOCKED)
-    UPDATE intelligence_documents SET body_lease=${token},body_lease_until=now()+interval '5 minutes' WHERE id IN(SELECT id FROM selected) RETURNING *`;
+    ), candidates AS (
+      SELECT *,row_number() OVER(PARTITION BY source_key ORDER BY fresh_unseen DESC,body_attempts,verified_at ASC NULLS FIRST,id) AS source_rank FROM due
+    ), ranked AS (
+      SELECT *,row_number() OVER(PARTITION BY fresh_unseen ORDER BY source_rank,body_attempts,verified_at ASC NULLS FIRST,id) AS tier_rank
+      FROM candidates WHERE source_rank<=2
+    ), selected AS (
+      SELECT d.id FROM intelligence_documents d JOIN ranked c ON c.id=d.id
+      WHERE d.body_lease_until IS NULL OR d.body_lease_until<now()
+      ORDER BY CASE WHEN NOT c.fresh_unseen AND c.tier_rank=1 AND ${budget}>1 THEN 0 WHEN c.fresh_unseen THEN 1 ELSE 2 END,
+        c.source_rank,c.body_attempts,c.verified_at ASC NULLS FIRST,c.id
+      LIMIT ${budget} FOR UPDATE OF d SKIP LOCKED
+    ) UPDATE intelligence_documents SET body_lease=${token},body_lease_until=now()+interval '5 minutes' WHERE id IN(SELECT id FROM selected) RETURNING *`;
+}
+export async function hydrateCorpus(limit=6){
+  await ready();const db=getDb(),token=randomUUID();
+  const claimed=await claimHydrationDocuments(limit,token);
   let fetched=0,failed=0,unavailable=0;
   for(const d of claimed as unknown as IntelligenceDocument[]){
     try{
