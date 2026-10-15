@@ -279,7 +279,7 @@ test('writing quality: submit gates on budget, collect verifies passages and bui
   const sub = await judgeSubmit({ model: 'claude-haiku-5-5', maxUsd: 1 }, api as never);
   assert.equal(sub.submitted, true); assert.equal(sub.batchId, 'msgbatch_test1'); assert.equal(submitted.length, sub.threads);
   // The seeded EA posts are under the 400-character floor, so only Discourse threads qualify here.
-  assert.ok(submitted.every(r => r.custom_id.startsWith('discourse:')) && submitted.length >= 3, 'discourse threads over the length floor are judged');
+  assert.ok(submitted.every(r => /^discourse-\d+$/.test(r.custom_id)) && submitted.length >= 3, 'discourse threads over the length floor are judged, with batch-safe ids');
   const collected = await judgeCollect('msgbatch_test1', api as never);
   assert.equal(collected.ended, true); assert.equal(collected.succeeded, submitted.length); assert.equal(collected.errored, 0);
   const rows = await db`SELECT thread_key, overall, passage_found FROM writing_scores WHERE model = 'claude-haiku-5-5' ORDER BY thread_key`;
