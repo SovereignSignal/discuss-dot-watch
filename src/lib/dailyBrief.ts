@@ -16,7 +16,7 @@ import { escapeHtml } from './sanitize';
 import { isAllowedUrl } from './url';
 import { generateText } from './llm';
 import { roleKindLabel, grantKindLabel } from './roleKinds';
-import { getUnnotifiedItems, markItemsNotified, markExpiredUnnotified, BriefItemRow } from './grantsStore';
+import { getUnnotifiedItems, getFundingAsks, markItemsNotified, markExpiredUnnotified, BriefItemRow } from './grantsStore';
 import { sendEmail } from './emailService';
 import { getDb } from './db';
 import { getPipelineStats, assessPipelineHealth, type PipelineStats, type PipelineHealth } from './pipelineHealth';
@@ -47,6 +47,20 @@ async function claimDay(day: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/** Asks first seen since the previous brief, so each appears once. After an outage the window
+ *  stops at 3 days: a backlog of other teams' asks is not news. Never blocks the send. */
+async function fundingAsksSince(day: string): Promise<BriefItemRow[]> {
+  try {
+    const rows = await getDb()`SELECT max(sent_at) AS at FROM daily_sends WHERE name = ${DAILY_CLAIM_KEY} AND day < ${day}`;
+    const floor = Date.now() - 3 * 86_400_000;
+    const last = rows[0]?.at ? new Date(rows[0].at).getTime() : Date.now() - 86_400_000;
+    return await getFundingAsks(new Date(Math.max(last, floor)));
+  } catch (err) {
+    console.error('[DailyBrief] Funding asks unavailable:', err);
+    return [];
+  }
+}
+
 async function releaseDay(day: string): Promise<void> {
   const db = getDb();
   await db`DELETE FROM daily_sends WHERE name = ${DAILY_CLAIM_KEY} AND day = ${day}`;
@@ -63,6 +77,8 @@ export interface DailyBriefContent {
   date: Date;
   roles: BriefItemRow[];
   grants: BriefItemRow[];
+  /** Crypto teams' funding asks for "Also new"; never watermarked (see getFundingAsks). */
+  asks?: BriefItemRow[];
   summary: string | null;
   /** Null when the stats query failed: the brief still goes out, without the footer. */
   pipeline?: { stats: PipelineStats; health: PipelineHealth } | null;
@@ -142,13 +158,15 @@ function groupEntries(items: BriefItemRow[], groupable: (i: BriefItemRow) => boo
   return entries;
 }
 
+const titleKey = (title: string) => title.replace(/\u00a0/g, ' ').trim().toLowerCase();
+
 /** The same proposal reaches the scan twice when a DAO re-posts it (Balancer
  *  BIP-929 was two Snapshot ids, 2026-09-25/26). The query drops titles
  *  mailed on earlier days; this drops repeats within one batch. */
 function dedupeByTitle(items: BriefItemRow[]): BriefItemRow[] {
   const seen = new Set<string>();
   return items.filter(i => {
-    const key = i.title.replace(/\u00a0/g, ' ').trim().toLowerCase();
+    const key = titleKey(i.title);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -169,15 +187,18 @@ export interface BriefPlan {
  *  stays in the main sections rather than being demoted on a guess. */
 const isElsewhere = (g: BriefItemRow) => g.vertical === 'ai' || g.vertical === 'oss';
 
-export function planBrief(roles: BriefItemRow[], grants: BriefItemRow[]): BriefPlan {
+export function planBrief(roles: BriefItemRow[], grants: BriefItemRow[], asks: BriefItemRow[] = []): BriefPlan {
   const uniqueGrants = dedupeByTitle(grants);
+  // An ask is context, never a highlight, whatever its size; a title already in the batch wins.
+  const seen = new Set(uniqueGrants.map(g => titleKey(g.title)));
+  const newAsks = dedupeByTitle(asks).filter(a => !seen.has(titleKey(a.title)));
   const main = uniqueGrants.filter(g => !isElsewhere(g));
   const other = uniqueGrants.filter(isElsewhere);
   const singles = (items: BriefItemRow[]) => items.map(g => ({ protocol: displayProtocol(g.protocol), items: [g] }));
   return {
     roles: groupEntries(dedupeByTitle(roles), r => ELECTION_KINDS.has(r.kind || '')),
     highlights: singles(main.filter(isHighlightGrant)),
-    rest: groupEntries(main.filter(g => !isHighlightGrant(g)), g => g.kind === 'application'),
+    rest: groupEntries([...main.filter(g => !isHighlightGrant(g)), ...newAsks], g => g.kind === 'application'),
     elsewhere: [
       ...singles(other.filter(isHighlightGrant)),
       ...groupEntries(other.filter(g => !isHighlightGrant(g)), g => g.kind === 'application'),
@@ -492,7 +513,7 @@ export function formatDailyBriefHtml(brief: DailyBriefContent): string {
   const dateStr = brief.date.toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
-  const plan = planBrief(brief.roles, brief.grants);
+  const plan = planBrief(brief.roles, brief.grants, brief.asks);
   const counts = briefCounts(plan);
 
   return `<!DOCTYPE html>
@@ -611,7 +632,7 @@ export function formatDailyBriefText(brief: DailyBriefContent): string {
     return s + '\n';
   };
 
-  const plan = planBrief(brief.roles, brief.grants);
+  const plan = planBrief(brief.roles, brief.grants, brief.asks);
   text += section('HIGHLIGHTS — GRANTS & PROGRAMS', plan.highlights, 'grant');
   text += section('HIGHLIGHTS — ROLES & POSITIONS', plan.roles, 'role');
   text += compact('ALSO NEW', plan.rest);
@@ -654,14 +675,15 @@ export interface DailyBriefResult {
 export async function runDailyBrief(): Promise<DailyBriefResult> {
   const day = new Date().toISOString().slice(0, 10);
 
-  const [roles, grants] = await Promise.all([
+  const [roles, grants, asks] = await Promise.all([
     getUnnotifiedItems('ROLE'),
     getUnnotifiedItems('GRANT'),
+    fundingAsksSince(day),
   ]);
   // A quiet day still sends from HEARTBEAT_HOUR_UTC: the pipeline footer is
   // the daily heartbeat, and silence used to be indistinguishable from an
   // outage. Before that hour an empty run claims nothing.
-  if (roles.length === 0 && grants.length === 0 && new Date().getUTCHours() < HEARTBEAT_HOUR_UTC) {
+  if (roles.length === 0 && grants.length === 0 && asks.length === 0 && new Date().getUTCHours() < HEARTBEAT_HOUR_UTC) {
     return { sent: false, roles: 0, grants: 0, reason: 'No new items' };
   }
 
@@ -676,11 +698,12 @@ export async function runDailyBrief(): Promise<DailyBriefResult> {
   let brief: DailyBriefContent;
   let result: Awaited<ReturnType<typeof sendEmail>>;
   try {
-    const plan = planBrief(roles, grants);
+    const plan = planBrief(roles, grants, asks);
     brief = {
       date: new Date(),
       roles,
       grants,
+      asks,
       summary: await generateSummary(plan).catch(() => null),
       pipeline: await withTimeout(getPipelineStats(), STATS_TIMEOUT_MS)
         .then(stats => (stats ? { stats, health: assessPipelineHealth(stats) } : null))

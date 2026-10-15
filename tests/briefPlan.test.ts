@@ -235,3 +235,18 @@ test('a card names the program when the forum title does not', () => {
   const named = row({ kind: 'program_launch', program: 'Round 42', title: 'Round 42 - GMC Call for Grant Applications' });
   assert.match(formatDailyBriefText({ date: new Date(), roles: [], grants: [named], summary: null }), /\[Test\] Round 42 - GMC Call for Grant Applications\n {2}Program launch · Round 42/);
 });
+
+test('funding asks fill Also new, fold per community and never become highlights', () => {
+  // Before the 2026-10-05 cutover these were most of the brief's crypto lines.
+  const plan = planBrief([], [row({ protocol: 'Arbitrum', kind: 'program_launch', title: 'DRIP Season 2 Is Live' })], [
+    row({ protocol: 'Polkadot', title: 'Maintenance for the substrate-api-client', amount_max: '38500', currency: 'USDT' }),
+    row({ protocol: 'Optimism', title: 'Audit subsidy request', amount_max: '250000', currency: 'USDC' }),
+    row({ protocol: 'Polkadot', title: 'Wallet integration bounty ask', amount_max: '12000', currency: 'USDT' }),
+    row({ protocol: 'Arbitrum', title: 'DRIP Season 2 Is Live' }),
+  ]);
+  assert.deepEqual(plan.highlights.map(e => e.items[0].title), ['DRIP Season 2 Is Live']);
+  assert.deepEqual(plan.rest.map(e => [e.protocol, e.items.length]), [['Polkadot', 2], ['Optimism', 1]]);
+  assert.equal(shouldSummarize(plan), true);
+  assert.match(formatDailyBriefText({ date: new Date(), roles: [], grants: [], asks: plan.rest.flatMap(e => e.items), summary: null }),
+    /ALSO NEW[\s\S]*\[Polkadot\] 2 new grant applications[\s\S]*\[Optimism\] Audit subsidy request — up to 250,000 USDC/);
+});

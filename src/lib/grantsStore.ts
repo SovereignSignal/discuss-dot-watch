@@ -136,6 +136,32 @@ export async function getUnnotifiedItems(classification: 'GRANT'|'ROLE', minConf
   console.log('[DailyBrief] role selection ' + JSON.stringify({candidates:candidates.length,selected:selected.length,candidateLimit,profile:'operations-ai-v1'}));
   return selected;
 }
+/** Crypto teams asking a DAO for money: the brief's "Also new" list. Until the 2026-10-05 cutover
+ *  these reached grants_items as GRANT/application and were most of the brief's crypto lines
+ *  ("Maintenance for the substrate-api-client — 38,500 USDT"); since then only open calls publish,
+ *  so the list was always empty. Read straight from the funding lane, never published: they are not
+ *  calls anyone can apply to, so they stay out of /api/v1/grants and the publish gate. Each document
+ *  appears once, in the first brief after it was seen. Ids are negative so they can never be
+ *  stamped as grants_items rows. */
+export async function getFundingAsks(since: Date, limit = 15): Promise<BriefItemRow[]> {
+  if (!isDatabaseConfigured()) return [];
+  const db = getDb();
+  const rows = await db`
+    SELECT -d.id AS id, d.ref_id AS topic_ref_id, s.name AS protocol, s.vertical, d.title, d.url,
+      'application' AS kind, r.confidence, r.extraction->>'program' AS program,
+      r.extraction->>'amountMin' AS amount_min, r.extraction->>'amountMax' AS amount_max,
+      r.extraction->>'currency' AS currency, NULL::timestamptz AS deadline,
+      d.source_created_at AS topic_created_at, d.first_seen_at
+    FROM funding_records r
+    JOIN intelligence_documents d ON d.id = r.document_id AND d.content_hash = r.content_hash
+    JOIN ingestion_sources s USING (source_key)
+    WHERE s.vertical = 'crypto' AND r.kind = 'application' AND r.extraction->>'relevant' = 'true'
+      AND r.confidence >= 70 AND NOT d.hidden AND NOT d.source_closed AND NOT d.historical
+      AND d.first_seen_at > ${since} AND d.source_created_at > NOW() - INTERVAL '7 days'
+    ORDER BY d.first_seen_at ASC LIMIT ${limit}
+  `;
+  return rows as unknown as BriefItemRow[];
+}
 export async function markItemsNotified(ids: number[]): Promise<void> {
   if (!isDatabaseConfigured() || ids.length===0) return;
   const db = getDb();
