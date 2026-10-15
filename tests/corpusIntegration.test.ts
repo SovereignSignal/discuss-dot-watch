@@ -294,3 +294,20 @@ test('writing quality: submit gates on budget, collect verifies passages and bui
   // Nothing left to judge for this model; a second submit is a no-op.
   assert.deepEqual(await judgeSubmit({ model: 'claude-haiku-5-5', maxUsd: 1 }, api as never), { submitted: false, reason: 'nothing_to_judge', threads: 0 });
 });
+
+import { writingExemplars } from '../src/lib/writingQuality';
+test('writing exemplars: strong verified passages by move and by overlap with a draft', { skip: !testUrl }, async () => {
+  const db = getDb();
+  // Promote two judged rows to strong with distinct moves; the judge test above left exactly one verified row.
+  const keys = await db`SELECT thread_key FROM writing_scores WHERE model = 'claude-haiku-5-5' ORDER BY thread_key LIMIT 3`;
+  await db`UPDATE writing_scores SET overall = 5, passage_found = true, best_passage = 'Summary: we request a treasury grant', moves = '{opening-a-case,sizing-an-ask}' WHERE thread_key = ${keys[0].thread_key}`;
+  await db`UPDATE writing_scores SET overall = 4, passage_found = true, best_passage = 'a small change to parameter', moves = '{answering-objections}' WHERE thread_key = ${keys[1].thread_key}`;
+  const byMove = await writingExemplars({ moves: ['sizing-an-ask'], perMove: 2, byOverlap: 0 });
+  assert.equal(byMove.length, 1); assert.equal(byMove[0].threadKey, keys[0].thread_key); assert.ok(byMove[0].opening.length > 0);
+  const byOverlap = await writingExemplars({ moves: [], text: 'We want a treasury grant for liquidity tooling with a budget', byOverlap: 3 });
+  assert.ok(byOverlap.some(h => h.threadKey === keys[0].thread_key)); assert.ok(byOverlap[0].matchedTerms >= 2);
+  const both = await writingExemplars({ moves: ['answering-objections', 'sizing-an-ask'], text: 'treasury grant budget', perMove: 1, byOverlap: 1 });
+  assert.ok(both.length >= 2 && new Set(both.map(h => h.threadKey)).size === both.length, 'deduplicated across move and overlap picks');
+  const fallback = await writingExemplars({ moves: ['summarising'], text: 'zzz' });
+  assert.ok(fallback.length >= 1, 'falls back to the strongest rows when nothing matches');
+});

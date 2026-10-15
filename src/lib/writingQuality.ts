@@ -71,7 +71,8 @@ export function threadPrompt(t: JudgeThread): string {
   const clean = (x: string) => { let prev: string; do { prev = x; x = x.replace(/<\s*\/?\s*thread\b[^>]*>/gi, ''); } while (x !== prev); return x; };
   return `<thread>\nSource: ${clean(t.source)}\nTitle: ${clean(t.title)}\n\nOPENING POST:\n${clean(post)}\n\nREPLIES (context only, ${t.replies.length} stored):\n${clean(replies.join('\n\n')) || '(none)'}\n</thread>`;
 }
-export const estimateTokens = (text: string) => Math.ceil(text.length / 3.6);
+// Calibrated on the first Sonnet 5.5 batch: 485 threads estimated at 1.16M input tokens, billed 1.63M.
+export const estimateTokens = (text: string) => Math.ceil(text.length / 2.6);
 export function estimateCost(model: JudgeModel, prompts: string[]) {
   const inputTokens = prompts.reduce((n, p) => n + estimateTokens(p) + estimateTokens(RUBRIC) + 250, 0);
   const outputTokens = prompts.length * 320;
@@ -206,4 +207,38 @@ export async function strongestWriting(opts: { model?: string; move?: string; li
     FROM writing_scores WHERE passage_found AND overall >= 4 AND (${opts.model ?? ''} = '' OR model = ${opts.model ?? ''}) AND (${opts.move ?? ''} = '' OR ${opts.move ?? ''} = ANY(moves))
     ORDER BY overall DESC, argument DESC, clarity DESC LIMIT ${take}`;
   return rows;
+}
+
+export interface ExemplarHit { threadKey: string; source: string; title: string; url: string; moves: string[]; overall: number; scores: { clarity: number; argument: number; evidence: number; concision: number; disagreement: number }; passage: string; reason: string; opening: string; matchedTerms: number }
+/**
+ * Exemplars for a critique: the strongest verified writing, two per requested move plus the best term-overlap
+ * matches to the draft, deduplicated. Bodies come along as a short opening so the critic can see how the
+ * passage sits in its post.
+ */
+export async function writingExemplars(opts: { moves?: string[]; text?: string; perMove?: number; byOverlap?: number; model?: string } = {}): Promise<ExemplarHit[]> {
+  await ensureWritingQualitySchema();
+  const db = getDb();
+  const model = opts.model ?? '';
+  const rows = await db`SELECT s.thread_key, s.source, s.title, s.url, s.moves, s.overall, s.clarity, s.argument, s.evidence, s.concision, s.disagreement, s.best_passage, s.reason,
+      coalesce(d.body_text, i.body, '') AS body
+    FROM writing_scores s
+    LEFT JOIN topic_documents d ON s.thread_key LIKE 'discourse:%' AND d.topic_id = split_part(s.thread_key, ':', 2)::int
+    LEFT JOIN intelligence_documents i ON s.thread_key LIKE 'magnum:%' AND i.id = split_part(s.thread_key, ':', 2)::int
+    WHERE s.passage_found AND s.overall >= 4 AND (${model} = '' OR s.model = ${model})
+    ORDER BY s.overall DESC, s.argument DESC, s.clarity DESC LIMIT 400`;
+  const terms = new Set((opts.text ?? '').toLowerCase().match(/[\p{L}\p{N}]{5,}/gu) || []);
+  const hits: ExemplarHit[] = rows.map(r => {
+    const body = String(r.body); const lower = body.toLowerCase();
+    return { threadKey: String(r.thread_key), source: String(r.source), title: String(r.title), url: String(r.url), moves: (r.moves as string[]) || [], overall: Number(r.overall),
+      scores: { clarity: Number(r.clarity), argument: Number(r.argument), evidence: Number(r.evidence), concision: Number(r.concision), disagreement: Number(r.disagreement) },
+      passage: String(r.best_passage), reason: String(r.reason), opening: body.slice(0, 900), matchedTerms: terms.size ? [...terms].filter(w => lower.includes(w)).length : 0 };
+  });
+  const picked = new Map<string, ExemplarHit>();
+  const perMove = Math.min(5, Math.max(0, opts.perMove ?? 2)), byOverlap = Math.min(10, Math.max(0, opts.byOverlap ?? 3));
+  for (const move of (opts.moves ?? []).filter(m => (MOVES as readonly string[]).includes(m))) {
+    for (const h of hits.filter(h => h.moves.includes(move) && !picked.has(h.threadKey)).slice(0, perMove)) picked.set(h.threadKey, h);
+  }
+  if (terms.size) for (const h of [...hits].filter(h => h.matchedTerms >= 2 && !picked.has(h.threadKey)).sort((a, b) => b.matchedTerms - a.matchedTerms || b.overall - a.overall).slice(0, byOverlap)) picked.set(h.threadKey, h);
+  if (!picked.size) for (const h of hits.slice(0, Math.max(3, byOverlap))) picked.set(h.threadKey, h);
+  return [...picked.values()];
 }
