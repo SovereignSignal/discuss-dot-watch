@@ -498,6 +498,21 @@ and five top-tier openings. The numbers header is written by code, never the mod
 and their top replies, chosen by term overlap with the brief, or by engagement when the brief
 matches too little (`retrieval` says which).
 
+## Writing Quality Judge (the corpus as teacher)
+
+`lib/writingQuality.ts` scores stored threads with a frontier model so the strongest writing in the
+corpus can be retrieved as exemplars. It calls the **Anthropic Batch API directly** (half price; not
+through `lib/llm.ts`, which routes production calls to Ollama Cloud) with `ANTHROPIC_API_KEY`. One
+request per thread: the opening post plus up to eight top replies as context; the judge scores the post
+1-5 on clarity, argument, evidence, concision and handling of disagreement, gives an overall, names the
+moves it performs well (fixed list in `MOVES`), and quotes the passage that earned the top mark. The
+quote is verified against the post (`passage_found`); the exemplar bank (`judge-top`) only serves verified
+rows with overall ≥ 4. Admin actions on `/api/admin/corpus`: `judge-submit { model, maxUsd, limit?, dryRun? }`
+(estimates tokens and refuses over the cap; `dryRun` spends nothing), `judge-collect { batchId }` (safe to
+repeat; a running batch reports counts), `judge-status`, `judge-top { model?, move?, limit? }`. Tables:
+`writing_scores (thread_key, model)`, `judge_batches`. The pinned SDK predates `output_config` and strict
+tools; the request objects carry them and the API accepts them.
+
 ## Cron Jobs
 
 All protected by `CRON_SECRET` (constant-time comparison via `validateCronSecret()` in `lib/auth.ts`).

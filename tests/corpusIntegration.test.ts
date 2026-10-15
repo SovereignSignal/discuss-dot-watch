@@ -253,3 +253,44 @@ test('writing corpus: a community card is built from stored threads and the cont
   await assert.rejects(() => writingContext('Bad Key', 'proposal'), /invalid_community_spec/);
   await assert.rejects(() => buildCommunityCard({ key: 'empty', genre: 'proposal', name: 'Empty', discourse: { origin: 'https://forum.livepeer.org', categoryIds: [999] } }, { generateText: (async () => '') as never, generateStructured: (async () => null) as never }), /corpus_too_small/);
 });
+
+import { judgeSubmit, judgeCollect, judgeStatus, strongestWriting } from '../src/lib/writingQuality';
+test('writing quality: submit gates on budget, collect verifies passages and builds the exemplar bank', { skip: !testUrl }, async () => {
+  const db = getDb();
+  // Mock Batch API: records the submitted requests and returns a judgement per thread.
+  const submitted: Array<{ custom_id: string; params: { messages: Array<{ content: string }> } }> = [];
+  const api = {
+    create: async ({ requests }: { requests: typeof submitted }) => { submitted.push(...requests); return { id: 'msgbatch_test1', processing_status: 'in_progress' }; },
+    retrieve: async (id: string) => ({ id, processing_status: 'ended', request_counts: { succeeded: submitted.length, errored: 0, processing: 0, canceled: 0, expired: 0 } }),
+    results: async () => (async function* () {
+      for (const [i, r] of submitted.entries()) {
+        const post = /OPENING POST:\n([\s\S]*?)\n\nREPLIES/.exec(r.params.messages[0].content)![1];
+        const passage = i === 0 ? post.slice(0, 60).trim() : 'this sentence is not in the post';
+        yield { custom_id: r.custom_id, result: { type: 'succeeded', message: { content: [{ type: 'tool_use', id: 't', name: 'record_scores',
+          input: { clarity: 4, argument: 5, evidence: 4, concision: 4, disagreement: 3, overall: i === 0 ? 5 : 4, moves: ['opening-a-case'], best_passage: passage, reason: 'Clear ask.' } }],
+          usage: { input_tokens: 1000, output_tokens: 200 } } } };
+      }
+    })(),
+  };
+  const dry = await judgeSubmit({ model: 'claude-haiku-5-5', maxUsd: 1, dryRun: true }, api as never);
+  assert.equal(dry.submitted, false); assert.ok(dry.threads! >= 3, `threads ${dry.threads}`); assert.ok(dry.estimate!.usd < 1);
+  await assert.rejects(() => judgeSubmit({ model: 'claude-opus-5-5', maxUsd: 0.0001 }, api as never), /judge_over_budget/);
+  assert.equal(submitted.length, 0);
+  const sub = await judgeSubmit({ model: 'claude-haiku-5-5', maxUsd: 1 }, api as never);
+  assert.equal(sub.submitted, true); assert.equal(sub.batchId, 'msgbatch_test1'); assert.equal(submitted.length, sub.threads);
+  // The seeded EA posts are under the 400-character floor, so only Discourse threads qualify here.
+  assert.ok(submitted.every(r => r.custom_id.startsWith('discourse:')) && submitted.length >= 3, 'discourse threads over the length floor are judged');
+  const collected = await judgeCollect('msgbatch_test1', api as never);
+  assert.equal(collected.ended, true); assert.equal(collected.succeeded, submitted.length); assert.equal(collected.errored, 0);
+  const rows = await db`SELECT thread_key, overall, passage_found FROM writing_scores WHERE model = 'claude-haiku-5-5' ORDER BY thread_key`;
+  assert.equal(rows.length, submitted.length);
+  assert.equal(rows.filter(r => r.passage_found).length, 1, 'only the real quote is verified');
+  const status = await judgeStatus();
+  assert.equal(status.batches![0].status, 'ended');
+  assert.equal(Number(status.scores![0].scored), submitted.length);
+  const bank = await strongestWriting({ model: 'claude-haiku-5-5' });
+  assert.equal(bank.length, 1, 'bank requires a verified passage');
+  assert.equal(bank[0].custom_id, undefined);
+  // Nothing left to judge for this model; a second submit is a no-op.
+  assert.deepEqual(await judgeSubmit({ model: 'claude-haiku-5-5', maxUsd: 1 }, api as never), { submitted: false, reason: 'nothing_to_judge', threads: 0 });
+});
