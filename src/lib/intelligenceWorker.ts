@@ -28,14 +28,21 @@ async function ensureWorker(){
 }
 let workerReady:Promise<void>|undefined;
 const ready=()=>workerReady??=(ensureWorker().catch(e=>{workerReady=undefined;throw e;}));
-/** Claim fresh unread bodies before the historical corpus. Keep one slot for
- * backlog/reverification when the source cap allows, and prefer untried backlog
- * over repeatedly failing URLs.
+/** Interleave verticals within fresh and backlog work, resuming after the last
+ * vertical actually claimed. Keep one slot for backlog/reverification when the
+ * source cap allows, and prefer untried backlog over repeatedly failing URLs.
  * The per-source cap, retry deadlines and atomic leases still bound every pass. */
 export async function claimHydrationDocuments(limit:number,token:string){
   const db=getDb(),budget=Math.min(50,Math.max(1,limit));
-  return db`WITH due AS (
-      SELECT d.id,d.source_key,d.verified_at,d.body_attempts,
+  return db.begin(async tx=>{
+    // Serialize only claims, never network fetches. Persist the turn so even a
+    // one-body budget rotates across verticals and survives worker restarts.
+    await tx`INSERT INTO intelligence_settings(name,value) VALUES('hydration-queue-cursor','{}'::jsonb) ON CONFLICT DO NOTHING`;
+    const [cursor]=await tx`SELECT value FROM intelligence_settings WHERE name='hydration-queue-cursor' FOR UPDATE`;
+    const fresh=typeof cursor.value?.fresh==='string'?cursor.value.fresh:'';
+    const backlog=typeof cursor.value?.backlog==='string'?cursor.value.backlog:'';
+    const claimed=await tx`WITH due AS (
+      SELECT d.id,d.source_key,s.vertical,d.verified_at,d.body_attempts,
         (NOT d.historical AND d.source_created_at IS NOT NULL AND d.source_created_at>now()-interval '30 days'
           AND d.body_status IN('missing','partial') AND d.body_attempts=0) AS fresh_unseen
       FROM intelligence_documents d JOIN ingestion_sources s USING(source_key)
@@ -44,16 +51,32 @@ export async function claimHydrationDocuments(limit:number,token:string){
         AND (d.body_retry_at IS NULL OR d.body_retry_at<=now()) AND (d.body_lease_until IS NULL OR d.body_lease_until<now())
     ), candidates AS (
       SELECT *,row_number() OVER(PARTITION BY source_key ORDER BY fresh_unseen DESC,body_attempts,verified_at ASC NULLS FIRST,id) AS source_rank FROM due
-    ), ranked AS (
-      SELECT *,row_number() OVER(PARTITION BY fresh_unseen ORDER BY source_rank,body_attempts,verified_at ASC NULLS FIRST,id) AS tier_rank
+    ), verticals AS (
+      SELECT *,row_number() OVER(PARTITION BY fresh_unseen,vertical ORDER BY source_rank,body_attempts,verified_at ASC NULLS FIRST,id) AS vertical_rank
       FROM candidates WHERE source_rank<=2
+    ), ranked AS (
+      SELECT *,row_number() OVER(PARTITION BY fresh_unseen ORDER BY vertical_rank,
+        CASE WHEN vertical>CASE WHEN fresh_unseen THEN ${fresh} ELSE ${backlog} END THEN 0 ELSE 1 END,vertical) AS tier_rank
+      FROM verticals
     ), selected AS (
-      SELECT d.id FROM intelligence_documents d JOIN ranked c ON c.id=d.id
+      SELECT d.id,c.vertical,c.fresh_unseen,c.tier_rank,
+        CASE WHEN NOT c.fresh_unseen AND c.tier_rank=1 AND ${budget}>1 THEN 0 WHEN c.fresh_unseen THEN 1 ELSE 2 END AS priority
+      FROM intelligence_documents d JOIN ranked c ON c.id=d.id
       WHERE d.body_lease_until IS NULL OR d.body_lease_until<now()
-      ORDER BY CASE WHEN NOT c.fresh_unseen AND c.tier_rank=1 AND ${budget}>1 THEN 0 WHEN c.fresh_unseen THEN 1 ELSE 2 END,
-        c.source_rank,c.body_attempts,c.verified_at ASC NULLS FIRST,c.id
+      ORDER BY priority,c.tier_rank
       LIMIT ${budget} FOR UPDATE OF d SKIP LOCKED
-    ) UPDATE intelligence_documents SET body_lease=${token},body_lease_until=now()+interval '5 minutes' WHERE id IN(SELECT id FROM selected) RETURNING *`;
+    ), claimed AS (
+      UPDATE intelligence_documents SET body_lease=${token},body_lease_until=now()+interval '5 minutes'
+      WHERE id IN(SELECT id FROM selected) RETURNING *
+    ) SELECT d.*,s.vertical AS hydration_vertical,s.fresh_unseen FROM claimed d JOIN selected s USING(id) ORDER BY s.priority,s.tier_rank`;
+    let nextFresh=fresh,nextBacklog=backlog;
+    for(const row of claimed){
+      if(row.fresh_unseen)nextFresh=row.hydration_vertical;
+      else nextBacklog=row.hydration_vertical;
+    }
+    if(claimed.length)await tx`UPDATE intelligence_settings SET value=${tx.json({fresh:nextFresh,backlog:nextBacklog})},updated_at=now() WHERE name='hydration-queue-cursor'`;
+    return claimed;
+  });
 }
 export async function hydrateCorpus(limit=6){
   await ready();const db=getDb(),token=randomUUID();
