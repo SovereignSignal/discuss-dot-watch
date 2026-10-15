@@ -117,6 +117,11 @@ const forumIdCache = state.forumIdCache;
 const forumHealthState = state.forumHealthState;
 
 const DEFUNCT_THRESHOLD = 10; // ~2.5 hours of consecutive failures
+/** A successful fetch reactivates the forum row when it recovered from a defunct streak, or when this is
+ * the process's first success for it (the DB flag may be stale from a streak that ended before a deploy). */
+export function forumNeedsReactivation(prev: { consecutiveFailures: number; lastSuccess: number | null }): boolean {
+  return prev.consecutiveFailures >= DEFUNCT_THRESHOLD || prev.lastSuccess === null;
+}
 
 // Cache settings
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -880,9 +885,11 @@ export async function refreshCache(tiers: (1 | 2 | 3)[] = [1, 2]): Promise<void>
               lastAttempt: now,
             });
 
-            // Re-activate in DB if previously marked inactive
-            if (prev.consecutiveFailures >= DEFUNCT_THRESHOLD && isDatabaseConfigured()) {
-              console.log(`[ForumCache] ✓ ${forum.name}: recovered after ${prev.consecutiveFailures} failures — marking active`);
+            // Re-activate in DB if previously marked inactive. The streak counter lives in memory and
+            // resets on every deploy, so a forum marked inactive before a restart would otherwise stay
+            // inactive forever (Uniswap, 2026-10-15): the first success in this process also reactivates.
+            if (forumNeedsReactivation(prev) && isDatabaseConfigured()) {
+              if (prev.consecutiveFailures >= DEFUNCT_THRESHOLD) console.log(`[ForumCache] ✓ ${forum.name}: recovered after ${prev.consecutiveFailures} failures — marking active`);
               updateForumActive(forum.url, true).catch(err =>
                 console.error(`[ForumCache] Failed to mark ${forum.name} active:`, err)
               );
