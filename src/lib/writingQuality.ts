@@ -66,7 +66,7 @@ export function threadPrompt(t: JudgeThread): string {
   const post = t.body.length > MAX_POST_CHARS ? t.body.slice(0, MAX_POST_CHARS) + ' […]' : t.body;
   const replies = t.replies.slice(0, MAX_REPLIES).map((r, i) => `Reply ${i + 1}${r.username ? ` (${r.username})` : ''}: ${r.body.length > MAX_REPLY_CHARS ? r.body.slice(0, MAX_REPLY_CHARS) + ' […]' : r.body}`);
   // Delimited so the rubric can name it as data; the tags are stripped from the text so a post cannot close them early.
-  const clean = (x: string) => x.replace(/<\/?thread>/gi, '');
+  const clean = (x: string) => x.replace(/<\s*\/?\s*thread\b[^>]*>/gi, '');
   return `<thread>\nSource: ${clean(t.source)}\nTitle: ${clean(t.title)}\n\nOPENING POST:\n${clean(post)}\n\nREPLIES (context only, ${t.replies.length} stored):\n${clean(replies.join('\n\n')) || '(none)'}\n</thread>`;
 }
 export const estimateTokens = (text: string) => Math.ceil(text.length / 3.6);
