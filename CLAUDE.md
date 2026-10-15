@@ -510,7 +510,7 @@ quote is verified against the post (`passage_found`); the exemplar bank (`judge-
 rows with overall ≥ 4. Admin actions on `/api/admin/corpus`: `judge-submit { model, maxUsd, limit?, dryRun? }`
 (estimates tokens and refuses over the cap; `dryRun` spends nothing), `judge-collect { batchId }` (safe to
 repeat; a running batch reports counts), `judge-status`, `judge-top { model?, move?, limit? }`. Tables:
-`writing_scores (thread_key, model)`, `judge_batches`. The pinned SDK predates `output_config` and strict
+`writing_scores (thread_key, model)`, `judge_batches`. `GET /api/v1/writing-exemplars?moves=&text=` (privileged, for Longhand's critique) returns the strongest verified rows: two per requested move plus the best term-overlap matches to a draft, with each post's opening. The pinned SDK predates `output_config` and strict
 tools; the request objects carry them and the API accepts them.
 
 ## Cron Jobs
