@@ -464,7 +464,8 @@ harmless `restartPolicy null → set` line (a CLI read-back gap; the live servic
 ## Writing Corpus (category-scoped jobs + thread replies)
 
 The bounded corpus crawler (`corpusWorker.ts`, admin `/api/admin/corpus`) backfills opening posts
-into `topic_documents` for a source and a 7/30/180-day window. Since 2026-10-15 a job may also be
+into `topic_documents` for a source and a 7/30/180/365/730-day window (the long windows exist for quiet
+governance forums; budgets still bound the crawl). Since 2026-10-15 a job may also be
 **category-scoped** (`start` takes `category: { id, slug }`), crawling
 `/c/{slug}/{id}/l/latest.json` instead of `/latest.json` (the slug form is the one Discourse serves;
 id-only redirects). One window can run once per category plus once uncategorised. The bodies phase
