@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
       case 'withdraw': return json(await withdrawCorpusPromotion(data.topicId, data.lane));
     }
   } catch (error) {
+    // Known codes are the response; anything else is logged (message only, never a body) so the cause is in the logs.
+    if (!(error instanceof CorpusError)) console.error('[Corpus admin] operation failed:', error instanceof Error ? `${error.name}: ${error.message.slice(0, 300)}` : String(error).slice(0, 300));
     return json({ error: error instanceof CorpusError ? error.code : 'corpus_operation_failed' }, error instanceof CorpusError ? 422 : 503);
   }
 }
