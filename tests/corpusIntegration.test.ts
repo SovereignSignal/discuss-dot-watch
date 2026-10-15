@@ -207,3 +207,49 @@ test('writing corpus: ForumMagnum top posts become documents and their comments 
   assert.deepEqual(await drainThreadQueue(3, fetch), { claimed: 0, fetched: 0, failed: 0 });
   assert.equal(Number((await db`SELECT count(*)::int AS n FROM intelligence_evaluations e JOIN intelligence_documents d ON d.id = e.document_id WHERE d.ref_id LIKE 'ea-forum:mag%' AND e.notify`)[0].n), 0);
 });
+
+import { buildCommunityCard, writingContext, listCommunityCards } from '../src/lib/writingContext';
+test('writing corpus: a community card is built from stored threads and the context endpoint picks exemplars for a brief', { skip: !testUrl }, async () => {
+  const db = getDb();
+  // Seed a Discourse community: ten fetched proposal threads in category 5 on the pilot forum, two with replies.
+  const forum = (await db`SELECT id FROM forums WHERE url = 'https://forum.dfinity.org/'`)[0];
+  for (let i = 1; i <= 10; i++) {
+    const hot = i >= 8;
+    const t = (await db`INSERT INTO topics (forum_id, discourse_id, title, slug, category_id, tags, created_at, bumped_at, reply_count, like_count, views)
+      VALUES (${forum.id}, ${920000 + i}, ${hot ? `Proposal: treasury grant ${i}` : `Proposal: small change ${i}`}, ${`p-${i}`}, 7, '{}', now() - ${i} * interval '1 day', now(), ${hot ? 30 + i : i % 3}, ${hot ? 20 : 1}, 100)
+      ON CONFLICT (forum_id, discourse_id) DO UPDATE SET title = EXCLUDED.title RETURNING id`)[0];
+    await db`INSERT INTO topic_documents (topic_id, source_key, title, body_text, fetch_status, fetched_at) VALUES (${t.id}, 'internet-computer', ${`Proposal ${i}`},
+      ${hot ? `Summary: we request a treasury grant of ${i * 10}k for liquidity tooling. Budget: ${i * 10}k. Timeline: 3 months. ` + 'detail '.repeat(200) : `Summary: a small change to parameter ${i}. ` + 'detail '.repeat(40)}, 'fetched', now())
+      ON CONFLICT (topic_id) DO UPDATE SET body_text = EXCLUDED.body_text, fetch_status = 'fetched', fetched_at = now()`;
+    if (hot) for (const [n, body, score] of [[2, 'What is the budget breakdown and who owns delivery?', 12], [3, 'Would a smaller pilot work first?', 4]] as const)
+      await db`INSERT INTO topic_posts (topic_id, post_number, source_post_id, username, body_text, score, reads, created_at) VALUES (${t.id}, ${n}, ${920000 * 10 + i * 10 + n}, 'delegate', ${body}, ${score}, 50, now()) ON CONFLICT DO NOTHING`;
+  }
+  const spec = { key: 'icp', genre: 'proposal', name: 'Internet Computer', discourse: { origin: 'https://forum.dfinity.org', categoryIds: [7] } };
+  let cardPromptSeen = '';
+  const card = await buildCommunityCard(spec, {
+    generateStructured: (async () => ({ model: 'fixture-structured', output: { objections: [{ text: 'Budget breakdown and delivery owner', count: 2, example: 'who owns delivery' }] } })) as never,
+    generateText: (async (req: { prompt: string }) => { cardPromptSeen = req.prompt; return '## What this community expects\nShort asks with a budget line.\n## Structure that gets engaged with\nSummary, Budget, Timeline.\n## What readers will ask\nWho owns delivery.\n## Pitfalls seen here\nNo timeline.'; }) as never,
+  });
+  assert.equal(card.stats.threads, 10);
+  assert.equal(card.stats.topTier.threads, 2);
+  assert.deepEqual(card.objections, [{ text: 'Budget breakdown and delivery owner', count: 2, example: 'who owns delivery' }]);
+  assert.match(card.card, /^# Internet Computer: proposal\n_10 threads/);
+  assert.match(card.card, /## Pitfalls seen here/);
+  assert.match(cardPromptSeen, /### Proposal: treasury grant 10 \(40 replies/);
+  assert.equal(card.exemplars[0].tier, 'top');
+  assert.deepEqual((await listCommunityCards()).map(c => [c.key, c.genre, c.threads, c.model]), [['icp', 'proposal', 10, 'fixture-structured']]);
+  // Brief-driven retrieval finds the grant threads; an unrelated brief falls back to engagement order.
+  const ctx = await writingContext('icp', 'proposal', 'We want a treasury grant for liquidity tooling');
+  assert.ok(ctx);
+  assert.equal(ctx!.retrieval, 'brief');
+  assert.ok(ctx!.exemplars.length >= 3);
+  assert.match(ctx!.exemplars[0].title, /treasury grant/);
+  assert.equal(ctx!.exemplars[0].posts[0].body, 'What is the budget breakdown and who owns delivery?');
+  assert.ok(ctx!.exemplars[0].body.length <= 6000);
+  const fallback = await writingContext('icp', 'proposal', 'zzz qqq');
+  assert.equal(fallback!.retrieval, 'engagement');
+  assert.ok(fallback!.exemplars.every(e => e.tier === 'top'));
+  assert.equal(await writingContext('icp', 'missing'), null);
+  await assert.rejects(() => writingContext('Bad Key', 'proposal'), /invalid_community_spec/);
+  await assert.rejects(() => buildCommunityCard({ key: 'empty', genre: 'proposal', name: 'Empty', discourse: { origin: 'https://forum.livepeer.org', categoryIds: [999] } }, { generateText: (async () => '') as never, generateStructured: (async () => null) as never }), /corpus_too_small/);
+});

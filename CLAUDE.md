@@ -484,6 +484,19 @@ uses (a body upgrade, never a second row, always `historical`), and queues each 
 `document_thread_queue`. The ticker drains three queued posts per tick into `document_comments`
 (≤ 40 comments per post, highest-scored first; a 429 returns the rest of the batch to pending).
 
+**Community cards and the writing-context endpoint (same day):** `lib/writingContext.ts`. The admin
+`build-card` action takes a spec (`key`, `genre`, `name`, plus `discourse: { origin, categoryIds }`
+and/or `magnum: { source }`), loads every fetched thread the spec covers (newest 600), tiers them by
+how they landed (top decile of replies×3+score is `top`, zero engagement is `quiet`), computes the
+numbers in code (lengths, replies, which section labels appear, period), mines recurring objections
+from reply snippets with `generateStructured` (an example quote the replies do not contain is
+dropped; singletons are dropped), and has `generateText` write a one-screen card from those numbers
+and five top-tier openings. The numbers header is written by code, never the model. Stored in
+`community_cards(key, genre)`; `list-cards` lists them. `GET /api/v1/writing-context?community=&genre=&brief=`
+(privileged token; internal, for Longhand) returns the card plus 3-5 exemplar threads with bodies
+and their top replies, chosen by term overlap with the brief, or by engagement when the brief
+matches too little (`retrieval` says which).
+
 ## Cron Jobs
 
 All protected by `CRON_SECRET` (constant-time comparison via `validateCronSecret()` in `lib/auth.ts`).

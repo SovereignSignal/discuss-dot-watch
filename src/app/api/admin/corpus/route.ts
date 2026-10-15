@@ -6,6 +6,7 @@ import { CorpusError } from '@/lib/corpusPolicy';
 import { initializeCorpusSchema, startCorpusJob, corpusStatus, pauseCorpusJob, resumeCorpusJob, extendCorpusJob } from '@/lib/corpusStore';
 import { runCorpusTick } from '@/lib/corpusWorker';
 import { importMagnumThreads } from '@/lib/forumMagnumThreads';
+import { buildCommunityCard, listCommunityCards } from '@/lib/writingContext';
 import { classifyCorpusTopic } from '@/lib/corpusClassifier';
 import { initializeCorpusPromotionSchema, promoteCorpusTopic, withdrawCorpusPromotion } from '@/lib/corpusPromotion';
 import { corpusSchemaState } from '@/lib/corpusReadiness';
@@ -20,6 +21,10 @@ const schema = z.discriminatedUnion('action', [
   z.object({action:z.literal('extend'),jobId:z.string().uuid(),maxTopics:z.number().int().min(1).max(2000),maxPages:z.number().int().min(1).max(200)}),
   z.object({ action: z.literal('tick'), jobId: z.string().uuid() }),
   z.object({ action: z.literal('import-threads'), source: z.enum(['ea-forum', 'lesswrong']), after: z.string().datetime(), limit: z.number().int().min(1).max(100).optional() }),
+  z.object({ action: z.literal('build-card'), spec: z.object({ key: z.string(), genre: z.string(), name: z.string(),
+    discourse: z.object({ origin: z.string().url(), categoryIds: z.array(z.number().int().positive()).min(1).max(20) }).optional(),
+    magnum: z.object({ source: z.enum(['ea-forum', 'lesswrong']) }).optional() }) }),
+  z.object({ action: z.literal('list-cards') }),
   z.object({ action: z.literal('pause'), jobId: z.string().uuid() }),
   z.object({ action: z.literal('resume'), jobId: z.string().uuid() }),
   z.object({ action: z.literal('classify'), topicId: z.number().int().positive(), lane: z.enum(['funding','opportunities']) }),
@@ -57,6 +62,8 @@ export async function POST(request: NextRequest) {
       case 'extend':return json(await extendCorpusJob(data.jobId,data.maxTopics,data.maxPages));
       case 'tick': return json(await runCorpusTick(data.jobId));
       case 'import-threads': return json({ ...await importMagnumThreads(data.source, data.after, data.limit), notify: false });
+      case 'build-card': { const card = await buildCommunityCard(data.spec); return json({ key: card.key, genre: card.genre, threads: card.stats.threads, objections: card.objections.length, model: card.model, card: card.card }); }
+      case 'list-cards': return json({ cards: await listCommunityCards() });
       case 'pause': await pauseCorpusJob(data.jobId); return json({ paused: true });
       case 'resume': await resumeCorpusJob(data.jobId); return json({ resumed: true });
       case 'classify': return json(await classifyCorpusTopic(data.topicId, data.lane));
