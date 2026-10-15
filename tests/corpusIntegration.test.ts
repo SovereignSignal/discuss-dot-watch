@@ -172,3 +172,38 @@ test('writing corpus: category-scoped job keeps thread replies from the same fet
   await db`UPDATE corpus_jobs SET status = 'paused' WHERE status IN ('pending','running')`;
   assert.equal(await tickPendingCorpusJob(fetch), null);
 });
+
+import { importMagnumThreads, drainThreadQueue, type MagnumFetch } from '../src/lib/forumMagnumThreads';
+test('writing corpus: ForumMagnum top posts become documents and their comments are drained by the ticker', { skip: !testUrl }, async () => {
+  await initializeCorpusSchema();
+  const db = getDb();
+  const post = (id: string, score: number) => ({ _id: id, title: `EA post ${id}`, slug: `ea-${id}`, postedAt: '2026-09-12T05:03:06Z', modifiedAt: '2026-09-13T00:00:00Z', baseScore: score, voteCount: 10, commentCount: 2, tags: [{ name: 'Funding' }], user: { displayName: 'Author' }, contents: { html: `<p>Body of ${id} asking for $40,000.</p>` } });
+  const calls: string[] = [];
+  const fetch: MagnumFetch = async (endpoint, query) => {
+    calls.push(query);
+    assert.equal(endpoint, 'https://forum.effectivealtruism.org/graphql');
+    if (query.includes('posts(')) return { data: { posts: { results: [post('magA1', 50), post('magB2', 90)] } } };
+    const id = /postId:"(\w+)"/.exec(query)![1];
+    if (id === 'magA1') { const { CorpusError } = await import('../src/lib/corpusPolicy'); throw new CorpusError('upstream_500'); }
+    return { data: { comments: { results: [
+      { _id: 'cm1', parentCommentId: null, postedAt: '2026-09-13T00:00:00Z', baseScore: 12, user: { displayName: 'Delegate' }, contents: { html: '<p>What is the budget?</p>' } },
+      { _id: 'cm2', parentCommentId: 'cm1', postedAt: '2026-09-13T01:00:00Z', baseScore: 3, user: { displayName: 'Author' }, contents: { html: '<p>$40,000 over six months.</p>' } },
+    ] } } };
+  };
+  const imported = await importMagnumThreads('ea-forum', '2026-09-01T00:00:00Z', 10, fetch);
+  assert.deepEqual(imported, { source: 'ea-forum', posts: 2, queued: 2 });
+  // Replaying the import upgrades the same documents; it never creates a second row.
+  await importMagnumThreads('ea-forum', '2026-09-01T00:00:00Z', 10, fetch);
+  const docs = await db`SELECT ref_id, body_status, historical, evidence_scope FROM intelligence_documents WHERE ref_id IN ('ea-forum:magA1','ea-forum:magB2') ORDER BY ref_id`;
+  assert.deepEqual(docs.map(d => [d.ref_id, d.body_status, d.historical, d.evidence_scope]), [['ea-forum:magA1', 'fetched', true, 'native_ea-forum'], ['ea-forum:magB2', 'fetched', true, 'native_ea-forum']]);
+  // Highest score first; a failed thread is marked and not retried in the same pass.
+  const drained = await drainThreadQueue(3, fetch);
+  assert.deepEqual(drained, { claimed: 2, fetched: 1, failed: 1 });
+  const queue = await db`SELECT q.post_id, q.status, q.error, q.fetched_comments FROM document_thread_queue q ORDER BY q.score DESC`;
+  assert.deepEqual(queue.map(q => [q.post_id, q.status, q.error, q.fetched_comments]), [['magB2', 'fetched', null, 2], ['magA1', 'failed', 'upstream_500', null]]);
+  const comments = await db`SELECT c.comment_id, c.parent_comment_id, c.username, c.body_text, c.score FROM document_comments c JOIN intelligence_documents d ON d.id = c.document_id WHERE d.ref_id = 'ea-forum:magB2' ORDER BY c.comment_id`;
+  assert.deepEqual(comments.map(c => [c.comment_id, c.parent_comment_id, c.username, c.body_text, Number(c.score)]), [['cm1', null, 'Delegate', 'What is the budget?', 12], ['cm2', 'cm1', 'Author', '$40,000 over six months.', 3]]);
+  // Nothing left to claim: a no-op, and imports never arm the mail path.
+  assert.deepEqual(await drainThreadQueue(3, fetch), { claimed: 0, fetched: 0, failed: 0 });
+  assert.equal(Number((await db`SELECT count(*)::int AS n FROM intelligence_evaluations e JOIN intelligence_documents d ON d.id = e.document_id WHERE d.ref_id LIKE 'ea-forum:mag%' AND e.notify`)[0].n), 0);
+});

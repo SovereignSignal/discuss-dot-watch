@@ -5,6 +5,7 @@ import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 import { CorpusError } from '@/lib/corpusPolicy';
 import { initializeCorpusSchema, startCorpusJob, corpusStatus, pauseCorpusJob, resumeCorpusJob, extendCorpusJob } from '@/lib/corpusStore';
 import { runCorpusTick } from '@/lib/corpusWorker';
+import { importMagnumThreads } from '@/lib/forumMagnumThreads';
 import { classifyCorpusTopic } from '@/lib/corpusClassifier';
 import { initializeCorpusPromotionSchema, promoteCorpusTopic, withdrawCorpusPromotion } from '@/lib/corpusPromotion';
 import { corpusSchemaState } from '@/lib/corpusReadiness';
@@ -18,6 +19,7 @@ const schema = z.discriminatedUnion('action', [
     category: z.object({ id: z.number().int().positive(), slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/) }).optional() }),
   z.object({action:z.literal('extend'),jobId:z.string().uuid(),maxTopics:z.number().int().min(1).max(2000),maxPages:z.number().int().min(1).max(200)}),
   z.object({ action: z.literal('tick'), jobId: z.string().uuid() }),
+  z.object({ action: z.literal('import-threads'), source: z.enum(['ea-forum', 'lesswrong']), after: z.string().datetime(), limit: z.number().int().min(1).max(100).optional() }),
   z.object({ action: z.literal('pause'), jobId: z.string().uuid() }),
   z.object({ action: z.literal('resume'), jobId: z.string().uuid() }),
   z.object({ action: z.literal('classify'), topicId: z.number().int().positive(), lane: z.enum(['funding','opportunities']) }),
@@ -54,6 +56,7 @@ export async function POST(request: NextRequest) {
       case 'start': return json({ jobId: await startCorpusJob(data.source, data.days, data.asOf,{maxTopics:data.maxTopics,maxPages:data.maxPages,category:data.category}), notify: false });
       case 'extend':return json(await extendCorpusJob(data.jobId,data.maxTopics,data.maxPages));
       case 'tick': return json(await runCorpusTick(data.jobId));
+      case 'import-threads': return json({ ...await importMagnumThreads(data.source, data.after, data.limit), notify: false });
       case 'pause': await pauseCorpusJob(data.jobId); return json({ paused: true });
       case 'resume': await resumeCorpusJob(data.jobId); return json({ resumed: true });
       case 'classify': return json(await classifyCorpusTopic(data.topicId, data.lane));

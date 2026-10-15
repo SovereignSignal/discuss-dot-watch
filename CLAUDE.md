@@ -477,6 +477,13 @@ starts a job automatically. `CORPUS_TICK_DISABLED=true` turns the ticker off. Af
 schema change here, call the admin `initialize` action once: `corpusSchemaState()` reports
 `upgradeRequired` until the new columns and `topic_posts` exist.
 
+**ForumMagnum threads (EA Forum, LessWrong), same day:** `lib/forumMagnumThreads.ts`. The admin
+`import-threads` action (`source`, `after`, `limit` ≤ 100) fetches one page of top posts since a date,
+ingests them as `intelligence_documents` under the same refId and scope the live external observation
+uses (a body upgrade, never a second row, always `historical`), and queues each post in
+`document_thread_queue`. The ticker drains three queued posts per tick into `document_comments`
+(≤ 40 comments per post, highest-scored first; a 429 returns the rest of the batch to pending).
+
 ## Cron Jobs
 
 All protected by `CRON_SECRET` (constant-time comparison via `validateCronSecret()` in `lib/auth.ts`).

@@ -173,7 +173,8 @@ export function startCorpusTickLoop() {
     if (running) return;
     running = true;
     import('./corpusReadiness').then(({ corpusSchemaState }) => corpusSchemaState())
-      .then(state => (state.ready ? tickPendingCorpusJob() : null))
+      // Discourse jobs first, then a few queued ForumMagnum threads; both are bounded per tick.
+      .then(state => state.ready ? tickPendingCorpusJob().then(() => import('./forumMagnumThreads')).then(m => m.drainThreadQueue(3)) : null)
       .catch(err => console.error('[Corpus] tick loop failed:', err instanceof Error ? err.message : err))
       .finally(() => { running = false; });
   }, TICK_INTERVAL_MS);

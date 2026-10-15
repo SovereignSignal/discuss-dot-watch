@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getDb, isDatabaseConfigured } from './db';
 import { ALL_FORUM_PRESETS } from './forumPresets';
 import { CORPUS_VERSION, CorpusError, corpusSource, corpusWindow, parseCategory } from './corpusPolicy';
+import { ensureIntelligence } from './intelligenceStore';
 
 export interface CorpusJob {
   id: string; forum_id: number; source_key: string; as_of: Date; cutoff: Date;
@@ -14,6 +15,8 @@ export interface CorpusJob {
 /** Explicit admin migration. No DDL on startup, public requests or live refresh. */
 export async function initializeCorpusSchema(): Promise<void> {
   const db = getDb();
+  // document_thread_queue and document_comments reference intelligence_documents, which boot creates; tests and a cold admin call may arrive first.
+  await ensureIntelligence();
   await db.begin(async tx => {
     await tx`SET LOCAL lock_timeout = '3s'`;
     await tx`SET LOCAL statement_timeout = '20s'`;
@@ -61,6 +64,21 @@ export async function initializeCorpusSchema(): Promise<void> {
       reply_to INTEGER, score REAL NOT NULL DEFAULT 0, reads INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL, fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (topic_id, post_number)
+    )`;
+    // ForumMagnum threads (EA Forum, LessWrong): posts are intelligence_documents; comments live here. Writing corpus only.
+    await tx`CREATE TABLE IF NOT EXISTS document_thread_queue (
+      document_id INTEGER PRIMARY KEY REFERENCES intelligence_documents(id) ON DELETE CASCADE,
+      source TEXT NOT NULL, post_id TEXT NOT NULL, score REAL NOT NULL DEFAULT 0, comments_total INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','fetched','failed')),
+      attempts INTEGER NOT NULL DEFAULT 0, error TEXT, fetched_comments INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`;
+    await tx`CREATE TABLE IF NOT EXISTS document_comments (
+      document_id INTEGER NOT NULL REFERENCES intelligence_documents(id) ON DELETE CASCADE,
+      comment_id TEXT NOT NULL, parent_comment_id TEXT, username TEXT NOT NULL DEFAULT '',
+      body_text TEXT NOT NULL, truncated BOOLEAN NOT NULL DEFAULT false, score REAL NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL, fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (document_id, comment_id)
     )`;
     await tx`CREATE TABLE IF NOT EXISTS corpus_job_topics (
       job_id UUID NOT NULL REFERENCES corpus_jobs(id) ON DELETE CASCADE,
