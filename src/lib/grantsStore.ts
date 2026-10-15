@@ -126,7 +126,7 @@ export async function getUnnotifiedItems(classification: 'GRANT'|'ROLE', minConf
       AND topic_created_at > NOW() - INTERVAL '30 days'
       AND NOT EXISTS (
         SELECT 1 FROM grants_items mailed WHERE mailed.notified_at > NOW() - INTERVAL '30 days'
-          AND lower(btrim(mailed.title))=lower(btrim(grants_items.title))
+          AND lower(btrim(translate(mailed.title,chr(160),' ')))=lower(btrim(translate(grants_items.title,chr(160),' ')))
       )
     ORDER BY deadline ASC NULLS LAST,id ASC LIMIT ${candidateLimit}
   `;

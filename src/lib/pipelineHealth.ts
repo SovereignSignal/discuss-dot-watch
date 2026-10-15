@@ -88,9 +88,12 @@ export async function getPipelineStats(): Promise<PipelineStats | null> {
     db`SELECT lane, count(*)::int AS n FROM intelligence_evaluations
        WHERE state = 'complete' AND classified_at > now() - interval '24 hours' AND result->>'actionable' = 'true'
        GROUP BY lane`,
-    // Approved in the last 24h and still approved now, once per document: a
-    // later withdrawal shows under held, never under published as well.
-    db`SELECT r.lane, count(DISTINCT r.document_id)::int AS n FROM intelligence_reviews r
+    // Approved in the last 24h and still approved now, once per title as the
+    // brief folds them: a later withdrawal shows under held, never under
+    // published as well, and a crosspost is one item (2026-10-15 brief read
+    // "2 published" over a single Generator entry).
+    db`SELECT r.lane, count(DISTINCT lower(btrim(translate(d.title, chr(160), ' '))))::int AS n FROM intelligence_reviews r
+       JOIN intelligence_documents d ON d.id = r.document_id
        LEFT JOIN funding_records f ON r.lane = 'funding' AND f.document_id = r.document_id
        LEFT JOIN opportunity_records o ON r.lane = 'opportunities' AND o.document_id = r.document_id
        WHERE r.action = 'approve' AND r.created_at > now() - interval '24 hours'

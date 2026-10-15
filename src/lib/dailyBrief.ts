@@ -148,7 +148,7 @@ function groupEntries(items: BriefItemRow[], groupable: (i: BriefItemRow) => boo
 function dedupeByTitle(items: BriefItemRow[]): BriefItemRow[] {
   const seen = new Set<string>();
   return items.filter(i => {
-    const key = i.title.trim().toLowerCase();
+    const key = i.title.replace(/\u00a0/g, ' ').trim().toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
