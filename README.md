@@ -21,7 +21,7 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 
 ## Features
 
-- **Multi-Platform Aggregation** — **337 Discourse forums + 162 external sources** across crypto, AI, and OSS
+- **Multi-Platform Aggregation** — **320 Discourse forums + 151 external sources** across crypto, AI, and OSS
 - **AI-Powered Briefs** — Daily grants and roles email briefs through the shared LLM provider layer (Anthropic default, Ollama Cloud optional)
 - **On-Site Briefs** — Browsable AI digest within the app; top 3 trending also surfaced as a strip on the main Feed
 - **Inline Discussion Reader** — Read posts without leaving the app
@@ -49,8 +49,8 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 ## Supported Platforms
 
 ### Live Now
-- **Discourse (Crypto)** — 124 forums: Uniswap Governance, Aave, Arbitrum, Optimism, ENS, Compound, Gitcoin, Polkadot, Cosmos Hub, plus the long tail
-- **Discourse (AI)** — 61 forums: OpenAI Developer, Hugging Face, Modular (Mojo), Cursor, Weights & Biases, Streamlit, CrewAI, Weaviate, Ray, etc.
+- **Discourse (Crypto)** — 108 forums: Uniswap Governance, Aave, Arbitrum, Optimism, ENS, Compound, Gitcoin, Polkadot, Cosmos Hub, plus the long tail
+- **Discourse (AI)** — 60 forums: OpenAI Developer, Hugging Face, Modular (Mojo), Cursor, Weights & Biases, Streamlit, CrewAI, Weaviate, Ray, etc.
 - **Discourse (OSS)** — 152 forums: Rust, Swift, NixOS, Django, Caddy, Traefik, GitLab, Vercel Community, Gradle, Ziggit, Fly.io, etc.
 - **EA Forum / LessWrong** — GraphQL integration for AI safety and alignment communities
 - **GitHub Discussions** — 60+ repos including LlamaIndex, Argo CD, Cilium, OpenTelemetry, Vite, TanStack Query, Neovim, DuckDB, ClickHouse, Supabase
@@ -146,7 +146,7 @@ src/
 │   ├── db.ts               # PostgreSQL client and queries
 │   ├── auth.ts             # Server-side auth middleware
 │   ├── forumCache.ts       # Server-side forum cache (Redis + memory + Postgres)
-│   ├── forumPresets.ts     # 337 pre-configured Discourse forums
+│   ├── forumPresets.ts     # 320 pre-configured Discourse forums
 │   ├── externalSources.ts  # External source registry
 │   ├── theme.ts            # Legacy adapter to --ds-* design tokens
 │   ├── emailDigest.ts      # AI summarization
