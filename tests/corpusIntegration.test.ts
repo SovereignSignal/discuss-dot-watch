@@ -227,12 +227,13 @@ test('writing corpus: a community card is built from stored threads and the cont
   const spec = { key: 'icp', genre: 'proposal', name: 'Internet Computer', discourse: { origin: 'https://forum.dfinity.org', categoryIds: [7] } };
   let cardPromptSeen = '';
   const card = await buildCommunityCard(spec, {
-    generateStructured: (async () => ({ model: 'fixture-structured', output: { objections: [{ text: 'Budget breakdown and delivery owner', count: 2, example: 'who owns delivery' }] } })) as never,
+    // The model quotes one reply phrase; the count comes from the three hot threads whose replies contain it.
+    generateStructured: (async () => ({ model: 'fixture-structured', output: { objections: [{ text: 'Budget breakdown and delivery owner', examples: ['who owns delivery', 'this phrase is invented'] }] } })) as never,
     generateText: (async (req: { prompt: string }) => { cardPromptSeen = req.prompt; return '## What this community expects\nShort asks with a budget line.\n## Structure that gets engaged with\nSummary, Budget, Timeline.\n## What readers will ask\nWho owns delivery.\n## Pitfalls seen here\nNo timeline.'; }) as never,
   });
   assert.equal(card.stats.threads, 10);
   assert.equal(card.stats.topTier.threads, 2);
-  assert.deepEqual(card.objections, [{ text: 'Budget breakdown and delivery owner', count: 2, example: 'who owns delivery' }]);
+  assert.deepEqual(card.objections, [{ text: 'Budget breakdown and delivery owner', count: 3, example: 'who owns delivery' }]);
   assert.match(card.card, /^# Internet Computer: proposal\n_10 threads/);
   assert.match(card.card, /## Pitfalls seen here/);
   assert.match(cardPromptSeen, /### Proposal: treasury grant 10 \(40 replies/);

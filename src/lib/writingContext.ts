@@ -169,9 +169,11 @@ ${snippets.join('\n')}`;
       const replies = new Set<number>(); let example = '';
       for (const raw of (o.examples as unknown[]).slice(0, 5)) {
         const phrase = typeof raw === 'string' ? raw.trim().slice(0, 300) : '';
-        const at = phrase.length >= 8 ? lines.findIndex(l => l.includes(phrase.toLowerCase().slice(0, 60))) : -1;
-        if (at < 0) continue;
-        replies.add(at); example ||= phrase;
+        if (phrase.length < 8) continue;
+        const needle = phrase.toLowerCase().slice(0, 60);
+        // Every reply that contains the phrase counts, so the same question asked under three posts counts three times.
+        lines.forEach((l, i) => { if (l.includes(needle)) replies.add(i); });
+        if (replies.size) example ||= phrase;
       }
       return { text: String(o.text).trim().slice(0, 300), count: replies.size, example };
     })
