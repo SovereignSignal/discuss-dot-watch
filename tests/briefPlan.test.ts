@@ -250,3 +250,14 @@ test('funding asks fill Also new, fold per community and never become highlights
   assert.match(formatDailyBriefText({ date: new Date(), roles: [], grants: [], asks: plan.rest.flatMap(e => e.items), summary: null }),
     /ALSO NEW[\s\S]*\[Polkadot\] 2 new grant applications[\s\S]*\[Optimism\] Audit subsidy request — up to 250,000 USDC/);
 });
+
+test('withdrawn threads and asset listings never reach Also new', () => {
+  // 2026-10-16: "Withdrawn — Zcash Wallet Finder grant application" and "[Direct-to-AIP] Asset
+  // Listing - syrupUSDG X Layer" were two of the four Also-new rows. Asks skip the publish check.
+  const plan = planBrief([], [], [
+    row({ protocol: 'Zcash', title: 'Withdrawn — Zcash Wallet Finder grant application', amount_max: '3000' }),
+    row({ protocol: 'Aave', title: '[Direct-to-AIP] Asset Listing - syrupUSDG X Layer' }),
+    row({ protocol: 'CoW Protocol', title: 'Grant Application - Simplified Chinese (zh-CN) Localization of CoW Swap UI (Phase 2)', amount_max: '1000', currency: 'USDC' }),
+  ]);
+  assert.deepEqual(plan.rest.map(e => e.protocol), ['CoW Protocol']);
+});

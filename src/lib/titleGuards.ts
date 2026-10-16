@@ -104,6 +104,17 @@ export const EVIDENCE_ASK_RE = /\brequested(?:\s+(?:amount|funding|budget))?\s*:
  *  RFPs; PR #97 review). Funding lane only. */
 export const PERSONAL_REIMBURSEMENT_RE = /\breimburs\w*\b(?:[^.]|\.\d){0,80}?\blost[\s-]+wages?\b/i;
 
+/** A title that is not an ask at all, for the brief's "Also new" stream, which reads funding
+ *  records straight into the email with no publish check (PR #113). Two of the four rows on
+ *  2026-10-16 were "Withdrawn — Zcash Wallet Finder grant application" and "[Direct-to-AIP]
+ *  Asset Listing - syrupUSDG X Layer". Narrow by design: "withdrawn" must open the title or
+ *  close it ("Topic withdrawn"), so a withdrawal analysis is not caught; an onboarding counts
+ *  only under an Aave governance tag and only when a token is onboarded "to/on" an instance,
+ *  so "[TEMP CHECK] Onboard Allora Network as an Aave Risk Service Provider" (a vendor's ask)
+ *  stays. Checked against the corpus 2026-10-16: every Direct-to-AIP/ARFC onboarding title was
+ *  a token listing. */
+export const NOT_AN_ASK_RE = /^\s*\[?withdrawn\]?\b|\btopic\s+withdrawn\s*$|\basset\s+listing\b|^\s*\[(?:arfc|temp\s*check[^\]]*|direct[- ]to[- ]aip)\]\s*onboard\b(?![^|]*\bas\s+an?\b)/i;
+
 /** The kind a title forces regardless of the model's answer, or null. Both
  *  are non-actionable kinds in the canonical lanes. Each guard runs only in
  *  the lane it was validated for: applicant titles in funding, delegate

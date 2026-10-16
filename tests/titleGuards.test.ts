@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateCorpusExtraction, type CorpusClassificationInput } from '@/lib/corpusClassifier';
 import { correctGrantKind } from '@/lib/grantsClassifier';
-import { titleGuardKind, EVIDENCE_ASK_RE, PERSONAL_REIMBURSEMENT_RE, fundingKindFromTitle } from '@/lib/titleGuards';
+import { titleGuardKind, EVIDENCE_ASK_RE, PERSONAL_REIMBURSEMENT_RE, fundingKindFromTitle, NOT_AN_ASK_RE } from '@/lib/titleGuards';
 
 const now = Date.parse('2026-10-06T00:00:00Z');
 const evidence = 'Applications are open until the end of the month for community projects.';
@@ -211,4 +211,25 @@ test('a Snapshot proposal is a vote, never an open call (Oct 10 queue, BIP-933)'
   // The same call on a forum stays an open call; a missing URL changes nothing.
   assert.equal(validateCorpusExtraction(openCall, { ...funding('Builder grants round 3'), url: 'https://dao.rocketpool.net/t/round-42/4070' }, now).actionable, true);
   assert.equal(validateCorpusExtraction(openCall, funding('Builder grants round 3'), now).actionable, true);
+});
+
+test('a withdrawn thread or an asset listing is not an ask for the brief', () => {
+  // The 2026-10-16 brief listed both under "Also new": the asks stream reads funding records
+  // straight into the email and never saw the title guards or the publish check.
+  for (const t of [
+    'Withdrawn — Zcash Wallet Finder grant application',
+    '[withdrawn] Amending PyPA Governance to permit for use of PyPA funds',
+    'Topic withdrawn',
+    '[Direct-to-AIP] Asset Listing - syrupUSDG X Layer',
+    '[Direct to AIP] Onboard syrupUSDG on Aave V4 Global Dollar Hub',
+    '[ARFC] Onboard PT-USDG-28MAY2026 to Aave V3 Core Instance',
+    '[TEMP CHECK] Onboard USSD to Aave V3 Sonic Instance',
+  ]) assert.ok(NOT_AN_ASK_RE.test(t), t);
+  for (const t of [
+    'Grant Application - Simplified Chinese (zh-CN) Localization of CoW Swap UI (Phase 2)',
+    '[TEMP CHECK] Onboard Allora Network as an Aave Risk Service Provider',
+    'Onboarding grants for new contributors',
+    'Lido Whale Withdrawal Analysis: $19B DeFi Redeployment Patterns',
+    '[ARFC] rsETH Incident Funding Update',
+  ]) assert.equal(NOT_AN_ASK_RE.test(t), false, t);
 });
