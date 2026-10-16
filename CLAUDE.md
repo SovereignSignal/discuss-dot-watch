@@ -490,8 +490,9 @@ uses (a body upgrade, never a second row, always `historical`), and queues each 
 and/or `magnum: { source }`), loads every fetched thread the spec covers (newest 600), tiers them by
 how they landed (top decile of replies×3+score is `top`, zero engagement is `quiet`), computes the
 numbers in code (lengths, replies, which section labels appear, period), mines recurring objections
-from reply snippets with `generateStructured` (an example quote the replies do not contain is
-dropped; singletons are dropped), and has `generateText` write a one-screen card from those numbers
+from reply snippets with `generateStructured` (the model names each objection and quotes the replies
+that raise it; the count is computed in code from quotes found in distinct replies, the model's own tally is
+ignored, and an objection evidenced in fewer than two replies is dropped), and has `generateText` write a one-screen card from those numbers
 and five top-tier openings. The numbers header is written by code, never the model. Stored in
 `community_cards(key, genre)`; `list-cards` lists them. `GET /api/v1/writing-context?community=&genre=&brief=`
 (privileged token; internal, for Longhand) returns the card plus 3-5 exemplar threads with bodies
@@ -507,7 +508,7 @@ request per thread: the opening post plus up to eight top replies as context; th
 1-5 on clarity, argument, evidence, concision and handling of disagreement, gives an overall, names the
 moves it performs well (fixed list in `MOVES`), and quotes the passage that earned the top mark. The
 quote is verified against the post (`passage_found`); the exemplar bank (`judge-top`) only serves verified
-rows with overall ≥ 4. Admin actions on `/api/admin/corpus`: `judge-submit { model, maxUsd, limit?, dryRun? }`
+rows with overall ≥ 4. Admin actions on `/api/admin/corpus`: `judge-submit { model, maxUsd, limit?, dryRun?, prior? }` (`prior: { model, minOverall }` points a second judge at the slice a first judge rated at or above a bar, such as Opus over Sonnet's strong rows, instead of the whole corpus)
 (estimates tokens and refuses over the cap; `dryRun` spends nothing), `judge-collect { batchId }` (safe to
 repeat; a running batch reports counts), `judge-status`, `judge-top { model?, move?, limit? }`. Tables:
 `writing_scores (thread_key, model)`, `judge_batches`. `GET /api/v1/writing-exemplars?moves=&text=` (privileged, for Longhand's critique) returns the strongest verified rows: two per requested move plus the best term-overlap matches to a draft, with each post's opening. The pinned SDK predates `output_config` and strict

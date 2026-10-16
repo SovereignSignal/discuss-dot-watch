@@ -44,20 +44,27 @@ const SCORE_SCHEMA = {
 
 export interface JudgeThread { key: string; source: string; title: string; url: string; body: string; replies: Array<{ username: string; body: string; score: number }> }
 
-/** Every stored thread with a fetched body, Discourse and ForumMagnum alike, minus those already scored by this model. */
-export async function loadUnjudgedThreads(model: string, limit = 5000): Promise<JudgeThread[]> {
+/** A second judge can be pointed at the slice a first judge already rated at or above a score, instead of the whole corpus. */
+export interface JudgePrior { model: string; minOverall: number }
+
+/** Every stored thread with a fetched body, Discourse and ForumMagnum alike, minus those already scored by this model; with `prior`, only threads the prior model scored at or above its bar. */
+export async function loadUnjudgedThreads(model: string, limit = 5000, prior?: JudgePrior): Promise<JudgeThread[]> {
   const db = getDb();
+  const priorDiscourse = prior ? db`AND EXISTS (SELECT 1 FROM writing_scores q WHERE q.thread_key = 'discourse:' || t.id AND q.model = ${prior.model} AND q.overall >= ${prior.minOverall})` : db``;
+  const priorMagnum = prior ? db`AND EXISTS (SELECT 1 FROM writing_scores q WHERE q.thread_key = 'magnum:' || d.id AND q.model = ${prior.model} AND q.overall >= ${prior.minOverall})` : db``;
   const discourse = await db`SELECT 'discourse:' || t.id AS key, rtrim(f.url, '/') AS source, t.title, rtrim(f.url, '/') || '/t/' || coalesce(t.slug, 'topic') || '/' || t.discourse_id AS url, d.body_text AS body,
       coalesce((SELECT jsonb_agg(jsonb_build_object('username', p.username, 'body', p.body_text, 'score', p.score) ORDER BY p.score DESC, p.post_number) FROM topic_posts p WHERE p.topic_id = t.id), '[]'::jsonb) AS replies
     FROM topic_documents d JOIN topics t ON t.id = d.topic_id JOIN forums f ON f.id = t.forum_id
     WHERE d.fetch_status = 'fetched' AND NOT d.search_hidden AND length(d.body_text) >= 400
       AND NOT EXISTS (SELECT 1 FROM writing_scores s WHERE s.thread_key = 'discourse:' || t.id AND s.model = ${model})
+      ${priorDiscourse}
     ORDER BY t.id LIMIT ${limit}`;
   const magnum = await db`SELECT 'magnum:' || d.id AS key, split_part(d.ref_id, ':', 1) AS source, d.title, d.url, d.body,
       coalesce((SELECT jsonb_agg(jsonb_build_object('username', c.username, 'body', c.body_text, 'score', c.score) ORDER BY c.score DESC) FROM document_comments c WHERE c.document_id = d.id), '[]'::jsonb) AS replies
     FROM intelligence_documents d JOIN document_thread_queue q ON q.document_id = d.id
     WHERE d.body_status = 'fetched' AND NOT d.hidden AND length(d.body) >= 400
       AND NOT EXISTS (SELECT 1 FROM writing_scores s WHERE s.thread_key = 'magnum:' || d.id AND s.model = ${model})
+      ${priorMagnum}
     ORDER BY d.id LIMIT ${Math.max(0, limit - discourse.length)}`;
   return [...discourse, ...magnum].map(r => ({ key: String(r.key), source: String(r.source), title: String(r.title), url: String(r.url), body: String(r.body),
     replies: (r.replies as JudgeThread['replies']).map(p => ({ username: String(p.username || ''), body: String(p.body || ''), score: Number(p.score) || 0 })) }));
@@ -71,8 +78,9 @@ export function threadPrompt(t: JudgeThread): string {
   const clean = (x: string) => { let prev: string; do { prev = x; x = x.replace(/<\s*\/?\s*thread\b[^>]*>/gi, ''); } while (x !== prev); return x; };
   return `<thread>\nSource: ${clean(t.source)}\nTitle: ${clean(t.title)}\n\nOPENING POST:\n${clean(post)}\n\nREPLIES (context only, ${t.replies.length} stored):\n${clean(replies.join('\n\n')) || '(none)'}\n</thread>`;
 }
-// Calibrated on the first Sonnet 5.5 batch: 485 threads estimated at 1.16M input tokens, billed 1.63M.
-export const estimateTokens = (text: string) => Math.ceil(text.length / 2.6);
+// Calibrated on three Sonnet 5.5 batches: at 2.6 chars/token the 4,545- and 5,000-thread runs billed 13-14% over the
+// estimate (10.43M → 11.82M, 11.09M → 12.64M input tokens), so 2.3 lands within a few percent.
+export const estimateTokens = (text: string) => Math.ceil(text.length / 2.3);
 export function estimateCost(model: JudgeModel, prompts: string[]) {
   const inputTokens = prompts.reduce((n, p) => n + estimateTokens(p) + estimateTokens(RUBRIC) + 250, 0);
   const outputTokens = prompts.length * 320;
@@ -116,11 +124,12 @@ function anthropic(): Anthropic {
 }
 
 /** Estimate, gate on the cap, submit one batch. `dryRun` returns the estimate without spending. */
-export async function judgeSubmit(opts: { model: JudgeModel; limit?: number; maxUsd: number; dryRun?: boolean }, api: Pick<Anthropic['messages']['batches'], 'create'> | null = null) {
+export async function judgeSubmit(opts: { model: JudgeModel; limit?: number; maxUsd: number; dryRun?: boolean; prior?: JudgePrior }, api: Pick<Anthropic['messages']['batches'], 'create'> | null = null) {
   if (!JUDGE_MODELS[opts.model]) throw new CorpusError('invalid_judge_model');
   if (!Number.isFinite(opts.maxUsd) || opts.maxUsd <= 0 || opts.maxUsd > 100) throw new CorpusError('invalid_judge_budget');
+  if (opts.prior && (opts.prior.model === opts.model || !Number.isInteger(opts.prior.minOverall) || opts.prior.minOverall < 1 || opts.prior.minOverall > 5)) throw new CorpusError('invalid_judge_prior');
   await ensureWritingQualitySchema();
-  const threads = await loadUnjudgedThreads(opts.model, Math.min(20000, Math.max(1, opts.limit ?? 5000)));
+  const threads = await loadUnjudgedThreads(opts.model, Math.min(20000, Math.max(1, opts.limit ?? 5000)), opts.prior);
   if (!threads.length) return { submitted: false, reason: 'nothing_to_judge', threads: 0 };
   const requests = threads.map(t => buildRequest(opts.model, t));
   const estimate = estimateCost(opts.model, requests.map(r => r.params.messages[0].content));
@@ -207,6 +216,13 @@ export async function strongestWriting(opts: { model?: string; move?: string; li
     FROM writing_scores WHERE passage_found AND overall >= 4 AND (${opts.model ?? ''} = '' OR model = ${opts.model ?? ''}) AND (${opts.move ?? ''} = '' OR ${opts.move ?? ''} = ANY(moves))
     ORDER BY overall DESC, argument DESC, clarity DESC LIMIT ${take}`;
   return rows;
+}
+
+/** Query parsing for the exemplars route, kept out of the route so the exact request Longhand sends can be tested. A missing or blank number keeps its default. */
+export function exemplarQuery(p: URLSearchParams) {
+  const num = (k: string, d: number) => { const raw = p.get(k); if (raw === null || !raw.trim()) return d; const n = Number(raw); return Number.isInteger(n) ? n : d; };
+  return { moves: (p.get('moves') || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 8), text: (p.get('text') || '').slice(0, 20000),
+    perMove: num('perMove', 2), byOverlap: num('byOverlap', 3), model: p.get('model') || undefined };
 }
 
 export interface ExemplarHit { threadKey: string; source: string; title: string; url: string; moves: string[]; overall: number; scores: { clarity: number; argument: number; evidence: number; concision: number; disagreement: number }; passage: string; reason: string; opening: string; matchedTerms: number }
