@@ -119,3 +119,17 @@ test('the footer names what was held and why, capped at five lines', () => {
   assert.ok(!formatDailyBriefHtml(brief).includes('<i>x</i>'));
   assert.deepEqual(pipelineLines({ stats, health: { level: 'ok', reasons: [] } }, now).held, []);
 });
+
+test('one document held in both lanes for the same reason is one footer line', () => {
+  // "PAID Research Interview: Seeking Gitcoin stewards" appeared twice on 2026-10-16, once per lane.
+  const held = [
+    { title: 'PAID Research Interview', lane: 'funding' as const, reason: 'first seen over 48h after posting' },
+    { title: 'PAID Research Interview', lane: 'opportunities' as const, reason: 'first seen over 48h after posting' },
+    { title: 'Other call', lane: 'funding' as const, reason: 'no quoted evidence' },
+  ];
+  const lines = pipelineLines({ stats: { ...stats, held }, health: { level: 'ok', reasons: [] } }, now);
+  assert.deepEqual(lines.held, [
+    'Held: PAID Research Interview (funding, opportunities: first seen over 48h after posting)',
+    'Held: Other call (funding: no quoted evidence)',
+  ]);
+});

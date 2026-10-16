@@ -16,6 +16,7 @@ import { escapeHtml } from './sanitize';
 import { isAllowedUrl } from './url';
 import { generateText } from './llm';
 import { roleKindLabel, grantKindLabel } from './roleKinds';
+import { NOT_AN_ASK_RE } from './titleGuards';
 import { getUnnotifiedItems, getFundingAsks, markItemsNotified, markExpiredUnnotified, BriefItemRow } from './grantsStore';
 import { sendEmail } from './emailService';
 import { getDb } from './db';
@@ -191,7 +192,7 @@ export function planBrief(roles: BriefItemRow[], grants: BriefItemRow[], asks: B
   const uniqueGrants = dedupeByTitle(grants);
   // An ask is context, never a highlight, whatever its size; a title already in the batch wins.
   const seen = new Set(uniqueGrants.map(g => titleKey(g.title)));
-  const newAsks = dedupeByTitle(asks).filter(a => !seen.has(titleKey(a.title)));
+  const newAsks = dedupeByTitle(asks).filter(a => !seen.has(titleKey(a.title)) && !NOT_AN_ASK_RE.test(a.title));
   const main = uniqueGrants.filter(g => !isElsewhere(g));
   const other = uniqueGrants.filter(isElsewhere);
   const singles = (items: BriefItemRow[]) => items.map(g => ({ protocol: displayProtocol(g.protocol), items: [g] }));
@@ -239,8 +240,16 @@ export function pipelineLines(p: NonNullable<DailyBriefContent['pipeline']>, now
     // "2 actionable → 0 published" read as a malfunction when it was the gate
     // working (2026-10-12 brief). Name each held item and the rule that held it.
     held: (() => {
-      const held = stats.held ?? [];
-      const lines = held.slice(0, MAX_HELD_LINES).map(h => `Held: ${safeTitle(h.title)} (${h.lane}: ${h.reason})`);
+      // One document judged in both lanes is one line (the Gitcoin paid interview, 2026-10-16).
+      const merged = new Map<string, { title: string; reason: string; lanes: string[] }>();
+      for (const h of stats.held ?? []) {
+        const key = `${h.title}\u0000${h.reason}`;
+        const entry = merged.get(key) ?? { title: h.title, reason: h.reason, lanes: [] };
+        entry.lanes.push(h.lane);
+        merged.set(key, entry);
+      }
+      const held = [...merged.values()];
+      const lines = held.slice(0, MAX_HELD_LINES).map(h => `Held: ${safeTitle(h.title)} (${h.lanes.join(', ')}: ${h.reason})`);
       if (held.length > MAX_HELD_LINES) lines.push(`+${held.length - MAX_HELD_LINES} more held`);
       return lines;
     })(),
