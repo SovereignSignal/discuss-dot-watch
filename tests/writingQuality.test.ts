@@ -1,6 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRequest, estimateCost, parseScore, threadPrompt, customId, keyFromCustomId, RUBRIC, MOVES, type JudgeThread } from '../src/lib/writingQuality';
+import { buildRequest, estimateCost, estimateTokens, exemplarQuery, parseScore, threadPrompt, customId, keyFromCustomId, RUBRIC, MOVES, type JudgeThread } from '../src/lib/writingQuality';
+
+test('the exemplars query Longhand actually sends (moves and text only) keeps the per-move and overlap defaults', () => {
+  // Number(null) is 0, so a missing parameter used to zero both budgets and every critique got the generic top three.
+  const longhand = new URL('https://www.discuss.watch/api/v1/writing-exemplars?moves=sizing-an-ask%2Ccalling-to-action&text=draft+text').searchParams;
+  assert.deepEqual(exemplarQuery(longhand), { moves: ['sizing-an-ask', 'calling-to-action'], text: 'draft text', perMove: 2, byOverlap: 3, model: undefined });
+  const explicit = new URLSearchParams('moves=&perMove=4&byOverlap=0&model=claude-opus-5-5&text=');
+  assert.deepEqual(exemplarQuery(explicit), { moves: [], text: '', perMove: 4, byOverlap: 0, model: 'claude-opus-5-5' });
+  assert.equal(exemplarQuery(new URLSearchParams('perMove=lots&byOverlap=')).perMove, 2);
+  assert.equal(exemplarQuery(new URLSearchParams('perMove=lots&byOverlap=')).byOverlap, 3);
+});
 
 const thread: JudgeThread = { key: 'discourse:1', source: 'https://gov.example.org', title: 'Proposal: fund the thing', url: 'https://gov.example.org/t/x/1',
   body: 'We propose to fund the thing. '.repeat(40), replies: [{ username: 'a', body: 'What is the budget?', score: 9 }, { username: 'b', body: 'x'.repeat(2000), score: 2 }] };
@@ -25,11 +35,14 @@ test('a batch request carries the rubric, the thread, a strict tool and low effo
 });
 test('cost estimate applies the batch discount and scales with input', () => {
   const one = estimateCost('claude-haiku-5-5', ['a'.repeat(3600)]);
-  // 3600 chars at 2.3 chars/token (calibrated on three batches) plus the rubric and overhead.
-  assert.ok(one.inputTokens > 1000 && one.inputTokens < 3000, `haiku tokens ${one.inputTokens}`);
+  // Per prompt: the text and the rubric at the calibrated chars-per-token rate, plus a fixed overhead. Derived, not a
+  // magic range: the range version went red on main the first time the rate was recalibrated.
+  const perPrompt = (chars: number) => estimateTokens('a'.repeat(chars)) + estimateTokens(RUBRIC) + 250;
+  assert.equal(one.inputTokens, perPrompt(3600));
   assert.equal(one.outputTokens, 320);
   const sonnet = estimateCost('claude-sonnet-5-5', Array.from({ length: 1000 }, () => 'a'.repeat(7200)));
-  assert.ok(sonnet.usd > 2 && sonnet.usd < 6, `sonnet estimate ${sonnet.usd}`);
+  assert.equal(sonnet.inputTokens, 1000 * perPrompt(7200));
+  assert.ok(sonnet.usd > 1 && sonnet.usd < 12, `sonnet estimate ${sonnet.usd}`);
   assert.ok(estimateCost('claude-opus-5-5', ['a'.repeat(7200)]).usd > estimateCost('claude-haiku-5-5', ['a'.repeat(7200)]).usd);
 });
 test('scores are validated, moves filtered to the allowed list, strings bounded', () => {

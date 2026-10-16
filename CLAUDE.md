@@ -490,8 +490,9 @@ uses (a body upgrade, never a second row, always `historical`), and queues each 
 and/or `magnum: { source }`), loads every fetched thread the spec covers (newest 600), tiers them by
 how they landed (top decile of replies×3+score is `top`, zero engagement is `quiet`), computes the
 numbers in code (lengths, replies, which section labels appear, period), mines recurring objections
-from reply snippets with `generateStructured` (an example quote the replies do not contain is
-dropped; singletons are dropped), and has `generateText` write a one-screen card from those numbers
+from reply snippets with `generateStructured` (the model names each objection and quotes the replies
+that raise it; the count is computed in code from quotes found in distinct replies, the model's own tally is
+ignored, and an objection evidenced in fewer than two replies is dropped), and has `generateText` write a one-screen card from those numbers
 and five top-tier openings. The numbers header is written by code, never the model. Stored in
 `community_cards(key, genre)`; `list-cards` lists them. `GET /api/v1/writing-context?community=&genre=&brief=`
 (privileged token; internal, for Longhand) returns the card plus 3-5 exemplar threads with bodies

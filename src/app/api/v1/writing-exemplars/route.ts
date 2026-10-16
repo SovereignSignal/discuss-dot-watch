@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAuth, isAuthError } from '@/lib/auth';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
-import { writingExemplars } from '@/lib/writingQuality';
+import { writingExemplars, exemplarQuery } from '@/lib/writingQuality';
 import { isDatabaseConfigured } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -20,12 +20,8 @@ export async function GET(request: NextRequest) {
   const rate = checkRateLimit(`writing-exemplars:${getRateLimitKey(request)}`, { windowMs: 60_000, maxRequests: 30 });
   if (!rate.allowed) return json({ error: 'rate_limited' }, 429);
   if (!isDatabaseConfigured()) return json({ configured: false }, 503);
-  const p = request.nextUrl.searchParams;
-  const moves = (p.get('moves') || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 8);
-  const text = (p.get('text') || '').slice(0, 20000);
-  const num = (k: string, d: number) => { const n = Number(p.get(k)); return Number.isInteger(n) ? n : d; };
   try {
-    const exemplars = await writingExemplars({ moves, text, perMove: num('perMove', 2), byOverlap: num('byOverlap', 3), model: p.get('model') || undefined });
+    const exemplars = await writingExemplars(exemplarQuery(request.nextUrl.searchParams));
     return json({ configured: true, exemplars });
   } catch { return json({ error: 'writing_exemplars_failed' }, 503); }
 }

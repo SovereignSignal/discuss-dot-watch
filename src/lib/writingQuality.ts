@@ -218,6 +218,13 @@ export async function strongestWriting(opts: { model?: string; move?: string; li
   return rows;
 }
 
+/** Query parsing for the exemplars route, kept out of the route so the exact request Longhand sends can be tested. A missing or blank number keeps its default. */
+export function exemplarQuery(p: URLSearchParams) {
+  const num = (k: string, d: number) => { const raw = p.get(k); if (raw === null || !raw.trim()) return d; const n = Number(raw); return Number.isInteger(n) ? n : d; };
+  return { moves: (p.get('moves') || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 8), text: (p.get('text') || '').slice(0, 20000),
+    perMove: num('perMove', 2), byOverlap: num('byOverlap', 3), model: p.get('model') || undefined };
+}
+
 export interface ExemplarHit { threadKey: string; source: string; title: string; url: string; moves: string[]; overall: number; scores: { clarity: number; argument: number; evidence: number; concision: number; disagreement: number }; passage: string; reason: string; opening: string; matchedTerms: number }
 /**
  * Exemplars for a critique: the strongest verified writing, two per requested move plus the best term-overlap

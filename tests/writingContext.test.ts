@@ -46,19 +46,22 @@ test('tiers, stats and exemplars come from the numbers, not the model', () => {
   assert.match(snippets[0], /^\[Thread 10\] What is the total budget/);
   assert.ok(!snippets.some(s => s.includes('Thanks, great work')));
 });
-test('objections are mined by the model but a quote the replies do not contain is dropped, and singletons are dropped', async () => {
+test('objections are mined by the model but counted in code from quotes found in distinct replies; the model tally is ignored', async () => {
   const threads = corpus(), tiers = tierThreads(threads), spec = parseSpec({ key: 'k', genre: 'proposal', name: 'Example', magnum: { source: 'ea-forum' } });
   let prompt = '';
   const generate = async (req: { prompt: string }) => { prompt = req.prompt; return { model: 'fixture', output: { objections: [
-    { text: 'Who owns delivery', count: 2, example: 'who owns delivery' }, { text: 'Budget breakdown', count: 3, example: 'this phrase was invented' }, { text: 'Only once', count: 1, example: 'smaller pilot' }] } }; };
+    // Two quotes from two different replies: count 2. Three quotes but one invented and two from the same reply: count 1, dropped.
+    { text: 'Who owns delivery', examples: ['who owns delivery', 'Who owns delivery and what are the milestones?'] },
+    { text: 'Budget breakdown', count: 999, examples: ['this phrase was invented', 'What is the budget breakdown', 'the budget breakdown?'] },
+    { text: 'Only once', examples: ['smaller pilot first'] }, { text: 'Nothing quoted', examples: [] }] } }; };
   const mined = await mineObjections(replySnippets(threads, tiers), spec, generate as never);
   assert.match(prompt, /replies to proposal posts on Example/);
-  assert.deepEqual(mined.objections.map(o => [o.text, o.count, o.example]), [['Budget breakdown', 3, ''], ['Who owns delivery', 2, 'who owns delivery']]);
+  assert.deepEqual(mined.objections.map(o => [o.text, o.count, o.example]), [['Who owns delivery', 2, 'who owns delivery']]);
   assert.equal(mined.model, 'fixture');
   assert.deepEqual(await mineObjections(['too', 'few'], spec, generate as never), { objections: [], model: null });
   const text = cardPrompt(spec, computeStats(threads, tiers), mined.objections, pickExemplars(threads, tiers), threads);
   assert.match(text, /median length \d+ words/);
-  assert.match(text, /Budget breakdown \(3\)/);
+  assert.match(text, /Who owns delivery \(2\)/);
   assert.match(text, /### Thread 10 \(40 replies, score 30\)/);
   assert.match(text, /## Pitfalls seen here/);
 });

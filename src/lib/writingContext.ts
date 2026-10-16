@@ -145,23 +145,36 @@ export function replySnippets(threads: CorpusThread[], tiers: Map<string, Exempl
 }
 
 const OBJECTIONS_SCHEMA = { type: 'object', properties: { objections: { type: 'array', maxItems: 10, items: { type: 'object',
-  properties: { text: { type: 'string' }, count: { type: 'integer' }, example: { type: 'string' } }, required: ['text', 'count', 'example'] } } }, required: ['objections'] };
+  properties: { text: { type: 'string' }, examples: { type: 'array', maxItems: 5, items: { type: 'string' } } }, required: ['text', 'examples'] } } }, required: ['objections'] };
+/**
+ * Recurring objections, with the recurrence counted in code: the model names each objection and quotes the replies
+ * that raise it; a quote the replies do not contain is dropped, and the count is the number of distinct replies the
+ * surviving quotes come from. The model's own tally is never used. An objection ends up in Longhand's reviewer panel
+ * as something the writer must answer, so one it cannot evidence in at least two replies stays out.
+ */
 export async function mineObjections(snippets: string[], spec: CommunitySpec, generate = generateStructured): Promise<{ objections: Objection[]; model: string | null }> {
   if (snippets.length < 5) return { objections: [], model: null };
   const prompt = `These are replies to ${spec.genre} posts on ${spec.name}. Each line is one reply, prefixed by the post title in brackets.
 Find the questions and objections that recur across different posts: what readers ask for, push back on, or require before they support something.
-Return at most 10, each as a short general statement (not tied to one post), with how many replies raise it and one verbatim example phrase copied from a reply.
+Return at most 10, each as a short general statement (not tied to one post), with up to five verbatim example phrases copied exactly from different replies that raise it.
 Skip praise, logistics and anything raised by only one reply.
 
 ${snippets.join('\n')}`;
-  const result = await generate({ prompt, maxTokens: 1500, schema: OBJECTIONS_SCHEMA, toolName: 'record_objections', toolDescription: 'Record recurring questions and objections from replies.', context: `WritingContext:${spec.key}` });
+  const result = await generate({ prompt, maxTokens: 2000, schema: OBJECTIONS_SCHEMA, toolName: 'record_objections', toolDescription: 'Record recurring questions and objections from replies.', context: `WritingContext:${spec.key}` });
   if (!result) return { objections: [], model: null };
   const list = Array.isArray(result.output.objections) ? result.output.objections : [];
-  const joined = snippets.join('\n').toLowerCase();
-  const objections = list.map(o => record(o)).filter(o => typeof o.text === 'string' && o.text.trim() && typeof o.example === 'string')
-    .map(o => ({ text: String(o.text).trim().slice(0, 300), count: Number.isSafeInteger(o.count) ? Math.max(1, Number(o.count)) : 1, example: String(o.example).trim().slice(0, 300) }))
-    // An example the replies do not contain is the model's invention; keep the objection, drop the quote.
-    .map(o => ({ ...o, example: joined.includes(o.example.toLowerCase().slice(0, 60)) ? o.example : '' }))
+  const lines = snippets.map(s => s.toLowerCase());
+  const objections = list.map(o => record(o)).filter(o => typeof o.text === 'string' && o.text.trim() && Array.isArray(o.examples))
+    .map(o => {
+      const replies = new Set<number>(); let example = '';
+      for (const raw of (o.examples as unknown[]).slice(0, 5)) {
+        const phrase = typeof raw === 'string' ? raw.trim().slice(0, 300) : '';
+        const at = phrase.length >= 8 ? lines.findIndex(l => l.includes(phrase.toLowerCase().slice(0, 60))) : -1;
+        if (at < 0) continue;
+        replies.add(at); example ||= phrase;
+      }
+      return { text: String(o.text).trim().slice(0, 300), count: replies.size, example };
+    })
     .filter(o => o.count >= 2).sort((a, b) => b.count - a.count).slice(0, 10);
   return { objections, model: result.model };
 }
