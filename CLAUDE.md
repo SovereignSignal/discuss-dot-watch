@@ -442,6 +442,7 @@ Tags in raw API response can be strings OR objects — handle both.
 | `REALMS_DISABLED` | `true` disables all Realms fetching (kill switch) |
 | `ANTICAPTURE_API_KEY` | Anticapture governance terminal (`/governance`); optional — dashboards degrade gracefully when unset. Production uses Blockful's key (Railway). |
 | `ENCRYPTION_KEY` | AES-256-GCM for delegate API keys |
+| `WRITING_CONTEXT_TOKEN` | Optional read-only Bearer token for the two writing surfaces (`/api/v1/writing-context`, `/api/v1/writing-exemplars`) so Longhand's local config never holds `CRON_SECRET`. The privileged tokens still work there. |
 | `NEXT_PUBLIC_APP_URL` | Public app URL (brief email links) |
 
 The app functions without these in development (gracefully degrades).
@@ -495,7 +496,7 @@ that raise it; the count is computed in code from quotes found in distinct repli
 ignored, and an objection evidenced in fewer than two replies is dropped), and has `generateText` write a one-screen card from those numbers
 and five top-tier openings. The numbers header is written by code, never the model. Stored in
 `community_cards(key, genre)`; `list-cards` lists them. `GET /api/v1/writing-context?community=&genre=&brief=`
-(privileged token; internal, for Longhand) returns the card plus 3-5 exemplar threads with bodies
+(privileged token or `WRITING_CONTEXT_TOKEN`; internal, for Longhand) returns the card plus 3-5 exemplar threads with bodies
 and their top replies, chosen by term overlap with the brief, or by engagement when the brief
 matches too little (`retrieval` says which).
 
@@ -511,7 +512,7 @@ quote is verified against the post (`passage_found`); the exemplar bank (`judge-
 rows with overall ≥ 4. Admin actions on `/api/admin/corpus`: `judge-submit { model, maxUsd, limit?, dryRun?, prior? }` (`prior: { model, minOverall }` points a second judge at the slice a first judge rated at or above a bar, such as Opus over Sonnet's strong rows, instead of the whole corpus)
 (estimates tokens and refuses over the cap; `dryRun` spends nothing), `judge-collect { batchId }` (safe to
 repeat; a running batch reports counts), `judge-status`, `judge-top { model?, move?, limit? }`. Tables:
-`writing_scores (thread_key, model)`, `judge_batches`. `GET /api/v1/writing-exemplars?moves=&text=` (privileged, for Longhand's critique) returns the strongest verified rows: two per requested move plus the best term-overlap matches to a draft, with each post's opening. The pinned SDK predates `output_config` and strict
+`writing_scores (thread_key, model)`, `judge_batches`. `GET /api/v1/writing-exemplars?moves=&text=` (privileged token or `WRITING_CONTEXT_TOKEN`, for Longhand's critique) returns the strongest verified rows: two per requested move plus the best term-overlap matches to a draft, with each post's opening. The pinned SDK predates `output_config` and strict
 tools; the request objects carry them and the API accepts them.
 
 ## Cron Jobs

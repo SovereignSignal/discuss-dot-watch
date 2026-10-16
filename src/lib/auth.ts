@@ -73,6 +73,21 @@ export async function verifyAdminAuth(
 }
 
 /**
+ * Verify read access to the writing-context surfaces (community cards, exemplars). Accepts the
+ * privileged tokens, or WRITING_CONTEXT_TOKEN: a read-only token Longhand can hold on a laptop
+ * without holding the key that starts crawls and sends email. Unset means only the privileged tokens work.
+ */
+export async function verifyWritingReadAuth(
+  request: NextRequest,
+): Promise<AuthResult | AuthError> {
+  const token = extractBearerToken(request);
+  if (isPrivilegedToken(token)) return { userId: 'admin', isSuperAdmin: true };
+  if (token && matchesSecret(token, process.env.WRITING_CONTEXT_TOKEN)) return { userId: 'writing-reader' };
+  if (!token) return { error: 'Missing Authorization header', status: 401 };
+  return { error: 'Unauthorized', status: 403 };
+}
+
+/**
  * Verify tenant-scoped admin access. With no user accounts, a valid
  * CRON_SECRET / ADMIN_SECRET grants super-admin access to every tenant.
  */
