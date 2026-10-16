@@ -50,6 +50,7 @@ export default defineRailway(() => {
       REDIS_URL: preserve(),
       RESEND_API_KEY: preserve(),
       RESEND_FROM_EMAIL: preserve(),
+      WRITING_CONTEXT_TOKEN: preserve(),
     },
   });
   return project("discuss-dot-watch", {

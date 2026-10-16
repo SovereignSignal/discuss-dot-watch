@@ -3,10 +3,10 @@
  *
  * Internal surface for Longhand: the community card for a (community, genre) plus 3-5 exemplar
  * threads chosen for the brief (full-text overlap within the community; engagement order when the
- * brief matches too little). Privileged token only; cards are built by the admin `build-card` action.
+ * brief matches too little). Privileged token or WRITING_CONTEXT_TOKEN; cards are built by the admin `build-card` action.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAuth, isAuthError } from '@/lib/auth';
+import { verifyWritingReadAuth, isAuthError } from '@/lib/auth';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 import { CorpusError } from '@/lib/corpusPolicy';
 import { writingContext } from '@/lib/writingContext';
@@ -17,7 +17,7 @@ export const runtime = 'nodejs';
 const json = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAdminAuth(request);
+  const auth = await verifyWritingReadAuth(request);
   if (isAuthError(auth)) return json({ error: auth.error }, auth.status);
   const rate = checkRateLimit(`writing-context:${getRateLimitKey(request)}`, { windowMs: 60_000, maxRequests: 30 });
   if (!rate.allowed) return json({ error: 'rate_limited' }, 429);
