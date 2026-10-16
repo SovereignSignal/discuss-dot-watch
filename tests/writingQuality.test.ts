@@ -25,7 +25,7 @@ test('a batch request carries the rubric, the thread, a strict tool and low effo
 });
 test('cost estimate applies the batch discount and scales with input', () => {
   const one = estimateCost('claude-haiku-5-5', ['a'.repeat(3600)]);
-  // 3600 chars at 2.6 chars/token (#129 calibration) plus the rubric and overhead.
+  // 3600 chars at 2.3 chars/token (calibrated on three batches) plus the rubric and overhead.
   assert.ok(one.inputTokens > 1000 && one.inputTokens < 3000, `haiku tokens ${one.inputTokens}`);
   assert.equal(one.outputTokens, 320);
   const sonnet = estimateCost('claude-sonnet-5-5', Array.from({ length: 1000 }, () => 'a'.repeat(7200)));

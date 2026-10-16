@@ -507,7 +507,7 @@ request per thread: the opening post plus up to eight top replies as context; th
 1-5 on clarity, argument, evidence, concision and handling of disagreement, gives an overall, names the
 moves it performs well (fixed list in `MOVES`), and quotes the passage that earned the top mark. The
 quote is verified against the post (`passage_found`); the exemplar bank (`judge-top`) only serves verified
-rows with overall ≥ 4. Admin actions on `/api/admin/corpus`: `judge-submit { model, maxUsd, limit?, dryRun? }`
+rows with overall ≥ 4. Admin actions on `/api/admin/corpus`: `judge-submit { model, maxUsd, limit?, dryRun?, prior? }` (`prior: { model, minOverall }` points a second judge at the slice a first judge rated at or above a bar, such as Opus over Sonnet's strong rows, instead of the whole corpus)
 (estimates tokens and refuses over the cap; `dryRun` spends nothing), `judge-collect { batchId }` (safe to
 repeat; a running batch reports counts), `judge-status`, `judge-top { model?, move?, limit? }`. Tables:
 `writing_scores (thread_key, model)`, `judge_batches`. `GET /api/v1/writing-exemplars?moves=&text=` (privileged, for Longhand's critique) returns the strongest verified rows: two per requested move plus the best term-overlap matches to a draft, with each post's opening. The pinned SDK predates `output_config` and strict

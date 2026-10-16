@@ -26,7 +26,7 @@ const schema = z.discriminatedUnion('action', [
     discourse: z.object({ origin: z.string().url(), categoryIds: z.array(z.number().int().positive()).min(1).max(20) }).optional(),
     magnum: z.object({ source: z.enum(['ea-forum', 'lesswrong']) }).optional() }) }),
   z.object({ action: z.literal('list-cards') }),
-  z.object({ action: z.literal('judge-submit'), model: z.enum(['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5']), limit: z.number().int().min(1).max(20000).optional(), maxUsd: z.number().positive().max(100), dryRun: z.boolean().optional() }),
+  z.object({ action: z.literal('judge-submit'), model: z.enum(['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5']), limit: z.number().int().min(1).max(20000).optional(), maxUsd: z.number().positive().max(100), dryRun: z.boolean().optional(), prior: z.object({ model: z.string().min(1).max(60), minOverall: z.number().int().min(1).max(5) }).optional() }),
   z.object({ action: z.literal('judge-collect'), batchId: z.string().min(5).max(100) }),
   z.object({ action: z.literal('judge-status') }),
   z.object({ action: z.literal('judge-top'), model: z.string().max(60).optional(), move: z.string().max(60).optional(), limit: z.number().int().min(1).max(100).optional() }),
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       case 'import-threads': return json({ ...await importMagnumThreads(data.source, data.after, data.limit), notify: false });
       case 'build-card': { const card = await buildCommunityCard(data.spec); return json({ key: card.key, genre: card.genre, threads: card.stats.threads, objections: card.objections.length, model: card.model, card: card.card }); }
       case 'list-cards': return json({ cards: await listCommunityCards() });
-      case 'judge-submit': return json(await judgeSubmit({ model: data.model, limit: data.limit, maxUsd: data.maxUsd, dryRun: data.dryRun }));
+      case 'judge-submit': return json(await judgeSubmit({ model: data.model, limit: data.limit, maxUsd: data.maxUsd, dryRun: data.dryRun, prior: data.prior }));
       case 'judge-collect': return json(await judgeCollect(data.batchId));
       case 'judge-status': return json(await judgeStatus());
       case 'judge-top': return json({ items: await strongestWriting({ model: data.model, move: data.move, limit: data.limit }) });
