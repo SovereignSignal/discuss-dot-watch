@@ -5,7 +5,7 @@
 
 ## What This Site Does
 
-discuss.watch aggregates discussions from 100+ Discourse-based forums across three verticals:
+discuss.watch aggregates discussions from 320 Discourse-based forums and 151 external sources across three verticals:
 - **Crypto**: Governance forums (Arbitrum, Uniswap, Aave, ENS, Optimism, etc.)
 - **AI/ML**: Research and developer communities (OpenAI, Hugging Face, PyTorch, etc.)
 - **Open Source**: Programming languages and projects (Rust, Swift, NixOS, Godot, etc.)
