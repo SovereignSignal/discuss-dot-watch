@@ -3,7 +3,7 @@
   "info": {
     "title": "discuss.watch API",
     "version": "1.0.0",
-    "description": "Unified forum feed API for crypto, AI, and open source communities. Aggregates 100+ Discourse forums."
+    "description": "Unified forum feed API for crypto, AI, and open source communities. Aggregates 320 Discourse forums and 151 external sources."
   },
   "servers": [
     {

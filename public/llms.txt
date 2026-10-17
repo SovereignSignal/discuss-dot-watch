@@ -1,7 +1,7 @@
 # discuss.watch — AI/Agent Instructions
 
 > Unified forum feed for crypto, AI, and open source communities.
-> 100+ Discourse forums aggregated into one API.
+> 320 Discourse forums and 151 external sources aggregated into one API.
 
 ## What This Site Does
 
@@ -64,9 +64,9 @@ Responses are cached (5 min for discussions, 1 min for search).
 ## Categories
 
 Three top-level categories (legacy subcategory IDs are still accepted as aliases):
-- crypto: Blockchain protocols, DeFi, DAOs, governance (~77 forums)
-- ai: AI/ML research, safety, developer platforms (~7 forums)
-- oss: Programming languages, frameworks, infrastructure (~18 forums)
+- crypto: Blockchain protocols, DeFi, DAOs, governance (108 forums)
+- ai: AI/ML research, safety, developer platforms (60 forums)
+- oss: Programming languages, frameworks, infrastructure (152 forums)
 
 ## RSS/Atom Feeds
 

@@ -24,7 +24,7 @@ const API_BASE = process.env.DISCUSS_WATCH_API || 'https://discuss.watch/api/v1'
 const TOOLS = [
   {
     name: 'search_discussions',
-    description: 'Search for discussions across 100+ forums covering crypto governance, AI/ML, and open source communities. Returns matching discussions with titles, URLs, and metadata.',
+    description: 'Search for discussions across 320 forums covering crypto governance, AI/ML, and open source communities. Returns matching discussions with titles, URLs, and metadata.',
     inputSchema: {
       type: 'object',
       properties: {
