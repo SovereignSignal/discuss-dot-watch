@@ -6,7 +6,7 @@
 
 Three verticals: **Crypto** (DAO governance, proposals, grants), **AI/ML** (safety funding, research, tooling), **Open Source** (foundation governance, funding, maintainer discussions).
 
-Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Realms/SPL Governance, Hacker News, Lobsters), **310+ forums + 150+ external sources**, one Daily Brief email (new grants + roles from classified data, Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy), per-vertical color coding, command menu (Cmd+K), mobile responsive, no login required, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
+Key capabilities: multi-platform aggregation (Discourse, EA Forum, GitHub Discussions, Snapshot, Realms/SPL Governance, Hacker News, Lobsters), **320 Discourse forums + 151 external sources**, one Daily Brief email (new grants + roles from classified data, Resend), inline discussion reader, keyword alerts, bookmark folders, read/unread tracking with collapse, dark/light theme, density modes (Compact/Standard/Cozy), per-vertical color coding, command menu (Cmd+K), mobile responsive, no login required, server-side cache (Redis + Postgres), multi-tenant forum analytics dashboards, governance proposal tracking, Snapshot voting integration with per-proposal attribution, embeddable governance widgets, MCP endpoint.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for roadmap, [docs/FORUM_TARGETS.md](./docs/FORUM_TARGETS.md) for platform targets.
 

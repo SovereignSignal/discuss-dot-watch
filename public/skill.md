@@ -1,7 +1,7 @@
 ---
 name: discuss-watch
 version: 1.0.0
-description: Unified forum feed for crypto, AI, and open source communities. 220+ Discourse forums + 75+ external sources aggregated.
+description: Unified forum feed for crypto, AI, and open source communities. 320 Discourse forums + 151 external sources aggregated.
 homepage: https://discuss.watch
 api_base: https://discuss.watch/api/v1
 ---
@@ -12,7 +12,7 @@ Unified forum feed for crypto, AI, and open source communities.
 
 ## What You Can Do
 
-- **Search** discussions across 220+ Discourse forums + 75+ external sources (GitHub Discussions, Snapshot, EA Forum, LessWrong, Hacker News)
+- **Search** discussions across 320 Discourse forums + 151 external sources (GitHub Discussions, Snapshot, EA Forum, LessWrong, Hacker News)
 - **Monitor** activity in specific communities or verticals
 - **Track** trending/hot discussions
 - **Subscribe** to RSS feeds for updates
@@ -99,13 +99,13 @@ Search discussions.
 Three top-level categories (legacy subcategory IDs are still accepted as aliases):
 
 ### Crypto
-- `crypto` — Blockchain protocols, DeFi, DAOs, governance (~100 forums)
+- `crypto` — Blockchain protocols, DeFi, DAOs, governance (108 forums)
 
 ### AI / ML
-- `ai` — AI/ML research, safety, developer platforms (~25 forums)
+- `ai` — AI/ML research, safety, developer platforms (60 forums)
 
 ### Open Source
-- `oss` — Programming languages, frameworks, infrastructure (~95 forums)
+- `oss` — Programming languages, frameworks, infrastructure (152 forums)
 
 ## Example Use Cases
 

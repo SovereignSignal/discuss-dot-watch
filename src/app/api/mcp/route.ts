@@ -22,7 +22,7 @@ export async function GET() {
     tools: [
       {
         name: 'search_discussions',
-        description: 'Search for discussions across 100+ forums. Use this to find specific topics, proposals, or conversations.',
+        description: 'Search for discussions across 320 forums. Use this to find specific topics, proposals, or conversations.',
         inputSchema: {
           type: 'object',
           properties: {
