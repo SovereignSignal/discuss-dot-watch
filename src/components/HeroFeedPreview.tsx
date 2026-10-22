@@ -1,4 +1,4 @@
-import { MessageSquare, Eye, Clock, LayoutGrid, Newspaper, FolderOpen, Landmark, Bookmark, Sparkles } from 'lucide-react';
+import { MessageSquare, Eye, Clock, LayoutGrid, Newspaper, FolderOpen, Bookmark, Sparkles } from 'lucide-react';
 import { TickerBadge } from '@/components/ui/TickerBadge';
 import type { Vertical } from '@/components/ui/TickerBadge';
 
@@ -92,7 +92,6 @@ const NAV_ITEMS = [
   { label: 'Feed', icon: LayoutGrid, active: true },
   { label: 'Briefs', icon: Newspaper },
   { label: 'Communities', icon: FolderOpen },
-  { label: 'Governance', icon: Landmark },
   { label: 'Saved', icon: Bookmark },
 ] as const;
 

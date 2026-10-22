@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper, Landmark, BriefcaseBusiness } from 'lucide-react';
+import { LayoutGrid, FolderOpen, Settings, Bookmark, Sun, Moon, Menu, X, Shield, Newspaper, BriefcaseBusiness } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useTenantRoles } from '@/hooks/useTenantRoles';
@@ -24,14 +24,11 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
   const isDark = theme === 'dark';
   const { isSuperAdmin } = useTenantRoles();
   
-  // View-toggle items have no href; an href makes the item a route link (e.g. the
-  // standalone /governance terminal, which lives outside the /app SPA).
-  const navItems: Array<{ id: typeof activeView | 'governance'; label: string; icon: LucideIcon; count?: number; href?: string }> = [
+  const navItems: Array<{ id: typeof activeView; label: string; icon: LucideIcon; count?: number }> = [
     { id: 'feed', label: 'Feed', icon: LayoutGrid },
     { id: 'briefs', label: 'Briefs', icon: Newspaper },
     { id: 'opportunities', label: 'Opportunities', icon: BriefcaseBusiness },
     { id: 'projects', label: 'Communities', icon: FolderOpen },
-    { id: 'governance', label: 'Governance', icon: Landmark, href: '/governance' },
     { id: 'saved', label: 'Saved', icon: Bookmark, count: savedCount },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -118,15 +115,9 @@ export function Sidebar({ activeView, onViewChange, theme, onToggleTheme, densit
               );
               return (
                 <li key={item.id}>
-                  {item.href ? (
-                    <Link href={item.href} onClick={() => { if (isMobileOpen) onMobileToggle(); }} className={cls} style={style} onMouseEnter={onEnter} onMouseLeave={onLeave}>
-                      {inner}
-                    </Link>
-                  ) : (
-                    <button onClick={() => handleNavClick(item.id as typeof activeView)} className={cls} style={style} onMouseEnter={onEnter} onMouseLeave={onLeave}>
-                      {inner}
-                    </button>
-                  )}
+                  <button onClick={() => handleNavClick(item.id)} className={cls} style={style} onMouseEnter={onEnter} onMouseLeave={onLeave}>
+                    {inner}
+                  </button>
                 </li>
               );
             })}

@@ -69,7 +69,6 @@ function Wordmark({ size = 'sm' }: { size?: 'sm' | 'md' }) {
 
 const NAV = [
   { href: '/#coverage', label: 'Coverage' },
-  { href: '/governance', label: 'Governance' },
   { href: '/api/v1', label: 'API' },
 ];
 

@@ -36,8 +36,6 @@ export default defineRailway(() => {
     // them, or the next apply deletes them.
     env: {
       ADMIN_EMAILS: preserve(),
-      ANTHROPIC_API_KEY: preserve(),
-      ANTICAPTURE_API_KEY: preserve(),
       CRON_SECRET: preserve(),
       DATABASE_URL: preserve(),
       ENCRYPTION_KEY: preserve(),
