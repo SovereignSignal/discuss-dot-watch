@@ -41,7 +41,6 @@ Aggregates discussions from Discourse forums, GitHub Discussions, EA Forum, Snap
 - **Governance Proposal Tracking** — Parse forum categories for proposals with status tracking (open/voting/closed/implemented); per-proposal Snapshot voter attribution
 - **Snapshot Voting Integration** — Per-tenant Snapshot space data, vote breakdown bars, governance scores
 - **Embeddable Governance Widget** — Iframe-friendly widget and CORS-enabled JSON API for external dApps
-- **Governance Terminals** — Anticapture-backed treasury, delegation, proposal, turnout, and delegate-accountability views for 11 DAOs
 - **Public API** — REST API at `/api/v1/`, MCP endpoint, RSS/Atom feeds by vertical
 
 ---
@@ -123,7 +122,6 @@ src/
 │   │   ├── discourse/      # Discourse proxy + topic fetching
 │   │   ├── discussions/    # Paginated cross-forum discussions
 │   │   ├── briefs/         # AI-powered trending briefs
-│   │   ├── anticapture/    # DAO governance analytics
 │   │   ├── delegates/      # Forum analytics / delegate monitoring
 │   │   ├── external-sources/ # EA Forum, GitHub, Snapshot, HN
 │   │   ├── admin/          # Admin dashboard
@@ -176,7 +174,6 @@ docs/
 | `/api/briefs` | GET | Zero-cost discovery (trending + new from cache) |
 | `/api/external-sources` | GET | Fetch from non-Discourse sources |
 | `/api/validate-discourse` | GET | Validate if a URL is a Discourse forum |
-| `/api/anticapture/[dao]` | GET | Cached DAO governance snapshot |
 
 ### Forum Analytics / Delegates
 | Route | Method | Purpose |

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Search, Bell, Bookmark, Eye, Newspaper, Landmark, Keyboard } from 'lucide-react';
+import { ArrowRight, Search, Bell, Bookmark, Eye, Newspaper, Keyboard } from 'lucide-react';
 import { getTotalForumCount, getForumsByCategory } from '@/lib/forumPresets';
 import { getEnabledExternalSources } from '@/lib/externalSources';
 import { MarketingChrome, MarketingLink } from '@/components/MarketingChrome';
@@ -42,7 +42,6 @@ const FEATURES = [
   { icon: Newspaper, title: 'Daily brief', body: 'Trending and new threads, summarized once a day.' },
   { icon: Eye, title: 'Read tracking', body: 'Already-seen threads collapse so the inbox stays short.' },
   { icon: Bookmark, title: 'Saved folders', body: 'Bookmark a thread and file it without making an account.' },
-  { icon: Landmark, title: 'Governance', body: 'Per-DAO terminals: turnout, idle VP, and forum-linked votes.' },
   { icon: Keyboard, title: 'Command menu', body: 'Cmd+K to jump views, forums, and density without the mouse.' },
 ];
 
